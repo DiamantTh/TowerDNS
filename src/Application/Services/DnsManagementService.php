@@ -1,108 +1,156 @@
 <?php
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 TowerDNS contributors
 
 declare(strict_types=1);
 
 namespace TowerDNS\Application\Services;
 
+use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\DTO\ProviderSummaryDTO;
 use TowerDNS\Application\Exception\CapabilityException;
+use TowerDNS\Application\Provider\ProviderRegistry;
+use TowerDNS\Application\Validation\DnsNameValidator;
+use TowerDNS\Application\Validation\RecordValidator;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\Zone;
 
+/**
+ * Provider-neutral orchestration of DNS workflows.
+ *
+ * Every public method
+ *  1. performs a central RBAC check via {@see AuthorizationService},
+ *  2. resolves the addressed provider through the {@see ProviderRegistry},
+ *  3. verifies that the provider advertises the required capability,
+ *  4. normalises user-supplied input where applicable, and
+ *  5. delegates to the provider adapter.
+ */
 final class DnsManagementService
 {
     public function __construct(
         private readonly AuthorizationService $authorizationService,
-        private readonly DnsProviderInterface $provider
+        private readonly ProviderRegistry $providers,
     ) {
+    }
+
+    /**
+     * @return list<ProviderSummaryDTO>
+     */
+    public function listProviders(User $user): array
+    {
+        $this->authorizationService->assert($user, Permission::ZONE_READ);
+
+        return $this->providers->summaries();
     }
 
     /**
      * @return list<Zone>
      */
-    public function listZones(User $user): array
+    public function listZones(User $user, string $providerId): array
     {
         $this->authorizationService->assert($user, Permission::ZONE_READ);
+        $provider = $this->resolve($providerId, Capability::ZONE_LIST);
 
-        return $this->provider->listZones();
+        return $provider->listZones();
     }
 
-    public function createZone(User $user, string $zoneName): Zone
+    public function createZone(User $user, string $providerId, string $zoneName): Zone
     {
         $this->authorizationService->assert($user, Permission::ZONE_CREATE);
-        $this->assertCapability('zone.create');
+        $provider = $this->resolve($providerId, Capability::ZONE_CREATE);
 
-        return $this->provider->createZone($zoneName);
+        return $provider->createZone(DnsNameValidator::normalise($zoneName));
     }
 
-    public function deleteZone(User $user, string $zoneId): void
+    public function deleteZone(User $user, string $providerId, string $zoneId): void
     {
         $this->authorizationService->assert($user, Permission::ZONE_DELETE);
-        $this->assertCapability('zone.delete');
+        $provider = $this->resolve($providerId, Capability::ZONE_DELETE);
 
-        $this->provider->deleteZone($zoneId);
+        $provider->deleteZone($zoneId);
     }
 
     /**
      * @return list<Record>
      */
-    public function listRecords(User $user, string $zoneId): array
+    public function listRecords(User $user, string $providerId, string $zoneId): array
     {
         $this->authorizationService->assert($user, Permission::RECORD_READ);
+        $provider = $this->resolve($providerId, Capability::RECORD_LIST);
 
-        return $this->provider->listRecords($zoneId);
+        return $provider->listRecords($zoneId);
     }
 
-    public function createRecord(User $user, Record $record): Record
+    public function createRecord(User $user, string $providerId, Record $record): Record
     {
         $this->authorizationService->assert($user, Permission::RECORD_CREATE);
-        $this->assertCapability('record.create');
+        $provider = $this->resolve($providerId, Capability::RECORD_CREATE);
 
-        return $this->provider->createRecord($record);
+        RecordValidator::assertTtl($record->ttl);
+        RecordValidator::assertContent($record->type, $record->content);
+
+        return $provider->createRecord($record);
     }
 
-    public function updateRecord(User $user, Record $record): Record
+    public function updateRecord(User $user, string $providerId, Record $record): Record
     {
         $this->authorizationService->assert($user, Permission::RECORD_UPDATE);
-        $this->assertCapability('record.update');
+        $provider = $this->resolve($providerId, Capability::RECORD_UPDATE);
 
-        return $this->provider->updateRecord($record);
+        RecordValidator::assertTtl($record->ttl);
+        RecordValidator::assertContent($record->type, $record->content);
+
+        return $provider->updateRecord($record);
     }
 
-    public function deleteRecord(User $user, string $zoneId, string $recordId): void
+    public function deleteRecord(User $user, string $providerId, string $zoneId, string $recordId): void
     {
         $this->authorizationService->assert($user, Permission::RECORD_DELETE);
-        $this->assertCapability('record.delete');
+        $provider = $this->resolve($providerId, Capability::RECORD_DELETE);
 
-        $this->provider->deleteRecord($zoneId, $recordId);
+        $provider->deleteRecord($zoneId, $recordId);
     }
 
-    public function getDnssecProfile(User $user, string $zoneId): DnssecProfile
+    public function getDnssecProfile(User $user, string $providerId, string $zoneId): DnssecProfile
     {
         $this->authorizationService->assert($user, Permission::DNSSEC_STATUS_READ);
-        $this->assertCapability('dnssec.status.read');
+        $provider = $this->resolve($providerId, Capability::DNSSEC_STATUS_READ);
 
-        return $this->provider->getDnssecProfile($zoneId);
+        return $provider->getDnssecProfile($zoneId);
     }
 
     /**
      * @param array<string, scalar|array<array-key, scalar>|null> $payload
      */
-    public function executeDnssecAction(User $user, string $zoneId, string $action, array $payload = []): DnssecProfile
-    {
+    public function executeDnssecAction(
+        User $user,
+        string $providerId,
+        string $zoneId,
+        string $action,
+        array $payload = [],
+    ): DnssecProfile {
         $this->authorizationService->assert($user, Permission::DNSSEC_ACTION_EXECUTE);
-        $this->assertCapability('dnssec.action.execute');
+        $provider = $this->resolve($providerId, Capability::DNSSEC_ACTION_EXECUTE);
 
-        return $this->provider->executeDnssecAction($zoneId, $action, $payload);
+        return $provider->executeDnssecAction($zoneId, $action, $payload);
     }
 
-    private function assertCapability(string $capability): void
+    private function resolve(string $providerId, string $capability): DnsProviderInterface
     {
-        if (!$this->provider->capabilities()->supports($capability)) {
-            throw new CapabilityException(sprintf('Provider %s unterstuetzt %s nicht.', $this->provider->id(), $capability));
+        $provider = $this->providers->get($providerId);
+
+        if (!$provider->capabilities()->supports($capability)) {
+            throw new CapabilityException(sprintf(
+                'Provider "%s" unterstuetzt die Capability "%s" nicht.',
+                $provider->id(),
+                $capability,
+            ));
         }
+
+        return $provider;
     }
 }
