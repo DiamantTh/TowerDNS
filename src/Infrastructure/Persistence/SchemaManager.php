@@ -1,0 +1,243 @@
+<?php
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 TowerDNS contributors
+
+declare(strict_types=1);
+
+namespace TowerDNS\Infrastructure\Persistence;
+
+use Doctrine\DBAL\ArrayParameterType;
+use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Schema\Table;
+use Doctrine\DBAL\Types\Types;
+use TowerDNS\Domain\Auth\Permission;
+
+/**
+ * Manages the TowerDNS database schema using Doctrine DBAL's schema API.
+ *
+ * Call {@see createTablesIfNotExist()} once during installation or on first
+ * boot to ensure all required tables are present.  The method is idempotent —
+ * existing tables are never dropped or altered.
+ *
+ * Call {@see seedSystemRoles()} after table creation to populate the built-in
+ * roles defined in the RBAC documentation.  Existing rows are left untouched.
+ *
+ * Table creation order matters because of foreign-key constraints:
+ *   roles → role_permissions → users → user_roles
+ */
+final class SchemaManager
+{
+    public function __construct(private readonly Connection $connection)
+    {
+    }
+
+    /**
+     * Creates every application table that does not yet exist.
+     * Safe to call on every boot — existing tables are never touched.
+     */
+    public function createTablesIfNotExist(): void
+    {
+        $sm       = $this->connection->createSchemaManager();
+        $existing = array_map('strtolower', $sm->listTableNames());
+
+        foreach ($this->buildTables() as $table) {
+            if (!in_array(strtolower($table->getName()), $existing, true)) {
+                $sm->createTable($table);
+            }
+        }
+    }
+
+    /**
+     * Returns true when all application tables are present.
+     */
+    public function schemaExists(): bool
+    {
+        $sm = $this->connection->createSchemaManager();
+        return $sm->tablesExist(['users', 'roles', 'role_permissions', 'user_roles']);
+    }
+
+    /**
+     * Inserts built-in system roles when they are absent.
+     *
+     * System roles: viewer, editor, dnssec_op, provider_op, iam_admin, superadmin.
+     * Rows that already exist are left untouched.
+     */
+    public function seedSystemRoles(): void
+    {
+        $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+
+        /** @var array<string, array{name: string, permissions: list<Permission>}> $definitions */
+        $definitions = [
+            'viewer' => [
+                'name'        => 'Viewer',
+                'permissions' => [
+                    Permission::ZONE_LIST,
+                    Permission::ZONE_READ,
+                    Permission::RECORD_READ,
+                    Permission::DNSSEC_STATUS_READ,
+                ],
+            ],
+            'editor' => [
+                'name'        => 'Editor',
+                'permissions' => [
+                    Permission::ZONE_LIST,
+                    Permission::ZONE_READ,
+                    Permission::ZONE_CREATE,
+                    Permission::ZONE_UPDATE,
+                    Permission::RECORD_READ,
+                    Permission::RECORD_CREATE,
+                    Permission::RECORD_UPDATE,
+                    Permission::RECORD_DELETE,
+                    Permission::DNSSEC_STATUS_READ,
+                ],
+            ],
+            'dnssec_op' => [
+                'name'        => 'DNSSEC Operator',
+                'permissions' => [
+                    Permission::ZONE_LIST,
+                    Permission::ZONE_READ,
+                    Permission::RECORD_READ,
+                    Permission::DNSSEC_STATUS_READ,
+                    Permission::DNSSEC_ACTION_EXECUTE,
+                ],
+            ],
+            'provider_op' => [
+                'name'        => 'Provider Operator',
+                'permissions' => [
+                    Permission::PROVIDER_CREDENTIALS_MANAGE,
+                    Permission::PROVIDER_CONFIG_MANAGE,
+                ],
+            ],
+            'iam_admin' => [
+                'name'        => 'IAM Administrator',
+                'permissions' => [
+                    Permission::USER_MANAGE,
+                    Permission::ROLE_MANAGE,
+                ],
+            ],
+            'superadmin' => [
+                'name'        => 'Super Administrator',
+                'permissions' => Permission::cases(),
+            ],
+        ];
+
+        foreach ($definitions as $id => $def) {
+            $exists = $this->connection->fetchOne(
+                'SELECT id FROM roles WHERE id = ?',
+                [$id],
+            );
+
+            if ($exists !== false) {
+                continue;
+            }
+
+            $this->connection->insert('roles', [
+                'id'         => $id,
+                'name'       => $def['name'],
+                'is_system'  => true,
+                'created_at' => $now,
+            ]);
+
+            foreach ($def['permissions'] as $permission) {
+                $this->connection->insert('role_permissions', [
+                    'role_id'    => $id,
+                    'permission' => $permission->value,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Seeds the first superadmin user.  Only inserts when the users table is
+     * empty — safe to call as part of the web installer flow.
+     *
+     * $passwordHash MUST already be the output of {@see password_hash()}.
+     */
+    public function seedFirstUser(string $id, string $email, string $passwordHash): void
+    {
+        $count = $this->connection->fetchOne('SELECT COUNT(*) FROM users');
+        if ($count !== false && (int) $count > 0) {
+            return;
+        }
+
+        $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+
+        $this->connection->insert('users', [
+            'id'            => $id,
+            'email'         => $email,
+            'password_hash' => $passwordHash,
+            'totp_secret'   => null,
+            'active'        => true,
+            'created_at'    => $now,
+            'updated_at'    => $now,
+        ]);
+
+        $this->connection->insert('user_roles', [
+            'user_id' => $id,
+            'role_id' => 'superadmin',
+        ]);
+    }
+
+    /**
+     * Builds the canonical set of DBAL Table objects in dependency order.
+     *
+     * @return list<Table>
+     */
+    private function buildTables(): array
+    {
+        // roles ---------------------------------------------------------------
+        $roles = new Table('roles');
+        $roles->addColumn('id', Types::STRING, ['length' => 64]);
+        $roles->addColumn('name', Types::STRING, ['length' => 255]);
+        $roles->addColumn('is_system', Types::BOOLEAN, ['default' => false]);
+        $roles->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $roles->setPrimaryKey(['id']);
+
+        // role_permissions ----------------------------------------------------
+        $rolePerms = new Table('role_permissions');
+        $rolePerms->addColumn('role_id', Types::STRING, ['length' => 64]);
+        $rolePerms->addColumn('permission', Types::STRING, ['length' => 64]);
+        $rolePerms->setPrimaryKey(['role_id', 'permission']);
+        $rolePerms->addForeignKeyConstraint(
+            'roles',
+            ['role_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_rp_role_id',
+        );
+
+        // users ---------------------------------------------------------------
+        $users = new Table('users');
+        $users->addColumn('id', Types::GUID);
+        $users->addColumn('email', Types::STRING, ['length' => 255]);
+        $users->addColumn('password_hash', Types::STRING, ['length' => 255]);
+        $users->addColumn('totp_secret', Types::STRING, ['length' => 255, 'notnull' => false]);
+        $users->addColumn('active', Types::BOOLEAN, ['default' => true]);
+        $users->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $users->addColumn('updated_at', Types::DATETIME_MUTABLE);
+        $users->setPrimaryKey(['id']);
+        $users->addUniqueIndex(['email'], 'uq_users_email');
+
+        // user_roles ----------------------------------------------------------
+        $userRoles = new Table('user_roles');
+        $userRoles->addColumn('user_id', Types::GUID);
+        $userRoles->addColumn('role_id', Types::STRING, ['length' => 64]);
+        $userRoles->setPrimaryKey(['user_id', 'role_id']);
+        $userRoles->addForeignKeyConstraint(
+            'users',
+            ['user_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_ur_user_id',
+        );
+        $userRoles->addForeignKeyConstraint(
+            'roles',
+            ['role_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_ur_role_id',
+        );
+
+        return [$roles, $rolePerms, $users, $userRoles];
+    }
+}
