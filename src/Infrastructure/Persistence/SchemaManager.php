@@ -153,7 +153,7 @@ final class SchemaManager
      *
      * $passwordHash MUST already be the output of {@see password_hash()}.
      */
-    public function seedFirstUser(string $id, string $email, string $passwordHash): void
+    public function seedFirstUser(string $id, string $email, string $passwordHash, string $displayName = ''): void
     {
         $count = $this->connection->fetchOne('SELECT COUNT(*) FROM users');
         if ($count !== false && (int) $count > 0) {
@@ -165,9 +165,13 @@ final class SchemaManager
         $this->connection->insert('users', [
             'id'            => $id,
             'email'         => $email,
+            'display_name'  => $displayName !== '' ? $displayName : null,
             'password_hash' => $passwordHash,
             'totp_secret'   => null,
             'active'        => true,
+            'theme'         => 'default',
+            'locale'        => 'en',
+            'last_login_at' => null,
             'created_at'    => $now,
             'updated_at'    => $now,
         ]);
@@ -209,10 +213,14 @@ final class SchemaManager
         // users ---------------------------------------------------------------
         $users = new Table('users');
         $users->addColumn('id', Types::GUID);
-        $users->addColumn('email', Types::STRING, ['length' => 255]);
+        $users->addColumn('email', Types::STRING, ['length' => 254]);
+        $users->addColumn('display_name', Types::STRING, ['length' => 64, 'notnull' => false]);
         $users->addColumn('password_hash', Types::STRING, ['length' => 255]);
         $users->addColumn('totp_secret', Types::STRING, ['length' => 255, 'notnull' => false]);
         $users->addColumn('active', Types::BOOLEAN, ['default' => true]);
+        $users->addColumn('theme', Types::STRING, ['length' => 64, 'default' => 'default']);
+        $users->addColumn('locale', Types::STRING, ['length' => 16, 'default' => 'en']);
+        $users->addColumn('last_login_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
         $users->addColumn('created_at', Types::DATETIME_MUTABLE);
         $users->addColumn('updated_at', Types::DATETIME_MUTABLE);
         $users->setPrimaryKey(['id']);

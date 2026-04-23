@@ -1,0 +1,28 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Dashboard — TowerDNS{% endblock %}
+
+{% block body %}
+<nav class="navbar is-dark" role="navigation">
+    <div class="navbar-brand">
+        <span class="navbar-item has-text-white has-text-weight-bold">TowerDNS</span>
+    </div>
+    <div class="navbar-end">
+        <div class="navbar-item">
+            <span class="has-text-grey-light is-size-7 mr-3">
+                {{ user.email ?? '' }}
+            </span>
+            <form method="post" action="/logout" style="display:inline">
+                <button class="button is-small is-light" type="submit">Abmelden</button>
+            </form>
+        </div>
+    </div>
+</nav>
+
+<section class="section">
+    <div class="container">
+        <h1 class="title">Dashboard</h1>
+        <p class="subtitle has-text-grey">Willkommen bei TowerDNS.</p>
+    </div>
+</section>
+{% endblock %}

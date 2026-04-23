@@ -49,146 +49,29 @@ function processStep3(): array
             ],
         };
 
-        $conn   = \Doctrine\DBAL\DriverManager::getConnection($params);
-        $schema = new \Doctrine\DBAL\Schema\Schema();
+        $conn          = \Doctrine\DBAL\DriverManager::getConnection($params);
+        $schemaManager = new \TowerDNS\Infrastructure\Persistence\SchemaManager($conn);
 
-        // ── Tabelle: users ────────────────────────────────────────────────
-        $tUsers = $schema->createTable('users');
-        foreach ([
-            ['id',             'integer', ['autoincrement' => true]],
-            ['username',       'string',  ['length' => 255]],
-            ['password_hash',  'string',  ['length' => 255]],
-            ['email',          'string',  ['length' => 255]],
-            ['created_at',     'string',  ['length' => 32, 'notnull' => false]],
-            ['last_login',     'string',  ['length' => 32, 'notnull' => false]],
-            ['is_active',      'boolean', ['default' => true]],
-            ['is_admin',       'boolean', ['default' => false]],
-            ['totp_secret',    'text',    ['notnull' => false]],
-            ['totp_enabled',   'boolean', ['default' => false]],
-            ['totp_algorithm', 'string',  ['length' => 16, 'default' => 'sha256']],
-            ['totp_digits',    'integer', ['default' => 8]],
-            ['theme',          'string',  ['length' => 64, 'default' => 'default']],
-            ['locale',         'string',  ['length' => 16, 'default' => 'en']],
-        ] as [$col, $type, $opts]) {
-            $tUsers->addColumn($col, $type, $opts);
-        }
-        $tUsers->setPrimaryKey(['id']);
-        $tUsers->addUniqueIndex(['username']);
-        $tUsers->addUniqueIndex(['email']);
-
-        // ── Tabelle: api_keys ─────────────────────────────────────────────
-        $tApiKeys = $schema->createTable('api_keys');
-        foreach ([
-            ['id',         'integer', ['autoincrement' => true]],
-            ['user_id',    'integer', []],
-            ['name',       'string',  ['length' => 255]],
-            ['api_key',    'string',  ['length' => 255]],
-            ['created_at', 'string',  ['length' => 32, 'notnull' => false]],
-            ['last_used',  'string',  ['length' => 32, 'notnull' => false]],
-            ['is_active',  'boolean', ['default' => true]],
-        ] as [$col, $type, $opts]) {
-            $tApiKeys->addColumn($col, $type, $opts);
-        }
-        $tApiKeys->setPrimaryKey(['id']);
-        $tApiKeys->addUniqueIndex(['api_key']);
-        $tApiKeys->addForeignKeyConstraint('users', ['user_id'], ['id'], ['onDelete' => 'CASCADE']);
-
-        // ── Tabelle: user_sessions ────────────────────────────────────────
-        $tSessions = $schema->createTable('user_sessions');
-        foreach ([
-            ['id',            'integer', ['autoincrement' => true]],
-            ['session_token', 'string',  ['length' => 64]],
-            ['user_id',       'integer', ['notnull' => false]],
-            ['username',      'string',  ['length' => 255, 'default' => '']],
-            ['is_valid',      'boolean', ['default' => true]],
-            ['is_tls',        'boolean', ['default' => false]],
-            ['auth_method',   'string',  ['length' => 32, 'default' => '']],
-            ['login_at',      'string',  ['length' => 32, 'notnull' => false]],
-            ['valid_until',   'string',  ['length' => 32, 'notnull' => false]],
-            ['client_ip',     'string',  ['length' => 45, 'notnull' => false]],
-            ['user_agent',    'text',    ['notnull' => false]],
-        ] as [$col, $type, $opts]) {
-            $tSessions->addColumn($col, $type, $opts);
-        }
-        $tSessions->setPrimaryKey(['id']);
-        $tSessions->addUniqueIndex(['session_token']);
-        $tSessions->addIndex(['user_id']);
-        $tSessions->addForeignKeyConstraint('users', ['user_id'], ['id'], ['onDelete' => 'CASCADE']);
-
-        // ── Tabelle: zones (TowerDNS: provider_id, zone_name) ─────────────
-        $tZones = $schema->createTable('zones');
-        foreach ([
-            ['id',          'integer', ['autoincrement' => true]],
-            ['provider_id', 'string',  ['length' => 64]],
-            ['user_id',     'integer', ['notnull' => false]],
-            ['zone_name',   'string',  ['length' => 255]],
-            ['created_at',  'string',  ['length' => 32, 'notnull' => false]],
-        ] as [$col, $type, $opts]) {
-            $tZones->addColumn($col, $type, $opts);
-        }
-        $tZones->setPrimaryKey(['id']);
-        $tZones->addUniqueIndex(['zone_name']);
-        $tZones->addIndex(['provider_id']);
-        $tZones->addForeignKeyConstraint('users', ['user_id'], ['id'], ['onDelete' => 'SET NULL']);
-
-        // ── Tabelle: roles (RBAC) ─────────────────────────────────────────
-        $tRoles = $schema->createTable('roles');
-        foreach ([
-            ['id',          'integer', ['autoincrement' => true]],
-            ['name',        'string',  ['length' => 128]],
-            ['description', 'text',    ['notnull' => false]],
-        ] as [$col, $type, $opts]) {
-            $tRoles->addColumn($col, $type, $opts);
-        }
-        $tRoles->setPrimaryKey(['id']);
-        $tRoles->addUniqueIndex(['name']);
-
-        // ── Tabelle: role_assignments (RBAC) ──────────────────────────────
-        $tRoleAssignments = $schema->createTable('role_assignments');
-        foreach ([
-            ['id',      'integer', ['autoincrement' => true]],
-            ['user_id', 'integer', []],
-            ['role_id', 'integer', []],
-        ] as [$col, $type, $opts]) {
-            $tRoleAssignments->addColumn($col, $type, $opts);
-        }
-        $tRoleAssignments->setPrimaryKey(['id']);
-        $tRoleAssignments->addUniqueIndex(['user_id', 'role_id']);
-        $tRoleAssignments->addForeignKeyConstraint('users', ['user_id'], ['id'], ['onDelete' => 'CASCADE']);
-        $tRoleAssignments->addForeignKeyConstraint('roles', ['role_id'], ['id'], ['onDelete' => 'CASCADE']);
-
-        // ── Schema ausführen ──────────────────────────────────────────────
-        foreach ($schema->toSql($conn->getDatabasePlatform()) as $sql) {
-            $conn->executeStatement($sql);
-        }
+        // ── Schema + System-Rollen anlegen ────────────────────────────────
+        $schemaManager->createTablesIfNotExist();
+        $schemaManager->seedSystemRoles();
 
         // ── Admin-Benutzer anlegen ────────────────────────────────────────
-        $now  = (new \DateTime())->format('Y-m-d H:i:s');
-        $hash = password_hash(
+        $now     = (new \DateTime())->format('Y-m-d H:i:s');
+        $hash    = password_hash(
             $admin['password'],
             PASSWORD_ARGON2ID,
             ['memory_cost' => 131072, 'time_cost' => 4, 'threads' => 4]
         );
-        $conn->insert('users', [
-            'username'      => $admin['username'],
-            'password_hash' => $hash,
-            'email'         => $admin['email'],
-            'is_admin'      => 1,
-            'is_active'     => 1,
-            'created_at'    => $now,
-        ]);
-        $adminId = (int) $conn->lastInsertId();
-
-        // ── Admin-Rolle anlegen und zuweisen ──────────────────────────────
-        $conn->insert('roles', [
-            'name'        => 'admin',
-            'description' => 'Administrator — full access',
-        ]);
-        $adminRoleId = (int) $conn->lastInsertId();
-        $conn->insert('role_assignments', [
-            'user_id' => $adminId,
-            'role_id' => $adminRoleId,
-        ]);
+        $adminId = sprintf(
+            '%s-%s-%s-%s-%s',
+            bin2hex(random_bytes(4)),
+            bin2hex(random_bytes(2)),
+            bin2hex(chr((ord(random_bytes(1)[0]) & 0x0f) | 0x40)) . bin2hex(random_bytes(1)),
+            bin2hex(chr((ord(random_bytes(1)[0]) & 0x3f) | 0x80)) . bin2hex(random_bytes(1)),
+            bin2hex(random_bytes(6))
+        );
+        $schemaManager->seedFirstUser($adminId, $admin['email'], $hash, $admin['username']);
 
         // ── config/-Verzeichnis sicherstellen ─────────────────────────────
         $cfgDir = PROJECT_ROOT . '/config';
@@ -314,7 +197,7 @@ TOML;
 
         // ── Session abschliessen ──────────────────────────────────────────
         $_SESSION['install_result'] = [
-            'admin_user' => $admin['username'],
+            'admin_user' => $admin['email'],
             'admin_pass' => $admin['password'],
         ];
         unset(

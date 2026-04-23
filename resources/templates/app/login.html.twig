@@ -1,0 +1,44 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Anmelden — TowerDNS{% endblock %}
+
+{% block body %}
+<section class="section">
+    <div class="container" style="max-width: 420px;">
+        <h1 class="title has-text-centered">TowerDNS</h1>
+        <div class="box">
+            <h2 class="subtitle">Anmelden</h2>
+
+            {% if error %}
+                <div class="notification is-danger is-light">
+                    {{ error }}
+                </div>
+            {% endif %}
+
+            <form method="post" action="/login">
+                <div class="field">
+                    <label class="label" for="email">E-Mail</label>
+                    <div class="control">
+                        <input class="input" type="email" id="email" name="email"
+                               autocomplete="username email" required autofocus>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="password">Passwort</label>
+                    <div class="control">
+                        <input class="input" type="password" id="password" name="password"
+                               autocomplete="current-password" required>
+                    </div>
+                </div>
+
+                <div class="field mt-4">
+                    <button class="button is-primary is-fullwidth" type="submit">
+                        Anmelden
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}
