@@ -1,0 +1,21 @@
+{
+  "name": "towerdns-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "scripts": {
+    "build": "vite build",
+    "dev":   "vite build --watch",
+    "check": "svelte-check --tsconfig ./tsconfig.json"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@types/zxcvbn":                "^4.4.4",
+    "svelte":                       "^5.0.0",
+    "svelte-check":                 "^4.0.0",
+    "typescript":                   "^5.0.0",
+    "vite":                         "^6.0.0",
+    "zxcvbn":                       "^4.4.2"
+  }
+}

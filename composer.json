@@ -1,26 +1,71 @@
 {
-  "name": "towerdns/towerdns",
-  "description": "Providerunabhaengiges, DNS-zentriertes Management-Panel mit Capability-orientierter Provider-Abstraktion",
-  "type": "project",
-  "license": "MIT",
-  "require": {
-    "php": "^8.2"
-  },
-  "autoload": {
-    "psr-4": {
-      "TowerDNS\\": "src/"
-    }
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "TowerDNS\\Tests\\": "tests/"
-    }
-  },
-  "scripts": {
-    "check": [
-      "@php -r \"echo 'TowerDNS baseline check'.PHP_EOL;\""
-    ]
-  },
-  "minimum-stability": "stable",
-  "prefer-stable": true
+    "name": "towerdns/towerdns",
+    "description": "Providerunabhaengiges, DNS-zentriertes Management-Panel mit Capability-orientierter Provider-Abstraktion (deSEC, PowerDNS, Cloudflare, INWX). Technischer Nachfolger von desec-manager.",
+    "type": "project",
+    "license": "AGPL-3.0-or-later",
+    "keywords": ["dns", "dnssec", "desec", "powerdns", "cloudflare", "inwx", "panel", "multi-provider", "mezzio", "laminas"],
+    "require": {
+        "php": ">=8.4",
+        "ext-intl": "*",
+        "ext-json": "*",
+        "bjeavons/zxcvbn-php": "^1.4",
+        "doctrine/dbal": "^3.7",
+        "guzzlehttp/guzzle": "^7.8",
+        "laminas/laminas-diactoros": "^3.5",
+        "laminas/laminas-filter": "^2.35",
+        "laminas/laminas-i18n": "^2.28",
+        "laminas/laminas-inputfilter": "^2.30",
+        "laminas/laminas-permissions-rbac": "^3.4",
+        "laminas/laminas-validator": "^2.64",
+        "mezzio/mezzio": "^3.20",
+        "mezzio/mezzio-csrf": "^1.3",
+        "mezzio/mezzio-fastroute": "^3.11",
+        "mezzio/mezzio-session": "^1.10",
+        "mezzio/mezzio-session-ext": "^1.6",
+        "mezzio/mezzio-twigrenderer": "^2.14",
+        "monolog/monolog": "^3.0",
+        "php-di/php-di": "^7.1",
+        "psr/clock": "^1.0",
+        "psr/log": "^3.0",
+        "psr/simple-cache": "^3.0",
+        "sentry/sentry": "^4.10",
+        "spomky-labs/otphp": "^11.4",
+        "symfony/cache": "^7.0",
+        "symfony/console": "^7.0",
+        "symfony/mailer": "^7.0",
+        "twig/twig": "^3.0",
+        "web-auth/webauthn-lib": "^5.2",
+        "yosymfony/toml": "^1.0"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "TowerDNS\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "TowerDNS\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "phpstan": "phpstan analyse --configuration=phpstan.neon",
+        "lint":    "find src tests -name '*.php' -exec php -l {} \\;",
+        "test":    "phpunit",
+        "analyse": "@phpstan",
+        "check":   ["@lint", "@analyse", "@test"]
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "8.4.99",
+            "ext-intl": "8.4.99"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
 }

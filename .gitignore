@@ -1,0 +1,15 @@
+.env
+*.enc
+vendor/
+.idea/
+.vscode/
+install/.lock
+install/.install_token
+config/config.php
+node_modules/
+.svelte-kit/
+composer.lock
+.phpunit.cache/
+build/
+coverage/
+themes/default/js/
