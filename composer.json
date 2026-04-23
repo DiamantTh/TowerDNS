@@ -1,0 +1,26 @@
+{
+  "name": "towerdns/towerdns",
+  "description": "Providerunabhaengiges, DNS-zentriertes Management-Panel mit Capability-orientierter Provider-Abstraktion",
+  "type": "project",
+  "license": "MIT",
+  "require": {
+    "php": "^8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "TowerDNS\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "TowerDNS\\Tests\\": "tests/"
+    }
+  },
+  "scripts": {
+    "check": [
+      "@php -r \"echo 'TowerDNS baseline check'.PHP_EOL;\""
+    ]
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
