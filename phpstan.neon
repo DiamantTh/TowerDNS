@@ -6,5 +6,7 @@ parameters:
         - tests
     excludePaths:
         - vendor
+    bootstrapFiles:
+        - install/inc/phpstan-globals.php
     reportUnmatchedIgnoredErrors: false
     treatPhpDocTypesAsCertain: false
