@@ -1,11 +1,23 @@
 <?php
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 TowerDNS contributors
 
 declare(strict_types=1);
 
 namespace TowerDNS\Domain\Auth;
 
+/**
+ * Strict, fine-grained permission catalogue.
+ *
+ * Permissions are checked centrally by the Application layer (see
+ * {@see \TowerDNS\Application\Services\AuthorizationService}); the UI never
+ * acts as the sole gate. Sensitive areas (DNSSEC actions, provider
+ * credentials, user/role administration, system settings) each have
+ * dedicated permissions so they can be granted independently.
+ */
 enum Permission: string
 {
+    case ZONE_LIST = 'zone.list';
     case ZONE_READ = 'zone.read';
     case ZONE_CREATE = 'zone.create';
     case ZONE_UPDATE = 'zone.update';
