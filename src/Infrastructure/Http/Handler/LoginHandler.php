@@ -63,13 +63,28 @@ final class LoginHandler implements RequestHandlerInterface
             return 'E-Mail und Passwort sind erforderlich.';
         }
 
-        $user = $this->users->findByEmail($email);
-        if ($user === null) {
+        // Fetch hash first.  If the address is unknown we still call
+        // password_verify with a dummy hash so that every code-path takes a
+        // similar amount of time and e-mail enumeration via timing is not
+        // possible.
+        $hash = $this->users->fetchPasswordHash($email);
+
+        // Pre-computed Argon2id hash used only as a timing dummy.
+        // The all-zero hash bytes will never match a real password.
+        $hashToVerify = $hash
+            ?? '$argon2id$v=19$m=131072,t=4,p=4$Y29waWxvdGR1bW15c2FsdA$ZHVtbXloYXNoZm9yY29waWxvdGNvcnJlY3R0aW1pbmc';
+
+        $valid = password_verify($password, $hashToVerify);
+
+        if ($hash === null || !$valid) {
             return 'Ungültige Anmeldedaten.';
         }
 
-        $hash = $this->users->fetchPasswordHash($email);
-        if ($hash === null || !password_verify($password, $hash)) {
+        // Hash matched — now load the full user object (with roles).
+        $user = $this->users->findByEmail($email);
+        if ($user === null) {
+            // Account disabled between hash-fetch and user-load (race), or
+            // findByEmail's active=1 guard excluded it.
             return 'Ungültige Anmeldedaten.';
         }
 
