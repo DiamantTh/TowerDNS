@@ -47,22 +47,61 @@ Rechtepruefungen sind zentral im Core und nicht nur in der UI.
 
 ## Technische Basis
 
-- PHP + Composer (PSR-4)
-- saubere Layer-Struktur unter src/Domain, src/Application, src/Infrastructure, src/UI
-- konsistente Namespaces, DTOs, Policies, Services und Provider-Adapter
+TowerDNS uebernimmt den Stack des Vorgaengerprojekts desec-manager und entwickelt ihn provider-neutral weiter:
+
+- PHP >= 8.4, Composer (PSR-4 unter `TowerDNS\`)
+- HTTP-Schicht: Mezzio (PSR-15) + FastRoute + PHP-DI
+- Templates/Renderer: Twig via `mezzio-twigrenderer`
+- Sessions/CSRF: `mezzio-session`, `mezzio-session-ext`, `mezzio-csrf`
+- Validierung/Filter/Inputs: Laminas (`laminas-filter`, `laminas-validator`, `laminas-inputfilter`, `laminas-i18n`)
+- RBAC-Bibliothek: `laminas/laminas-permissions-rbac` (eigene Permission/Role-Domain dazu)
+- Persistenz: Doctrine DBAL (^3.7) wie in desec-manager
+- HTTP-Clients: Guzzle 7
+- Logging/Telemetrie: Monolog 3, Sentry 4
+- Caching: Symfony Cache, PSR Simple Cache
+- CLI/Mailer/Konfig: Symfony Console, Symfony Mailer, `yosymfony/toml`
+- Authentifizierung: WebAuthn (`web-auth/webauthn-lib`), TOTP (`spomky-labs/otphp`), Passwortpruefung (`bjeavons/zxcvbn-php`)
+- Frontend: Svelte 5 + Vite 6 + TypeScript (uebernommen aus desec-manager)
+- Tests/Statisch: PHPUnit 11, PHPStan 2 (Level 8)
+- Saubere Layer-Struktur unter `src/Domain`, `src/Application`, `src/Infrastructure`, `src/UI`
 
 ## Aktueller Stand
 
-Diese Initialversion stellt die neue Zielstruktur und den Migrationsrahmen bereit:
-- providerneutrales Vertragsmodell
-- kanonische DNS- und DNSSEC-Modelle
-- RBAC-Basis
-- erste migrierte deSEC-Providerstruktur
-- vorbereitete Adapter fuer PDNS, Cloudflare und INWX
+- providerneutrales Vertragsmodell mit `ProviderRegistry` und `Capability`-Konstanten
+- kanonisches DNS- und DNSSEC-Modell (`Zone`, `Record`, `DnssecProfile`, `DnssecState`)
+- RBAC mit zentraler Durchsetzung im `DnsManagementService` (Permission + Capability)
+- Eingabevalidierung mit IDN-Normalisierung (`DnsNameValidator`) und Record-Pruefung (`RecordValidator`)
+- deSEC-Adapter funktional aus desec-manager portiert (`DeSECApiClient`, `DeSECProvider`)
+- PowerDNS-Adapter inkl. nativer DNSSEC-Steuerung (`cryptokeys`-API)
+- Cloudflare- und INWX-Adapter als Skelette mit korrekt deklarierten Capabilities
+- PHPUnit- und PHPStan-Konfiguration (Level 8), erste Tests fuer Validierung und Service
+- AGPL-3.0-or-later, durchgaengig SPDX-Header in allen PHP-Dateien
+
+## Entwicklung
+
+```
+composer install
+composer check       # lint + phpstan + phpunit
+npm install
+npm run build        # Svelte/Vite-Bundles -> themes/default/js/
+```
+
+Weiterfuehrende Dokumentation:
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/RBAC.md](docs/RBAC.md)
+- [docs/MIGRATION_FROM_DESEC_MANAGER.md](docs/MIGRATION_FROM_DESEC_MANAGER.md)
 
 ## Naechste Schritte
 
-- API-Clients pro Provider implementieren
-- Persistenz und User-/Role-Storage anbinden
-- Endpunkte/UI fuer Zonen, Records, DNSSEC und RBAC ausbauen
-- Migrationspfad aus desec-manager in produktive Datenfluesse ueberfuehren
+- Cloudflare- und INWX-Adapter ausimplementieren
+- Persistenz fuer Provider-Konfigurationen, User und Rollen anbinden
+- HTTP-/UI-Layer auf den Application-Services aufsetzen
+- Importpfad aus desec-manager-Datenbestaenden bereitstellen
+
+## Lizenz
+
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later), siehe [LICENSE](LICENSE).
+
+SPDX-Identifier: `AGPL-3.0-or-later`.
+
+TowerDNS ist der technische Nachfolger von desec-manager und uebernimmt dessen Copyleft-Charakter konsequent: Wer eine modifizierte Version als Netzwerkdienst betreibt, muss den entsprechenden Quellcode den Nutzern zugaenglich machen (AGPL §13).
