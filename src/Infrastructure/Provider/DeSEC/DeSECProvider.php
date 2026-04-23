@@ -8,7 +8,6 @@ namespace TowerDNS\Infrastructure\Provider\DeSEC;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
-use TowerDNS\Application\Exception\NotImplementedException;
 use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
@@ -99,17 +98,16 @@ final class DeSECProvider extends AbstractDnsProvider
             }
             $name = (string) ($rrset['subname'] ?? '');
             $ttl  = (int) ($rrset['ttl'] ?? 3600);
-            $rrId = $this->buildRecordId($zoneId, $name, $type);
 
             /** @var list<string> $contents */
             $contents = $rrset['records'] ?? [];
             foreach ($contents as $content) {
                 $records[] = new Record(
-                    id: $rrId,
-                    zoneId: $zoneId,
-                    name: $name,
-                    type: $type,
-                    ttl: $ttl,
+                    id:      $this->buildRecordId($zoneId, $name, $type, $content),
+                    zoneId:  $zoneId,
+                    name:    $name,
+                    type:    $type,
+                    ttl:     $ttl,
                     content: $content,
                 );
             }
@@ -119,32 +117,102 @@ final class DeSECProvider extends AbstractDnsProvider
 
     public function createRecord(Record $record): Record
     {
-        $this->client->createRRSet(
-            $record->zoneId,
-            $record->name,
-            $record->type->value,
-            [$record->content],
-            $record->ttl,
+        try {
+            $this->client->createRRSet(
+                $record->zoneId,
+                $record->name,
+                $record->type->value,
+                [$record->content],
+                $record->ttl,
+            );
+        } catch (DeSECApiException $e) {
+            if ($e->getCode() !== 422) {
+                throw $e;
+            }
+            // RRset already exists — add the new content entry to it.
+            $existing = $this->client->getRRSet($record->zoneId, $record->name, $record->type->value);
+            /** @var list<string> $current */
+            $current = $existing['records'] ?? [];
+            if (!in_array($record->content, $current, true)) {
+                $current[] = $record->content;
+            }
+            $this->client->modifyRRSet(
+                $record->zoneId,
+                $record->name,
+                $record->type->value,
+                $current,
+                $record->ttl,
+            );
+        }
+
+        return new Record(
+            id:       $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
+            zoneId:   $record->zoneId,
+            name:     $record->name,
+            type:     $record->type,
+            ttl:      $record->ttl,
+            content:  $record->content,
+            comment:  $record->comment,
+            metadata: $record->metadata,
         );
-        return $record;
     }
 
     public function updateRecord(Record $record): Record
     {
-        $existing = $this->client->getRRSet($record->zoneId, $record->name, $record->type->value);
+        [$subname, $typeStr, $oldHash] = $this->parseRecordId($record->zoneId, $record->id);
+
+        $existing = $this->client->getRRSet($record->zoneId, $subname, $typeStr);
         /** @var list<string> $current */
         $current = $existing['records'] ?? [];
-        if (!in_array($record->content, $current, true)) {
-            $current[] = $record->content;
-        }
-        $this->client->modifyRRSet($record->zoneId, $record->name, $record->type->value, $current, $record->ttl);
-        return $record;
+        $ttl     = (int) ($existing['ttl'] ?? $record->ttl);
+
+        // Replace only the entry whose content hash matches the old record.
+        $updated = array_map(
+            fn(string $c) => self::contentHash($c) === $oldHash ? $record->content : $c,
+            $current,
+        );
+        $updated = array_values(array_unique($updated));
+
+        $this->client->modifyRRSet(
+            $record->zoneId,
+            $subname,
+            $typeStr,
+            $updated,
+            $record->ttl !== $ttl ? $record->ttl : $ttl,
+        );
+
+        return new Record(
+            id:       $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
+            zoneId:   $record->zoneId,
+            name:     $record->name,
+            type:     $record->type,
+            ttl:      $record->ttl,
+            content:  $record->content,
+            comment:  $record->comment,
+            metadata: $record->metadata,
+        );
     }
 
     public function deleteRecord(string $zoneId, string $recordId): void
     {
-        [$subname, $type] = $this->parseRecordId($zoneId, $recordId);
-        $this->client->deleteRRSet($zoneId, $subname, $type);
+        [$subname, $typeStr, $oldHash] = $this->parseRecordId($zoneId, $recordId);
+
+        $existing = $this->client->getRRSet($zoneId, $subname, $typeStr);
+        /** @var list<string> $current */
+        $current = $existing['records'] ?? [];
+        $ttl     = (int) ($existing['ttl'] ?? 3600);
+
+        $remaining = array_values(array_filter(
+            $current,
+            fn(string $c) => self::contentHash($c) !== $oldHash,
+        ));
+
+        if ($remaining === []) {
+            // Last entry — remove the entire RRset.
+            $this->client->deleteRRSet($zoneId, $subname, $typeStr);
+        } else {
+            $this->client->modifyRRSet($zoneId, $subname, $typeStr, $remaining, $ttl);
+        }
     }
 
     public function getDnssecProfile(string $zoneId): DnssecProfile
@@ -208,21 +276,28 @@ final class DeSECProvider extends AbstractDnsProvider
         return RecordType::tryFrom(strtoupper($type));
     }
 
-    private function buildRecordId(string $zoneId, string $subname, RecordType $type): string
+    /**
+     * Build a 4-part record ID: zone|subname|type|contenthash.
+     */
+    private function buildRecordId(string $zoneId, string $subname, RecordType $type, string $content): string
     {
         $sub = $subname === '' ? '@' : $subname;
-        return sprintf('%s|%s|%s', $zoneId, $sub, $type->value);
+        return sprintf('%s|%s|%s|%s', $zoneId, $sub, $type->value, self::contentHash($content));
     }
 
     /**
-     * @return array{0: string, 1: string}
+     * Parse a 4-part record ID back into its components.
+     *
+     * @return array{0: string, 1: string, 2: string} [subname, type, contentHash]
      */
     private function parseRecordId(string $zoneId, string $recordId): array
     {
         $parts = explode('|', $recordId);
-        if (count($parts) !== 3 || $parts[0] !== $zoneId) {
-            throw new NotImplementedException(self::ID, 'opaque record ids');
+        if (count($parts) !== 4 || $parts[0] !== $zoneId) {
+            throw new \InvalidArgumentException(
+                sprintf('Ungueltige deSEC-Record-ID: "%s"', $recordId)
+            );
         }
-        return [$parts[1] === '@' ? '' : $parts[1], $parts[2]];
+        return [$parts[1] === '@' ? '' : $parts[1], $parts[2], $parts[3]];
     }
 }

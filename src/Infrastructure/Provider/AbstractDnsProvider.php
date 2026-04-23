@@ -33,4 +33,17 @@ abstract class AbstractDnsProvider implements DnsProviderInterface
     {
         return $this->capabilitySet;
     }
+
+    /**
+     * Stable, 12-character hex fingerprint of a record content string.
+     *
+     * Used to build per-record IDs that are unique within an RRset while
+     * remaining deterministic across list → update/delete round-trips.
+     * 12 hex chars = 48 bits of entropy — sufficient to distinguish records
+     * inside a single RRset (typically ≤ 20 entries).
+     */
+    protected static function contentHash(string $content): string
+    {
+        return substr(hash('sha256', $content), 0, 12);
+    }
 }

@@ -26,7 +26,9 @@ final class InwxProvider extends AbstractDnsProvider
     public const ID = 'inwx';
 
     public function __construct(
+        /** @phpstan-ignore property.onlyWritten */
         private readonly string $username,
+        /** @phpstan-ignore property.onlyWritten */
         private readonly string $password,
     ) {
         parent::__construct();

@@ -25,8 +25,10 @@ final class CloudflareProvider extends AbstractDnsProvider
 {
     public const ID = 'cloudflare';
 
-    public function __construct(private readonly string $apiToken)
-    {
+    public function __construct(
+        /** @phpstan-ignore property.onlyWritten */
+        private readonly string $apiToken,
+    ) {
         parent::__construct();
     }
 

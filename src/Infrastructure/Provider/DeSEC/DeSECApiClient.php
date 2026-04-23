@@ -8,9 +8,12 @@ namespace TowerDNS\Infrastructure\Provider\DeSEC;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
+use GuzzleHttp\Exception\BadResponseException;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\RequestOptions;
 use Psr\Http\Message\ResponseInterface;
+use TowerDNS\Infrastructure\RateLimit\RateLimiter;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /**
  * Thin HTTP client for the public deSEC v1 API.
@@ -30,8 +33,14 @@ final class DeSECApiClient
     /** @var array<string, string> */
     private array $headers;
 
-    public function __construct(string $token, ?ClientInterface $http = null, string $baseUrl = self::DEFAULT_BASE_URL)
-    {
+    private ?RateLimiter $rateLimiter;
+
+    public function __construct(
+        string $token,
+        ?ClientInterface $http = null,
+        string $baseUrl = self::DEFAULT_BASE_URL,
+        ?RateLimiter $rateLimiter = null,
+    ) {
         if ($token === '') {
             throw new DeSECApiException('deSEC API-Token darf nicht leer sein.');
         }
@@ -47,6 +56,8 @@ final class DeSECApiClient
             'Content-Type'  => 'application/json',
             'Accept'        => 'application/json',
         ];
+
+        $this->rateLimiter = $rateLimiter;
     }
 
     /**
@@ -184,11 +195,7 @@ final class DeSECApiClient
                 $options[RequestOptions::QUERY] = ['cursor' => $cursor];
             }
 
-            try {
-                $response = $this->http->request('GET', $endpoint, $options);
-            } catch (GuzzleException $e) {
-                throw new DeSECApiException('deSEC API-Aufruf fehlgeschlagen: ' . $e->getMessage(), (int) $e->getCode(), $e);
-            }
+            $response = $this->performHttpRequest('GET', $endpoint, $options);
 
             /** @var mixed $body */
             $body = json_decode($response->getBody()->getContents(), true);
@@ -204,7 +211,47 @@ final class DeSECApiClient
     }
 
     /**
-     * @param list<string> $linkHeaders
+     * Execute a single HTTP request with rate-limit checking and structured
+     * error mapping.
+     *
+     * - Proactively calls the optional {@see RateLimiter} before every request.
+     * - Maps HTTP 429 responses to {@see RateLimitExceededException}, reading
+     *   the Retry-After header when present.
+     * - Maps all other 4xx/5xx responses to {@see DeSECApiException} carrying
+     *   the HTTP status code so callers can branch on specific codes (e.g. 422).
+     *
+     * @param array<string, mixed> $options Guzzle request options.
+     * @throws RateLimitExceededException on HTTP 429 or proactive limiter hit.
+     * @throws DeSECApiException on all other HTTP errors.
+     */
+    private function performHttpRequest(string $method, string $endpoint, array $options): ResponseInterface
+    {
+        $this->rateLimiter?->hit();
+
+        try {
+            return $this->http->request($method, $endpoint, $options);
+        } catch (BadResponseException $e) {
+            $status = $e->getResponse()->getStatusCode();
+            if ($status === 429) {
+                $retryAfter = (int) ($e->getResponse()->getHeaderLine('Retry-After') ?: 60);
+                throw new RateLimitExceededException('deSEC', $retryAfter, $e);
+            }
+            throw new DeSECApiException(
+                sprintf('deSEC API HTTP %d: %s', $status, $e->getMessage()),
+                $status,
+                $e,
+            );
+        } catch (GuzzleException $e) {
+            throw new DeSECApiException(
+                'deSEC API-Aufruf fehlgeschlagen: ' . $e->getMessage(),
+                (int) $e->getCode(),
+                $e,
+            );
+        }
+    }
+
+    /**
+     * @param array<string> $linkHeaders
      */
     private function extractNextCursor(array $linkHeaders): ?string
     {
@@ -223,18 +270,14 @@ final class DeSECApiClient
      */
     private function request(string $method, string $endpoint, ?array $data = null, bool $decodeJson = true): mixed
     {
-        try {
-            $options = [RequestOptions::HEADERS => $this->headers];
-            if ($data !== null) {
-                $options[RequestOptions::JSON] = $data;
-            }
-            $response = $this->http->request($method, $endpoint, $options);
-
-            return $decodeJson
-                ? json_decode($response->getBody()->getContents(), true)
-                : $response;
-        } catch (GuzzleException $e) {
-            throw new DeSECApiException('deSEC API-Aufruf fehlgeschlagen: ' . $e->getMessage(), (int) $e->getCode(), $e);
+        $options = [RequestOptions::HEADERS => $this->headers];
+        if ($data !== null) {
+            $options[RequestOptions::JSON] = $data;
         }
+        $response = $this->performHttpRequest($method, $endpoint, $options);
+
+        return $decodeJson
+            ? json_decode($response->getBody()->getContents(), true)
+            : $response;
     }
 }
