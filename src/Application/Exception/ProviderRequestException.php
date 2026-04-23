@@ -8,6 +8,6 @@ namespace TowerDNS\Application\Exception;
 
 use RuntimeException;
 
-final class CapabilityException extends RuntimeException
+final class ProviderRequestException extends RuntimeException
 {
 }
