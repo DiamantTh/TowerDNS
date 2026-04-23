@@ -1,0 +1,75 @@
+<?php
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 TowerDNS contributors
+
+declare(strict_types=1);
+
+namespace TowerDNS\Infrastructure\Http\Handler;
+
+use Laminas\Diactoros\Response\HtmlResponse;
+use Mezzio\Template\TemplateRendererInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Services\DnsManagementService;
+use TowerDNS\Domain\Auth\User;
+
+/**
+ * GET /zones — lists all configured providers with their zones.
+ */
+final class ZoneListHandler implements RequestHandlerInterface
+{
+    public function __construct(
+        private readonly TemplateRendererInterface $renderer,
+        private readonly DnsManagementService      $dns,
+    ) {
+    }
+
+    public function handle(ServerRequestInterface $request): ResponseInterface
+    {
+        /** @var User $user */
+        $user = $request->getAttribute(User::class);
+
+        try {
+            $providers = $this->dns->listProviders($user);
+        } catch (AuthorizationException $e) {
+            return new HtmlResponse(
+                $this->renderer->render('app::zones/list', [
+                    'user'            => $user,
+                    'providers'       => [],
+                    'zonesByProvider' => [],
+                    'fetchErrors'     => [],
+                    'error'           => $e->getMessage(),
+                ]),
+                403,
+            );
+        }
+
+        /** @var array<string, list<\TowerDNS\Domain\DNS\Zone>> $zonesByProvider */
+        $zonesByProvider = [];
+        /** @var array<string, string> $fetchErrors */
+        $fetchErrors = [];
+
+        foreach ($providers as $provider) {
+            try {
+                $zonesByProvider[$provider->id] = $this->dns->listZones($user, $provider->id);
+            } catch (\Throwable $e) {
+                $zonesByProvider[$provider->id] = [];
+                $fetchErrors[$provider->id]     = $e->getMessage();
+            }
+        }
+
+        $flashError = $request->getQueryParams()['error'] ?? null;
+
+        return new HtmlResponse(
+            $this->renderer->render('app::zones/list', [
+                'user'            => $user,
+                'providers'       => $providers,
+                'zonesByProvider' => $zonesByProvider,
+                'fetchErrors'     => $fetchErrors,
+                'error'           => is_string($flashError) ? $flashError : null,
+            ]),
+        );
+    }
+}

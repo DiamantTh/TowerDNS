@@ -3,26 +3,26 @@
 {% block title %}Dashboard — TowerDNS{% endblock %}
 
 {% block body %}
-<nav class="navbar is-dark" role="navigation">
-    <div class="navbar-brand">
-        <span class="navbar-item has-text-white has-text-weight-bold">TowerDNS</span>
-    </div>
-    <div class="navbar-end">
-        <div class="navbar-item">
-            <span class="has-text-grey-light is-size-7 mr-3">
-                {{ user.email ?? '' }}
-            </span>
-            <form method="post" action="/logout" style="display:inline">
-                <button class="button is-small is-light" type="submit">Abmelden</button>
-            </form>
-        </div>
-    </div>
-</nav>
+{% include 'app/_navbar.html.twig' with { user: user, active: 'dashboard' } %}
 
 <section class="section">
     <div class="container">
         <h1 class="title">Dashboard</h1>
-        <p class="subtitle has-text-grey">Willkommen bei TowerDNS.</p>
+        <p class="subtitle has-text-grey">Willkommen bei TowerDNS, {{ user.email ?? '' }}.</p>
+
+        <div class="columns mt-4">
+            <div class="column is-4">
+                <div class="card">
+                    <div class="card-content">
+                        <p class="title is-5">DNS-Zonen</p>
+                        <p class="has-text-grey is-size-7 mb-3">
+                            Zonen verwalten, anlegen und löschen.
+                        </p>
+                        <a class="button is-primary is-fullwidth" href="/zones">Zonen öffnen</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </section>
 {% endblock %}

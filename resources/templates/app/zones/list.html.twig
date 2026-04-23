@@ -1,0 +1,90 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}DNS-Zonen — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'zones' } %}
+
+<section class="section">
+    <div class="container">
+        <h1 class="title">DNS-Zonen</h1>
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% for provider in providers %}
+        <div class="box mb-5">
+            <h2 class="subtitle mb-3 has-text-weight-semibold">{{ provider.displayName }}</h2>
+
+            {# Add-zone form #}
+            <form method="post" action="/zones/{{ provider.id|url_encode }}" class="mb-4">
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" name="zone_name"
+                               placeholder="example.com" autocomplete="off" required>
+                    </div>
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Zone anlegen</button>
+                    </div>
+                </div>
+            </form>
+
+            {% if fetchErrors[provider.id] is defined %}
+            <div class="notification is-warning is-light is-size-7">
+                Fehler beim Laden: {{ fetchErrors[provider.id] }}
+            </div>
+            {% endif %}
+
+            {% set zones = zonesByProvider[provider.id] ?? [] %}
+            {% if zones is empty %}
+            <p class="has-text-grey-light">Keine Zonen vorhanden.</p>
+            {% else %}
+            <table class="table is-fullwidth is-hoverable is-striped">
+                <thead>
+                    <tr>
+                        <th>Zone</th>
+                        <th>Status</th>
+                        <th class="has-text-right"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for zone in zones %}
+                <tr>
+                    <td>
+                        <a href="/zones/{{ provider.id|url_encode }}/{{ zone.id|url_encode }}">
+                            {{ zone.name }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if zone.active %}
+                        <span class="tag is-success is-light">Aktiv</span>
+                        {% else %}
+                        <span class="tag is-danger is-light">Inaktiv</span>
+                        {% endif %}
+                    </td>
+                    <td class="has-text-right">
+                        <form method="post"
+                              action="/zones/{{ provider.id|url_encode }}/{{ zone.id|url_encode }}/delete"
+                              onsubmit="return confirm('Zone »{{ zone.name }}« wirklich löschen? Diese Aktion ist unwiderruflich.')">
+                            <button class="button is-small is-danger is-light" type="submit">Löschen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="notification is-info is-light">
+            Kein Provider konfiguriert. Bitte zuerst einen Provider in
+            <code>config/providers.toml</code> eintragen.
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,25 @@
+<nav class="navbar is-dark" role="navigation" aria-label="main navigation">
+    <div class="navbar-brand">
+        <a class="navbar-item has-text-white has-text-weight-bold" href="/">TowerDNS</a>
+        <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="mainNavbar">
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+            <span aria-hidden="true"></span>
+        </a>
+    </div>
+    <div id="mainNavbar" class="navbar-menu">
+        <div class="navbar-start">
+            <a class="navbar-item{% if active == 'zones' %} has-background-dark{% endif %}" href="/zones">
+                Zonen
+            </a>
+        </div>
+        <div class="navbar-end">
+            <div class="navbar-item">
+                <span class="has-text-grey-light is-size-7 mr-3">{{ user.email ?? '' }}</span>
+                <form method="post" action="/logout" style="display:inline">
+                    <button class="button is-small is-light" type="submit">Abmelden</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</nav>
