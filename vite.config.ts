@@ -9,7 +9,7 @@ import { svelte } from '@sveltejs/vite-plugin-svelte'
 export default defineConfig({
     plugins: [svelte()],
     build: {
-        outDir: 'themes/default/js',
+        outDir: 'httpdocs/assets',
         emptyOutDir: false,
         rollupOptions: {
             input: {

@@ -14,7 +14,7 @@ composer.lock
 .phpunit.cache/
 build/
 coverage/
-themes/default/js/
+httpdocs/assets/
 # Runtime / generated files
 cache/
 logs/
