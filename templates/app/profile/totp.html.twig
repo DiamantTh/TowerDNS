@@ -1,0 +1,136 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Zwei-Faktor-Authentifizierung — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'profile', csrfToken: csrfToken } %}
+
+<section class="section">
+    <div class="container" style="max-width: 640px;">
+        <h1 class="title">Zwei-Faktor-Authentifizierung</h1>
+
+        {% if success %}
+            <div class="notification is-success is-light">
+                {{ success }}
+            </div>
+        {% endif %}
+
+        {% if error %}
+            <div class="notification is-danger is-light">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        {% if totpActive %}
+            {# ── TOTP ist aktiv — Deaktivierungsformular ──────────────────── #}
+            <div class="box">
+                <div class="is-flex is-align-items-center mb-4">
+                    <span class="tag is-success is-medium mr-3">Aktiv</span>
+                    <p class="has-text-grey">
+                        Zwei-Faktor-Authentifizierung ist für dieses Konto aktiviert.
+                    </p>
+                </div>
+
+                <hr>
+
+                <p class="has-text-weight-semibold mb-3">TOTP deaktivieren</p>
+                <p class="has-text-grey is-size-7 mb-4">
+                    Gib den aktuellen Code aus deiner Authenticator-App ein, um TOTP zu deaktivieren.
+                </p>
+
+                <form method="post" action="/profile/totp">
+                    <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                    <input type="hidden" name="action" value="disable">
+
+                    <div class="field has-addons">
+                        <div class="control is-expanded">
+                            <input class="input" type="text" id="code" name="code"
+                                   inputmode="numeric" pattern="[0-9]{6,8}"
+                                   autocomplete="one-time-code"
+                                   placeholder="12345678" required>
+                        </div>
+                        <div class="control">
+                            <button class="button is-danger" type="submit">
+                                Deaktivieren
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        {% else %}
+            {# ── TOTP nicht aktiv — Einrichtungsformular ──────────────────── #}
+            <div class="box">
+                <div class="is-flex is-align-items-center mb-4">
+                    <span class="tag is-warning is-medium mr-3">Inaktiv</span>
+                    <p class="has-text-grey">
+                        Aktiviere TOTP für zusätzlichen Schutz deines Kontos.
+                    </p>
+                </div>
+
+                <hr>
+
+                {% if provisioningUri %}
+                    <p class="has-text-weight-semibold mb-2">Schritt 1 — Authenticator einrichten</p>
+                    <p class="has-text-grey is-size-7 mb-3">
+                        Öffne den Link in deiner Authenticator-App (z.&nbsp;B. Google Authenticator, Aegis, Bitwarden)
+                        oder gib den Schlüssel manuell ein.
+                    </p>
+
+                    <div class="field">
+                        <label class="label is-small">Einrichtungslink (auf Mobilgerät öffnen)</label>
+                        <div class="control">
+                            <a class="button is-link is-light is-fullwidth is-small"
+                               href="{{ provisioningUri }}"
+                               style="word-break: break-all; height: auto; white-space: normal;">
+                                In Authenticator öffnen
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="field mt-3">
+                        <label class="label is-small">Oder manuell: geheimer Schlüssel (Base32)</label>
+                        <div class="control">
+                            <input class="input is-family-monospace" type="text"
+                                   value="{{ secretFormatted }}"
+                                   readonly
+                                   onclick="this.select()"
+                                   style="letter-spacing: 0.1em;">
+                        </div>
+                        <p class="help">Klicke zum Markieren und kopiere den Schlüssel in deine App.</p>
+                    </div>
+
+                    <hr>
+
+                    <p class="has-text-weight-semibold mb-2">Schritt 2 — Code bestätigen</p>
+                    <p class="has-text-grey is-size-7 mb-3">
+                        Gib den 8-stelligen Code aus deiner Authenticator-App ein, um die Einrichtung abzuschließen.
+                    </p>
+
+                    <form method="post" action="/profile/totp">
+                        <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                        <input type="hidden" name="action" value="enable">
+
+                        <div class="field has-addons">
+                            <div class="control is-expanded">
+                                <input class="input" type="text" id="code" name="code"
+                                       inputmode="numeric" pattern="[0-9]{6,8}"
+                                       autocomplete="one-time-code"
+                                       placeholder="12345678" required autofocus>
+                            </div>
+                            <div class="control">
+                                <button class="button is-primary" type="submit">
+                                    Aktivieren
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        <p class="mt-4">
+            <a href="/" class="has-text-grey-light is-size-7">← Zurück zum Dashboard</a>
+        </p>
+    </div>
+</section>
+{% endblock %}

@@ -14,6 +14,9 @@
             </a>
         </div>
         <div class="navbar-end">
+            <a class="navbar-item{% if active == 'profile' %} has-background-dark{% endif %}" href="/profile/totp">
+                Profil
+            </a>
             <div class="navbar-item">
                 <span class="has-text-grey-light is-size-7 mr-3">{{ user.email ?? '' }}</span>
                 <form method="post" action="/logout" style="display:inline">

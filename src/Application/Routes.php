@@ -15,6 +15,7 @@ use TowerDNS\Infrastructure\Http\Handler\RecordCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordListHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpHandler;
+use TowerDNS\Infrastructure\Http\Handler\TotpSetupHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneListHandler;
@@ -33,6 +34,10 @@ final class Routes
 
         // ── Dashboard ─────────────────────────────────────────────────────────
         $app->get('/', [RequireAuthMiddleware::class, DashboardHandler::class], 'dashboard');
+
+        // ── Profile ───────────────────────────────────────────────────────────
+        $app->get('/profile/totp',  [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.form');
+        $app->post('/profile/totp', [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.submit');
 
         // ── DNS zones ─────────────────────────────────────────────────────────
         $app->get('/zones', [RequireAuthMiddleware::class, ZoneListHandler::class], 'zones.list');
