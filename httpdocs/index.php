@@ -9,7 +9,7 @@ define('PROJECT_ROOT', dirname(__DIR__));
 require PROJECT_ROOT . '/vendor/autoload.php';
 
 /** @var \DI\Container $container */
-$container = require PROJECT_ROOT . '/config/container.php';
+$container = require PROJECT_ROOT . '/configs/container.php';
 
 /** @var \Mezzio\Application $app */
 $app = $container->get(\Mezzio\Application::class);
