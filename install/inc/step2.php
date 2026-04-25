@@ -24,7 +24,7 @@ function processStep2(): array
     if ($driver === 'pdo_sqlite') {
         $path = trim((string) ($_POST['db_sqlite_path'] ?? ''));
         if ($path === '') {
-            $path = PROJECT_ROOT . '/var/database.sqlite';
+            $path = PROJECT_ROOT . '/data/database.sqlite';
         }
         if (str_contains($path, "\0") || strlen($path) > 500) {
             $errors[] = t('step2.invalid_sqlite_path');
@@ -398,7 +398,7 @@ ob_start();
             <label class="label"><?= e(t('step2.sqlite_path')) ?></label>
             <div class="control">
                 <input class="input" type="text" name="db_sqlite_path"
-                       placeholder="<?= e(PROJECT_ROOT . '/var/database.sqlite') ?>" maxlength="500">
+                       placeholder="<?= e(PROJECT_ROOT . '/data/database.sqlite') ?>" maxlength="500">
             </div>
             <p class="help"><?= e(t('step2.sqlite_hint')) ?></p>
         </div>

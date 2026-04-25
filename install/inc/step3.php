@@ -73,13 +73,13 @@ function processStep3(): array
         );
         $schemaManager->seedFirstUser($adminId, $admin['email'], $hash, $admin['username']);
 
-        // ── config/-Verzeichnis sicherstellen ─────────────────────────────
-        $cfgDir = PROJECT_ROOT . '/config';
+        // ── configs/-Verzeichnis sicherstellen ─────────────────────────────────
+        $cfgDir = PROJECT_ROOT . '/configs';
         if (!is_dir($cfgDir)) {
             mkdir($cfgDir, 0750, true);
         }
 
-        // ── config/config.local.toml ──────────────────────────────────────
+        // ── configs/config.local.toml ──────────────────────────────────
         $encKey          = base64_encode(random_bytes(32));
         $escapedEncKey   = addcslashes($encKey,        '"\\');
         $escapedDomain   = addcslashes($app['domain'], '"\\');
@@ -113,7 +113,7 @@ TOML;
         file_put_contents($localTomlFile, $localToml);
         chmod($localTomlFile, 0600);
 
-        // ── config/database.toml ──────────────────────────────────────────
+        // ── configs/database.toml ──────────────────────────────────────────────
         if ($db['driver'] === 'pdo_sqlite') {
             $escapedPath = addcslashes($db['path'], '"\\');
             $dbToml = <<<TOML
@@ -158,7 +158,7 @@ TOML;
         file_put_contents($dbTomlFile, $dbToml);
         chmod($dbTomlFile, 0600);
 
-        // ── config/providers.toml ─────────────────────────────────────────
+        // ── configs/providers.toml ────────────────────────────────────────
         $providersToml = "# TowerDNS — Provider-Konfiguration (auto-generiert am {$now})\n";
         $providersToml .= "# NIEMALS ins Git einpflegen!\n\n";
 

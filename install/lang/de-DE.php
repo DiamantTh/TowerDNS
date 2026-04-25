@@ -78,7 +78,7 @@ return [
     'step2.root_user'      => 'Root-Benutzer',
     'step2.root_pass'      => 'Root-Passwort',
     'step2.sqlite_path'    => 'SQLite-Dateipfad',
-    'step2.sqlite_hint'    => 'Leer lassen für den Standard-Pfad in var/.',
+    'step2.sqlite_hint'    => 'Leer lassen für den Standard-Pfad in data/.',
     'step2.pgsql_hint'     => 'Datenbank und Benutzer müssen für PostgreSQL bereits existieren.',
 
     'step2.admin_section'      => 'Admin-Konto',
@@ -167,6 +167,6 @@ return [
     'req.missing'         => 'FEHLT',
     'req.ok'              => 'OK',
     'req.not_writable'    => 'Nicht beschreibbar!',
-    'req.config_writable' => 'config/-Verzeichnis beschreibbar',
+    'req.config_writable' => 'configs/-Verzeichnis beschreibbar',
     'req.db_driver'       => 'Datenbank-Treiber',
 ];

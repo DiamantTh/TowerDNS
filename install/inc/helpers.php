@@ -106,8 +106,8 @@ function getRequirements(): array
         ];
     }
 
-    // config/ beschreibbar
-    $configDir = PROJECT_ROOT . '/config';
+    // configs/ beschreibbar
+    $configDir = PROJECT_ROOT . '/configs';
     $writable  = is_dir($configDir) ? is_writable($configDir) : is_writable(dirname($configDir));
     $reqs[] = [
         'label'    => t('req.config_writable'),

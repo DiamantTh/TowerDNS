@@ -6,8 +6,8 @@ vendor/
 install/.lock
 install/.install_token
 # Generated config files — contain DB credentials and secrets
-config/*.toml
-config/config.php
+configs/*.toml
+configs/config.php
 node_modules/
 .svelte-kit/
 composer.lock
@@ -16,8 +16,6 @@ build/
 coverage/
 themes/default/js/
 # Runtime / generated files
-var/cache/
-var/log/
-# Keep directory stubs in git
-!var/.gitkeep
-!var/cache/twig/.gitkeep
+cache/
+logs/
+data/

@@ -78,7 +78,7 @@ return [
     'step2.root_user'      => 'Root user',
     'step2.root_pass'      => 'Root password',
     'step2.sqlite_path'    => 'SQLite file path',
-    'step2.sqlite_hint'    => 'Leave empty to use the default path inside var/.',
+    'step2.sqlite_hint'    => 'Leave empty to use the default path inside data/.',
     'step2.pgsql_hint'     => 'The database and user must already exist for PostgreSQL.',
 
     'step2.admin_section'      => 'Admin account',
@@ -167,6 +167,6 @@ return [
     'req.missing'       => 'MISSING',
     'req.ok'            => 'OK',
     'req.not_writable'  => 'Not writable!',
-    'req.config_writable' => 'config/ directory writable',
+    'req.config_writable' => 'configs/ directory writable',
     'req.db_driver'     => 'Database driver',
 ];

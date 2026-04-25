@@ -57,14 +57,14 @@ foreach ($requiredExts as $ext) {
     }
 }
 
-// ── config/ beschreibbar? ─────────────────────────────────────────────────
-$cfgDir = $PROJECT_ROOT . '/config';
+// ── configs/ beschreibbar? ───────────────────────────────────────────────
+$cfgDir = $PROJECT_ROOT . '/configs';
 if (!is_dir($cfgDir) && !mkdir($cfgDir, 0750, true)) {
     fwrite(STDERR, "Cannot create directory: $cfgDir\n");
     exit(1);
 }
 if (!is_writable($cfgDir)) {
-    fwrite(STDERR, "config/ directory is not writable: $cfgDir\n");
+    fwrite(STDERR, "configs/ directory is not writable: $cfgDir\n");
     exit(1);
 }
 
@@ -167,7 +167,7 @@ if ($driver === 'pdo_sqlite') {
     if (!extension_loaded('pdo_sqlite')) {
         out("Warning: pdo_sqlite extension is not loaded.", 'yellow');
     }
-    $defaultPath = $PROJECT_ROOT . '/var/towerdns.sqlite';
+    $defaultPath = $PROJECT_ROOT . '/data/towerdns.sqlite';
     $db['path']  = cliPrompt('SQLite file path', $defaultPath, false) ?: $defaultPath;
 
     $sqliteDir = dirname($db['path']);
