@@ -61,9 +61,9 @@ defined('PROJECT_ROOT') || define('PROJECT_ROOT', dirname(__DIR__));
 
 // ── Load TOML config files ────────────────────────────────────────────────────
 
-// Load a TOML file from config/, returns empty array if missing
+// Load a TOML file from configs/, returns empty array if missing
 $loadToml = static function (string $file): array {
-    $path = PROJECT_ROOT . '/config/' . $file;
+    $path = PROJECT_ROOT . '/configs/' . $file;
     if (!is_file($path)) {
         return [];
     }
@@ -96,11 +96,11 @@ $builder->addDefinitions([
         'templates' => [
             'extension' => 'html.twig',
             'paths'     => [
-                PROJECT_ROOT . '/resources/templates',
+                PROJECT_ROOT . '/templates',
             ],
         ],
         'twig' => [
-            'cache_dir'   => PROJECT_ROOT . '/var/cache/twig',
+            'cache_dir'   => PROJECT_ROOT . '/cache/twig',
             'debug'       => $debug,
             'auto_reload' => $debug,
         ],
@@ -122,7 +122,7 @@ $builder->addDefinitions([
         if ($driver === 'pdo_sqlite') {
             $params = [
                 'driver' => 'pdo_sqlite',
-                'path'   => (string) ($db['sqlite']['path'] ?? PROJECT_ROOT . '/var/database.sqlite'),
+                'path'   => (string) ($db['sqlite']['path'] ?? PROJECT_ROOT . '/data/database.sqlite'),
             ];
         } elseif ($driver === 'pdo_pgsql') {
             $params = [
