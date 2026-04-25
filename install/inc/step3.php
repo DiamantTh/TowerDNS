@@ -101,6 +101,10 @@ function processStep3(): array
 [security]
 encryption_key = "{$escapedEncKey}"
 
+[security.password]
+min_length = 16
+min_score  = 2
+
 [app]
 domain      = "{$escapedDomain}"
 force_https = {$forceHttps}

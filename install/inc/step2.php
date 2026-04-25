@@ -179,6 +179,15 @@ function processStep2(): array
         return $errors;
     }
 
+    // Passwort-Stärke via zxcvbn prüfen (Score 0–4, Minimum 2)
+    try {
+        $policy = new \TowerDNS\Application\Services\PasswordPolicy(12, 2);
+        $policy->assertValid($adminPass);
+    } catch (\InvalidArgumentException $ex) {
+        $errors[] = e($ex->getMessage());
+        return $errors;
+    }
+
     $_SESSION['install_admin'] = [
         'username' => $adminUser,
         'email'    => $adminEmail,
