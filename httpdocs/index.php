@@ -14,13 +14,12 @@ if (!file_exists(PROJECT_ROOT . '/install/.lock')) {
 
 require PROJECT_ROOT . '/vendor/autoload.php';
 
-/** @var \DI\Container $container */
-$container = require PROJECT_ROOT . '/configs/container.php';
+$container = \TowerDNS\Application\ContainerFactory::create(PROJECT_ROOT);
 
 /** @var \Mezzio\Application $app */
 $app = $container->get(\Mezzio\Application::class);
 
-(require PROJECT_ROOT . '/configs/pipeline.php')($app);
-(require PROJECT_ROOT . '/configs/routes.php')($app);
+\TowerDNS\Application\Pipeline::configure($app);
+\TowerDNS\Application\Routes::configure($app);
 
 $app->run();
