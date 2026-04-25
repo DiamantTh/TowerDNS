@@ -90,7 +90,7 @@ final class DbalRoleRepository implements RoleRepositoryInterface
             // Replace the full permission set.
             $this->connection->delete('role_permissions', ['role_id' => $role->id]);
 
-            foreach ($role->permissions as $permission) {
+            foreach ($role->getPermissions() as $permission) {
                 $this->connection->insert('role_permissions', [
                     'role_id'    => $role->id,
                     'permission' => $permission->value,
