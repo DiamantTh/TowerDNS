@@ -38,6 +38,17 @@ interface UserRepositoryInterface
     public function fetchTotpSecret(string $userId): ?string;
 
     /**
+     * Persists (or clears) the TOTP secret for a user.
+     * Pass null to disable TOTP.
+     */
+    public function saveTotpSecret(string $userId, ?string $secret): void;
+
+    /**
+     * Records the current timestamp as the user's last successful login.
+     */
+    public function updateLastLoginAt(string $userId): void;
+
+    /**
      * Persists a new user record.
      *
      * $passwordHash MUST be the output of {@see password_hash()} — plain-text

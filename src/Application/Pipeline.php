@@ -9,12 +9,14 @@ namespace TowerDNS\Application;
 
 use Laminas\Stratigility\Middleware\ErrorHandler;
 use Mezzio\Application;
+use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Handler\NotFoundHandler;
 use Mezzio\Router\Middleware\DispatchMiddleware;
 use Mezzio\Router\Middleware\ImplicitHeadMiddleware;
 use Mezzio\Router\Middleware\ImplicitOptionsMiddleware;
 use Mezzio\Router\Middleware\RouteMiddleware;
 use Mezzio\Session\SessionMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 
 final class Pipeline
 {
@@ -25,6 +27,12 @@ final class Pipeline
 
         // Session must run before authentication
         $app->pipe(SessionMiddleware::class);
+
+        // Authenticate user from session — sets User attribute on every request
+        $app->pipe(AuthenticationMiddleware::class);
+
+        // CSRF guard — must run after session so token storage is available
+        $app->pipe(CsrfMiddleware::class);
 
         // Route matching
         $app->pipe(RouteMiddleware::class);

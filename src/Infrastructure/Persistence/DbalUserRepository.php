@@ -8,6 +8,7 @@ namespace TowerDNS\Infrastructure\Persistence;
 
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
+use Psr\Clock\ClockInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
@@ -23,8 +24,10 @@ use TowerDNS\Domain\Auth\User;
  */
 final class DbalUserRepository implements UserRepositoryInterface
 {
-    public function __construct(private readonly Connection $connection)
-    {
+    public function __construct(
+        private readonly Connection $connection,
+        private readonly ClockInterface $clock,
+    ) {
     }
 
     public function findById(string $id): ?User
@@ -83,9 +86,27 @@ final class DbalUserRepository implements UserRepositoryInterface
         return is_string($secret) && $secret !== '' ? $secret : null;
     }
 
+    public function saveTotpSecret(string $userId, ?string $secret): void
+    {
+        $this->connection->update(
+            'users',
+            ['totp_secret' => $secret, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')],
+            ['id' => $userId],
+        );
+    }
+
+    public function updateLastLoginAt(string $userId): void
+    {
+        $this->connection->update(
+            'users',
+            ['last_login_at' => $this->clock->now()->format('Y-m-d H:i:s')],
+            ['id' => $userId],
+        );
+    }
+
     public function create(string $id, string $email, string $passwordHash): void
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+        $now = $this->clock->now()->format('Y-m-d H:i:s');
 
         $this->connection->insert('users', [
             'id'            => $id,
@@ -104,7 +125,7 @@ final class DbalUserRepository implements UserRepositoryInterface
             'users',
             [
                 'password_hash' => $passwordHash,
-                'updated_at'    => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                'updated_at'    => $this->clock->now()->format('Y-m-d H:i:s'),
             ],
             ['id' => $userId],
         );

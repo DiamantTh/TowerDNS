@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use Mezzio\Csrf\CsrfGuardInterface;
+use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -28,8 +30,14 @@ final class DashboardHandler implements RequestHandlerInterface
         /** @var User|null $user */
         $user = $request->getAttribute(User::class);
 
+        /** @var CsrfGuardInterface $guard */
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+
         return new HtmlResponse(
-            $this->renderer->render('app::dashboard', ['user' => $user])
+            $this->renderer->render('app::dashboard', [
+                'user'      => $user,
+                'csrfToken' => $guard->generateToken(),
+            ])
         );
     }
 }

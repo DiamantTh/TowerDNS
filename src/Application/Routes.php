@@ -14,6 +14,7 @@ use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordListHandler;
+use TowerDNS\Infrastructure\Http\Handler\TotpHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneListHandler;
@@ -26,6 +27,8 @@ final class Routes
         // ── Public ────────────────────────────────────────────────────────────
         $app->get('/login',  LoginHandler::class, 'login.form');
         $app->post('/login', LoginHandler::class, 'login.submit');
+        $app->get('/login/totp',  TotpHandler::class, 'login.totp.form');
+        $app->post('/login/totp', TotpHandler::class, 'login.totp.submit');
         $app->post('/logout', [RequireAuthMiddleware::class, LogoutHandler::class], 'logout');
 
         // ── Dashboard ─────────────────────────────────────────────────────────

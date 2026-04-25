@@ -42,7 +42,7 @@ final class DnsManagementService
      */
     public function listProviders(User $user): array
     {
-        $this->authorizationService->assert($user, Permission::ZONE_READ);
+        $this->authorizationService->assert($user, Permission::ZONE_LIST);
 
         return $this->providers->summaries();
     }
@@ -52,7 +52,7 @@ final class DnsManagementService
      */
     public function listZones(User $user, string $providerId): array
     {
-        $this->authorizationService->assert($user, Permission::ZONE_READ);
+        $this->authorizationService->assert($user, Permission::ZONE_LIST);
         $provider = $this->resolve($providerId, Capability::ZONE_LIST);
 
         return $provider->listZones();

@@ -16,6 +16,8 @@
             {% endif %}
 
             <form method="post" action="/login">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+
                 <div class="field">
                     <label class="label" for="email">E-Mail</label>
                     <div class="control">

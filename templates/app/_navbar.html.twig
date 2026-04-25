@@ -17,6 +17,7 @@
             <div class="navbar-item">
                 <span class="has-text-grey-light is-size-7 mr-3">{{ user.email ?? '' }}</span>
                 <form method="post" action="/logout" style="display:inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
                     <button class="button is-small is-light" type="submit">Abmelden</button>
                 </form>
             </div>

@@ -3,7 +3,7 @@
 {% block title %}{{ zoneId }} — TowerDNS{% endblock %}
 
 {% block body %}
-{% include 'app/_navbar.html.twig' with { user: user, active: 'zones' } %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'zones', csrfToken: csrfToken } %}
 
 <section class="section">
     <div class="container">
@@ -29,6 +29,7 @@
             <h2 class="subtitle">Eintrag hinzufügen</h2>
             <form method="post"
                   action="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}/records">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
                 <div class="columns is-multiline">
                     <div class="column is-4">
                         <div class="field">
@@ -110,8 +111,7 @@
                 <td class="has-text-right">
                     <form method="post"
                           action="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}/records/{{ record.id|url_encode }}/delete"
-                          onsubmit="return confirm('Eintrag »{{ record.name }} {{ record.type.value }}« wirklich löschen?')">
-                        <button class="button is-small is-danger is-light" type="submit">Löschen</button>
+                          onsubmit="return confirm('Eintrag »{{ record.name }} {{ record.type.value }}« wirklich löschen?')">                        <input type="hidden" name="csrf_token" value="{{ csrfToken }}">                        <button class="button is-small is-danger is-light" type="submit">Löschen</button>
                     </form>
                 </td>
             </tr>

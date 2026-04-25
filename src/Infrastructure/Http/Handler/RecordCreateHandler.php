@@ -6,7 +6,10 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Http\Handler;
 
+use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Mezzio\Csrf\CsrfGuardInterface;
+use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -35,8 +38,16 @@ final class RecordCreateHandler implements RequestHandlerInterface
 
         $back = '/zones/' . rawurlencode($providerId) . '/' . rawurlencode($zoneId);
 
+        /** @var CsrfGuardInterface $guard */
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         /** @var array<string, string> $body */
-        $body    = (array) ($request->getParsedBody() ?? []);
+        $body  = (array) ($request->getParsedBody() ?? []);
+        $token = (string) ($body['csrf_token'] ?? '');
+
+        if (!$guard->validateToken($token)) {
+            return new HtmlResponse('Ungültige Anfrage.', 400);
+        }
+
         $name    = trim((string) ($body['name'] ?? ''));
         $typeRaw = strtoupper(trim((string) ($body['type'] ?? '')));
         $ttl     = max(1, (int) ($body['ttl'] ?? 300));

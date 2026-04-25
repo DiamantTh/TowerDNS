@@ -25,6 +25,9 @@ use Mezzio\Container\RequestHandlerRunnerFactory;
 use Mezzio\Container\ResponseFactoryFactory;
 use Mezzio\Container\ServerRequestErrorResponseGeneratorFactory;
 use Mezzio\Container\ServerRequestFactoryFactory;
+use Mezzio\Csrf\CsrfGuardFactoryInterface;
+use Mezzio\Csrf\CsrfMiddleware;
+use Mezzio\Csrf\SessionCsrfGuardFactory;
 use Mezzio\MiddlewareContainer;
 use Mezzio\MiddlewareFactory;
 use Mezzio\MiddlewareFactoryInterface;
@@ -42,6 +45,7 @@ use Mezzio\Session\SessionPersistenceInterface;
 use Mezzio\Template\TemplateRendererInterface;
 use Mezzio\Twig\TwigEnvironmentFactory;
 use Mezzio\Twig\TwigRendererFactory;
+use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use TowerDNS\Application\Provider\ProviderRegistry;
@@ -49,6 +53,9 @@ use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\DnsManagementService;
+use TowerDNS\Application\Services\PasswordPolicy;
+use TowerDNS\Application\Services\TotpService;
+use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
@@ -83,7 +90,8 @@ final class ContainerFactory
         $dbConf   = $loadToml('database.toml');
         $provConf = $loadToml('providers.toml');
 
-        $debug = (bool) ($appConf['app']['debug'] ?? false);
+        $debug           = (bool) ($appConf['app']['debug'] ?? false);
+        $twigCacheActive = !$debug;
 
         // ── Build DI container ────────────────────────────────────────────────
         $builder = new ContainerBuilder();
@@ -192,8 +200,25 @@ final class ContainerFactory
             // ── Application services (autowired) ──────────────────────────────
             AuthorizationService::class     => \DI\autowire(),
             DnsManagementService::class     => \DI\autowire(),
+            TotpService::class              => \DI\autowire(),
             AuthenticationMiddleware::class => \DI\autowire(),
             RequireAuthMiddleware::class    => \DI\autowire(),
+
+            // ── PSR-20 Clock ──────────────────────────────────────────────────
+            ClockInterface::class => \DI\autowire(SystemClock::class),
+
+            // ── Password policy ───────────────────────────────────────────────
+            PasswordPolicy::class => \DI\factory(static function () use ($appConf): PasswordPolicy {
+                $sec = (array) ($appConf['security']['password'] ?? []);
+                return new PasswordPolicy(
+                    (int) ($sec['min_length'] ?? 16),
+                    (int) ($sec['min_score']  ?? 0),
+                );
+            }),
+
+            // ── CSRF ──────────────────────────────────────────────────────────
+            CsrfGuardFactoryInterface::class => \DI\autowire(SessionCsrfGuardFactory::class),
+            CsrfMiddleware::class            => \DI\autowire(),
 
             // ── Mezzio: router ────────────────────────────────────────────────
             RouterInterface::class => \DI\factory(
@@ -214,7 +239,7 @@ final class ContainerFactory
                 }
             ),
             MiddlewareFactoryInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): MiddlewareFactory {
+                static function (\Psr\Container\ContainerInterface $c): MiddlewareFactoryInterface {
                     return (new MiddlewareFactoryFactory())($c);
                 }
             ),

@@ -8,6 +8,8 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Mezzio\Csrf\CsrfGuardInterface;
+use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -17,6 +19,11 @@ use TowerDNS\Application\Repository\UserRepositoryInterface;
 
 /**
  * Handles GET /login (show form) and POST /login (authenticate).
+ *
+ * MFA flow:
+ *   POST /login  — verify email+password
+ *     → if TOTP enabled: set session[mfa_pending] and redirect to /login/totp
+ *     → else: complete login immediately
  */
 final class LoginHandler implements RequestHandlerInterface
 {
@@ -31,24 +38,56 @@ final class LoginHandler implements RequestHandlerInterface
         $session = $request->getAttribute(SessionInterface::class);
 
         if ($request->getMethod() === 'GET') {
+            /** @var CsrfGuardInterface $guard */
+            $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
             return new HtmlResponse(
-                $this->renderer->render('app::login', ['error' => null])
+                $this->renderer->render('app::login', [
+                    'error'     => null,
+                    'csrfToken' => $guard->generateToken(),
+                ])
             );
         }
 
         // POST — authenticate
+        /** @var CsrfGuardInterface $guard */
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+
         /** @var array<string, string> $body */
         $body  = (array) ($request->getParsedBody() ?? []);
+        $token = (string) ($body['csrf_token'] ?? '');
+
+        if (!$guard->validateToken($token)) {
+            return new HtmlResponse(
+                $this->renderer->render('app::login', [
+                    'error'     => 'Ungültige Anfrage. Bitte versuche es erneut.',
+                    'csrfToken' => $guard->generateToken(),
+                ]),
+                400
+            );
+        }
+
         $email = trim((string) ($body['email'] ?? ''));
         $pass  = (string) ($body['password'] ?? '');
 
-        $error = $this->authenticate($email, $pass, $session);
+        $error = $this->authenticate($email, $pass, $session, $guard);
 
         if ($error !== null) {
             return new HtmlResponse(
-                $this->renderer->render('app::login', ['error' => $error]),
+                $this->renderer->render('app::login', [
+                    'error'     => $error,
+                    'csrfToken' => $guard->generateToken(),
+                ]),
                 401
             );
+        }
+
+        // authenticate() sets session or mfa_pending — determine redirect
+        if (!$session instanceof SessionInterface) {
+            return new RedirectResponse('/login');
+        }
+
+        if ($session->has('mfa_pending')) {
+            return new RedirectResponse('/login/totp');
         }
 
         return new RedirectResponse('/');
@@ -58,6 +97,7 @@ final class LoginHandler implements RequestHandlerInterface
         string $email,
         string $password,
         mixed  $session,
+        CsrfGuardInterface $guard,
     ): ?string {
         if ($email === '' || $password === '') {
             return 'E-Mail und Passwort sind erforderlich.';
@@ -92,8 +132,20 @@ final class LoginHandler implements RequestHandlerInterface
             return 'Session nicht verfügbar.';
         }
 
+        // Check whether TOTP is configured for this user.
+        $totpSecret = $this->users->fetchTotpSecret($user->id);
+
+        if ($totpSecret !== null) {
+            // TOTP required — store pending state without completing the login.
+            $session->regenerate();
+            $session->set('mfa_pending', $user->id);
+            return null;
+        }
+
+        // No MFA → complete login immediately.
         $session->regenerate();
         $session->set('user_id', $user->id);
+        $this->users->updateLastLoginAt($user->id);
 
         return null;
     }

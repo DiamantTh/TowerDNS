@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use Mezzio\Csrf\CsrfGuardInterface;
+use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -33,6 +35,10 @@ final class RecordListHandler implements RequestHandlerInterface
         $providerId = (string) $request->getAttribute('provider', '');
         $zoneId     = (string) $request->getAttribute('zone', '');
 
+        /** @var CsrfGuardInterface $guard */
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $csrfToken = $guard->generateToken();
+
         $flashError = $request->getQueryParams()['error'] ?? null;
 
         try {
@@ -44,6 +50,7 @@ final class RecordListHandler implements RequestHandlerInterface
                     'providerId' => $providerId,
                     'zoneId'     => $zoneId,
                     'records'    => [],
+                    'csrfToken'  => $csrfToken,
                     'error'      => $e->getMessage(),
                 ]),
                 403,
@@ -55,6 +62,7 @@ final class RecordListHandler implements RequestHandlerInterface
                     'providerId' => $providerId,
                     'zoneId'     => $zoneId,
                     'records'    => [],
+                    'csrfToken'  => $csrfToken,
                     'error'      => $e->getMessage(),
                 ]),
                 500,
@@ -67,6 +75,7 @@ final class RecordListHandler implements RequestHandlerInterface
                 'providerId' => $providerId,
                 'zoneId'     => $zoneId,
                 'records'    => $records,
+                'csrfToken'  => $csrfToken,
                 'error'      => is_string($flashError) ? $flashError : null,
             ]),
         );

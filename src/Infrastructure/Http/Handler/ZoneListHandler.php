@@ -7,6 +7,8 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use Mezzio\Csrf\CsrfGuardInterface;
+use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -31,6 +33,10 @@ final class ZoneListHandler implements RequestHandlerInterface
         /** @var User $user */
         $user = $request->getAttribute(User::class);
 
+        /** @var CsrfGuardInterface $guard */
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $csrfToken = $guard->generateToken();
+
         try {
             $providers = $this->dns->listProviders($user);
         } catch (AuthorizationException $e) {
@@ -40,6 +46,7 @@ final class ZoneListHandler implements RequestHandlerInterface
                     'providers'       => [],
                     'zonesByProvider' => [],
                     'fetchErrors'     => [],
+                    'csrfToken'       => $csrfToken,
                     'error'           => $e->getMessage(),
                 ]),
                 403,
@@ -68,6 +75,7 @@ final class ZoneListHandler implements RequestHandlerInterface
                 'providers'       => $providers,
                 'zonesByProvider' => $zonesByProvider,
                 'fetchErrors'     => $fetchErrors,
+                'csrfToken'       => $csrfToken,
                 'error'           => is_string($flashError) ? $flashError : null,
             ]),
         );

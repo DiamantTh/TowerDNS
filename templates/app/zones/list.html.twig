@@ -3,7 +3,7 @@
 {% block title %}DNS-Zonen — TowerDNS{% endblock %}
 
 {% block body %}
-{% include 'app/_navbar.html.twig' with { user: user, active: 'zones' } %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'zones', csrfToken: csrfToken } %}
 
 <section class="section">
     <div class="container">
@@ -22,6 +22,7 @@
 
             {# Add-zone form #}
             <form method="post" action="/zones/{{ provider.id|url_encode }}" class="mb-4">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
                 <div class="field has-addons">
                     <div class="control is-expanded">
                         <input class="input" type="text" name="zone_name"
@@ -69,8 +70,7 @@
                     <td class="has-text-right">
                         <form method="post"
                               action="/zones/{{ provider.id|url_encode }}/{{ zone.id|url_encode }}/delete"
-                              onsubmit="return confirm('Zone »{{ zone.name }}« wirklich löschen? Diese Aktion ist unwiderruflich.')">
-                            <button class="button is-small is-danger is-light" type="submit">Löschen</button>
+                              onsubmit="return confirm('Zone »{{ zone.name }}« wirklich löschen? Diese Aktion ist unwiderruflich.')">                            <input type="hidden" name="csrf_token" value="{{ csrfToken }}">                            <button class="button is-small is-danger is-light" type="submit">Löschen</button>
                         </form>
                     </td>
                 </tr>

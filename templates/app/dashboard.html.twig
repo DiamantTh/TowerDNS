@@ -3,7 +3,7 @@
 {% block title %}Dashboard — TowerDNS{% endblock %}
 
 {% block body %}
-{% include 'app/_navbar.html.twig' with { user: user, active: 'dashboard' } %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'dashboard', csrfToken: csrfToken } %}
 
 <section class="section">
     <div class="container">

@@ -6,7 +6,10 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Http\Handler;
 
+use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Mezzio\Csrf\CsrfGuardInterface;
+use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -30,8 +33,16 @@ final class ZoneCreateHandler implements RequestHandlerInterface
         $user       = $request->getAttribute(User::class);
         $providerId = (string) $request->getAttribute('provider', '');
 
+        /** @var CsrfGuardInterface $guard */
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         /** @var array<string, string> $body */
-        $body     = (array) ($request->getParsedBody() ?? []);
+        $body  = (array) ($request->getParsedBody() ?? []);
+        $token = (string) ($body['csrf_token'] ?? '');
+
+        if (!$guard->validateToken($token)) {
+            return new HtmlResponse('Ungültige Anfrage.', 400);
+        }
+
         $zoneName = trim((string) ($body['zone_name'] ?? ''));
 
         if ($zoneName === '') {
