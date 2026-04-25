@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
 </head>
 <body>
+{% if twig_cache_active is defined and not twig_cache_active %}
+<div class="notification is-warning is-light m-4 mb-0">
+    <strong>Hinweis:</strong> Twig-Template-Cache ist deaktiviert &mdash; <code>cache/twig/</code> ist nicht vorhanden oder nicht beschreibbar. Leistungseinbußen im Betrieb sind möglich.
+</div>
+{% endif %}
 {% block body %}{% endblock %}
 </body>
 </html>

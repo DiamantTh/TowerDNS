@@ -288,8 +288,10 @@ final class ContainerFactory
 
             // ── Twig ──────────────────────────────────────────────────────────
             Environment::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): Environment {
-                    return (new TwigEnvironmentFactory())($c);
+                static function (\Psr\Container\ContainerInterface $c) use ($twigCacheActive): Environment {
+                    $env = (new TwigEnvironmentFactory())($c);
+                    $env->addGlobal('twig_cache_active', $twigCacheActive);
+                    return $env;
                 }
             ),
             TemplateRendererInterface::class => \DI\factory(
