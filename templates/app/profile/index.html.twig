@@ -9,12 +9,41 @@
     <div class="container" style="max-width: 680px;">
         <h1 class="title">Mein Profil</h1>
 
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="notification is-success is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ success }}
+        </div>
+        {% endif %}
+
+        {# ── Anzeigename ───────────────────────────────────────────────────── #}
         <div class="box mb-4">
-            <p class="heading">Angemeldet als</p>
-            <p class="title is-5">{{ user.displayName ?? user.email }}</p>
-            {% if user.displayName %}
-                <p class="subtitle is-6 has-text-grey">{{ user.email }}</p>
-            {% endif %}
+            <h2 class="subtitle mb-3">Anzeigename</h2>
+            <p class="is-size-7 has-text-grey mb-3">
+                Angemeldet als <strong>{{ user.email }}</strong>.
+                Der Anzeigename erscheint in der Navigation anstelle der E-Mail-Adresse.
+            </p>
+            <form method="post" action="/profile">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" name="display_name"
+                               value="{{ user.displayName ?? '' }}"
+                               placeholder="Anzeigename (leer = E-Mail wird angezeigt)"
+                               maxlength="128" autocomplete="nickname">
+                    </div>
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Speichern</button>
+                    </div>
+                </div>
+            </form>
         </div>
 
         {# ── Passwort ──────────────────────────────────────────────────────── #}

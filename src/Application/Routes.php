@@ -57,6 +57,7 @@ final class Routes
 
         // ── Profile ───────────────────────────────────────────────────────────
         $app->get('/profile',          [RequireAuthMiddleware::class, ProfileHandler::class],       'profile');
+        $app->post('/profile',         [RequireAuthMiddleware::class, ProfileHandler::class],       'profile.update');
         $app->get('/profile/totp',     [RequireAuthMiddleware::class, TotpSetupHandler::class],    'profile.totp.form');
         $app->post('/profile/totp',    [RequireAuthMiddleware::class, TotpSetupHandler::class],    'profile.totp.submit');
         $app->get('/profile/password', [RequireAuthMiddleware::class, PasswordChangeHandler::class], 'profile.password.form');

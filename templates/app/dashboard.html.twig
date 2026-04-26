@@ -8,7 +8,7 @@
 <section class="section">
     <div class="container">
         <h1 class="title">Dashboard</h1>
-        <p class="subtitle has-text-grey">Willkommen bei TowerDNS, {{ user.email ?? '' }}.</p>
+        <p class="subtitle has-text-grey">Willkommen bei TowerDNS, {{ user.displayName ?? user.email ?? '' }}.</p>
 
         <div class="columns mt-4">
             <div class="column is-4">
