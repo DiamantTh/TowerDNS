@@ -68,6 +68,7 @@ use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
+use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
@@ -219,6 +220,19 @@ final class ContainerFactory
                     $rpId   = (string) ($app['hostname'] ?? 'localhost');
                     $rpName = (string) ($app['name'] ?? 'TowerDNS');
                     return new WebAuthnService($serializer, $rpId, $rpName);
+                }
+            ),
+
+            SystemSettingsHandler::class => \DI\factory(
+                static function (
+                    TemplateRendererInterface $renderer,
+                    AuthorizationService $authz,
+                ) use ($projectRoot): SystemSettingsHandler {
+                    return new SystemSettingsHandler(
+                        $renderer,
+                        $authz,
+                        $projectRoot . '/configs/config.local.toml',
+                    );
                 }
             ),            // ── PSR-16 cache (Symfony FilesystemAdapter) ──────────────────────
             CacheInterface::class => \DI\factory(

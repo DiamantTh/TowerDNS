@@ -10,6 +10,7 @@ namespace TowerDNS\Application;
 use Mezzio\Application;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\DnssecHandler;
+use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
 use TowerDNS\Infrastructure\Http\Handler\PasswordChangeHandler;
@@ -91,5 +92,9 @@ final class Routes
         // ── DNSSEC ────────────────────────────────────────────────────────────
         $app->get('/zones/{provider}/{zone}/dnssec',  [RequireAuthMiddleware::class, DnssecHandler::class], 'dnssec.status');
         $app->post('/zones/{provider}/{zone}/dnssec', [RequireAuthMiddleware::class, DnssecHandler::class], 'dnssec.action');
+
+        // ── System settings ───────────────────────────────────────────────
+        $app->get('/settings',  [RequireAuthMiddleware::class, SystemSettingsHandler::class], 'settings.form');
+        $app->post('/settings', [RequireAuthMiddleware::class, SystemSettingsHandler::class], 'settings.submit');
     }
 }
