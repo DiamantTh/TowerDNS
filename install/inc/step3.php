@@ -75,10 +75,11 @@ function processStep3(): array
 
         // ── Runtime-Verzeichnisse anlegen ─────────────────────────────────────
         foreach ([
-            PROJECT_ROOT . '/configs'     => 0750,
-            PROJECT_ROOT . '/cache/twig'  => 0750,
-            PROJECT_ROOT . '/data'        => 0750,
-            PROJECT_ROOT . '/logs'        => 0750,
+            PROJECT_ROOT . '/configs'          => 0750,
+            PROJECT_ROOT . '/cache/twig'       => 0750,
+            PROJECT_ROOT . '/cache/ratelimit'  => 0750,
+            PROJECT_ROOT . '/data'             => 0750,
+            PROJECT_ROOT . '/logs'             => 0750,
         ] as $dir => $mode) {
             if (!is_dir($dir) && !@mkdir($dir, $mode, true)) {
                 throw new \RuntimeException(sprintf('Verzeichnis konnte nicht erstellt werden: %s', $dir));
