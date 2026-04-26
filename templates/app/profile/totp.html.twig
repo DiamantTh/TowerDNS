@@ -9,6 +9,18 @@
     <div class="container" style="max-width: 640px;">
         <h1 class="title">Zwei-Faktor-Authentifizierung</h1>
 
+        <article class="message is-warning mb-5">
+            <div class="message-body is-size-7">
+                <p class="has-text-weight-semibold mb-1">Hinweis zur App-Kompatibilität</p>
+                TowerDNS verwendet <strong>SHA-512</strong> mit <strong>8-stelligen Codes</strong>.
+                Damit sind folgende Authenticator-Apps kompatibel:
+                <strong>Aegis</strong> (Android, empfohlen), <strong>FreeOTP+</strong> (Android/iOS),
+                <strong>Bitwarden</strong> (nur 6-stellig), <strong>Raivo</strong> (iOS).<br>
+                <strong class="has-text-danger">Google Authenticator</strong> unterstützt weder SHA-512 noch 8-stellige Codes
+                und ist mit TowerDNS <strong>nicht kompatibel</strong>.
+            </div>
+        </article>
+
         {% if success %}
             <div class="notification is-success is-light">
                 {{ success }}
@@ -72,7 +84,8 @@
                 {% if provisioningUri %}
                     <p class="has-text-weight-semibold mb-2">Schritt 1 — Authenticator einrichten</p>
                     <p class="has-text-grey is-size-7 mb-3">
-                        Öffne den Link in deiner Authenticator-App (z.&nbsp;B. Google Authenticator, Aegis, Bitwarden)
+                        Öffne den Link in einer kompatiblen Authenticator-App
+                        (z.&nbsp;B. <strong>Aegis</strong>, <strong>FreeOTP+</strong> oder <strong>Raivo</strong>)
                         oder gib den Schlüssel manuell ein.
                     </p>
 

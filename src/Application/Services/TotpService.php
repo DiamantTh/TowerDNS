@@ -18,17 +18,20 @@ use Psr\Clock\ClockInterface;
  *
  * Configuration:
  *   - digits:      8
- *   - algorithm:   sha256
+ *   - algorithm:   sha512
  *   - period:      30 seconds
- *   - secretBytes: 32 bytes  (base32-encoded = 56 chars)
+ *   - secretBytes: 64 bytes  (base32-encoded = ~103 chars, matches SHA-512 block size)
  *   - window:      1         (±1 period tolerance for clock skew)
+ *
+ * Compatibility note: sha512 is supported by Aegis and FreeOTP+.
+ * Google Authenticator always uses sha1 internally and is NOT compatible.
  */
 final class TotpService
 {
     private const DIGITS       = 8;
-    private const ALGORITHM    = 'sha256';
+    private const ALGORITHM    = 'sha512';
     private const PERIOD       = 30;
-    private const SECRET_BYTES = 32;
+    private const SECRET_BYTES = 64;
     private const WINDOW       = 1;
 
     public function __construct(private readonly ClockInterface $clock)
