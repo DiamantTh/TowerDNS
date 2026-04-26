@@ -7,28 +7,38 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Provider\Cloudflare;
 
 use TowerDNS\Application\Contracts\Capability;
-use TowerDNS\Application\Exception\NotImplementedException;
+use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Domain\DNS\DnssecProfile;
+use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
+use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
 /**
- * Cloudflare provider scaffolding.
+ * Cloudflare provider adapter (Cloudflare v4 REST API).
  *
- * The capability set already reflects what Cloudflare can deliver
- * (auto-managed DNSSEC, comments via tags, no rollover via API), but the
- * concrete API binding is intentionally left as TODO and clearly signalled
- * via {@see NotImplementedException}.
+ * Zone IDs inside TowerDNS are the human-readable domain names (e.g.
+ * "example.com"); Cloudflare's internal UUIDs are resolved lazily via the
+ * API client and cached per-request.
+ *
+ * Record IDs are Cloudflare's native UUID strings, so update/delete
+ * operations do not require any hash-based ID reconstruction.
+ *
+ * DNSSEC is managed by Cloudflare automatically when enabled; there is no
+ * concept of key management exposed to API clients.
+ *
+ * @see https://developers.cloudflare.com/api/
  */
 final class CloudflareProvider extends AbstractDnsProvider
 {
     public const ID = 'cloudflare';
 
-    public function __construct(
-        /** @phpstan-ignore property.onlyWritten */
-        private readonly string $apiToken,
-    ) {
+    private readonly CloudflareApiClient $client;
+
+    public function __construct(string $apiToken)
+    {
+        $this->client = new CloudflareApiClient($apiToken);
         parent::__construct();
     }
 
@@ -68,48 +78,210 @@ final class CloudflareProvider extends AbstractDnsProvider
         ];
     }
 
+    // ── Zone operations ───────────────────────────────────────────────────────
+
     public function listZones(): array
     {
-        throw NotImplementedException::forFeature(self::ID, 'listZones');
+        $zones = [];
+        foreach ($this->client->listZones() as $row) {
+            $zones[] = $this->mapZone($row);
+        }
+        return $zones;
     }
 
     public function createZone(string $zoneName): Zone
     {
-        throw NotImplementedException::forFeature(self::ID, 'createZone');
+        return $this->mapZone($this->client->createZone($zoneName));
     }
 
     public function deleteZone(string $zoneId): void
     {
-        throw NotImplementedException::forFeature(self::ID, 'deleteZone');
+        $this->client->deleteZone($zoneId);
     }
+
+    // ── Record operations ─────────────────────────────────────────────────────
 
     public function listRecords(string $zoneId): array
     {
-        throw NotImplementedException::forFeature(self::ID, 'listRecords');
+        $records = [];
+        foreach ($this->client->listDnsRecords($zoneId) as $row) {
+            $r = $this->mapRecord($zoneId, $row);
+            if ($r !== null) {
+                $records[] = $r;
+            }
+        }
+        return $records;
     }
 
     public function createRecord(Record $record): Record
     {
-        throw NotImplementedException::forFeature(self::ID, 'createRecord');
+        $name = $this->toFqdn($record->name, $record->zoneId);
+        $payload = [
+            'name'    => $name,
+            'type'    => $record->type->value,
+            'content' => $record->content,
+            'ttl'     => $record->ttl === 1 ? 1 : max(60, $record->ttl),
+            'proxied' => false,
+        ];
+        if ($record->comment !== null && $record->comment !== '') {
+            $payload['comment'] = $record->comment;
+        }
+
+        $row = $this->client->createDnsRecord($record->zoneId, $payload);
+        return $this->mapRecord($record->zoneId, $row) ?? $record;
     }
 
     public function updateRecord(Record $record): Record
     {
-        throw NotImplementedException::forFeature(self::ID, 'updateRecord');
+        $name    = $this->toFqdn($record->name, $record->zoneId);
+        $payload = [
+            'name'    => $name,
+            'type'    => $record->type->value,
+            'content' => $record->content,
+            'ttl'     => $record->ttl === 1 ? 1 : max(60, $record->ttl),
+            'proxied' => false,
+        ];
+        if ($record->comment !== null) {
+            $payload['comment'] = $record->comment;
+        }
+
+        // record.id is the Cloudflare native UUID
+        $row = $this->client->updateDnsRecord($record->zoneId, $record->id, $payload);
+        return $this->mapRecord($record->zoneId, $row) ?? $record;
     }
 
     public function deleteRecord(string $zoneId, string $recordId): void
     {
-        throw NotImplementedException::forFeature(self::ID, 'deleteRecord');
+        // recordId is the Cloudflare native UUID
+        $this->client->deleteDnsRecord($zoneId, $recordId);
     }
+
+    // ── DNSSEC operations ─────────────────────────────────────────────────────
 
     public function getDnssecProfile(string $zoneId): DnssecProfile
     {
-        throw NotImplementedException::forFeature(self::ID, 'getDnssecProfile');
+        $row    = $this->client->getDnssec($zoneId);
+        $status = strtolower((string) ($row['status'] ?? 'inactive'));
+
+        $state = match ($status) {
+            'active'           => DnssecState::SIGNED,
+            'pending'          => DnssecState::PARTIAL,
+            'disabled',
+            'inactive',
+            'pending-disabled',
+            'pending-inactive' => DnssecState::UNSIGNED,
+            default            => DnssecState::UNKNOWN,
+        };
+
+        $metadata = [];
+        foreach (['algorithm', 'digest', 'digest_type', 'ds', 'flags', 'key_tag', 'key_type', 'public_key'] as $field) {
+            if (isset($row[$field])) {
+                $metadata[$field] = is_scalar($row[$field]) ? (string) $row[$field] : null;
+            }
+        }
+
+        return new DnssecProfile(
+            zoneId:   $zoneId,
+            state:    $state,
+            features: ['auto_managed' => true, 'ds_available' => isset($row['ds'])],
+            metadata: $metadata,
+        );
     }
 
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
     {
-        throw NotImplementedException::forFeature(self::ID, 'executeDnssecAction');
+        $cfStatus = match ($action) {
+            'enable'  => 'active',
+            'disable' => 'disabled',
+            default   => throw new CapabilityException(
+                sprintf('Cloudflare kennt die DNSSEC-Aktion "%s" nicht.', $action)
+            ),
+        };
+
+        $this->client->patchDnssec($zoneId, ['status' => $cfStatus]);
+        return $this->getDnssecProfile($zoneId);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function mapZone(array $row): Zone
+    {
+        $name = rtrim((string) ($row['name'] ?? ''), '.');
+        return new Zone(
+            id:         $name,
+            name:       $name,
+            providerId: self::ID,
+            active:     (string) ($row['status'] ?? '') === 'active',
+            metadata:   [
+                'cf_id'  => (string) ($row['id'] ?? ''),
+                'plan'   => (string) ($row['plan']['name'] ?? ''),
+                'paused' => (bool) ($row['paused'] ?? false),
+            ],
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function mapRecord(string $zoneId, array $row): ?Record
+    {
+        $type = RecordType::tryFrom(strtoupper((string) ($row['type'] ?? '')));
+        if ($type === null) {
+            return null;
+        }
+
+        $fqdn    = rtrim((string) ($row['name'] ?? ''), '.');
+        $subname = $this->fromFqdn($fqdn, $zoneId);
+        $id      = (string) ($row['id'] ?? '');
+        $content = (string) ($row['content'] ?? '');
+        $ttl     = (int) ($row['ttl'] ?? 3600);
+        $comment = (string) ($row['comment'] ?? '');
+
+        return new Record(
+            id:      $id !== '' ? $id : self::contentHash($content),
+            zoneId:  $zoneId,
+            name:    $subname,
+            type:    $type,
+            ttl:     $ttl,
+            content: $content,
+            comment: $comment !== '' ? $comment : null,
+        );
+    }
+
+    /**
+     * Convert a subname (e.g. "www", "@", "") to a fully-qualified domain name
+     * for use in Cloudflare API calls.
+     */
+    private function toFqdn(string $subname, string $zoneName): string
+    {
+        $sub = trim($subname, '.');
+        if ($sub === '' || $sub === '@') {
+            return $zoneName;
+        }
+        // Already an FQDN?
+        if (str_ends_with($sub, '.' . $zoneName) || $sub === $zoneName) {
+            return $sub;
+        }
+        return $sub . '.' . $zoneName;
+    }
+
+    /**
+     * Strip the zone suffix from a fully-qualified name to get the subname.
+     * Returns "" for apex records.
+     */
+    private function fromFqdn(string $fqdn, string $zoneName): string
+    {
+        $fqdn = rtrim($fqdn, '.');
+        if ($fqdn === $zoneName) {
+            return '';
+        }
+        $suffix = '.' . $zoneName;
+        if (str_ends_with($fqdn, $suffix)) {
+            return substr($fqdn, 0, -strlen($suffix));
+        }
+        return $fqdn;
     }
 }

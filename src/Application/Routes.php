@@ -10,6 +10,7 @@ namespace TowerDNS\Application;
 use Mezzio\Application;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\DnssecHandler;
+use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
@@ -97,5 +98,7 @@ final class Routes
         // ── System settings ───────────────────────────────────────────────
         $app->get('/settings',  [RequireAuthMiddleware::class, SystemSettingsHandler::class], 'settings.form');
         $app->post('/settings', [RequireAuthMiddleware::class, SystemSettingsHandler::class], 'settings.submit');
-    }
+        // ── Provider credentials ──────────────────────────────────────────
+        $app->get('/credentials',  [RequireAuthMiddleware::class, ProviderCredentialsHandler::class], 'credentials.form');
+        $app->post('/credentials', [RequireAuthMiddleware::class, ProviderCredentialsHandler::class], 'credentials.submit');    }
 }

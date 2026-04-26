@@ -7,30 +7,33 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Provider\Inwx;
 
 use TowerDNS\Application\Contracts\Capability;
-use TowerDNS\Application\Exception\NotImplementedException;
+use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Domain\DNS\DnssecProfile;
+use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
+use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
 /**
- * INWX provider scaffolding.
+ * INWX provider adapter (INWX nameserver JSON-RPC API).
  *
  * INWX exposes a JSON-RPC / XML-RPC API for nameserver and DNSSEC management,
- * including direct DS record submission for registered domains. The
- * capability set reflects this: imperative DNSSEC actions are supported,
- * but key listing/rollover are tied to registry workflows.
+ * including direct DS record submission for registered domains. Zone IDs are
+ * the human-readable domain names. Record IDs are INWX integer IDs stored as
+ * strings.
+ *
+ * @see https://www.inwx.de/de/api-documentation
  */
 final class InwxProvider extends AbstractDnsProvider
 {
     public const ID = 'inwx';
 
-    public function __construct(
-        /** @phpstan-ignore property.onlyWritten */
-        private readonly string $username,
-        /** @phpstan-ignore property.onlyWritten */
-        private readonly string $password,
-    ) {
+    private readonly InwxApiClient $client;
+
+    public function __construct(string $username, string $password)
+    {
+        $this->client = new InwxApiClient($username, $password);
         parent::__construct();
     }
 
@@ -70,48 +73,187 @@ final class InwxProvider extends AbstractDnsProvider
         ];
     }
 
+    // ── Zone operations ───────────────────────────────────────────────────────
+
     public function listZones(): array
     {
-        throw NotImplementedException::forFeature(self::ID, 'listZones');
+        $zones = [];
+        foreach ($this->client->listZones() as $row) {
+            $zones[] = $this->mapZone($row);
+        }
+        return $zones;
     }
 
     public function createZone(string $zoneName): Zone
     {
-        throw NotImplementedException::forFeature(self::ID, 'createZone');
+        $this->client->createZone($zoneName);
+        return new Zone(
+            id:         $zoneName,
+            name:       $zoneName,
+            providerId: self::ID,
+            active:     true,
+        );
     }
 
     public function deleteZone(string $zoneId): void
     {
-        throw NotImplementedException::forFeature(self::ID, 'deleteZone');
+        $this->client->deleteZone($zoneId);
     }
+
+    // ── Record operations ─────────────────────────────────────────────────────
 
     public function listRecords(string $zoneId): array
     {
-        throw NotImplementedException::forFeature(self::ID, 'listRecords');
+        $info    = $this->client->getZoneInfo($zoneId);
+        $records = [];
+
+        foreach ((array) ($info['record'] ?? []) as $row) {
+            $r = $this->mapRecord($zoneId, (array) $row);
+            if ($r !== null) {
+                $records[] = $r;
+            }
+        }
+
+        return $records;
     }
 
     public function createRecord(Record $record): Record
     {
-        throw NotImplementedException::forFeature(self::ID, 'createRecord');
+        $params = [
+            'domain'  => $record->zoneId,
+            'type'    => $record->type->value,
+            'name'    => $record->name === '' ? '@' : $record->name,
+            'content' => $record->content,
+            'ttl'     => $record->ttl,
+        ];
+
+        $result  = $this->client->createRecord($params);
+        $newId   = (string) ($result['id'] ?? '');
+
+        return new Record(
+            id:      $newId !== '' ? $newId : self::contentHash($record->content),
+            zoneId:  $record->zoneId,
+            name:    $record->name,
+            type:    $record->type,
+            ttl:     $record->ttl,
+            content: $record->content,
+        );
     }
 
     public function updateRecord(Record $record): Record
     {
-        throw NotImplementedException::forFeature(self::ID, 'updateRecord');
+        $inwxId = (int) $record->id;
+        if ($inwxId <= 0) {
+            throw new InwxApiException('Ungültige INWX-Record-ID: ' . $record->id);
+        }
+
+        $this->client->updateRecord([
+            'id'      => $inwxId,
+            'type'    => $record->type->value,
+            'name'    => $record->name === '' ? '@' : $record->name,
+            'content' => $record->content,
+            'ttl'     => $record->ttl,
+        ]);
+
+        return new Record(
+            id:      $record->id,
+            zoneId:  $record->zoneId,
+            name:    $record->name,
+            type:    $record->type,
+            ttl:     $record->ttl,
+            content: $record->content,
+        );
     }
 
     public function deleteRecord(string $zoneId, string $recordId): void
     {
-        throw NotImplementedException::forFeature(self::ID, 'deleteRecord');
+        $inwxId = (int) $recordId;
+        if ($inwxId <= 0) {
+            throw new InwxApiException('Ungültige INWX-Record-ID: ' . $recordId);
+        }
+        $this->client->deleteRecord($inwxId);
     }
+
+    // ── DNSSEC operations ─────────────────────────────────────────────────────
 
     public function getDnssecProfile(string $zoneId): DnssecProfile
     {
-        throw NotImplementedException::forFeature(self::ID, 'getDnssecProfile');
+        $keyInfo  = $this->client->getDnsKeyInfo($zoneId);
+        $keys     = (array) ($keyInfo['dnskey'] ?? $keyInfo['keys'] ?? []);
+        $signed   = $keys !== [];
+        $state    = $signed ? DnssecState::SIGNED : DnssecState::UNSIGNED;
+
+        $metadata = ['key_count' => count($keys)];
+
+        return new DnssecProfile(
+            zoneId:   $zoneId,
+            state:    $state,
+            features: [
+                'auto_managed' => false,
+                'ds_available' => $signed,
+            ],
+            metadata: $metadata,
+        );
     }
 
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
     {
-        throw NotImplementedException::forFeature(self::ID, 'executeDnssecAction');
+        match ($action) {
+            'enable'  => $this->client->activateDnssec($zoneId),
+            'disable' => $this->client->deactivateDnssec($zoneId),
+            default   => throw new CapabilityException(
+                sprintf('INWX kennt die DNSSEC-Aktion "%s" nicht.', $action)
+            ),
+        };
+
+        return $this->getDnssecProfile($zoneId);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function mapZone(array $row): Zone
+    {
+        $name = (string) ($row['domain'] ?? $row['name'] ?? '');
+        return new Zone(
+            id:         $name,
+            name:       $name,
+            providerId: self::ID,
+            active:     true,
+            metadata:   [
+                'type' => (string) ($row['type'] ?? 'MASTER'),
+            ],
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     */
+    private function mapRecord(string $zoneId, array $row): ?Record
+    {
+        $type = RecordType::tryFrom(strtoupper((string) ($row['type'] ?? '')));
+        if ($type === null) {
+            return null;
+        }
+
+        $id      = (string) ($row['id'] ?? '');
+        $name    = (string) ($row['name'] ?? '');
+        // INWX returns "@" for the apex record
+        if ($name === '@') {
+            $name = '';
+        }
+        $content = (string) ($row['content'] ?? '');
+        $ttl     = (int) ($row['ttl'] ?? 3600);
+
+        return new Record(
+            id:      $id !== '' ? $id : self::contentHash($content),
+            zoneId:  $zoneId,
+            name:    $name,
+            type:    $type,
+            ttl:     $ttl,
+            content: $content,
+        );
     }
 }

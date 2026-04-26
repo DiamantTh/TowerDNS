@@ -68,6 +68,7 @@ use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
+use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
@@ -232,6 +233,19 @@ final class ContainerFactory
                         $renderer,
                         $authz,
                         $projectRoot . '/configs/config.local.toml',
+                    );
+                }
+            ),
+
+            ProviderCredentialsHandler::class => \DI\factory(
+                static function (
+                    TemplateRendererInterface $renderer,
+                    AuthorizationService $authz,
+                ) use ($projectRoot): ProviderCredentialsHandler {
+                    return new ProviderCredentialsHandler(
+                        $renderer,
+                        $authz,
+                        $projectRoot . '/configs/providers.toml',
                     );
                 }
             ),            // ── PSR-16 cache (Symfony FilesystemAdapter) ──────────────────────

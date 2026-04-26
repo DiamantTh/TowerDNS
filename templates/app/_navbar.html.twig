@@ -12,15 +12,26 @@
             <a class="navbar-item{% if active == 'zones' %} has-background-dark{% endif %}" href="/zones">
                 Zonen
             </a>
+            {% if user.hasPermission(constant('TowerDNS\\Domain\\Auth\\Permission::USER_MANAGE')) %}
             <a class="navbar-item{% if active == 'users' %} has-background-dark{% endif %}" href="/users">
                 Benutzer
             </a>
+            {% endif %}
+            {% if user.hasPermission(constant('TowerDNS\\Domain\\Auth\\Permission::ROLE_MANAGE')) %}
             <a class="navbar-item{% if active == 'roles' %} has-background-dark{% endif %}" href="/roles">
                 Rollen
             </a>
+            {% endif %}
+            {% if user.hasPermission(constant('TowerDNS\\Domain\\Auth\\Permission::SYSTEM_SETTINGS_MANAGE')) %}
             <a class="navbar-item{% if active == 'settings' %} has-background-dark{% endif %}" href="/settings">
                 Einstellungen
             </a>
+            {% endif %}
+            {% if user.hasPermission(constant('TowerDNS\\Domain\\Auth\\Permission::PROVIDER_CREDENTIALS_MANAGE')) %}
+            <a class="navbar-item{% if active == 'credentials' %} has-background-dark{% endif %}" href="/credentials">
+                Provider
+            </a>
+            {% endif %}
         </div>
         <div class="navbar-end">
             <div class="navbar-item has-dropdown is-hoverable">
