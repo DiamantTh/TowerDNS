@@ -46,10 +46,36 @@ if (!checkInstallerToken()) {
 
 // ── Autoloader + Helpers ───────────────────────────────────────────────────
 if (!VENDOR_OK) {
-    // Kein Autoloader verfügbar — Minimal-Fallback ohne i18n
-    http_response_code(503);
-    echo '<h1>Composer vendor/ directory missing</h1>';
-    echo '<p>Run <code>composer install --no-dev</code> in the project root.</p>';
+    // Kein Autoloader verfügbar — helpers.php benötigt keinen vendor/, step1 direkt rendern.
+    // So erscheint die vendor/-Zeile in der Anforderungstabelle als "FEHLT".
+    require_once INSTALL_DIR . '/inc/helpers.php';
+
+    // Minimales t(): lädt en-GB.php direkt ohne Laminas-Abhängigkeit
+    function t(string $key, array $params = []): string
+    {
+        static $strings;
+        if ($strings === null) {
+            $file    = INSTALL_DIR . '/lang/en-GB.php';
+            $strings = is_file($file) ? (array) require $file : [];
+        }
+        $val = (string) ($strings[$key] ?? $key);
+        return $params !== [] ? (string) vsprintf($val, $params) : $val;
+    }
+
+    if (!defined('INSTALLER_LANGS')) {
+        define('INSTALLER_LANGS', ['en-GB' => 'English']);
+    }
+    $GLOBALS['_installer_locale'] = 'en-GB';
+
+    // Schritt 1 anzeigen (Anforderungstabelle — keine vendor/-Abhängigkeit)
+    $_SESSION['install_step'] = 1;
+    $currentStep  = 1;
+    $displayStep  = 1;
+    $showProgress = true;
+    $stepLabels   = [t('steps.s1'), t('steps.s2'), t('steps.s3')];
+    $pageTitle    = 'TowerDNS — ' . t('layout.title');
+    $errors       = [];
+    require INSTALL_DIR . '/inc/step1.php';
     exit;
 }
 

@@ -64,10 +64,10 @@ final class ProviderCredentialsHandler implements RequestHandlerInterface
     private function handlePost(ServerRequestInterface $request, CsrfGuardInterface $guard): ResponseInterface
     {
         /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body      = (array) ($request->getParsedBody() ?? []);
+        $csrfToken = (string) ($body['csrf_token'] ?? '');
 
-        if (!$guard->validateToken($token)) {
+        if (!$guard->validateToken($csrfToken)) {
             return new HtmlResponse('Ungültige Anfrage.', 400);
         }
 
