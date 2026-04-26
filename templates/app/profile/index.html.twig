@@ -1,0 +1,94 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Mein Profil — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'profile', csrfToken: csrfToken } %}
+
+<section class="section">
+    <div class="container" style="max-width: 680px;">
+        <h1 class="title">Mein Profil</h1>
+
+        <div class="box mb-4">
+            <p class="heading">Angemeldet als</p>
+            <p class="title is-5">{{ user.displayName ?? user.email }}</p>
+            {% if user.displayName %}
+                <p class="subtitle is-6 has-text-grey">{{ user.email }}</p>
+            {% endif %}
+        </div>
+
+        {# ── Passwort ──────────────────────────────────────────────────────── #}
+        <div class="box mb-4">
+            <div class="level">
+                <div class="level-left">
+                    <div>
+                        <p class="has-text-weight-semibold">Passwort</p>
+                        <p class="is-size-7 has-text-grey">Passwort für die Anmeldung ändern</p>
+                    </div>
+                </div>
+                <div class="level-right">
+                    <a class="button is-light" href="/profile/password">Ändern</a>
+                </div>
+            </div>
+        </div>
+
+        {# ── TOTP ──────────────────────────────────────────────────────────── #}
+        <div class="box mb-4">
+            <div class="level">
+                <div class="level-left">
+                    <div>
+                        <p class="has-text-weight-semibold">Zwei-Faktor-Authentifizierung (TOTP)</p>
+                        <p class="is-size-7 has-text-grey">
+                            {% if totpEnabled %}
+                                <span class="tag is-success is-light">Aktiv</span>
+                            {% else %}
+                                <span class="tag is-warning is-light">Nicht eingerichtet</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="level-right">
+                    <a class="button is-light" href="/profile/totp">
+                        {{ totpEnabled ? 'Verwalten' : 'Einrichten' }}
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        {# ── WebAuthn ──────────────────────────────────────────────────────── #}
+        <div class="box">
+            <div class="level mb-3">
+                <div class="level-left">
+                    <div>
+                        <p class="has-text-weight-semibold">Sicherheitsschlüssel / Passkeys (WebAuthn / FIDO2)</p>
+                        <p class="is-size-7 has-text-grey">
+                            {{ webAuthnKeys|length }}
+                            {{ webAuthnKeys|length == 1 ? 'Schlüssel' : 'Schlüssel' }} registriert
+                        </p>
+                    </div>
+                </div>
+                <div class="level-right">
+                    <a class="button is-light" href="/profile/webauthn">Verwalten</a>
+                </div>
+            </div>
+            {% if webAuthnKeys|length > 0 %}
+            <table class="table is-fullwidth is-narrow is-size-7">
+                <thead>
+                    <tr><th>Name</th><th>Registriert</th><th>Zuletzt genutzt</th></tr>
+                </thead>
+                <tbody>
+                    {% for key in webAuthnKeys %}
+                    <tr>
+                        <td>{{ key.name }}</td>
+                        <td>{{ key.created_at }}</td>
+                        <td>{{ key.last_used_at ?? '–' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+
+    </div>
+</section>
+{% endblock %}

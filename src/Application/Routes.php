@@ -12,6 +12,7 @@ use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
 use TowerDNS\Infrastructure\Http\Handler\PasswordChangeHandler;
+use TowerDNS\Infrastructure\Http\Handler\ProfileHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordEditHandler;
@@ -47,6 +48,7 @@ final class Routes
         $app->get('/', [RequireAuthMiddleware::class, DashboardHandler::class], 'dashboard');
 
         // ── Profile ───────────────────────────────────────────────────────────
+        $app->get('/profile',          [RequireAuthMiddleware::class, ProfileHandler::class],       'profile');
         $app->get('/profile/totp',     [RequireAuthMiddleware::class, TotpSetupHandler::class],    'profile.totp.form');
         $app->post('/profile/totp',    [RequireAuthMiddleware::class, TotpSetupHandler::class],    'profile.totp.submit');
         $app->get('/profile/password', [RequireAuthMiddleware::class, PasswordChangeHandler::class], 'profile.password.form');

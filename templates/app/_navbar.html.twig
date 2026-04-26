@@ -25,8 +25,11 @@
                     {{ user.displayName ?? user.email ?? '' }}
                 </a>
                 <div class="navbar-dropdown is-right is-boxed">
+                    <a class="navbar-item" href="/profile">Mein Profil</a>
+                    <hr class="navbar-divider">
                     <a class="navbar-item" href="/profile/password">Passwort ändern</a>
                     <a class="navbar-item" href="/profile/totp">Zwei-Faktor (TOTP)</a>
+                    <a class="navbar-item" href="/profile/webauthn">Sicherheitsschlüssel</a>
                 </div>
             </div>
             <div class="navbar-item">
