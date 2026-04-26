@@ -22,7 +22,7 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
                FROM api_keys
               WHERE user_id = ?
               ORDER BY id DESC',
-            [(int) $userId],
+            [$userId],
         );
 
         return array_map(static function (array $row): array {
@@ -41,7 +41,7 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
         $this->connection->executeStatement(
             'INSERT INTO api_keys (user_id, name, api_key, created_at, is_active)
              VALUES (?, ?, ?, ?, 1)',
-            [(int) $userId, $name, $keyHash, $createdAt],
+            [$userId, $name, $keyHash, $createdAt],
         );
 
         return (int) $this->connection->lastInsertId();
@@ -51,7 +51,7 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
     {
         $affected = $this->connection->executeStatement(
             'UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ? AND is_active = 1',
-            [$id, (int) $userId],
+            [$id, $userId],
         );
 
         return $affected > 0;

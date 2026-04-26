@@ -181,6 +181,44 @@ final readonly class SchemaManager
     }
 
     /**
+     * Seeds a default Account and owner membership unless at least one account already exists.
+     *
+     * @param non-empty-string $ownerUserId GUID of the admin user
+     * @param non-empty-string $accountName Display name for the account
+     * @param non-empty-string $slug        URL-safe slug (a-z0-9-, 2–64 chars)
+     * @param non-empty-string $now         Formatted datetime string (Y-m-d H:i:s)
+     */
+    public function seedDefaultAccount(
+        string $ownerUserId,
+        string $accountName,
+        string $slug,
+        string $now,
+    ): void {
+        $count = $this->connection->fetchOne('SELECT COUNT(*) FROM accounts');
+        if ($count !== false && (int) $count > 0) {
+            return;
+        }
+
+        $this->connection->insert('accounts', [
+            'name'          => $accountName,
+            'slug'          => $slug,
+            'owner_user_id' => $ownerUserId,
+            'is_active'     => true,
+            'created_at'    => $now,
+        ]);
+
+        $accountId = (int) $this->connection->lastInsertId();
+
+        $this->connection->insert('account_memberships', [
+            'account_id' => $accountId,
+            'user_id'    => $ownerUserId,
+            'role'       => 'owner',
+            'invited_by' => null,
+            'created_at' => $now,
+        ]);
+    }
+
+    /**
      * Builds the canonical set of DBAL Table objects in dependency order.
      *
      * @return list<Table>
@@ -260,6 +298,26 @@ final readonly class SchemaManager
             ['id'],
             ['onDelete' => 'CASCADE'],
             'fk_wac_user_id',
+        );
+
+        // api_keys -----------------------------------------------------------
+        $apiKeys = new Table('api_keys');
+        $apiKeys->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $apiKeys->addColumn('user_id', Types::GUID);
+        $apiKeys->addColumn('name', Types::STRING, ['length' => 255]);
+        $apiKeys->addColumn('api_key', Types::STRING, ['length' => 255]);
+        $apiKeys->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $apiKeys->addColumn('last_used', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $apiKeys->addColumn('is_active', Types::BOOLEAN, ['default' => true]);
+        $apiKeys->setPrimaryKey(['id']);
+        $apiKeys->addUniqueIndex(['api_key'], 'uq_api_keys_hash');
+        $apiKeys->addIndex(['user_id'], 'idx_ak_user_id');
+        $apiKeys->addForeignKeyConstraint(
+            'users',
+            ['user_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_ak_user_id',
         );
 
         // accounts -----------------------------------------------------------
@@ -399,7 +457,7 @@ final readonly class SchemaManager
         $auditLogs->addIndex(['created_at'], 'idx_al_created_at');
 
         return [
-            $roles, $rolePerms, $users, $userRoles, $waCredentials,
+            $roles, $rolePerms, $users, $userRoles, $waCredentials, $apiKeys,
             $accounts, $accMembers, $provAccounts, $zoneMembers, $impSessions, $auditLogs,
         ];
     }

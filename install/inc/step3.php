@@ -73,6 +73,11 @@ function processStep3(): array
         );
         $schemaManager->seedFirstUser($adminId, $admin['email'], $hash, $admin['username']);
 
+        // ── Standard-Account anlegen ──────────────────────────────────────
+        $defaultSlug = substr(strtolower(preg_replace('/[^a-z0-9]+/i', '-', $app['name'] ?? 'default') ?? 'default'), 0, 64);
+        $defaultSlug = trim($defaultSlug, '-') ?: 'default';
+        $schemaManager->seedDefaultAccount($adminId, $app['name'] ?? 'TowerDNS', $defaultSlug, $now);
+
         // ── Runtime-Verzeichnisse anlegen ─────────────────────────────────────
         foreach ([
             PROJECT_ROOT . '/configs'         => 0o750,
