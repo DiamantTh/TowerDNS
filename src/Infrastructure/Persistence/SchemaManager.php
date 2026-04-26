@@ -246,6 +246,24 @@ final class SchemaManager
             'fk_ur_role_id',
         );
 
-        return [$roles, $rolePerms, $users, $userRoles];
+        // webauthn_credentials -----------------------------------------------
+        $waCredentials = new Table('webauthn_credentials');
+        $waCredentials->addColumn('credential_id', Types::TEXT);
+        $waCredentials->addColumn('user_id', Types::GUID);
+        $waCredentials->addColumn('name', Types::STRING, ['length' => 64]);
+        $waCredentials->addColumn('data', Types::TEXT);
+        $waCredentials->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $waCredentials->addColumn('last_used_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $waCredentials->setPrimaryKey(['credential_id']);
+        $waCredentials->addIndex(['user_id'], 'idx_wac_user_id');
+        $waCredentials->addForeignKeyConstraint(
+            'users',
+            ['user_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_wac_user_id',
+        );
+
+        return [$roles, $rolePerms, $users, $userRoles, $waCredentials];
     }
 }
