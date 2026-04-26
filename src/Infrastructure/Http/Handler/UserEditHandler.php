@@ -81,19 +81,22 @@ final class UserEditHandler implements RequestHandlerInterface
         $allRoles = $this->roles->findAll();
 
         if ($request->getMethod() === 'GET') {
+            $flashError   = $request->getQueryParams()['error']   ?? null;
+            $flashSuccess = $request->getQueryParams()['success'] ?? null;
+
             return new HtmlResponse(
                 $this->renderer->render('app::iam/user_edit', [
                     'currentUser' => $currentUser,
                     'target'      => $target,
                     'allRoles'    => $allRoles,
                     'csrfToken'   => $csrfToken,
-                    'error'       => null,
-                    'success'     => null,
+                    'error'       => $flashError,
+                    'success'     => $flashSuccess,
                 ]),
             );
         }
 
-        // POST — sync roles
+        // POST — sync roles / update display name
         /** @var array<string, mixed> $body */
         $body  = (array) ($request->getParsedBody() ?? []);
         $raw   = $body['csrf_token'] ?? '';
@@ -101,6 +104,19 @@ final class UserEditHandler implements RequestHandlerInterface
 
         if (!$guard->validateToken($token)) {
             return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode('Ungültige Anfrage.'));
+        }
+
+        $action = (string) ($body['action'] ?? 'roles');
+
+        // ── Anzeigename ────────────────────────────────────────────────────
+        if ($action === 'display_name') {
+            $displayName = trim((string) ($body['display_name'] ?? ''));
+            try {
+                $this->users->updateDisplayName($targetId, $displayName);
+            } catch (\Throwable $e) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode('Fehler beim Speichern: ' . $e->getMessage()));
+            }
+            return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode('Anzeigename aktualisiert.'));
         }
 
         /** @var list<string> $selectedRoles */

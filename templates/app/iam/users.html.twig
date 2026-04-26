@@ -67,6 +67,7 @@
             <thead>
                 <tr>
                     <th>E-Mail</th>
+                    <th>Anzeigename</th>
                     <th>Rollen</th>
                     <th class="has-text-right"></th>
                 </tr>
@@ -80,6 +81,7 @@
                     <span class="tag is-warning is-light ml-1">Ich</span>
                     {% endif %}
                 </td>
+                <td class="has-text-grey is-size-7">{{ u.displayName ?? '–' }}</td>
                 <td>
                     {% for role in u.roles %}
                     <span class="tag is-light mr-1">{{ role.name }}</span>

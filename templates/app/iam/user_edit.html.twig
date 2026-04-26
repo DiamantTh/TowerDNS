@@ -33,6 +33,26 @@
 
         {% if target %}
 
+        {# ── Display name ──────────────────────────────────────────────────── #}
+        <div class="box mb-5">
+            <h2 class="subtitle">Anzeigename</h2>
+            <form method="post" action="/users/{{ target.id|url_encode }}">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <input type="hidden" name="action" value="display_name">
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" name="display_name"
+                               value="{{ target.displayName ?? '' }}"
+                               placeholder="Anzeigename (leer = E-Mail wird verwendet)"
+                               maxlength="128">
+                    </div>
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Speichern</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
         {# ── Role assignment ───────────────────────────────────────────────── #}
         <div class="box mb-5">
             <h2 class="subtitle">Rollenzuweisung</h2>
