@@ -1,0 +1,113 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Benutzerverwaltung — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: currentUser, active: 'users', csrfToken: csrfToken } %}
+
+<section class="section">
+    <div class="container">
+
+        <h1 class="title">Benutzerverwaltung</h1>
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="notification is-success is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ success }}
+        </div>
+        {% endif %}
+
+        {# ── Create user ──────────────────────────────────────────────────── #}
+        <div class="box mb-5">
+            <h2 class="subtitle">Benutzer anlegen</h2>
+            <form method="post" action="/users">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <div class="columns">
+                    <div class="column is-4">
+                        <div class="field">
+                            <label class="label">E-Mail</label>
+                            <div class="control">
+                                <input class="input" type="email" name="email"
+                                       placeholder="nutzer@example.com" required autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column is-4">
+                        <div class="field">
+                            <label class="label">Passwort</label>
+                            <div class="control">
+                                <input class="input" type="password" name="password"
+                                       placeholder="mind. 16 Zeichen" required autocomplete="new-password">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column is-narrow" style="display:flex; align-items:flex-end">
+                        <div class="field">
+                            <div class="control">
+                                <button class="button is-primary" type="submit">Anlegen</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {# ── User list ─────────────────────────────────────────────────────── #}
+        {% if users is empty %}
+        <div class="notification is-info is-light">Keine Benutzer vorhanden.</div>
+        {% else %}
+        <table class="table is-fullwidth is-hoverable is-striped">
+            <thead>
+                <tr>
+                    <th>E-Mail</th>
+                    <th>Rollen</th>
+                    <th class="has-text-right"></th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in users %}
+            <tr>
+                <td>
+                    {{ u.email }}
+                    {% if u.id == currentUser.id %}
+                    <span class="tag is-warning is-light ml-1">Ich</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% for role in u.roles %}
+                    <span class="tag is-light mr-1">{{ role.name }}</span>
+                    {% else %}
+                    <span class="has-text-grey is-size-7">keine</span>
+                    {% endfor %}
+                </td>
+                <td class="has-text-right" style="white-space:nowrap">
+                    <a class="button is-small is-info is-light mr-1"
+                       href="/users/{{ u.id|url_encode }}">
+                        Bearbeiten
+                    </a>
+                    {% if u.id != currentUser.id %}
+                    <form method="post"
+                          action="/users/{{ u.id|url_encode }}/delete"
+                          style="display:inline"
+                          onsubmit="return confirm('Benutzer »{{ u.email }}« wirklich löschen?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                        <button class="button is-small is-danger is-light" type="submit">Löschen</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+    </div>
+</section>
+{% endblock %}
