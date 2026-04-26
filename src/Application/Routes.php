@@ -27,6 +27,12 @@ use TowerDNS\Infrastructure\Http\Handler\UserCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\UserDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\UserEditHandler;
 use TowerDNS\Infrastructure\Http\Handler\UserListHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnAuthFinishHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnAuthHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnDeleteHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnProfileHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnRegisterBeginHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnRegisterFinishHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneListHandler;
@@ -41,8 +47,8 @@ final class Routes
         $app->get('/login',  LoginHandler::class, 'login.form');
         $app->post('/login', LoginHandler::class, 'login.submit');
         $app->get('/login/totp',  TotpHandler::class, 'login.totp.form');
-        $app->post('/login/totp', TotpHandler::class, 'login.totp.submit');
-        $app->post('/logout', [RequireAuthMiddleware::class, LogoutHandler::class], 'logout');
+        $app->post('/login/totp', TotpHandler::class, 'login.totp.submit');        $app->get('/login/webauthn',        WebAuthnAuthHandler::class,       'login.webauthn.form');
+        $app->post('/login/webauthn/finish', WebAuthnAuthFinishHandler::class, 'login.webauthn.finish');        $app->post('/logout', [RequireAuthMiddleware::class, LogoutHandler::class], 'logout');
 
         // ── Dashboard ─────────────────────────────────────────────────────────
         $app->get('/', [RequireAuthMiddleware::class, DashboardHandler::class], 'dashboard');
@@ -53,6 +59,10 @@ final class Routes
         $app->post('/profile/totp',    [RequireAuthMiddleware::class, TotpSetupHandler::class],    'profile.totp.submit');
         $app->get('/profile/password', [RequireAuthMiddleware::class, PasswordChangeHandler::class], 'profile.password.form');
         $app->post('/profile/password',[RequireAuthMiddleware::class, PasswordChangeHandler::class], 'profile.password.submit');
+        $app->get('/profile/webauthn',                              [RequireAuthMiddleware::class, WebAuthnProfileHandler::class],         'profile.webauthn');
+        $app->post('/profile/webauthn/register/begin',              [RequireAuthMiddleware::class, WebAuthnRegisterBeginHandler::class],   'profile.webauthn.register.begin');
+        $app->post('/profile/webauthn/register/finish',             [RequireAuthMiddleware::class, WebAuthnRegisterFinishHandler::class],  'profile.webauthn.register.finish');
+        $app->post('/profile/webauthn/{credentialId}/delete',       [RequireAuthMiddleware::class, WebAuthnDeleteHandler::class],          'profile.webauthn.delete');
 
         // ── IAM ───────────────────────────────────────────────────────────────
         $app->get('/users',                       [RequireAuthMiddleware::class, UserListHandler::class],   'users.list');

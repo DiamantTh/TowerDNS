@@ -64,6 +64,7 @@ use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\TotpService;
+use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
@@ -212,8 +213,14 @@ final class ContainerFactory
             DnsManagementService::class     => \DI\autowire(),
             TotpService::class              => \DI\autowire(),
             AuthenticationMiddleware::class => \DI\autowire(),
-            RequireAuthMiddleware::class    => \DI\autowire(),
-            // ── PSR-16 cache (Symfony FilesystemAdapter) ──────────────────────
+            RequireAuthMiddleware::class    => \DI\autowire(),            WebAuthnService::class => \DI\factory(
+                static function (SerializerInterface $serializer) use ($appConf): WebAuthnService {
+                    $app    = (array) ($appConf['app'] ?? []);
+                    $rpId   = (string) ($app['hostname'] ?? 'localhost');
+                    $rpName = (string) ($app['name'] ?? 'TowerDNS');
+                    return new WebAuthnService($serializer, $rpId, $rpName);
+                }
+            ),            // ── PSR-16 cache (Symfony FilesystemAdapter) ──────────────────────
             CacheInterface::class => \DI\factory(
                 static function () use ($projectRoot): CacheInterface {
                     $adapter = new FilesystemAdapter(

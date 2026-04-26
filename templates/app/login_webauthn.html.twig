@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sicherheitsschlüssel — TowerDNS</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+</head>
+<body>
+<section class="section">
+    <div class="container" style="max-width: 480px;">
+        <div class="box">
+            <h1 class="title is-4 mb-4">Mit Sicherheitsschlüssel anmelden</h1>
+
+            {% if error %}
+                <div class="notification is-danger is-light">{{ error }}</div>
+            {% endif %}
+
+            <div id="webauthn-error" class="notification is-danger is-light" style="display:none"></div>
+
+            <p class="mb-4 has-text-grey">
+                Stecke deinen Sicherheitsschlüssel ein oder halte ihn bereit,
+                und klicke auf die Schaltfläche unten.
+            </p>
+
+            <button id="auth-btn" class="button is-primary is-fullwidth">
+                Schlüssel verwenden
+            </button>
+
+            <div class="mt-4 has-text-centered">
+                <a href="/login" class="is-size-7 has-text-grey">Zurück zur Anmeldung</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script>
+(function () {
+    const OPTIONS = {{ optionsJson|raw }};
+
+    function b64urlToBuf(b64url) {
+        const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = b64.length % 4 ? '='.repeat(4 - b64.length % 4) : '';
+        return Uint8Array.from(atob(b64 + pad), c => c.charCodeAt(0)).buffer;
+    }
+
+    function bufToB64url(buf) {
+        return btoa(String.fromCharCode(...new Uint8Array(buf)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    }
+
+    async function authenticate() {
+        const btn   = document.getElementById('auth-btn');
+        const errEl = document.getElementById('webauthn-error');
+        errEl.style.display = 'none';
+        btn.classList.add('is-loading');
+        btn.disabled = true;
+
+        try {
+            const publicKey = Object.assign({}, OPTIONS);
+            publicKey.challenge = b64urlToBuf(OPTIONS.challenge);
+            if (Array.isArray(OPTIONS.allowCredentials)) {
+                publicKey.allowCredentials = OPTIONS.allowCredentials.map(c => ({
+                    ...c, id: b64urlToBuf(c.id),
+                }));
+            }
+
+            const assertion = await navigator.credentials.get({ publicKey });
+            if (!assertion) throw new Error('Keine Antwort vom Authenticator.');
+
+            const resp = assertion.response;
+            const payload = {
+                id:    bufToB64url(assertion.rawId),
+                rawId: bufToB64url(assertion.rawId),
+                type:  assertion.type,
+                response: {
+                    clientDataJSON:    bufToB64url(resp.clientDataJSON),
+                    authenticatorData: bufToB64url(resp.authenticatorData),
+                    signature:         bufToB64url(resp.signature),
+                    userHandle:        resp.userHandle ? bufToB64url(resp.userHandle) : null,
+                },
+            };
+
+            const finishResp = await fetch('/login/webauthn/finish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await finishResp.json();
+            if (!finishResp.ok) {
+                throw new Error(data.error ?? 'Authentifizierung fehlgeschlagen.');
+            }
+
+            window.location.href = data.redirect ?? '/';
+        } catch (e) {
+            errEl.textContent = e.message ?? 'Unbekannter Fehler.';
+            errEl.style.display = 'block';
+            btn.classList.remove('is-loading');
+            btn.disabled = false;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        document.getElementById('auth-btn').addEventListener('click', authenticate);
+        // Auto-trigger on load for a smoother UX.
+        authenticate();
+    });
+})();
+</script>
+</body>
+</html>

@@ -17,6 +17,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 
@@ -34,9 +35,10 @@ final class LoginHandler implements RequestHandlerInterface
     private const RATE_WINDOW_SECS  = 300; // 5 minutes
 
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly UserRepositoryInterface   $users,
-        private readonly CacheInterface            $cache,
+        private readonly TemplateRendererInterface              $renderer,
+        private readonly UserRepositoryInterface               $users,
+        private readonly CacheInterface                        $cache,
+        private readonly WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
     ) {
     }
 
@@ -115,6 +117,10 @@ final class LoginHandler implements RequestHandlerInterface
         }
 
         if ($session->has('mfa_pending')) {
+            $mfaType = $session->get('mfa_type');
+            if ($mfaType === 'webauthn') {
+                return new RedirectResponse('/login/webauthn');
+            }
             return new RedirectResponse('/login/totp');
         }
 
@@ -167,6 +173,16 @@ final class LoginHandler implements RequestHandlerInterface
             // TOTP required — store pending state without completing the login.
             $session->regenerate();
             $session->set('mfa_pending', $user->id);
+            $session->set('mfa_type', 'totp');
+            return null;
+        }
+
+        // Check whether WebAuthn credentials are registered.
+        $webAuthnKeys = $this->webAuthnCredentials->findByUserId($user->id);
+        if ($webAuthnKeys !== []) {
+            $session->regenerate();
+            $session->set('mfa_pending', $user->id);
+            $session->set('mfa_type', 'webauthn');
             return null;
         }
 
