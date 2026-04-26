@@ -25,7 +25,8 @@ final class Role implements RoleInterface
     public function __construct(
         public readonly string $id,
         public readonly string $name,
-        array $permissions = []
+        array $permissions = [],
+        public readonly bool $isSystem = false,
     ) {
         $this->permissionMap = [];
         foreach ($permissions as $perm) {

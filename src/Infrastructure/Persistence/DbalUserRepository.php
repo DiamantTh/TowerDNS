@@ -33,7 +33,7 @@ final class DbalUserRepository implements UserRepositoryInterface
     public function findById(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email FROM users WHERE id = ? AND active = 1',
+            'SELECT id, email, display_name FROM users WHERE id = ? AND active = 1',
             [$id],
         );
 
@@ -45,13 +45,14 @@ final class DbalUserRepository implements UserRepositoryInterface
             (string) ($raw['id'] ?? ''),
             (string) ($raw['email'] ?? ''),
             $this->loadRolesForUser((string) ($raw['id'] ?? '')),
+            isset($raw['display_name']) && $raw['display_name'] !== '' ? (string) $raw['display_name'] : null,
         );
     }
 
     public function findByEmail(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email FROM users WHERE email = ? AND active = 1',
+            'SELECT id, email, display_name FROM users WHERE email = ? AND active = 1',
             [$email],
         );
 
@@ -63,6 +64,7 @@ final class DbalUserRepository implements UserRepositoryInterface
             (string) ($raw['id'] ?? ''),
             (string) ($raw['email'] ?? ''),
             $this->loadRolesForUser((string) ($raw['id'] ?? '')),
+            isset($raw['display_name']) && $raw['display_name'] !== '' ? (string) $raw['display_name'] : null,
         );
     }
 
@@ -131,6 +133,18 @@ final class DbalUserRepository implements UserRepositoryInterface
         );
     }
 
+    public function updateDisplayName(string $userId, string $displayName): void
+    {
+        $this->connection->update(
+            'users',
+            [
+                'display_name' => $displayName !== '' ? $displayName : null,
+                'updated_at'   => $this->clock->now()->format('Y-m-d H:i:s'),
+            ],
+            ['id' => $userId],
+        );
+    }
+
     public function syncRoles(string $userId, array $roleIds): void
     {
         $this->connection->beginTransaction();
@@ -155,7 +169,7 @@ final class DbalUserRepository implements UserRepositoryInterface
     public function findAll(): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, email FROM users WHERE active = 1 ORDER BY email',
+            'SELECT id, email, display_name FROM users WHERE active = 1 ORDER BY email',
         );
 
         if ($rows === []) {
@@ -171,10 +185,12 @@ final class DbalUserRepository implements UserRepositoryInterface
         $users = [];
         foreach ($rows as $row) {
             $uid     = (string) ($row['id'] ?? '');
+            $dn      = isset($row['display_name']) && $row['display_name'] !== '' ? (string) $row['display_name'] : null;
             $users[] = new User(
                 $uid,
                 (string) ($row['email'] ?? ''),
                 $rolesByUser[$uid] ?? [],
+                $dn,
             );
         }
 

@@ -37,7 +37,7 @@ final class DbalRoleRepository implements RoleRepositoryInterface
         }
 
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, name FROM roles WHERE id IN (?) ORDER BY id',
+            'SELECT id, name, is_system FROM roles WHERE id IN (?) ORDER BY id',
             [$ids],
             [ArrayParameterType::STRING],
         );
@@ -52,7 +52,7 @@ final class DbalRoleRepository implements RoleRepositoryInterface
     public function findAll(): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, name FROM roles ORDER BY id',
+            'SELECT id, name, is_system FROM roles ORDER BY id',
         );
 
         if ($rows === []) {
@@ -162,6 +162,7 @@ final class DbalRoleRepository implements RoleRepositoryInterface
                 $rid,
                 (string) ($row['name'] ?? ''),
                 $permsByRole[$rid] ?? [],
+                (bool) ($row['is_system'] ?? false),
             );
         }
 

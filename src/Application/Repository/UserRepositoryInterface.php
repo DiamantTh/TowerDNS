@@ -64,6 +64,12 @@ interface UserRepositoryInterface
     public function updatePasswordHash(string $userId, string $passwordHash): void;
 
     /**
+     * Updates the display name for the given user.
+     * Pass an empty string to clear the display name.
+     */
+    public function updateDisplayName(string $userId, string $displayName): void;
+
+    /**
      * Atomically replaces the full set of roles assigned to a user.
      * All roles not present in $roleIds are unassigned.
      *
