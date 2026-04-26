@@ -1,0 +1,92 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Mitglieder — {{ account.name }} — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'accounts', csrfToken: csrfToken } %}
+
+<section class="section" id="main-content">
+    <div class="container">
+        <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
+            <ul>
+                <li><a href="/accounts">Accounts</a></li>
+                <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
+                <li class="is-active"><a href="#" aria-current="page">Mitglieder</a></li>
+            </ul>
+        </nav>
+
+        <h1 class="title">Mitglieder — {{ account.name }}</h1>
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="box mb-5">
+            <h2 class="subtitle has-text-weight-semibold mb-3">Mitglied einladen</h2>
+            <form method="post" action="/accounts/{{ account.id }}/members">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <input type="hidden" name="action" value="invite">
+                <div class="field is-grouped">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" name="user_id"
+                               placeholder="Benutzer-ID (GUID)" required
+                               pattern="[0-9a-fA-F\-]{36}">
+                    </div>
+                    <div class="control">
+                        <div class="select">
+                            <select name="role" required>
+                                {% for role in roles %}
+                                <option value="{{ role.value }}">{{ role.value }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Einladen</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="box">
+            {% if members is empty %}
+            <p class="has-text-grey">Keine Mitglieder vorhanden.</p>
+            {% else %}
+            <table class="table is-fullwidth is-hoverable">
+                <thead>
+                    <tr>
+                        <th>Benutzer-ID</th>
+                        <th>Rolle</th>
+                        <th>Eingeladen von</th>
+                        <th>Mitglied seit</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for member in members %}
+                <tr>
+                    <td><code>{{ member.userId }}</code></td>
+                    <td><span class="tag is-light">{{ member.role.value }}</span></td>
+                    <td>{% if member.invitedByUserId %}<code>{{ member.invitedByUserId }}</code>{% else %}&mdash;{% endif %}</td>
+                    <td>{{ member.createdAt|slice(0, 10) }}</td>
+                    <td>
+                        <form method="post" action="/accounts/{{ account.id }}/members"
+                              onsubmit="return confirm('Mitglied wirklich entfernen?')" style="display:inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                            <input type="hidden" name="action" value="remove">
+                            <input type="hidden" name="user_id" value="{{ member.userId }}">
+                            <button class="button is-small is-danger is-light" type="submit">Entfernen</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Accounts — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'accounts', csrfToken: csrfToken } %}
+
+<section class="section" id="main-content">
+    <div class="container">
+        <h1 class="title">Meine Accounts</h1>
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="box mb-5">
+            <h2 class="subtitle has-text-weight-semibold mb-3">Neuen Account anlegen</h2>
+            <form method="post" action="/accounts">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label class="label" for="account_name">Name</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <input class="input" type="text" id="account_name" name="name"
+                                       placeholder="Mein Account" required maxlength="255">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label class="label" for="account_slug">Slug</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <input class="input" type="text" id="account_slug" name="slug"
+                                       placeholder="mein-account" pattern="[a-z0-9\-]{2,64}"
+                                       title="Nur Kleinbuchstaben, Ziffern und Bindestriche (2–64 Zeichen)"
+                                       required maxlength="64">
+                            </div>
+                            <p class="help">Nur Kleinbuchstaben, Ziffern und Bindestriche.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="field is-horizontal">
+                    <div class="field-label"></div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <button class="button is-primary" type="submit">Anlegen</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if accounts is empty %}
+        <div class="notification is-info is-light">
+            Du bist noch keinem Account zugeordnet.
+        </div>
+        {% else %}
+        <div class="box">
+            <table class="table is-fullwidth is-hoverable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Slug</th>
+                        <th>Aktiv</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for account in accounts %}
+                <tr>
+                    <td>{{ account.name }}</td>
+                    <td><code>{{ account.slug }}</code></td>
+                    <td>
+                        {% if account.isActive %}
+                        <span class="tag is-success is-light">Aktiv</span>
+                        {% else %}
+                        <span class="tag is-warning is-light">Inaktiv</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="buttons are-small">
+                            <a class="button is-light" href="/accounts/{{ account.id }}">Bearbeiten</a>
+                            <a class="button is-light" href="/accounts/{{ account.id }}/members">Mitglieder</a>
+                            <a class="button is-light" href="/accounts/{{ account.id }}/providers">Provider</a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

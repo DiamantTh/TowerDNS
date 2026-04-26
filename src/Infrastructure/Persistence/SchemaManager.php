@@ -262,6 +262,145 @@ final readonly class SchemaManager
             'fk_wac_user_id',
         );
 
-        return [$roles, $rolePerms, $users, $userRoles, $waCredentials];
+        // accounts -----------------------------------------------------------
+        $accounts = new Table('accounts');
+        $accounts->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $accounts->addColumn('name', Types::STRING, ['length' => 255]);
+        $accounts->addColumn('slug', Types::STRING, ['length' => 100]);
+        $accounts->addColumn('owner_user_id', Types::GUID);
+        $accounts->addColumn('is_active', Types::BOOLEAN, ['default' => true]);
+        $accounts->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $accounts->setPrimaryKey(['id']);
+        $accounts->addUniqueIndex(['slug'], 'uq_accounts_slug');
+        $accounts->addIndex(['owner_user_id'], 'idx_accounts_owner');
+        $accounts->addForeignKeyConstraint(
+            'users',
+            ['owner_user_id'],
+            ['id'],
+            ['onDelete' => 'RESTRICT'],
+            'fk_acc_owner_user_id',
+        );
+
+        // account_memberships ------------------------------------------------
+        $accMembers = new Table('account_memberships');
+        $accMembers->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $accMembers->addColumn('account_id', Types::INTEGER);
+        $accMembers->addColumn('user_id', Types::GUID);
+        $accMembers->addColumn('role', Types::STRING, ['length' => 32]);
+        $accMembers->addColumn('invited_by', Types::GUID, ['notnull' => false]);
+        $accMembers->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $accMembers->setPrimaryKey(['id']);
+        $accMembers->addUniqueIndex(['account_id', 'user_id'], 'uq_accm_account_user');
+        $accMembers->addForeignKeyConstraint(
+            'accounts',
+            ['account_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_accm_account_id',
+        );
+        $accMembers->addForeignKeyConstraint(
+            'users',
+            ['user_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_accm_user_id',
+        );
+
+        // provider_accounts --------------------------------------------------
+        $provAccounts = new Table('provider_accounts');
+        $provAccounts->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $provAccounts->addColumn('account_id', Types::INTEGER);
+        $provAccounts->addColumn('provider_type', Types::STRING, ['length' => 64]);
+        $provAccounts->addColumn('name', Types::STRING, ['length' => 255]);
+        $provAccounts->addColumn('credentials_encrypted', Types::TEXT);
+        $provAccounts->addColumn('credentials_version', Types::INTEGER, ['default' => 1]);
+        $provAccounts->addColumn('is_active', Types::BOOLEAN, ['default' => true]);
+        $provAccounts->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $provAccounts->addColumn('last_tested_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $provAccounts->addColumn('last_used_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $provAccounts->setPrimaryKey(['id']);
+        $provAccounts->addIndex(['account_id'], 'idx_pa_account_id');
+        $provAccounts->addForeignKeyConstraint(
+            'accounts',
+            ['account_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_pa_account_id',
+        );
+
+        // zone_memberships ---------------------------------------------------
+        $zoneMembers = new Table('zone_memberships');
+        $zoneMembers->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $zoneMembers->addColumn('account_id', Types::INTEGER);
+        $zoneMembers->addColumn('zone_id', Types::STRING, ['length' => 253]);
+        $zoneMembers->addColumn('user_id', Types::GUID);
+        $zoneMembers->addColumn('role', Types::STRING, ['length' => 32]);
+        $zoneMembers->addColumn('granted_by', Types::GUID, ['notnull' => false]);
+        $zoneMembers->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $zoneMembers->setPrimaryKey(['id']);
+        $zoneMembers->addUniqueIndex(['account_id', 'zone_id', 'user_id'], 'uq_zm_account_zone_user');
+        $zoneMembers->addForeignKeyConstraint(
+            'accounts',
+            ['account_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_zm_account_id',
+        );
+        $zoneMembers->addForeignKeyConstraint(
+            'users',
+            ['user_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_zm_user_id',
+        );
+
+        // admin_impersonation_sessions ---------------------------------------
+        $impSessions = new Table('admin_impersonation_sessions');
+        $impSessions->addColumn('id', Types::GUID);
+        $impSessions->addColumn('actor_user_id', Types::GUID);
+        $impSessions->addColumn('effective_user_id', Types::GUID, ['notnull' => false]);
+        $impSessions->addColumn('effective_account_id', Types::INTEGER, ['notnull' => false]);
+        $impSessions->addColumn('reason', Types::TEXT);
+        $impSessions->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $impSessions->addColumn('expires_at', Types::DATETIME_MUTABLE);
+        $impSessions->addColumn('ended_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $impSessions->setPrimaryKey(['id']);
+        $impSessions->addIndex(['actor_user_id'], 'idx_ais_actor');
+        $impSessions->addForeignKeyConstraint(
+            'users',
+            ['actor_user_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_ais_actor_user_id',
+        );
+
+        // audit_logs ---------------------------------------------------------
+        $auditLogs = new Table('audit_logs');
+        $auditLogs->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $auditLogs->addColumn('actor_user_id', Types::GUID, ['notnull' => false]);
+        $auditLogs->addColumn('effective_user_id', Types::GUID, ['notnull' => false]);
+        $auditLogs->addColumn('account_id', Types::INTEGER, ['notnull' => false]);
+        $auditLogs->addColumn('zone_id', Types::STRING, ['length' => 253, 'notnull' => false]);
+        $auditLogs->addColumn('provider_account_id', Types::INTEGER, ['notnull' => false]);
+        $auditLogs->addColumn('impersonation_session_id', Types::GUID, ['notnull' => false]);
+        $auditLogs->addColumn('action', Types::STRING, ['length' => 128]);
+        $auditLogs->addColumn('target_type', Types::STRING, ['length' => 64]);
+        $auditLogs->addColumn('target_id', Types::STRING, ['length' => 255, 'notnull' => false]);
+        $auditLogs->addColumn('before_json', Types::TEXT, ['notnull' => false]);
+        $auditLogs->addColumn('after_json', Types::TEXT, ['notnull' => false]);
+        $auditLogs->addColumn('metadata_json', Types::TEXT, ['notnull' => false]);
+        $auditLogs->addColumn('ip_address', Types::STRING, ['length' => 45, 'notnull' => false]);
+        $auditLogs->addColumn('user_agent', Types::TEXT, ['notnull' => false]);
+        $auditLogs->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $auditLogs->setPrimaryKey(['id']);
+        $auditLogs->addIndex(['account_id'], 'idx_al_account_id');
+        $auditLogs->addIndex(['zone_id'], 'idx_al_zone_id');
+        $auditLogs->addIndex(['actor_user_id'], 'idx_al_actor');
+        $auditLogs->addIndex(['created_at'], 'idx_al_created_at');
+
+        return [
+            $roles, $rolePerms, $users, $userRoles, $waCredentials,
+            $accounts, $accMembers, $provAccounts, $zoneMembers, $impSessions, $auditLogs,
+        ];
     }
 }

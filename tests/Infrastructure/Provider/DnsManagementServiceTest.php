@@ -8,14 +8,19 @@ declare(strict_types=1);
 namespace TowerDNS\Tests\Infrastructure\Provider;
 
 use PHPUnit\Framework\TestCase;
+use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\DnsProviderInterface;
 use TowerDNS\Application\Contracts\ProviderCapabilitySet;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Provider\ProviderRegistry;
+use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
+use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\DnsManagementService;
+use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
@@ -29,10 +34,7 @@ final class DnsManagementServiceTest extends TestCase
     public function testListZonesRequiresPermission(): void
     {
         $user    = new User('u1', 'u@example.com', []);
-        $service = new DnsManagementService(
-            new AuthorizationService(),
-            new ProviderRegistry([$this->makeProvider()]),
-        );
+        $service = $this->makeService([$this->makeProvider()]);
 
         $this->expectException(AuthorizationException::class);
         $service->listZones($user, 'fake');
@@ -44,10 +46,7 @@ final class DnsManagementServiceTest extends TestCase
         $user = new User('u1', 'u@example.com', [$role]);
 
         $provider = $this->makeProvider(capabilities: [Capability::ZONE_CREATE => false]);
-        $service  = new DnsManagementService(
-            new AuthorizationService(),
-            new ProviderRegistry([$provider]),
-        );
+        $service  = $this->makeService([$provider]);
 
         $this->expectException(CapabilityException::class);
         $service->createZone($user, 'fake', 'example.com');
@@ -59,13 +58,25 @@ final class DnsManagementServiceTest extends TestCase
         $user = new User('u1', 'u@example.com', [$role]);
 
         $provider = $this->makeProvider();
-        $service  = new DnsManagementService(
-            new AuthorizationService(),
-            new ProviderRegistry([$provider]),
-        );
+        $service  = $this->makeService([$provider]);
 
         $zone = $service->createZone($user, 'fake', 'müller.eu');
         self::assertSame('xn--mller-kva.eu', $zone->name);
+    }
+
+    /** @param list<DnsProviderInterface> $providers */
+    private function makeService(array $providers): DnsManagementService
+    {
+        return new DnsManagementService(
+            new AuthorizationService(),
+            new ProviderRegistry($providers),
+            $this->createMock(ProviderAccountRepositoryInterface::class),
+            $this->createMock(AccountProviderFactoryInterface::class),
+            new PermissionService(
+                $this->createMock(AccountRepositoryInterface::class),
+                $this->createMock(ZoneMembershipRepositoryInterface::class),
+            ),
+        );
     }
 
     /**

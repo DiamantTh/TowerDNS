@@ -1,0 +1,62 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Account bearbeiten — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'accounts', csrfToken: csrfToken } %}
+
+<section class="section" id="main-content">
+    <div class="container" style="max-width: 640px;">
+        <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
+            <ul>
+                <li><a href="/accounts">Accounts</a></li>
+                <li class="is-active"><a href="#" aria-current="page">{{ account.name }}</a></li>
+            </ul>
+        </nav>
+
+        <h1 class="title">Account bearbeiten</h1>
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="box">
+            <form method="post" action="/accounts/{{ account.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <input type="hidden" name="action" value="rename">
+
+                <div class="field">
+                    <label class="label" for="account_name">Name</label>
+                    <div class="control">
+                        <input class="input" type="text" id="account_name" name="name"
+                               value="{{ account.name }}" required maxlength="255">
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Speichern</button>
+                        <a class="button is-light ml-2" href="/accounts">Abbrechen</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {% if account.isActive %}
+        <div class="box has-background-danger-light">
+            <h2 class="subtitle has-text-danger">Account deaktivieren</h2>
+            <p class="mb-3">Der Account wird deaktiviert. Bestehende Daten bleiben erhalten.</p>
+            <form method="post" action="/accounts/{{ account.id }}"
+                  onsubmit="return confirm('Account wirklich deaktivieren?')">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <input type="hidden" name="action" value="deactivate">
+                <button class="button is-danger" type="submit">Deaktivieren</button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

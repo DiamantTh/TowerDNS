@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Application;
 
 use Mezzio\Application;
+use TowerDNS\Infrastructure\Http\Handler\AccountHandler;
+use TowerDNS\Infrastructure\Http\Handler\AdminSwitchHandler;
 use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\DnssecHandler;
@@ -15,6 +17,7 @@ use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
 use TowerDNS\Infrastructure\Http\Handler\PasswordChangeHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProfileHandler;
+use TowerDNS\Infrastructure\Http\Handler\ProviderAccountHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordDeleteHandler;
@@ -107,5 +110,24 @@ final class Routes
         // ── Provider credentials ──────────────────────────────────────────
         $app->get('/credentials', [RequireAuthMiddleware::class, ProviderCredentialsHandler::class], 'credentials.form');
         $app->post('/credentials', [RequireAuthMiddleware::class, ProviderCredentialsHandler::class], 'credentials.submit');
+
+        // ── Accounts (multi-tenant) ───────────────────────────────────────────
+        $app->get('/accounts', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.list');
+        $app->post('/accounts', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.create');
+        $app->get('/accounts/{id}', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.edit.form');
+        $app->post('/accounts/{id}', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.edit.submit');
+        $app->get('/accounts/{id}/members', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.members');
+        $app->post('/accounts/{id}/members', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.members.submit');
+
+        // ── Provider Accounts ─────────────────────────────────────────────────
+        $app->get('/accounts/{id}/providers', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.list');
+        $app->post('/accounts/{id}/providers', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.create');
+        $app->post('/accounts/{id}/providers/{pid}/replace', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.replace');
+        $app->post('/accounts/{id}/providers/{pid}/deactivate', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.deactivate');
+
+        // ── Admin Switch ──────────────────────────────────────────────────────
+        $app->get('/admin/switch', [RequireAuthMiddleware::class, AdminSwitchHandler::class], 'admin.switch.form');
+        $app->post('/admin/switch/start', [RequireAuthMiddleware::class, AdminSwitchHandler::class], 'admin.switch.start');
+        $app->post('/admin/switch/end', [RequireAuthMiddleware::class, AdminSwitchHandler::class], 'admin.switch.end');
     }
 }

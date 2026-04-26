@@ -1,0 +1,262 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Provider-Accounts — {{ account.name }} — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'accounts', csrfToken: csrfToken } %}
+
+<section class="section" id="main-content">
+    <div class="container">
+        <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
+            <ul>
+                <li><a href="/accounts">Accounts</a></li>
+                <li><a href="/accounts/{{ account.id }}">{{ account.name }}</a></li>
+                <li class="is-active"><a href="#" aria-current="page">Provider-Accounts</a></li>
+            </ul>
+        </nav>
+
+        <h1 class="title">Provider-Accounts — {{ account.name }}</h1>
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {# Add provider account form #}
+        <div class="box mb-5">
+            <h2 class="subtitle has-text-weight-semibold mb-3">Neuen Provider hinzufügen</h2>
+            <form method="post" action="/accounts/{{ account.id }}/providers" id="add-provider-form">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label class="label" for="provider_name">Name</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <input class="input" type="text" id="provider_name" name="name"
+                                       placeholder="z.B. Mein deSEC-Account" required maxlength="255">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field is-horizontal">
+                    <div class="field-label is-normal">
+                        <label class="label" for="provider_type">Provider-Typ</label>
+                    </div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <div class="select is-fullwidth">
+                                    <select id="provider_type" name="provider_type"
+                                            onchange="updateCredentialFields(this.value)" required>
+                                        <option value="">— Typ wählen —</option>
+                                        {% for type in allowedTypes %}
+                                        <option value="{{ type }}">{{ type }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# deSEC credentials #}
+                <div id="creds-desec" class="is-hidden">
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label class="label" for="desec_token">API-Token</label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <input class="input" type="password" id="desec_token"
+                                           name="desec_token" autocomplete="new-password">
+                                </div>
+                                <p class="help">Aus dem deSEC-Dashboard unter <em>Account / Token</em>.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# Cloudflare credentials #}
+                <div id="creds-cloudflare" class="is-hidden">
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label class="label" for="cloudflare_api_token">API-Token</label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <input class="input" type="password" id="cloudflare_api_token"
+                                           name="cloudflare_api_token" autocomplete="new-password">
+                                </div>
+                                <p class="help">Aus dem Cloudflare-Dashboard unter <em>Profil / API-Token</em>.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {# INWX credentials #}
+                <div id="creds-inwx" class="is-hidden">
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label class="label" for="inwx_username">Benutzername</label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <input class="input" type="text" id="inwx_username"
+                                           name="inwx_username" autocomplete="username">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field is-horizontal">
+                        <div class="field-label is-normal">
+                            <label class="label" for="inwx_password">Passwort</label>
+                        </div>
+                        <div class="field-body">
+                            <div class="field">
+                                <div class="control">
+                                    <input class="input" type="password" id="inwx_password"
+                                           name="inwx_password" autocomplete="new-password">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field is-horizontal">
+                    <div class="field-label"></div>
+                    <div class="field-body">
+                        <div class="field">
+                            <div class="control">
+                                <button class="button is-primary" type="submit">Hinzufügen</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {# Existing provider accounts #}
+        <div class="box">
+            {% if providers is empty %}
+            <p class="has-text-grey">Noch keine Provider-Accounts vorhanden.</p>
+            {% else %}
+            <table class="table is-fullwidth is-hoverable">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Typ</th>
+                        <th>Aktiv</th>
+                        <th>Erstellt</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for pa in providers %}
+                <tr>
+                    <td>{{ pa.name }}</td>
+                    <td><span class="tag is-light">{{ pa.providerType }}</span></td>
+                    <td>
+                        {% if pa.isActive %}
+                        <span class="tag is-success is-light">Aktiv</span>
+                        {% else %}
+                        <span class="tag is-warning is-light">Inaktiv</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ pa.createdAt|slice(0, 10) }}</td>
+                    <td>
+                        <div class="buttons are-small">
+                            {% if pa.isActive %}
+                            <button class="button is-light" type="button"
+                                    onclick="showReplaceForm({{ pa.id }}, '{{ pa.providerType }}')">
+                                Credentials ersetzen
+                            </button>
+                            <form method="post"
+                                  action="/accounts/{{ account.id }}/providers/{{ pa.id }}/deactivate"
+                                  onsubmit="return confirm('Provider-Account wirklich deaktivieren?')"
+                                  style="display:inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                                <button class="button is-danger is-light" type="submit">Deaktivieren</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {# Inline replace-credentials form (hidden by default) #}
+                {% if pa.isActive %}
+                <tr id="replace-form-{{ pa.id }}" class="is-hidden">
+                    <td colspan="5">
+                        <form method="post"
+                              action="/accounts/{{ account.id }}/providers/{{ pa.id }}/replace">
+                            <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                            {% if pa.providerType == 'desec' %}
+                            <div class="field has-addons">
+                                <div class="control is-expanded">
+                                    <input class="input" type="password" name="desec_token"
+                                           placeholder="Neuer deSEC API-Token" required autocomplete="new-password">
+                                </div>
+                                <div class="control">
+                                    <button class="button is-warning" type="submit">Ersetzen</button>
+                                </div>
+                            </div>
+                            {% elseif pa.providerType == 'cloudflare' %}
+                            <div class="field has-addons">
+                                <div class="control is-expanded">
+                                    <input class="input" type="password" name="cloudflare_api_token"
+                                           placeholder="Neuer Cloudflare API-Token" required autocomplete="new-password">
+                                </div>
+                                <div class="control">
+                                    <button class="button is-warning" type="submit">Ersetzen</button>
+                                </div>
+                            </div>
+                            {% elseif pa.providerType == 'inwx' %}
+                            <div class="field is-grouped">
+                                <div class="control is-expanded">
+                                    <input class="input" type="text" name="inwx_username"
+                                           placeholder="INWX-Benutzername" required autocomplete="username">
+                                </div>
+                                <div class="control is-expanded">
+                                    <input class="input" type="password" name="inwx_password"
+                                           placeholder="INWX-Passwort" required autocomplete="new-password">
+                                </div>
+                                <div class="control">
+                                    <button class="button is-warning" type="submit">Ersetzen</button>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </form>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<script>
+function updateCredentialFields(type) {
+    ['desec', 'cloudflare', 'inwx'].forEach(function(t) {
+        document.getElementById('creds-' + t).classList.add('is-hidden');
+    });
+    if (type) {
+        var el = document.getElementById('creds-' + type);
+        if (el) { el.classList.remove('is-hidden'); }
+    }
+}
+function showReplaceForm(id, type) {
+    var row = document.getElementById('replace-form-' + id);
+    if (row) { row.classList.toggle('is-hidden'); }
+}
+</script>
+{% endblock %}

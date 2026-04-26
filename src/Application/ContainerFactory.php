@@ -53,15 +53,24 @@ use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
+use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Provider\ProviderRegistry;
+use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
+use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
+use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Application\Services\MailService;
 use TowerDNS\Application\Services\PasswordPolicy;
+use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Clock\SystemClock;
@@ -69,15 +78,21 @@ use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
+use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
+use TowerDNS\Infrastructure\Persistence\DbalAdminImpersonationSessionRepository;
 use TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository;
+use TowerDNS\Infrastructure\Persistence\DbalAuditLogRepository;
+use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
+use TowerDNS\Infrastructure\Persistence\DbalZoneMembershipRepository;
 use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
 use TowerDNS\Infrastructure\Provider\DeSEC\DeSECApiClient;
 use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
 use TowerDNS\Infrastructure\Provider\Inwx\InwxProvider;
 use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
+use TowerDNS\Infrastructure\Provider\ProviderAccountAdapterFactory;
 use TowerDNS\Infrastructure\Twig\TranslatorExtension;
 use Twig\Environment;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
@@ -179,6 +194,27 @@ final class ContainerFactory
             UserRepositoryInterface::class   => \DI\autowire(DbalUserRepository::class),
             RoleRepositoryInterface::class   => \DI\autowire(DbalRoleRepository::class),
             ApiKeyRepositoryInterface::class => \DI\autowire(DbalApiKeyRepository::class),
+
+            // ── Multi-Tenant repositories ─────────────────────────────────────
+            AccountRepositoryInterface::class                   => \DI\autowire(DbalAccountRepository::class),
+            ProviderAccountRepositoryInterface::class           => \DI\autowire(DbalProviderAccountRepository::class),
+            AuditLogRepositoryInterface::class                  => \DI\autowire(DbalAuditLogRepository::class),
+            ZoneMembershipRepositoryInterface::class            => \DI\autowire(DbalZoneMembershipRepository::class),
+            AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
+
+            // ── Credential service (app-key encryption) ───────────────────────
+            CredentialService::class => \DI\factory(static function () use ($appConf): CredentialService {
+                $b64 = (string) ($appConf['security']['encryption_key'] ?? '');
+                if ($b64 === '') {
+                    throw new \RuntimeException('security.encryption_key ist nicht konfiguriert.');
+                }
+                return new CredentialService($b64);
+            }),
+
+            // ── Multi-Tenant services ─────────────────────────────────────────
+            PermissionService::class               => \DI\autowire(),
+            AuditLogService::class                 => \DI\autowire(),
+            AccountProviderFactoryInterface::class => \DI\autowire(ProviderAccountAdapterFactory::class),
 
             // ── Provider registry ─────────────────────────────────────────────
             ProviderRegistry::class => \DI\factory(static function () use ($provConf): ProviderRegistry {
