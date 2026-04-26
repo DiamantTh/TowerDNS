@@ -15,7 +15,10 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
+use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 
 /**
  * Handles GET /login (show form) and POST /login (authenticate).
@@ -27,9 +30,13 @@ use TowerDNS\Application\Repository\UserRepositoryInterface;
  */
 final class LoginHandler implements RequestHandlerInterface
 {
+    private const RATE_LIMIT        = 10;
+    private const RATE_WINDOW_SECS  = 300; // 5 minutes
+
     public function __construct(
         private readonly TemplateRendererInterface $renderer,
         private readonly UserRepositoryInterface   $users,
+        private readonly CacheInterface            $cache,
     ) {
     }
 
@@ -51,6 +58,27 @@ final class LoginHandler implements RequestHandlerInterface
         // POST — authenticate
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+
+        // Rate-limit by client IP before doing any DB work.
+        $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '');
+        $limiter = new RateLimiter(
+            $this->cache,
+            'login_' . hash('sha256', $ip),
+            self::RATE_LIMIT,
+            self::RATE_WINDOW_SECS,
+            'Login',
+        );
+        try {
+            $limiter->hit();
+        } catch (RateLimitExceededException) {
+            return new HtmlResponse(
+                $this->renderer->render('app::login', [
+                    'error'     => 'Zu viele Anmeldeversuche. Bitte warte einige Minuten und versuche es erneut.',
+                    'csrfToken' => $guard->generateToken(),
+                ]),
+                429,
+            );
+        }
 
         /** @var array<string, string> $body */
         $body  = (array) ($request->getParsedBody() ?? []);
