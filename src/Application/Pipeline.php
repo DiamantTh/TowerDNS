@@ -17,6 +17,7 @@ use Mezzio\Router\Middleware\ImplicitOptionsMiddleware;
 use Mezzio\Router\Middleware\RouteMiddleware;
 use Mezzio\Session\SessionMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 
 final class Pipeline
 {
@@ -24,6 +25,9 @@ final class Pipeline
     {
         // Outermost: catch all errors and render an error page
         $app->pipe(ErrorHandler::class);
+
+        // Security headers on every response (including error pages)
+        $app->pipe(SecurityHeaderMiddleware::class);
 
         // Session must run before authentication
         $app->pipe(SessionMiddleware::class);
