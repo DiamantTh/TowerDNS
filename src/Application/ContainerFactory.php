@@ -13,6 +13,8 @@ use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use Laminas\HttpHandlerRunner\Emitter\EmitterInterface;
 use Laminas\HttpHandlerRunner\RequestHandlerRunnerInterface;
+use Laminas\I18n\Translator\Translator;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Laminas\Stratigility\Middleware\ErrorHandler;
 use Laminas\Stratigility\MiddlewarePipe;
 use Mezzio\Container\ApplicationFactory;
@@ -57,6 +59,7 @@ use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\DnsManagementService;
+use TowerDNS\Application\Services\MailService;
 use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
@@ -73,6 +76,7 @@ use TowerDNS\Infrastructure\Provider\DeSEC\DeSECApiClient;
 use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
 use TowerDNS\Infrastructure\Provider\Inwx\InwxProvider;
 use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
+use TowerDNS\Infrastructure\Twig\TranslatorExtension;
 use Twig\Environment;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
@@ -324,7 +328,21 @@ final class ContainerFactory
                 static fn(\Psr\Container\ContainerInterface $c): ErrorResponseGenerator => (new ErrorResponseGeneratorFactory())($c)
             ),
             ErrorHandler::class => \DI\factory(
-                static fn(\Psr\Container\ContainerInterface $c): ErrorHandler => (new ErrorHandlerFactory())($c)
+                static function (\Psr\Container\ContainerInterface $c) use ($appConf): ErrorHandler {
+                    $handler = (new ErrorHandlerFactory())($c);
+
+                    $sentryDsn = (string) ($appConf['sentry']['dsn'] ?? '');
+                    if ($sentryDsn !== '') {
+                        \Sentry\init(['dsn' => $sentryDsn]);
+                        $handler->attachListener(
+                            static function (\Throwable $error): void {
+                                \Sentry\captureException($error);
+                            }
+                        );
+                    }
+
+                    return $handler;
+                }
             ),
 
             // ── Session ───────────────────────────────────────────────────────
@@ -335,11 +353,42 @@ final class ContainerFactory
                 static fn(\Psr\Container\ContainerInterface $c): SessionMiddleware => (new SessionMiddlewareFactory())($c)
             ),
 
+            // ── Symfony Mailer ────────────────────────────────────────────────
+            MailService::class => \DI\factory(
+                static function () use ($appConf): MailService {
+                    $mailerConf  = (array) ($appConf['mailer'] ?? []);
+                    $dsn         = (string) ($mailerConf['dsn'] ?? 'null://null');
+                    $fromAddress = (string) ($mailerConf['from_address'] ?? 'noreply@localhost');
+                    $fromName    = (string) ($appConf['application']['name'] ?? 'TowerDNS');
+                    return new MailService($dsn, $fromAddress, $fromName);
+                }
+            ),
+
+            // ── Laminas I18n Translator ───────────────────────────────────────
+            TranslatorInterface::class => \DI\factory(
+                static function () use ($appConf, $projectRoot): TranslatorInterface {
+                    $locale     = (string) ($appConf['app']['locale'] ?? 'de_DE');
+                    $translator = new Translator();
+                    $translator->setLocale($locale);
+                    $translationsDir = $projectRoot . '/translations';
+                    if (is_dir($translationsDir)) {
+                        $translator->addTranslationFilePattern(
+                            'phpArray',
+                            $translationsDir,
+                            '%s.php',
+                            'default',
+                        );
+                    }
+                    return $translator;
+                }
+            ),
+
             // ── Twig ──────────────────────────────────────────────────────────
             Environment::class => \DI\factory(
                 static function (\Psr\Container\ContainerInterface $c) use ($twigCacheActive): Environment {
                     $env = (new TwigEnvironmentFactory())($c);
                     $env->addGlobal('twig_cache_active', $twigCacheActive);
+                    $env->addExtension($c->get(TranslatorExtension::class));
                     return $env;
                 }
             ),

@@ -27,30 +27,26 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 
-// ── Pfade ─────────────────────────────────────────────────────────────────
-$PROJECT_ROOT = dirname(__DIR__);
-$INSTALL_DIR  = __DIR__;
-$LOCK_FILE    = $INSTALL_DIR . '/.lock';
-
-// ── Bereits installiert? ──────────────────────────────────────────────────
-if (file_exists($LOCK_FILE)) {
-    fwrite(STDERR, "TowerDNS is already installed (.lock file exists).\n");
-    fwrite(STDERR, "Remove $LOCK_FILE to reinstall.\n");
-    exit(1);
-}
-
 // ── Autoloader ───────────────────────────────────────────────────────────
-$autoload = $PROJECT_ROOT . '/vendor/autoload.php';
+$projectRoot = dirname(__DIR__);
+$autoload    = $projectRoot . '/vendor/autoload.php';
+
 if (!file_exists($autoload)) {
-    fwrite(STDERR, "vendor/autoload.php not found.\n");
-    fwrite(STDERR, "Run: composer install --no-dev\n");
+    fwrite(STDERR, "vendor/autoload.php not found.\nRun: composer install --no-dev\n");
     exit(1);
 }
+
 require_once $autoload;
 
-// ── Extensions ───────────────────────────────────────────────────────────
-$requiredExts = ['pdo', 'openssl', 'sodium', 'intl', 'mbstring'];
-foreach ($requiredExts as $ext) {
+// ── Symfony Console Application ───────────────────────────────────────────
+use Symfony\Component\Console\Application;
+use TowerDNS\Infrastructure\Console\InstallCommand;
+
+$app = new Application('TowerDNS Installer', '1.0.0');
+$app->add(new InstallCommand($projectRoot));
+$app->setDefaultCommand('towerdns:install', true);
+$app->run();
+
     if (!extension_loaded($ext)) {
         fwrite(STDERR, "Missing required PHP extension: $ext\n");
         exit(1);

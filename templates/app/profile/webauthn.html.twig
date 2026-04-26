@@ -5,7 +5,7 @@
 {% block body %}
 {% include 'app/_navbar.html.twig' with { user: user, active: 'profile', csrfToken: csrfToken } %}
 
-<section class="section">
+<section class="section" id="main-content">
     <div class="container" style="max-width: 720px;">
         <nav class="breadcrumb" aria-label="breadcrumbs">
             <ul>
@@ -52,10 +52,10 @@
             <table class="table is-fullwidth">
                 <thead>
                     <tr>
-                        <th>Name</th>
-                        <th>Registriert</th>
-                        <th>Zuletzt genutzt</th>
-                        <th></th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Registriert</th>
+                        <th scope="col">Zuletzt genutzt</th>
+                        <th scope="col"><span class="sr-only">Aktionen</span></th>
                     </tr>
                 </thead>
                 <tbody>

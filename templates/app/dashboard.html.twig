@@ -5,7 +5,7 @@
 {% block body %}
 {% include 'app/_navbar.html.twig' with { user: user, active: 'dashboard', csrfToken: csrfToken } %}
 
-<section class="section">
+<section class="section" id="main-content">
     <div class="container">
         <h1 class="title">Dashboard</h1>
         <p class="subtitle has-text-grey">Willkommen bei TowerDNS, {{ user.displayName ?? user.email ?? '' }}.</p>

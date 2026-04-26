@@ -5,20 +5,20 @@
 {% block body %}
 {% include 'app/_navbar.html.twig' with { user: user, active: 'profile', csrfToken: csrfToken } %}
 
-<section class="section">
+<section class="section" id="main-content">
     <div class="container" style="max-width: 680px;">
         <h1 class="title">Mein Profil</h1>
 
         {% if error %}
         <div class="notification is-danger is-light">
-            <button class="delete" onclick="this.parentElement.remove()"></button>
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
             {{ error }}
         </div>
         {% endif %}
 
         {% if success %}
         <div class="notification is-success is-light">
-            <button class="delete" onclick="this.parentElement.remove()"></button>
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
             {{ success }}
         </div>
         {% endif %}
@@ -103,7 +103,7 @@
             {% if webAuthnKeys|length > 0 %}
             <table class="table is-fullwidth is-narrow is-size-7">
                 <thead>
-                    <tr><th>Name</th><th>Registriert</th><th>Zuletzt genutzt</th></tr>
+                    <tr><th scope="col">Name</th><th scope="col">Registriert</th><th scope="col">Zuletzt genutzt</th></tr>
                 </thead>
                 <tbody>
                     {% for key in webAuthnKeys %}

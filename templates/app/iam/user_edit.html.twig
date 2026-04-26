@@ -5,7 +5,7 @@
 {% block body %}
 {% include 'app/_navbar.html.twig' with { user: currentUser, active: 'users', csrfToken: csrfToken } %}
 
-<section class="section">
+<section class="section" id="main-content">
     <div class="container">
 
         <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
@@ -19,14 +19,14 @@
 
         {% if error %}
         <div class="notification is-danger is-light">
-            <button class="delete" onclick="this.parentElement.remove()"></button>
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
             {{ error }}
         </div>
         {% endif %}
 
         {% if success %}
         <div class="notification is-success is-light">
-            <button class="delete" onclick="this.parentElement.remove()"></button>
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
             {{ success }}
         </div>
         {% endif %}

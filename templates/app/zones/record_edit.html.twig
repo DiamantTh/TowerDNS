@@ -5,7 +5,7 @@
 {% block body %}
 {% include 'app/_navbar.html.twig' with { user: user, active: 'zones', csrfToken: csrfToken } %}
 
-<section class="section">
+<section class="section" id="main-content">
     <div class="container">
 
         <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
@@ -20,7 +20,7 @@
 
         {% if error %}
         <div class="notification is-danger is-light">
-            <button class="delete" onclick="this.parentElement.remove()"></button>
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
             {{ error }}
         </div>
         {% endif %}

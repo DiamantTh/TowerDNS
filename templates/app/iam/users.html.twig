@@ -5,21 +5,21 @@
 {% block body %}
 {% include 'app/_navbar.html.twig' with { user: currentUser, active: 'users', csrfToken: csrfToken } %}
 
-<section class="section">
+<section class="section" id="main-content">
     <div class="container">
 
         <h1 class="title">Benutzerverwaltung</h1>
 
         {% if error %}
         <div class="notification is-danger is-light">
-            <button class="delete" onclick="this.parentElement.remove()"></button>
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
             {{ error }}
         </div>
         {% endif %}
 
         {% if success %}
         <div class="notification is-success is-light">
-            <button class="delete" onclick="this.parentElement.remove()"></button>
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
             {{ success }}
         </div>
         {% endif %}
@@ -66,10 +66,10 @@
         <table class="table is-fullwidth is-hoverable is-striped">
             <thead>
                 <tr>
-                    <th>E-Mail</th>
-                    <th>Anzeigename</th>
-                    <th>Rollen</th>
-                    <th class="has-text-right"></th>
+                    <th scope="col">E-Mail</th>
+                    <th scope="col">Anzeigename</th>
+                    <th scope="col">Rollen</th>
+                    <th scope="col" class="has-text-right"><span class="sr-only">Aktionen</span></th>
                 </tr>
             </thead>
             <tbody>

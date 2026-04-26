@@ -18,6 +18,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\PasswordPolicy;
+use TowerDNS\Application\Validation\UserInputFilter;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -56,13 +57,19 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
         $email    = trim(strtolower((string) ($body['email'] ?? '')));
         $password = (string) ($body['password'] ?? '');
 
-        if ($email === '' || $password === '') {
-            return new RedirectResponse('/users?error=' . rawurlencode('E-Mail und Passwort sind erforderlich.'));
+        $filter = new UserInputFilter();
+        $filter->setData(['email' => $email, 'password' => $password]);
+
+        if (!$filter->isValid()) {
+            $messages = array_merge(...array_values($filter->getMessages()));
+            $first    = reset($messages);
+            return new RedirectResponse('/users?error=' . rawurlencode(is_string($first) ? $first : 'Ungültige Eingabe.'));
         }
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return new RedirectResponse('/users?error=' . rawurlencode('Ungültige E-Mail-Adresse.'));
-        }
+        /** @var array{email: string, password: string} $values */
+        $values   = $filter->getValues();
+        $email    = $values['email'];
+        $password = $values['password'];
 
         try {
             $this->passwordPolicy->assertValid($password);

@@ -5,13 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}TowerDNS{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.2/css/bulma.min.css">
+    <style>
+        .skip-link { position: absolute; top: -50px; left: 0; z-index: 9999; background: #fff; color: #000; padding: .5rem 1rem; text-decoration: underline; border: 2px solid #000; transition: top .2s; }
+        .skip-link:focus { top: 0; }
+    </style>
 </head>
 <body>
+<a class="skip-link" href="#main-content">Zum Hauptinhalt springen</a>
 {% if twig_cache_active is defined and not twig_cache_active %}
 <div class="notification is-warning is-light m-4 mb-0">
     <strong>Hinweis:</strong> Twig-Template-Cache ist deaktiviert &mdash; <code>cache/twig/</code> ist nicht vorhanden oder nicht beschreibbar. Leistungseinbußen im Betrieb sind möglich.
 </div>
 {% endif %}
 {% block body %}{% endblock %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.navbar-burger').forEach(function (burger) {
+        burger.addEventListener('click', function () {
+            var target = document.getElementById(burger.dataset.target);
+            burger.classList.toggle('is-active');
+            burger.setAttribute('aria-expanded', burger.classList.contains('is-active') ? 'true' : 'false');
+            if (target) { target.classList.toggle('is-active'); }
+        });
+    });
+});
+</script>
 </body>
 </html>
