@@ -48,7 +48,16 @@ use Mezzio\Twig\TwigRendererFactory;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\SimpleCache\CacheInterface;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter;
+use Symfony\Component\Cache\Psr16Cache;
+use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Provider\ProviderRegistry;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
+use Webauthn\AttestationStatement\AttestationStatementSupportManager;
+use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
+use Webauthn\Denormalizer\WebauthnSerializerFactory;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
@@ -203,7 +212,28 @@ final class ContainerFactory
             TotpService::class              => \DI\autowire(),
             AuthenticationMiddleware::class => \DI\autowire(),
             RequireAuthMiddleware::class    => \DI\autowire(),
+            // ── PSR-16 cache (Symfony FilesystemAdapter) ──────────────────────
+            CacheInterface::class => \DI\factory(
+                static function () use ($projectRoot): CacheInterface {
+                    $adapter = new FilesystemAdapter(
+                        namespace: 'towerdns',
+                        defaultLifetime: 0,
+                        directory: $projectRoot . '/cache/ratelimit',
+                    );
+                    return new Psr16Cache($adapter);
+                }
+            ),
 
+            // ── Symfony Serializer (for WebAuthn credential serialisation) ────
+            SerializerInterface::class => \DI\factory(static function (): SerializerInterface {
+                $asm = new AttestationStatementSupportManager([
+                    new NoneAttestationStatementSupport(),
+                ]);
+                return (new WebauthnSerializerFactory($asm))->create();
+            }),
+
+            // ── WebAuthn credential repository ────────────────────────────────
+            WebAuthnCredentialRepositoryInterface::class => \DI\autowire(DbalWebAuthnCredentialRepository::class),
             // ── PSR-20 Clock ──────────────────────────────────────────────────
             ClockInterface::class => \DI\autowire(SystemClock::class),
 
