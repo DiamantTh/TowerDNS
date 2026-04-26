@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application;
 
 use Mezzio\Application;
+use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\DnssecHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
@@ -69,6 +70,9 @@ final class Routes
         $app->post('/profile/webauthn/register/begin', [RequireAuthMiddleware::class, WebAuthnRegisterBeginHandler::class], 'profile.webauthn.register.begin');
         $app->post('/profile/webauthn/register/finish', [RequireAuthMiddleware::class, WebAuthnRegisterFinishHandler::class], 'profile.webauthn.register.finish');
         $app->post('/profile/webauthn/{credentialId}/delete', [RequireAuthMiddleware::class, WebAuthnDeleteHandler::class], 'profile.webauthn.delete');
+        $app->get('/profile/api-keys', [RequireAuthMiddleware::class, ApiKeyHandler::class], 'profile.apikeys.list');
+        $app->post('/profile/api-keys', [RequireAuthMiddleware::class, ApiKeyHandler::class], 'profile.apikeys.create');
+        $app->post('/profile/api-keys/{id}/revoke', [RequireAuthMiddleware::class, ApiKeyHandler::class], 'profile.apikeys.revoke');
 
         // ── IAM ───────────────────────────────────────────────────────────────
         $app->get('/users', [RequireAuthMiddleware::class, UserListHandler::class], 'users.list');

@@ -54,6 +54,7 @@ use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Provider\ProviderRegistry;
+use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
@@ -68,6 +69,7 @@ use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
+use TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
@@ -174,8 +176,9 @@ final class ContainerFactory
             }),
 
             // ── Repositories ──────────────────────────────────────────────────
-            UserRepositoryInterface::class => \DI\autowire(DbalUserRepository::class),
-            RoleRepositoryInterface::class => \DI\autowire(DbalRoleRepository::class),
+            UserRepositoryInterface::class   => \DI\autowire(DbalUserRepository::class),
+            RoleRepositoryInterface::class   => \DI\autowire(DbalRoleRepository::class),
+            ApiKeyRepositoryInterface::class => \DI\autowire(DbalApiKeyRepository::class),
 
             // ── Provider registry ─────────────────────────────────────────────
             ProviderRegistry::class => \DI\factory(static function () use ($provConf): ProviderRegistry {

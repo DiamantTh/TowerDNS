@@ -1,0 +1,128 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}API-Schlüssel — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'profile', csrfToken: csrfToken } %}
+
+<section class="section" id="main-content">
+    <div class="container" style="max-width: 720px;">
+        <nav class="breadcrumb" aria-label="breadcrumbs">
+            <ul>
+                <li><a href="/profile">Mein Profil</a></li>
+                <li class="is-active"><a href="/profile/api-keys" aria-current="page">API-Schlüssel</a></li>
+            </ul>
+        </nav>
+
+        <h1 class="title">API-Schlüssel</h1>
+        <p class="subtitle is-6 has-text-grey">
+            API-Schlüssel erlauben Skripten und Automatisierungen den Zugriff auf TowerDNS.
+            Der Schlüsselwert wird nur beim Erstellen angezeigt — danach nie mehr.
+        </p>
+
+        {% if success %}
+        <div class="notification is-success is-light">
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
+            {{ success }}
+        </div>
+        {% endif %}
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()" aria-label="Meldung schließen"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {# ── Einmalige Token-Anzeige ───────────────────────────────────────── #}
+        {% if newToken %}
+        <div class="notification is-warning">
+            <p class="has-text-weight-semibold mb-2">Neuer API-Schlüssel — jetzt kopieren!</p>
+            <p class="mb-3 is-size-7">Dieser Wert wird genau einmal angezeigt und ist danach nicht mehr abrufbar.</p>
+            <div class="field has-addons">
+                <div class="control is-expanded">
+                    <input id="new-token-field" class="input is-family-monospace" type="text"
+                           value="{{ newToken }}" readonly aria-label="Neuer API-Schlüssel">
+                </div>
+                <div class="control">
+                    <button class="button"
+                            onclick="navigator.clipboard.writeText(document.getElementById('new-token-field').value).then(()=>this.textContent='Kopiert!')"
+                            type="button">
+                        Kopieren
+                    </button>
+                </div>
+            </div>
+            <p class="is-size-7 mt-2">
+                Verwendung: <code>Authorization: Bearer {{ newToken }}</code>
+            </p>
+        </div>
+        {% endif %}
+
+        {# ── Neuen Schlüssel erstellen ─────────────────────────────────────── #}
+        <div class="box mb-5">
+            <h2 class="subtitle mb-3">Neuen Schlüssel erstellen</h2>
+            <form method="post" action="/profile/api-keys">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <div class="field has-addons">
+                    <div class="control is-expanded">
+                        <input class="input" type="text" name="name"
+                               placeholder="Bezeichnung (z.B. Deployment-Skript, Monitoring)"
+                               maxlength="100" required aria-label="Name des API-Schlüssels">
+                    </div>
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Erstellen</button>
+                    </div>
+                </div>
+                <p class="help">Der Name dient nur zur eigenen Übersicht.</p>
+            </form>
+        </div>
+
+        {# ── Schlüsselliste ────────────────────────────────────────────────── #}
+        {% if keys|length > 0 %}
+        <div class="box">
+            <h2 class="subtitle">Deine Schlüssel</h2>
+            <table class="table is-fullwidth is-hoverable">
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Erstellt</th>
+                        <th scope="col">Zuletzt genutzt</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key in keys %}
+                    <tr>
+                        <td>{{ key.name }}</td>
+                        <td class="is-size-7 has-text-grey">{{ key.created_at ?? '–' }}</td>
+                        <td class="is-size-7 has-text-grey">{{ key.last_used ?? 'Nie' }}</td>
+                        <td>
+                            {% if key.is_active %}
+                            <span class="tag is-success is-light">Aktiv</span>
+                            {% else %}
+                            <span class="tag is-light">Widerrufen</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if key.is_active %}
+                            <form method="post" action="/profile/api-keys/{{ key.id }}/revoke"
+                                  onsubmit="return confirm('Schlüssel »{{ key.name }}« widerrufen?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                                <button class="button is-small is-danger is-light" type="submit">
+                                    Widerrufen
+                                </button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="has-text-grey">Noch keine API-Schlüssel vorhanden.</p>
+        {% endif %}
+
+    </div>
+</section>
+{% endblock %}
