@@ -1,0 +1,125 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}DNSSEC — {{ zoneId }} — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'zones', csrfToken: csrfToken } %}
+
+<section class="section">
+    <div class="container">
+
+        <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
+            <ul>
+                <li><a href="/zones">Zonen</a></li>
+                <li><a href="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}">{{ zoneId }}</a></li>
+                <li class="is-active"><a aria-current="page">DNSSEC</a></li>
+            </ul>
+        </nav>
+
+        <h1 class="title">DNSSEC — {{ zoneId }}</h1>
+
+        {% if success %}
+        <div class="notification is-success is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ success }}
+        </div>
+        {% endif %}
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if profile is null %}
+            {# Fehler bereits oben angezeigt #}
+        {% else %}
+
+        {# ── Status-Box ─────────────────────────────────────────────────── #}
+        <div class="box mb-5">
+            <h2 class="subtitle mb-2">Status</h2>
+            <div class="columns is-vcentered">
+                <div class="column is-narrow">
+                    {% if profile.state.value == 'signed' %}
+                        <span class="tag is-success is-medium">Signiert</span>
+                    {% elseif profile.state.value == 'partial' %}
+                        <span class="tag is-warning is-medium">Teilweise signiert</span>
+                    {% elseif profile.state.value == 'unsigned' %}
+                        <span class="tag is-danger is-medium">Nicht signiert</span>
+                    {% else %}
+                        <span class="tag is-light is-medium">Unbekannt</span>
+                    {% endif %}
+                </div>
+                {% if profile.features.auto_managed is defined and profile.features.auto_managed %}
+                <div class="column">
+                    <span class="has-text-grey">DNSSEC wird vom Provider automatisch verwaltet.</span>
+                </div>
+                {% endif %}
+            </div>
+
+            {# Metadaten #}
+            {% if profile.metadata|length > 0 %}
+            <table class="table is-fullwidth is-narrow mt-3">
+                <tbody>
+                {% for key, val in profile.metadata %}
+                    {% if val is not null %}
+                    <tr>
+                        <th style="width:40%">{{ key }}</th>
+                        <td>{{ val }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+
+        {# ── Aktionen ────────────────────────────────────────────────────── #}
+        {% if not (profile.features.auto_managed is defined and profile.features.auto_managed) %}
+        <div class="box">
+            <h2 class="subtitle mb-4">Aktionen</h2>
+
+            {# Enable / Disable #}
+            <div class="columns">
+                {% if profile.state.value == 'unsigned' or profile.state.value == 'unknown' %}
+                <div class="column is-narrow">
+                    <form method="post"
+                          action="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}/dnssec">
+                        <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                        <input type="hidden" name="action" value="enable">
+                        <button class="button is-success"
+                                onclick="return confirm('DNSSEC für {{ zoneId }} aktivieren?')">
+                            DNSSEC aktivieren
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+
+                {% if profile.state.value == 'signed' or profile.state.value == 'partial' %}
+                <div class="column is-narrow">
+                    <form method="post"
+                          action="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}/dnssec">
+                        <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                        <input type="hidden" name="action" value="disable">
+                        <button class="button is-danger"
+                                onclick="return confirm('DNSSEC für {{ zoneId }} deaktivieren? Dies kann die Zone vorübergehend unerreichbar machen!')">
+                            DNSSEC deaktivieren
+                        </button>
+                    </form>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% endif %}
+
+        <p class="mt-4">
+            <a href="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}"
+               class="button is-light">← Zurück zu {{ zoneId }}</a>
+        </p>
+
+    </div>
+</section>
+{% endblock %}

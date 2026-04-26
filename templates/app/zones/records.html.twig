@@ -17,6 +17,13 @@
 
         <h1 class="title">{{ zoneId }}</h1>
 
+        <div class="mb-4">
+            <a href="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}/dnssec"
+               class="button is-light is-small">
+                DNSSEC
+            </a>
+        </div>
+
         {% if error %}
         <div class="notification is-danger is-light">
             <button class="delete" onclick="this.parentElement.remove()"></button>
