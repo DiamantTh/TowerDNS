@@ -1,0 +1,102 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Eintrag bearbeiten — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'zones', csrfToken: csrfToken } %}
+
+<section class="section">
+    <div class="container">
+
+        <nav class="breadcrumb mb-4" aria-label="breadcrumbs">
+            <ul>
+                <li><a href="/zones">Zonen</a></li>
+                <li><a href="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}">{{ zoneId }}</a></li>
+                <li class="is-active"><a aria-current="page">Eintrag bearbeiten</a></li>
+            </ul>
+        </nav>
+
+        <h1 class="title">Eintrag bearbeiten</h1>
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if record %}
+        <div class="box">
+            <form method="post"
+                  action="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}/records/{{ record.id|url_encode }}/update">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <div class="columns is-multiline">
+                    <div class="column is-4">
+                        <div class="field">
+                            <label class="label">Name</label>
+                            <div class="control">
+                                <input class="input" type="text" name="name"
+                                       value="{{ record.name }}" required autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column is-narrow">
+                        <div class="field">
+                            <label class="label">Typ</label>
+                            <div class="control">
+                                <div class="select">
+                                    <select name="type">
+                                        {% for t in ['A','AAAA','CNAME','MX','TXT','NS','SRV','CAA','PTR'] %}
+                                        <option value="{{ t }}"{% if t == record.type.value %} selected{% endif %}>{{ t }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column is-narrow">
+                        <div class="field">
+                            <label class="label">TTL</label>
+                            <div class="control">
+                                <input class="input" type="number" name="ttl"
+                                       value="{{ record.ttl }}" min="1" style="width:90px">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="field">
+                            <label class="label">Inhalt</label>
+                            <div class="control">
+                                <input class="input" type="text" name="content"
+                                       value="{{ record.content }}" required autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="column is-12">
+                        <div class="field">
+                            <label class="label">Kommentar <span class="has-text-weight-normal has-text-grey">(optional)</span></label>
+                            <div class="control">
+                                <input class="input" type="text" name="comment"
+                                       value="{{ record.comment ?? '' }}" autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="field is-grouped">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Speichern</button>
+                    </div>
+                    <div class="control">
+                        <a class="button is-light"
+                           href="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}">
+                            Abbrechen
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+        {% endif %}
+
+    </div>
+</section>
+{% endblock %}

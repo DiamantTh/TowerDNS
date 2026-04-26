@@ -109,8 +109,13 @@
                 <td class="has-text-grey">{{ record.ttl }}</td>
                 <td><code class="is-family-monospace">{{ record.content }}</code></td>
                 <td class="has-text-right">
+                    <a class="button is-small is-info is-light mr-1"
+                       href="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}/records/{{ record.id|url_encode }}/edit">
+                        Bearbeiten
+                    </a>
                     <form method="post"
                           action="/zones/{{ providerId|url_encode }}/{{ zoneId|url_encode }}/records/{{ record.id|url_encode }}/delete"
+                          style="display:inline"
                           onsubmit="return confirm('Eintrag »{{ record.name }} {{ record.type.value }}« wirklich löschen?')">                        <input type="hidden" name="csrf_token" value="{{ csrfToken }}">                        <button class="button is-small is-danger is-light" type="submit">Löschen</button>
                     </form>
                 </td>
