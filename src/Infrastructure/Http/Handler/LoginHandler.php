@@ -19,6 +19,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Validation\LoginInputFilter;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
@@ -98,6 +99,17 @@ final readonly class LoginHandler implements RequestHandlerInterface
 
         $email = trim((string) ($body['email'] ?? ''));
         $pass  = (string) ($body['password'] ?? '');
+
+        // Normalize the email address (lowercase) via the LoginInputFilter.
+        // If the filter marks the input as invalid, authenticate() will still
+        // return 'Ungültige Anmeldedaten.' — no extra information is leaked.
+        $loginFilter = new LoginInputFilter();
+        $loginFilter->setData(['email' => $email, 'password' => $pass]);
+        if ($loginFilter->isValid()) {
+            /** @var array{email: string, password: string} $filtered */
+            $filtered = $loginFilter->getValues();
+            $email    = $filtered['email'];
+        }
 
         $error = $this->authenticate($email, $pass, $session);
 

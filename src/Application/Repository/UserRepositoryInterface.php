@@ -82,4 +82,11 @@ interface UserRepositoryInterface
     public function findAll(): array;
 
     public function delete(string $userId): void;
+
+    /**
+     * Deactivates all API keys belonging to the given user.
+     *
+     * Returns the number of deactivated keys.
+     */
+    public function invalidateApiKeys(string $userId): int;
 }

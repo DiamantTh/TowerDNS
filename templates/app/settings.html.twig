@@ -113,6 +113,35 @@
                 </div>
             </div>
 
+            </div>
+
+            {# ── Mailer ──────────────────────────────────────────────── #}
+            <div class="box mb-5">
+                <h2 class="subtitle">E-Mail (Mailer)</h2>
+
+                <div class="field">
+                    <label class="label" for="mailer_dsn">Mailer-DSN</label>
+                    <div class="control">
+                        <input class="input" type="text" id="mailer_dsn" name="mailer_dsn"
+                               value="{{ fields.mailer_dsn }}" maxlength="512"
+                               placeholder="null://null">
+                    </div>
+                    <p class="help">
+                        Symfony Mailer DSN, z.&nbsp;B. <code>smtp://user:pass@smtp.example.com:587</code>
+                        oder <code>null://null</code> zum Deaktivieren.
+                    </p>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="mailer_from_address">Absender-E-Mail</label>
+                    <div class="control">
+                        <input class="input" type="email" id="mailer_from_address" name="mailer_from_address"
+                               value="{{ fields.mailer_from_address }}" maxlength="255"
+                               placeholder="noreply@example.com">
+                    </div>
+                </div>
+            </div>
+
             <div class="field">
                 <div class="control">
                     <button class="button is-primary" type="submit">Speichern</button>

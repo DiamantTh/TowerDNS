@@ -16,6 +16,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Services\DnsManagementService;
+use TowerDNS\Application\Validation\RecordInputFilter;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
@@ -54,9 +55,25 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
         $content = trim((string) ($body['content'] ?? ''));
         $comment = trim((string) ($body['comment'] ?? ''));
 
-        if ($name === '' || $typeRaw === '' || $content === '') {
-            return new RedirectResponse($back . '?error=' . rawurlencode('Name, Typ und Inhalt sind erforderlich.'));
+        $recordFilter = new RecordInputFilter();
+        $recordFilter->setData([
+            'name'    => $name,
+            'type'    => $typeRaw,
+            'ttl'     => $ttl,
+            'content' => $content,
+        ]);
+        if (!$recordFilter->isValid()) {
+            $messages = array_values($recordFilter->getMessages());
+            $first    = reset($messages);
+            $inner    = is_array($first) ? reset($first) : null;
+            $msg      = is_string($inner) ? $inner : 'Ungültige Eingabe.';
+            return new RedirectResponse($back . '?error=' . rawurlencode($msg));
         }
+        $fv      = $recordFilter->getValues();
+        $name    = trim((string) ($fv['name'] ?? ''));
+        $typeRaw = strtoupper(trim((string) ($fv['type'] ?? '')));
+        $ttl     = max(1, (int) ($fv['ttl'] ?? 300));
+        $content = trim((string) ($fv['content'] ?? ''));
 
         $type = RecordType::tryFrom($typeRaw);
         if ($type === null) {

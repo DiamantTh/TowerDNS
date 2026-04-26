@@ -202,6 +202,14 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $this->connection->delete('users', ['id' => $userId]);
     }
 
+    public function invalidateApiKeys(string $userId): int
+    {
+        return (int) $this->connection->executeStatement(
+            'UPDATE api_keys SET is_active = 0 WHERE user_id = ? AND is_active = 1',
+            [$userId],
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------

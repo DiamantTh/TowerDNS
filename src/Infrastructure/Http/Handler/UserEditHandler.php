@@ -118,6 +118,31 @@ final readonly class UserEditHandler implements RequestHandlerInterface
             return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode('Anzeigename aktualisiert.'));
         }
 
+        // ── Passwort zurücksetzen ─────────────────────────────────────────
+        if ($action === 'reset_password') {
+            $newPassword = (string) ($body['new_password'] ?? '');
+            $keepKeys    = isset($body['keep_api_keys']);
+
+            if (strlen($newPassword) < 12) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode('Das neue Passwort muss mindestens 12 Zeichen lang sein.'));
+            }
+
+            /** @var non-empty-string $hash */
+            $hash = password_hash($newPassword, PASSWORD_ARGON2ID);
+            try {
+                $this->users->updatePasswordHash($targetId, $hash);
+                $revokedCount = $keepKeys ? 0 : $this->users->invalidateApiKeys($targetId);
+            } catch (\Throwable $e) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode('Fehler beim Zurücksetzen: ' . $e->getMessage()));
+            }
+
+            $msg = 'Passwort wurde zurückgesetzt.';
+            if (!$keepKeys && $revokedCount > 0) {
+                $msg .= ' ' . $revokedCount . ' API-Schlüssel widerrufen.';
+            }
+            return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode($msg));
+        }
+
         /** @var list<string> $selectedRoles */
         $selectedRoles = [];
         if (isset($body['roles']) && is_array($body['roles'])) {

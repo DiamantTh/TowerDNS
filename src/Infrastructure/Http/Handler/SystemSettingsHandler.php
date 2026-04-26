@@ -100,13 +100,15 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         $hostname = (string) ($app['hostname'] ?? $app['domain'] ?? '');
 
         return [
-            'app_name'        => (string) ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
-            'app_hostname'    => $hostname,
-            'app_force_https' => (bool) ($app['force_https'] ?? false),
-            'app_debug'       => (bool) ($app['debug'] ?? false),
-            'theme_name'      => (string) ($thm['name'] ?? 'default'),
-            'pwd_min_length'  => (int) ($pwd['min_length'] ?? 16),
-            'pwd_min_score'   => (int) ($pwd['min_score'] ?? 2),
+            'app_name'            => (string) ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
+            'app_hostname'        => $hostname,
+            'app_force_https'     => (bool) ($app['force_https'] ?? false),
+            'app_debug'           => (bool) ($app['debug'] ?? false),
+            'theme_name'          => (string) ($thm['name'] ?? 'default'),
+            'pwd_min_length'      => (int) ($pwd['min_length'] ?? 16),
+            'pwd_min_score'       => (int) ($pwd['min_score'] ?? 2),
+            'mailer_dsn'          => (string) (($conf['mailer']['dsn'] ?? '') ?: 'null://null'),
+            'mailer_from_address' => (string) ($conf['mailer']['from_address'] ?? ''),
         ];
     }
 
@@ -136,10 +138,12 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         $appName     = trim((string) ($body['app_name'] ?? ''));
         $hostname    = trim((string) ($body['app_hostname'] ?? ''));
         $forceHttps  = isset($body['app_force_https']) && $body['app_force_https'] === '1';
-        $debug       = isset($body['app_debug'])       && $body['app_debug']             === '1';
+        $debug       = isset($body['app_debug'])       && $body['app_debug']       === '1';
         $themeName   = trim((string) ($body['theme_name'] ?? 'default'));
         $pwdMinLen   = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
         $pwdMinScore = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
+        $mailerDsn   = trim((string) ($body['mailer_dsn'] ?? 'null://null'));
+        $mailerFrom  = trim((string) ($body['mailer_from_address'] ?? ''));
 
         if ($appName === '') {
             $appName = 'TowerDNS';
@@ -149,6 +153,9 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         }
         if ($themeName === '') {
             $themeName = 'default';
+        }
+        if ($mailerDsn === '') {
+            $mailerDsn = 'null://null';
         }
 
         $conf = $this->loadConfig();
@@ -187,6 +194,13 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         $pwdSection['min_score']  = $pwdMinScore;
         $secSection['password']   = $pwdSection;
         $conf['security']         = $secSection;
+
+        // [mailer]
+        /** @var array<string, mixed> $mailerSection */
+        $mailerSection                 = (array) ($conf['mailer'] ?? []);
+        $mailerSection['dsn']          = $mailerDsn;
+        $mailerSection['from_address'] = $mailerFrom;
+        $conf['mailer']                = $mailerSection;
 
         try {
             $toml = Toml::encode($conf);
