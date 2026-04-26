@@ -15,13 +15,21 @@
             <a class="navbar-item{% if active == 'users' %} has-background-dark{% endif %}" href="/users">
                 Benutzer
             </a>
+            <a class="navbar-item{% if active == 'roles' %} has-background-dark{% endif %}" href="/roles">
+                Rollen
+            </a>
         </div>
         <div class="navbar-end">
-            <a class="navbar-item{% if active == 'profile' %} has-background-dark{% endif %}" href="/profile/totp">
-                Profil
-            </a>
+            <div class="navbar-item has-dropdown is-hoverable">
+                <a class="navbar-link{% if active == 'profile' %} has-background-dark{% endif %}">
+                    {{ user.displayName ?? user.email ?? '' }}
+                </a>
+                <div class="navbar-dropdown is-right is-boxed">
+                    <a class="navbar-item" href="/profile/password">Passwort ändern</a>
+                    <a class="navbar-item" href="/profile/totp">Zwei-Faktor (TOTP)</a>
+                </div>
+            </div>
             <div class="navbar-item">
-                <span class="has-text-grey-light is-size-7 mr-3">{{ user.email ?? '' }}</span>
                 <form method="post" action="/logout" style="display:inline">
                     <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
                     <button class="button is-small is-light" type="submit">Abmelden</button>

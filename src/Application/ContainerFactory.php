@@ -115,7 +115,8 @@ final class ContainerFactory
                 'templates' => [
                     'extension' => 'html.twig',
                     'paths'     => [
-                        $projectRoot . '/templates',
+                        'app'   => [$projectRoot . '/templates/app'],
+                        'error' => [$projectRoot . '/templates/error'],
                     ],
                 ],
                 'twig' => [

@@ -1,0 +1,118 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Rollenverwaltung — TowerDNS{% endblock %}
+
+{% block body %}
+{% include 'app/_navbar.html.twig' with { user: user, active: 'roles', csrfToken: csrfToken } %}
+
+<section class="section">
+    <div class="container">
+
+        <h1 class="title">Rollenverwaltung</h1>
+
+        {% if error %}
+        <div class="notification is-danger is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if success %}
+        <div class="notification is-success is-light">
+            <button class="delete" onclick="this.parentElement.remove()"></button>
+            {{ success }}
+        </div>
+        {% endif %}
+
+        {# ── Neue Rolle anlegen ───────────────────────────────────────────── #}
+        <div class="box mb-5">
+            <h2 class="subtitle">Neue Rolle anlegen</h2>
+            <form method="post" action="/roles">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+
+                <div class="field">
+                    <label class="label">Name</label>
+                    <div class="control" style="max-width: 360px;">
+                        <input class="input" type="text" name="name" placeholder="z. B. dns-editor" required>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label">Berechtigungen</label>
+                    <div class="columns is-multiline">
+                        {% for perm in permissions %}
+                        <div class="column is-3">
+                            <label class="checkbox">
+                                <input type="checkbox" name="permissions[]" value="{{ perm.value }}">
+                                {{ perm.value }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="field">
+                    <div class="control">
+                        <button class="button is-primary" type="submit">Rolle anlegen</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        {# ── Rollenliste ───────────────────────────────────────────────────── #}
+        {% if roles is empty %}
+            <p class="has-text-grey">Keine Rollen vorhanden.</p>
+        {% else %}
+        <table class="table is-fullwidth is-hoverable">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Typ</th>
+                    <th>Berechtigungen</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for role in roles %}
+                <tr>
+                    <td>
+                        <strong>{{ role.name }}</strong>
+                        <br><small class="has-text-grey">{{ role.id }}</small>
+                    </td>
+                    <td>
+                        {% if role.isSystem %}
+                            <span class="tag is-info is-light">System</span>
+                        {% else %}
+                            <span class="tag is-light">Benutzerdefiniert</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% for perm in role.getPermissions() %}
+                            <span class="tag is-light mr-1 mb-1">{{ perm.value }}</span>
+                        {% else %}
+                            <span class="has-text-grey is-size-7">keine</span>
+                        {% endfor %}
+                    </td>
+                    <td class="is-narrow">
+                        {% if not role.isSystem %}
+                        <div class="buttons are-small">
+                            <a class="button is-info is-light" href="/roles/{{ role.id }}">
+                                Bearbeiten
+                            </a>
+                            <form method="post" action="/roles/{{ role.id }}/delete"
+                                  onsubmit="return confirm('Rolle &quot;{{ role.name|e('js') }}&quot; wirklich löschen?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                                <button class="button is-danger is-light" type="submit">Löschen</button>
+                            </form>
+                        </div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+    </div>
+</section>
+{% endblock %}

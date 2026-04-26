@@ -11,10 +11,15 @@ use Mezzio\Application;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
+use TowerDNS\Infrastructure\Http\Handler\PasswordChangeHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordEditHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordListHandler;
+use TowerDNS\Infrastructure\Http\Handler\RoleCreateHandler;
+use TowerDNS\Infrastructure\Http\Handler\RoleDeleteHandler;
+use TowerDNS\Infrastructure\Http\Handler\RoleEditHandler;
+use TowerDNS\Infrastructure\Http\Handler\RoleListHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpSetupHandler;
 use TowerDNS\Infrastructure\Http\Handler\UserCreateHandler;
@@ -42,8 +47,10 @@ final class Routes
         $app->get('/', [RequireAuthMiddleware::class, DashboardHandler::class], 'dashboard');
 
         // ── Profile ───────────────────────────────────────────────────────────
-        $app->get('/profile/totp',  [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.form');
-        $app->post('/profile/totp', [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.submit');
+        $app->get('/profile/totp',     [RequireAuthMiddleware::class, TotpSetupHandler::class],    'profile.totp.form');
+        $app->post('/profile/totp',    [RequireAuthMiddleware::class, TotpSetupHandler::class],    'profile.totp.submit');
+        $app->get('/profile/password', [RequireAuthMiddleware::class, PasswordChangeHandler::class], 'profile.password.form');
+        $app->post('/profile/password',[RequireAuthMiddleware::class, PasswordChangeHandler::class], 'profile.password.submit');
 
         // ── IAM ───────────────────────────────────────────────────────────────
         $app->get('/users',                       [RequireAuthMiddleware::class, UserListHandler::class],   'users.list');
@@ -51,7 +58,11 @@ final class Routes
         $app->get('/users/{id}',                  [RequireAuthMiddleware::class, UserEditHandler::class],   'users.edit.form');
         $app->post('/users/{id}',                 [RequireAuthMiddleware::class, UserEditHandler::class],   'users.edit.submit');
         $app->post('/users/{id}/delete',          [RequireAuthMiddleware::class, UserDeleteHandler::class], 'users.delete');
-
+        $app->get('/roles',                       [RequireAuthMiddleware::class, RoleListHandler::class],   'roles.list');
+        $app->post('/roles',                      [RequireAuthMiddleware::class, RoleCreateHandler::class], 'roles.create');
+        $app->get('/roles/{id}',                  [RequireAuthMiddleware::class, RoleEditHandler::class],   'roles.edit.form');
+        $app->post('/roles/{id}',                 [RequireAuthMiddleware::class, RoleEditHandler::class],   'roles.edit.submit');
+        $app->post('/roles/{id}/delete',          [RequireAuthMiddleware::class, RoleDeleteHandler::class], 'roles.delete');
         // ── DNS zones ─────────────────────────────────────────────────────────
         $app->get('/zones', [RequireAuthMiddleware::class, ZoneListHandler::class], 'zones.list');
         $app->post('/zones/{provider}', [RequireAuthMiddleware::class, ZoneCreateHandler::class], 'zones.create');
