@@ -16,10 +16,10 @@ use ZxcvbnPhp\Zxcvbn;
  *   minLength  int  8–128,  default 16
  *   minScore   int  0–4,    default 0  (0 = disabled)
  */
-final class PasswordPolicy
+final readonly class PasswordPolicy
 {
-    private const FLOOR   = 8;
-    private const CEILING = 128;
+    private const int FLOOR   = 8;
+    private const int CEILING = 128;
 
     private int $minLength;
     private int $minScore;
@@ -54,10 +54,10 @@ final class PasswordPolicy
         }
 
         if ($this->minScore > 0) {
-            $result = (new Zxcvbn())->passwordStrength($password);
+            $result = new Zxcvbn()->passwordStrength($password);
             if ($result['score'] < $this->minScore) {
                 $suggestions = $result['feedback']['suggestions'] ?? [];
-                $hint = $suggestions !== [] ? ' ' . implode(' ', $suggestions) : '';
+                $hint        = $suggestions !== [] ? ' ' . implode(' ', $suggestions) : '';
                 throw new \InvalidArgumentException('Das Passwort ist zu schwach.' . $hint);
             }
         }
@@ -71,7 +71,7 @@ final class PasswordPolicy
     public function score(string $password): array
     {
         /** @var array{score: int, feedback: array<string, mixed>} $result */
-        $result = (new Zxcvbn())->passwordStrength($password);
+        $result = new Zxcvbn()->passwordStrength($password);
         return $result;
     }
 }

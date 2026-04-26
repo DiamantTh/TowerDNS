@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -30,11 +31,9 @@ use TowerDNS\Domain\Auth\User;
  * $app->pipe(RequireAuthMiddleware::class);  // protects everything below
  * ```
  */
-final class RequireAuthMiddleware implements MiddlewareInterface
+final readonly class RequireAuthMiddleware implements MiddlewareInterface
 {
-    public function __construct(private readonly string $loginPath = '/login')
-    {
-    }
+    public function __construct(private string $loginPath = '/login') {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

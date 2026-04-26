@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -20,13 +21,12 @@ use TowerDNS\Domain\Auth\User;
 /**
  * GET /zones/{provider}/{zone} — shows all DNS records for a zone.
  */
-final class RecordListHandler implements RequestHandlerInterface
+final readonly class RecordListHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly DnsManagementService      $dns,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private DnsManagementService      $dns,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

@@ -27,14 +27,13 @@ use TowerDNS\Domain\Auth\User;
  * Schreibt nur bekannte, sichere Felder; `[security].encryption_key`
  * und Datenbankzugangsdaten werden niemals überschrieben.
  */
-final class SystemSettingsHandler implements RequestHandlerInterface
+final readonly class SystemSettingsHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly AuthorizationService      $authz,
-        private readonly string                    $configPath,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private AuthorizationService      $authz,
+        private string                    $configPath,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -46,10 +45,10 @@ final class SystemSettingsHandler implements RequestHandlerInterface
         } catch (AuthorizationException $e) {
             return new HtmlResponse(
                 $this->renderer->render('app::settings', [
-                    'user'    => $user,
-                    'fields'  => [],
-                    'error'   => $e->getMessage(),
-                    'success' => null,
+                    'user'      => $user,
+                    'fields'    => [],
+                    'error'     => $e->getMessage(),
+                    'success'   => null,
                     'csrfToken' => '',
                 ]),
                 403,
@@ -65,7 +64,7 @@ final class SystemSettingsHandler implements RequestHandlerInterface
         }
 
         $queryParams  = $request->getQueryParams();
-        $flashError   = isset($queryParams['error'])   && is_string($queryParams['error'])   ? $queryParams['error']   : null;
+        $flashError   = isset($queryParams['error'])   && is_string($queryParams['error']) ? $queryParams['error'] : null;
         $flashSuccess = isset($queryParams['success']) && is_string($queryParams['success']) ? $queryParams['success'] : null;
 
         $fields = $this->readFields();
@@ -101,13 +100,13 @@ final class SystemSettingsHandler implements RequestHandlerInterface
         $hostname = (string) ($app['hostname'] ?? $app['domain'] ?? '');
 
         return [
-            'app_name'        => (string)  ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
+            'app_name'        => (string) ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
             'app_hostname'    => $hostname,
-            'app_force_https' => (bool)    ($app['force_https'] ?? false),
-            'app_debug'       => (bool)    ($app['debug'] ?? false),
-            'theme_name'      => (string)  ($thm['name'] ?? 'default'),
-            'pwd_min_length'  => (int)     ($pwd['min_length'] ?? 16),
-            'pwd_min_score'   => (int)     ($pwd['min_score']  ?? 2),
+            'app_force_https' => (bool) ($app['force_https'] ?? false),
+            'app_debug'       => (bool) ($app['debug'] ?? false),
+            'theme_name'      => (string) ($thm['name'] ?? 'default'),
+            'pwd_min_length'  => (int) ($pwd['min_length'] ?? 16),
+            'pwd_min_score'   => (int) ($pwd['min_score'] ?? 2),
         ];
     }
 
@@ -137,10 +136,10 @@ final class SystemSettingsHandler implements RequestHandlerInterface
         $appName     = trim((string) ($body['app_name'] ?? ''));
         $hostname    = trim((string) ($body['app_hostname'] ?? ''));
         $forceHttps  = isset($body['app_force_https']) && $body['app_force_https'] === '1';
-        $debug       = isset($body['app_debug']) && $body['app_debug'] === '1';
+        $debug       = isset($body['app_debug'])       && $body['app_debug']             === '1';
         $themeName   = trim((string) ($body['theme_name'] ?? 'default'));
         $pwdMinLen   = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
-        $pwdMinScore = max(0, min(4,   (int) ($body['pwd_min_score']  ?? 2)));
+        $pwdMinScore = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
 
         if ($appName === '') {
             $appName = 'TowerDNS';
@@ -165,29 +164,29 @@ final class SystemSettingsHandler implements RequestHandlerInterface
         }
         $appSection['force_https'] = $forceHttps;
         $appSection['debug']       = $debug;
-        $conf['app'] = $appSection;
+        $conf['app']               = $appSection;
 
         // [application]
         /** @var array<string, mixed> $applSection */
-        $applSection = (array) ($conf['application'] ?? []);
+        $applSection         = (array) ($conf['application'] ?? []);
         $applSection['name'] = $appName;
         $conf['application'] = $applSection;
 
         // [theme]
         /** @var array<string, mixed> $thmSection */
-        $thmSection = (array) ($conf['theme'] ?? []);
+        $thmSection         = (array) ($conf['theme'] ?? []);
         $thmSection['name'] = $themeName;
-        $conf['theme'] = $thmSection;
+        $conf['theme']      = $thmSection;
 
         // [security.password]
         /** @var array<string, mixed> $secSection */
         $secSection = (array) ($conf['security'] ?? []);
         /** @var array<string, mixed> $pwdSection */
-        $pwdSection = (array) ($secSection['password'] ?? []);
+        $pwdSection               = (array) ($secSection['password'] ?? []);
         $pwdSection['min_length'] = $pwdMinLen;
         $pwdSection['min_score']  = $pwdMinScore;
         $secSection['password']   = $pwdSection;
-        $conf['security'] = $secSection;
+        $conf['security']         = $secSection;
 
         try {
             $toml = Toml::encode($conf);

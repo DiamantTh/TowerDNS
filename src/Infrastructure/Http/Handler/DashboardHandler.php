@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -18,12 +19,11 @@ use TowerDNS\Domain\Auth\User;
 /**
  * GET / — renders the main dashboard.
  */
-final class DashboardHandler implements RequestHandlerInterface
+final readonly class DashboardHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

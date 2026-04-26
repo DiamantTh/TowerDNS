@@ -22,14 +22,13 @@ use TowerDNS\Domain\Auth\User;
 /**
  * GET+POST /profile/password — change the currently logged-in user's password.
  */
-final class PasswordChangeHandler implements RequestHandlerInterface
+final readonly class PasswordChangeHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly UserRepositoryInterface   $users,
-        private readonly PasswordPolicy            $policy,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private UserRepositoryInterface   $users,
+        private PasswordPolicy            $policy,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -62,9 +61,9 @@ final class PasswordChangeHandler implements RequestHandlerInterface
             return $this->renderForm($user, $guard->generateToken(), 'Ungültiger CSRF-Token.');
         }
 
-        $currentPassword = is_string($body['current_password'] ?? null) ? (string) $body['current_password'] : '';
-        $newPassword     = is_string($body['new_password']     ?? null) ? (string) $body['new_password']     : '';
-        $confirmPassword = is_string($body['confirm_password'] ?? null) ? (string) $body['confirm_password'] : '';
+        $currentPassword = is_string($body['current_password'] ?? null) ? $body['current_password'] : '';
+        $newPassword     = is_string($body['new_password'] ?? null) ? $body['new_password'] : '';
+        $confirmPassword = is_string($body['confirm_password'] ?? null) ? $body['confirm_password'] : '';
 
         // Verify current password
         $currentHash = $this->users->fetchPasswordHash($user->email);

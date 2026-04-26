@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -22,13 +23,12 @@ use TowerDNS\Domain\Auth\User;
  * queries out of callers that iterate user lists while avoiding a single
  * cartesian JOIN that would inflate the row count.
  */
-final class DbalUserRepository implements UserRepositoryInterface
+final readonly class DbalUserRepository implements UserRepositoryInterface
 {
     public function __construct(
-        private readonly Connection $connection,
-        private readonly ClockInterface $clock,
-    ) {
-    }
+        private Connection $connection,
+        private ClockInterface $clock,
+    ) {}
 
     public function findById(string $id): ?User
     {
@@ -93,7 +93,7 @@ final class DbalUserRepository implements UserRepositoryInterface
         $this->connection->update(
             'users',
             ['totp_secret' => $secret, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')],
-            ['id' => $userId],
+            ['id'          => $userId],
         );
     }
 
@@ -102,7 +102,7 @@ final class DbalUserRepository implements UserRepositoryInterface
         $this->connection->update(
             'users',
             ['last_login_at' => $this->clock->now()->format('Y-m-d H:i:s')],
-            ['id' => $userId],
+            ['id'            => $userId],
         );
     }
 
@@ -177,7 +177,7 @@ final class DbalUserRepository implements UserRepositoryInterface
         }
 
         // Load roles for all users in two queries to avoid N+1.
-        $ids = array_map(static fn (array $r): string => (string) ($r['id'] ?? ''), $rows);
+        $ids = array_map(static fn(array $r): string => (string) ($r['id'] ?? ''), $rows);
 
         /** @var array<string, list<Role>> $rolesByUser */
         $rolesByUser = $this->loadRolesForUsers($ids);
@@ -245,7 +245,7 @@ final class DbalUserRepository implements UserRepositoryInterface
 
         // Collect unique role IDs.
         $roleIds = array_values(array_unique(
-            array_map(static fn (array $r): string => (string) ($r['role_id'] ?? ''), $urRows),
+            array_map(static fn(array $r): string => (string) ($r['role_id'] ?? ''), $urRows),
         ));
 
         // 2. Fetch all permissions for those roles.

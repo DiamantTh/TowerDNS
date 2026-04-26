@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -6,7 +7,6 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Persistence;
 
-use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
@@ -25,11 +25,9 @@ use TowerDNS\Domain\Auth\Permission;
  * Table creation order matters because of foreign-key constraints:
  *   roles → role_permissions → users → user_roles
  */
-final class SchemaManager
+final readonly class SchemaManager
 {
-    public function __construct(private readonly Connection $connection)
-    {
-    }
+    public function __construct(private Connection $connection) {}
 
     /**
      * Creates every application table that does not yet exist.
@@ -38,7 +36,7 @@ final class SchemaManager
     public function createTablesIfNotExist(): void
     {
         $sm       = $this->connection->createSchemaManager();
-        $existing = array_map('strtolower', $sm->listTableNames());
+        $existing = array_map(strtolower(...), $sm->listTableNames());
 
         foreach ($this->buildTables() as $table) {
             if (!in_array(strtolower($table->getName()), $existing, true)) {
@@ -64,7 +62,7 @@ final class SchemaManager
      */
     public function seedSystemRoles(): void
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+        $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
 
         /** @var array<string, array{name: string, permissions: list<Permission>}> $definitions */
         $definitions = [
@@ -160,7 +158,7 @@ final class SchemaManager
             return;
         }
 
-        $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+        $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
 
         $this->connection->insert('users', [
             'id'            => $id,

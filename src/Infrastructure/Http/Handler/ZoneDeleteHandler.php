@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -23,12 +24,11 @@ use TowerDNS\Domain\Auth\User;
  * Uses POST instead of DELETE so that plain HTML forms can trigger the action
  * without JavaScript.
  */
-final class ZoneDeleteHandler implements RequestHandlerInterface
+final readonly class ZoneDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly DnsManagementService $dns,
-    ) {
-    }
+        private DnsManagementService $dns,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

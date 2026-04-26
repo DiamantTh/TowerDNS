@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -28,12 +29,11 @@ use TowerDNS\Domain\Auth\User;
  * The attribute is absent (null) when no valid session exists, the stored
  * user_id is unknown, or the account has been deactivated.
  */
-final class AuthenticationMiddleware implements MiddlewareInterface
+final readonly class AuthenticationMiddleware implements MiddlewareInterface
 {
     public function __construct(
-        private readonly UserRepositoryInterface $users,
-    ) {
-    }
+        private UserRepositoryInterface $users,
+    ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
@@ -45,7 +45,7 @@ final class AuthenticationMiddleware implements MiddlewareInterface
             if (is_string($userId) && $userId !== '') {
                 $user = $this->users->findById($userId);
 
-                if ($user !== null) {
+                if ($user instanceof User) {
                     $request = $request->withAttribute(User::class, $user);
                 }
             }

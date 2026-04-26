@@ -24,13 +24,12 @@ use TowerDNS\Domain\Auth\User;
 /**
  * POST /roles — Neue Rolle anlegen.
  */
-final class RoleCreateHandler implements RequestHandlerInterface
+final readonly class RoleCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly RoleRepositoryInterface $roles,
-        private readonly AuthorizationService    $authz,
-    ) {
-    }
+        private RoleRepositoryInterface $roles,
+        private AuthorizationService    $authz,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -56,7 +55,7 @@ final class RoleCreateHandler implements RequestHandlerInterface
             return new RedirectResponse('/roles?error=' . rawurlencode($e->getMessage()));
         }
 
-        $name = trim(is_string($body['name'] ?? null) ? (string) $body['name'] : '');
+        $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');
 
         if ($name === '') {
             return new RedirectResponse('/roles?error=' . rawurlencode('Name darf nicht leer sein.'));
@@ -74,8 +73,8 @@ final class RoleCreateHandler implements RequestHandlerInterface
         }
 
         $role = new Role(
-            id:          Uuid::v4()->toRfc4122(),
-            name:        $name,
+            id: Uuid::v4()->toRfc4122(),
+            name: $name,
             permissions: $permissions,
         );
 

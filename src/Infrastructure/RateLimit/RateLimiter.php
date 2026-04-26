@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -23,16 +24,16 @@ use Psr\SimpleCache\CacheInterface;
  *   $limiter = new RateLimiter($cache, 'desec_' . substr(hash('sha256', $token), 0, 16), 300, 3600, 'deSEC');
  *   $limiter->hit(); // throws RateLimitExceededException when exhausted
  */
-final class RateLimiter
+final readonly class RateLimiter
 {
-    private const KEY_PREFIX = 'towerdns_rl_';
+    private const string KEY_PREFIX = 'towerdns_rl_';
 
     public function __construct(
-        private readonly CacheInterface $cache,
-        private readonly string $key,
-        private readonly int $limit,
-        private readonly int $windowSeconds,
-        private readonly string $provider = '',
+        private CacheInterface $cache,
+        private string $key,
+        private int $limit,
+        private int $windowSeconds,
+        private string $provider = '',
     ) {}
 
     /**

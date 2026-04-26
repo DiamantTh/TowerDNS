@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -25,7 +26,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  */
 final class DeSECProvider extends AbstractDnsProvider
 {
-    public const ID = 'desec';
+    public const string ID = 'desec';
 
     public function __construct(private readonly DeSECApiClient $client)
     {
@@ -45,21 +46,21 @@ final class DeSECProvider extends AbstractDnsProvider
     protected function capabilityMap(): array
     {
         return [
-            Capability::ZONE_LIST          => true,
-            Capability::ZONE_READ          => true,
-            Capability::ZONE_CREATE        => true,
-            Capability::ZONE_DELETE        => true,
-            Capability::ZONE_UPDATE        => false,
+            Capability::ZONE_LIST   => true,
+            Capability::ZONE_READ   => true,
+            Capability::ZONE_CREATE => true,
+            Capability::ZONE_DELETE => true,
+            Capability::ZONE_UPDATE => false,
 
-            Capability::RECORD_LIST        => true,
-            Capability::RECORD_CREATE      => true,
-            Capability::RECORD_UPDATE      => true,
-            Capability::RECORD_DELETE      => true,
-            Capability::RECORD_COMMENT     => false,
+            Capability::RECORD_LIST    => true,
+            Capability::RECORD_CREATE  => true,
+            Capability::RECORD_UPDATE  => true,
+            Capability::RECORD_DELETE  => true,
+            Capability::RECORD_COMMENT => false,
 
-            Capability::DNSSEC_STATUS_READ    => true,
-            Capability::DNSSEC_AUTO_MANAGED   => true,
-            Capability::DNSSEC_DS_READ        => true,
+            Capability::DNSSEC_STATUS_READ  => true,
+            Capability::DNSSEC_AUTO_MANAGED => true,
+            Capability::DNSSEC_DS_READ      => true,
             // deSEC does not expose imperative DNSSEC actions to clients.
             Capability::DNSSEC_ACTION_EXECUTE => false,
             Capability::DNSSEC_KEY_LIST       => false,
@@ -93,7 +94,7 @@ final class DeSECProvider extends AbstractDnsProvider
         $records = [];
         foreach ($this->client->getRRSets($zoneId) as $rrset) {
             $type = $this->mapType($rrset['type'] ?? '');
-            if ($type === null) {
+            if (!$type instanceof RecordType) {
                 continue;
             }
             $name = (string) ($rrset['subname'] ?? '');
@@ -103,11 +104,11 @@ final class DeSECProvider extends AbstractDnsProvider
             $contents = $rrset['records'] ?? [];
             foreach ($contents as $content) {
                 $records[] = new Record(
-                    id:      $this->buildRecordId($zoneId, $name, $type, $content),
-                    zoneId:  $zoneId,
-                    name:    $name,
-                    type:    $type,
-                    ttl:     $ttl,
+                    id: $this->buildRecordId($zoneId, $name, $type, $content),
+                    zoneId: $zoneId,
+                    name: $name,
+                    type: $type,
+                    ttl: $ttl,
                     content: $content,
                 );
             }
@@ -146,13 +147,13 @@ final class DeSECProvider extends AbstractDnsProvider
         }
 
         return new Record(
-            id:       $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
-            zoneId:   $record->zoneId,
-            name:     $record->name,
-            type:     $record->type,
-            ttl:      $record->ttl,
-            content:  $record->content,
-            comment:  $record->comment,
+            id: $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
+            zoneId: $record->zoneId,
+            name: $record->name,
+            type: $record->type,
+            ttl: $record->ttl,
+            content: $record->content,
+            comment: $record->comment,
             metadata: $record->metadata,
         );
     }
@@ -164,11 +165,10 @@ final class DeSECProvider extends AbstractDnsProvider
         $existing = $this->client->getRRSet($record->zoneId, $subname, $typeStr);
         /** @var list<string> $current */
         $current = $existing['records'] ?? [];
-        $ttl     = (int) ($existing['ttl'] ?? $record->ttl);
 
         // Replace only the entry whose content hash matches the old record.
         $updated = array_map(
-            fn(string $c) => self::contentHash($c) === $oldHash ? $record->content : $c,
+            fn(string $c): string => self::contentHash($c) === $oldHash ? $record->content : $c,
             $current,
         );
         $updated = array_values(array_unique($updated));
@@ -178,17 +178,17 @@ final class DeSECProvider extends AbstractDnsProvider
             $subname,
             $typeStr,
             $updated,
-            $record->ttl !== $ttl ? $record->ttl : $ttl,
+            $record->ttl,
         );
 
         return new Record(
-            id:       $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
-            zoneId:   $record->zoneId,
-            name:     $record->name,
-            type:     $record->type,
-            ttl:      $record->ttl,
-            content:  $record->content,
-            comment:  $record->comment,
+            id: $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
+            zoneId: $record->zoneId,
+            name: $record->name,
+            type: $record->type,
+            ttl: $record->ttl,
+            content: $record->content,
+            comment: $record->comment,
             metadata: $record->metadata,
         );
     }
@@ -204,7 +204,7 @@ final class DeSECProvider extends AbstractDnsProvider
 
         $remaining = array_values(array_filter(
             $current,
-            fn(string $c) => self::contentHash($c) !== $oldHash,
+            fn(string $c): bool => self::contentHash($c) !== $oldHash,
         ));
 
         if ($remaining === []) {
@@ -250,7 +250,7 @@ final class DeSECProvider extends AbstractDnsProvider
      */
     private function mapZone(array $row): Zone
     {
-        $name = (string) ($row['name'] ?? '');
+        $name     = (string) ($row['name'] ?? '');
         $metadata = [];
         if (isset($row['created'])) {
             $metadata['created'] = (string) $row['created'];

@@ -24,13 +24,12 @@ use Webauthn\Exception\AuthenticatorResponseVerificationException;
  * new credential.  The request body must be the JSON object produced by
  * navigator.credentials.create().
  */
-final class WebAuthnRegisterFinishHandler implements RequestHandlerInterface
+final readonly class WebAuthnRegisterFinishHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly WebAuthnService                       $webAuthn,
-        private readonly WebAuthnCredentialRepositoryInterface $credentialRepo,
-    ) {
-    }
+        private WebAuthnService                       $webAuthn,
+        private WebAuthnCredentialRepositoryInterface $credentialRepo,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

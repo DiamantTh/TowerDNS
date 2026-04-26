@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -8,6 +9,4 @@ namespace TowerDNS\Infrastructure\Provider\Cloudflare;
 
 use TowerDNS\Application\Exception\ProviderRequestException;
 
-final class CloudflareApiException extends ProviderRequestException
-{
-}
+final class CloudflareApiException extends ProviderRequestException {}

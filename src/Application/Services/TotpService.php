@@ -26,17 +26,15 @@ use Psr\Clock\ClockInterface;
  * Compatibility note: sha512 is supported by Aegis and FreeOTP+.
  * Google Authenticator always uses sha1 internally and is NOT compatible.
  */
-final class TotpService
+final readonly class TotpService
 {
-    private const DIGITS       = 8;
-    private const ALGORITHM    = 'sha512';
-    private const PERIOD       = 30;
-    private const SECRET_BYTES = 64;
-    private const WINDOW       = 1;
+    private const int DIGITS       = 8;
+    private const string ALGORITHM = 'sha512';
+    private const int PERIOD       = 30;
+    private const int SECRET_BYTES = 64;
+    private const int WINDOW       = 1;
 
-    public function __construct(private readonly ClockInterface $clock)
-    {
-    }
+    public function __construct(private ClockInterface $clock) {}
 
     /**
      * Generates a new random base32-encoded TOTP secret.

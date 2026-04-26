@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -24,9 +25,9 @@ use GuzzleHttp\RequestOptions;
  */
 final class CloudflareApiClient
 {
-    private const BASE_URI = 'https://api.cloudflare.com/client/v4/';
+    private const string BASE_URI = 'https://api.cloudflare.com/client/v4/';
 
-    private ClientInterface $http;
+    private readonly ClientInterface $http;
 
     /** @var array<string, string> zone-name → CF zone UUID cache */
     private array $zoneUuidCache = [];
@@ -142,7 +143,9 @@ final class CloudflareApiClient
         $this->apiRequest(
             'DELETE',
             'zones/' . rawurlencode($uuid) . '/dns_records/' . rawurlencode($cfRecordId),
-            null, [], false,
+            null,
+            [],
+            false,
         );
     }
 
@@ -204,7 +207,7 @@ final class CloudflareApiClient
             throw new CloudflareApiException('Kein Cloudflare-Konto für diesen API-Token gefunden.');
         }
 
-        $first = (array) $accounts[0];
+        $first           = (array) $accounts[0];
         $this->accountId = (string) ($first['id'] ?? '');
         return $this->accountId;
     }
@@ -244,9 +247,9 @@ final class CloudflareApiClient
     private function apiRequest(
         string $method,
         string $path,
-        ?array $body    = null,
-        array  $query   = [],
-        bool   $decode  = true,
+        ?array $body = null,
+        array  $query = [],
+        bool   $decode = true,
     ): array {
         $options = [
             RequestOptions::HEADERS => [
@@ -265,11 +268,11 @@ final class CloudflareApiClient
         try {
             $response = $this->http->request($method, $path, $options);
         } catch (BadResponseException $e) {
-            $raw      = (string) $e->getResponse()->getBody();
+            $raw = (string) $e->getResponse()->getBody();
             /** @var array<string, mixed> $decoded */
-            $decoded  = json_decode($raw, true) ?? [];
-            $errors   = (array) ($decoded['errors'] ?? []);
-            $msg      = $errors !== []
+            $decoded = json_decode($raw, true) ?? [];
+            $errors  = (array) ($decoded['errors'] ?? []);
+            $msg     = $errors !== []
                 ? (string) (((array) $errors[0])['message'] ?? 'Unbekannter Fehler')
                 : 'HTTP ' . $e->getResponse()->getStatusCode();
             throw new CloudflareApiException('Cloudflare-API-Fehler: ' . $msg, $e->getCode(), $e);

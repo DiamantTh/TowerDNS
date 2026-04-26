@@ -67,7 +67,7 @@ function getRequirements(): array
     $reqs = [];
 
     // PHP-Version
-    $phpOk = version_compare(PHP_VERSION, '8.4.0', '>=');
+    $phpOk  = version_compare(PHP_VERSION, '8.4.0', '>=');
     $reqs[] = [
         'label'    => t('req.php'),
         'required' => true,
@@ -85,15 +85,15 @@ function getRequirements(): array
 
     // Pflicht-Erweiterungen
     $extensions = [
-        'pdo'       => true,
-        'pdo_mysql' => false,
-        'pdo_pgsql' => false,
-        'pdo_sqlite'=> false,
-        'openssl'   => true,
-        'sodium'    => true,
-        'mbstring'  => true,
-        'intl'      => true,
-        'json'      => true,
+        'pdo'        => true,
+        'pdo_mysql'  => false,
+        'pdo_pgsql'  => false,
+        'pdo_sqlite' => false,
+        'openssl'    => true,
+        'sodium'     => true,
+        'mbstring'   => true,
+        'intl'       => true,
+        'json'       => true,
     ];
 
     foreach ($extensions as $ext => $required) {
@@ -109,7 +109,7 @@ function getRequirements(): array
     // configs/ beschreibbar
     $configDir = PROJECT_ROOT . '/configs';
     $writable  = is_dir($configDir) ? is_writable($configDir) : is_writable(dirname($configDir));
-    $reqs[] = [
+    $reqs[]    = [
         'label'    => t('req.config_writable'),
         'required' => true,
         'ok'       => $writable,

@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -22,12 +23,11 @@ use TowerDNS\Domain\DNS\RecordType;
 /**
  * POST /zones/{provider}/{zone}/records — creates a new DNS record.
  */
-final class RecordCreateHandler implements RequestHandlerInterface
+final readonly class RecordCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly DnsManagementService $dns,
-    ) {
-    }
+        private DnsManagementService $dns,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -64,11 +64,11 @@ final class RecordCreateHandler implements RequestHandlerInterface
         }
 
         $record = new Record(
-            id:      '',
-            zoneId:  $zoneId,
-            name:    $name,
-            type:    $type,
-            ttl:     $ttl,
+            id: '',
+            zoneId: $zoneId,
+            name: $name,
+            type: $type,
+            ttl: $ttl,
             content: $content,
             comment: $comment !== '' ? $comment : null,
         );

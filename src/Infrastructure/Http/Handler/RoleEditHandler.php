@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
-use Laminas\Diactoros\Response\RedirectResponse;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -27,14 +26,13 @@ use TowerDNS\Domain\Auth\User;
  *
  * Systemrollen werden schreibgeschützt angezeigt (isSystem = true).
  */
-final class RoleEditHandler implements RequestHandlerInterface
+final readonly class RoleEditHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly RoleRepositoryInterface   $roles,
-        private readonly AuthorizationService      $authz,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private RoleRepositoryInterface   $roles,
+        private AuthorizationService      $authz,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -64,7 +62,7 @@ final class RoleEditHandler implements RequestHandlerInterface
 
         $role = $this->roles->findById($roleId);
 
-        if ($role === null) {
+        if (!$role instanceof Role) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/role_edit', [
                     'user'        => $currentUser,
@@ -101,7 +99,7 @@ final class RoleEditHandler implements RequestHandlerInterface
             return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Systemrollen können nicht bearbeitet werden.');
         }
 
-        $name = trim(is_string($body['name'] ?? null) ? (string) $body['name'] : '');
+        $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');
 
         if ($name === '') {
             return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Name darf nicht leer sein.');
@@ -119,8 +117,8 @@ final class RoleEditHandler implements RequestHandlerInterface
         }
 
         $updated = new Role(
-            id:          $role->id,
-            name:        $name,
+            id: $role->id,
+            name: $name,
             permissions: $permissions,
         );
 

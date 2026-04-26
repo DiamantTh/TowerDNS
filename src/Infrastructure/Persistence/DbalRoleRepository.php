@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -18,11 +19,9 @@ use TowerDNS\Domain\Auth\Role;
  * Permissions are fetched in a second query and merged into each Role, keeping
  * the query count to O(1) for bulk operations (findAll, findByIds).
  */
-final class DbalRoleRepository implements RoleRepositoryInterface
+final readonly class DbalRoleRepository implements RoleRepositoryInterface
 {
-    public function __construct(private readonly Connection $connection)
-    {
-    }
+    public function __construct(private Connection $connection) {}
 
     public function findById(string $id): ?Role
     {
@@ -77,7 +76,7 @@ final class DbalRoleRepository implements RoleRepositoryInterface
                     'id'         => $role->id,
                     'name'       => $role->name,
                     'is_system'  => false,
-                    'created_at' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                    'created_at' => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
                 ]);
             } else {
                 $this->connection->update(
@@ -137,7 +136,7 @@ final class DbalRoleRepository implements RoleRepositoryInterface
      */
     private function hydrateRoles(array $rows): array
     {
-        $ids = array_map(static fn (array $r): string => (string) ($r['id'] ?? ''), $rows);
+        $ids = array_map(static fn(array $r): string => (string) ($r['id'] ?? ''), $rows);
 
         $permRows = $this->connection->fetchAllAssociative(
             'SELECT role_id, permission FROM role_permissions WHERE role_id IN (?)',

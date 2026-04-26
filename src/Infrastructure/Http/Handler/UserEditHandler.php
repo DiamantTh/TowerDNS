@@ -26,15 +26,14 @@ use TowerDNS\Domain\Auth\User;
  * GET  /users/{id} — Benutzerdetails + Rollenzuweisung-Formular.
  * POST /users/{id} — syncRoles() für den Benutzer ausführen.
  */
-final class UserEditHandler implements RequestHandlerInterface
+final readonly class UserEditHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly UserRepositoryInterface   $users,
-        private readonly RoleRepositoryInterface   $roles,
-        private readonly AuthorizationService      $authz,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private UserRepositoryInterface   $users,
+        private RoleRepositoryInterface   $roles,
+        private AuthorizationService      $authz,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -64,7 +63,7 @@ final class UserEditHandler implements RequestHandlerInterface
         }
 
         $target = $this->users->findById($targetId);
-        if ($target === null) {
+        if (!$target instanceof User) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/user_edit', [
                     'currentUser' => $currentUser,

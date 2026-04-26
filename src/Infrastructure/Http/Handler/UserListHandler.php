@@ -24,15 +24,14 @@ use TowerDNS\Domain\Auth\User;
 /**
  * GET /users — Benutzerübersicht mit Anlegen-Formular.
  */
-final class UserListHandler implements RequestHandlerInterface
+final readonly class UserListHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly UserRepositoryInterface   $users,
-        private readonly RoleRepositoryInterface   $roles,
-        private readonly AuthorizationService      $authz,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private UserRepositoryInterface   $users,
+        private RoleRepositoryInterface   $roles,
+        private AuthorizationService      $authz,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -71,7 +70,7 @@ final class UserListHandler implements RequestHandlerInterface
                 'users'       => $allUsers,
                 'roles'       => $allRoles,
                 'csrfToken'   => $csrfToken,
-                'error'       => is_string($flashError)   ? $flashError   : null,
+                'error'       => is_string($flashError) ? $flashError : null,
                 'success'     => is_string($flashSuccess) ? $flashSuccess : null,
             ]),
         );

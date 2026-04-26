@@ -24,13 +24,12 @@ use TowerDNS\Domain\Auth\User;
  * Loads all records for the zone and displays the one matching the route param,
  * since most DNS providers do not expose a single-record fetch endpoint.
  */
-final class RecordEditHandler implements RequestHandlerInterface
+final readonly class RecordEditHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly DnsManagementService      $dns,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private DnsManagementService      $dns,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -43,8 +42,6 @@ final class RecordEditHandler implements RequestHandlerInterface
         /** @var CsrfGuardInterface $guard */
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
-
-        $back = '/zones/' . rawurlencode($providerId) . '/' . rawurlencode($zoneId);
 
         try {
             $records = $this->dns->listRecords($user, $providerId, $zoneId);
@@ -73,14 +70,7 @@ final class RecordEditHandler implements RequestHandlerInterface
                 500,
             );
         }
-
-        $record = null;
-        foreach ($records as $r) {
-            if ($r->id === $recordId) {
-                $record = $r;
-                break;
-            }
-        }
+        $record = array_find($records, fn($r): bool => $r->id === $recordId);
 
         if ($record === null) {
             return new HtmlResponse(

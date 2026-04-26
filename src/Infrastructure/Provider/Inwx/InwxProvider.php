@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -27,7 +28,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  */
 final class InwxProvider extends AbstractDnsProvider
 {
-    public const ID = 'inwx';
+    public const string ID = 'inwx';
 
     private readonly InwxApiClient $client;
 
@@ -88,10 +89,10 @@ final class InwxProvider extends AbstractDnsProvider
     {
         $this->client->createZone($zoneName);
         return new Zone(
-            id:         $zoneName,
-            name:       $zoneName,
+            id: $zoneName,
+            name: $zoneName,
             providerId: self::ID,
-            active:     true,
+            active: true,
         );
     }
 
@@ -109,7 +110,7 @@ final class InwxProvider extends AbstractDnsProvider
 
         foreach ((array) ($info['record'] ?? []) as $row) {
             $r = $this->mapRecord($zoneId, (array) $row);
-            if ($r !== null) {
+            if ($r instanceof Record) {
                 $records[] = $r;
             }
         }
@@ -127,15 +128,15 @@ final class InwxProvider extends AbstractDnsProvider
             'ttl'     => $record->ttl,
         ];
 
-        $result  = $this->client->createRecord($params);
-        $newId   = (string) ($result['id'] ?? '');
+        $result = $this->client->createRecord($params);
+        $newId  = (string) ($result['id'] ?? '');
 
         return new Record(
-            id:      $newId !== '' ? $newId : self::contentHash($record->content),
-            zoneId:  $record->zoneId,
-            name:    $record->name,
-            type:    $record->type,
-            ttl:     $record->ttl,
+            id: $newId !== '' ? $newId : self::contentHash($record->content),
+            zoneId: $record->zoneId,
+            name: $record->name,
+            type: $record->type,
+            ttl: $record->ttl,
             content: $record->content,
         );
     }
@@ -156,11 +157,11 @@ final class InwxProvider extends AbstractDnsProvider
         ]);
 
         return new Record(
-            id:      $record->id,
-            zoneId:  $record->zoneId,
-            name:    $record->name,
-            type:    $record->type,
-            ttl:     $record->ttl,
+            id: $record->id,
+            zoneId: $record->zoneId,
+            name: $record->name,
+            type: $record->type,
+            ttl: $record->ttl,
             content: $record->content,
         );
     }
@@ -178,16 +179,16 @@ final class InwxProvider extends AbstractDnsProvider
 
     public function getDnssecProfile(string $zoneId): DnssecProfile
     {
-        $keyInfo  = $this->client->getDnsKeyInfo($zoneId);
-        $keys     = (array) ($keyInfo['dnskey'] ?? $keyInfo['keys'] ?? []);
-        $signed   = $keys !== [];
-        $state    = $signed ? DnssecState::SIGNED : DnssecState::UNSIGNED;
+        $keyInfo = $this->client->getDnsKeyInfo($zoneId);
+        $keys    = (array) ($keyInfo['dnskey'] ?? $keyInfo['keys'] ?? []);
+        $signed  = $keys !== [];
+        $state   = $signed ? DnssecState::SIGNED : DnssecState::UNSIGNED;
 
         $metadata = ['key_count' => count($keys)];
 
         return new DnssecProfile(
-            zoneId:   $zoneId,
-            state:    $state,
+            zoneId: $zoneId,
+            state: $state,
             features: [
                 'auto_managed' => false,
                 'ds_available' => $signed,
@@ -218,11 +219,11 @@ final class InwxProvider extends AbstractDnsProvider
     {
         $name = (string) ($row['domain'] ?? $row['name'] ?? '');
         return new Zone(
-            id:         $name,
-            name:       $name,
+            id: $name,
+            name: $name,
             providerId: self::ID,
-            active:     true,
-            metadata:   [
+            active: true,
+            metadata: [
                 'type' => (string) ($row['type'] ?? 'MASTER'),
             ],
         );
@@ -238,8 +239,8 @@ final class InwxProvider extends AbstractDnsProvider
             return null;
         }
 
-        $id      = (string) ($row['id'] ?? '');
-        $name    = (string) ($row['name'] ?? '');
+        $id   = (string) ($row['id'] ?? '');
+        $name = (string) ($row['name'] ?? '');
         // INWX returns "@" for the apex record
         if ($name === '@') {
             $name = '';
@@ -248,11 +249,11 @@ final class InwxProvider extends AbstractDnsProvider
         $ttl     = (int) ($row['ttl'] ?? 3600);
 
         return new Record(
-            id:      $id !== '' ? $id : self::contentHash($content),
-            zoneId:  $zoneId,
-            name:    $name,
-            type:    $type,
-            ttl:     $ttl,
+            id: $id !== '' ? $id : self::contentHash($content),
+            zoneId: $zoneId,
+            name: $name,
+            type: $type,
+            ttl: $ttl,
             content: $content,
         );
     }

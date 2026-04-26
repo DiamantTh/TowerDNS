@@ -27,14 +27,13 @@ use TowerDNS\Application\Services\TotpService;
  * If the session does not contain that key the user is redirected back
  * to /login.
  */
-final class TotpHandler implements RequestHandlerInterface
+final readonly class TotpHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly UserRepositoryInterface   $users,
-        private readonly TotpService               $totp,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private UserRepositoryInterface   $users,
+        private TotpService               $totp,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

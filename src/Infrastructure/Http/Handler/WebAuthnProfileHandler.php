@@ -9,7 +9,6 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Mezzio\Csrf\CsrfMiddleware;
-use Mezzio\Session\SessionInterface;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -23,13 +22,12 @@ use TowerDNS\Domain\Auth\User;
  * Shows a list of all registered WebAuthn credentials for the current user
  * and provides the interface to add new keys or remove existing ones.
  */
-final class WebAuthnProfileHandler implements RequestHandlerInterface
+final readonly class WebAuthnProfileHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface              $renderer,
-        private readonly WebAuthnCredentialRepositoryInterface $webAuthn,
-    ) {
-    }
+        private TemplateRendererInterface              $renderer,
+        private WebAuthnCredentialRepositoryInterface $webAuthn,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -54,12 +52,12 @@ final class WebAuthnProfileHandler implements RequestHandlerInterface
 
         return new HtmlResponse(
             $this->renderer->render('app::profile/webauthn', [
-                'user'       => $currentUser,
-                'csrfToken'  => $guard->generateToken(),
-                'active'     => 'profile',
-                'keys'       => $keys,
-                'success'    => $flash['success'] ?? null,
-                'error'      => $flash['error']   ?? null,
+                'user'      => $currentUser,
+                'csrfToken' => $guard->generateToken(),
+                'active'    => 'profile',
+                'keys'      => $keys,
+                'success'   => $flash['success'] ?? null,
+                'error'     => $flash['error']   ?? null,
             ])
         );
     }

@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -33,9 +34,9 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
  */
 final class PowerDnsProvider extends AbstractDnsProvider
 {
-    public const ID = 'powerdns';
+    public const string ID = 'powerdns';
 
-    private ClientInterface $http;
+    private readonly ClientInterface $http;
 
     /**
      * Whether the server supports EXTEND/PRUNE changetypes.
@@ -101,7 +102,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     public function listZones(): array
     {
-        $rows = $this->request('GET', $this->serverPath('zones'));
+        $rows  = $this->request('GET', $this->serverPath('zones'));
         $zones = [];
         foreach ((array) $rows as $row) {
             $zones[] = $this->mapZone((array) $row);
@@ -112,7 +113,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
     public function createZone(string $zoneName): Zone
     {
         $canonical = rtrim($zoneName, '.') . '.';
-        $row = $this->request('POST', $this->serverPath('zones'), [
+        $row       = $this->request('POST', $this->serverPath('zones'), [
             'name'        => $canonical,
             'kind'        => 'Native',
             'nameservers' => [],
@@ -128,25 +129,25 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     public function listRecords(string $zoneId): array
     {
-        $row = (array) $this->request('GET', $this->serverPath('zones/' . rawurlencode($zoneId)));
+        $row     = (array) $this->request('GET', $this->serverPath('zones/' . rawurlencode($zoneId)));
         $records = [];
         foreach ((array) ($row['rrsets'] ?? []) as $rrset) {
             $rrset = (array) $rrset;
-            $type = RecordType::tryFrom(strtoupper((string) ($rrset['type'] ?? '')));
+            $type  = RecordType::tryFrom(strtoupper((string) ($rrset['type'] ?? '')));
             if ($type === null) {
                 continue;
             }
             $name = rtrim((string) ($rrset['name'] ?? ''), '.');
             $ttl  = (int) ($rrset['ttl'] ?? 3600);
             foreach ((array) ($rrset['records'] ?? []) as $r) {
-                $r       = (array) $r;
-                $content = (string) ($r['content'] ?? '');
+                $r         = (array) $r;
+                $content   = (string) ($r['content'] ?? '');
                 $records[] = new Record(
-                    id:      $this->buildRecordId($zoneId, $name, $type, $content),
-                    zoneId:  $zoneId,
-                    name:    $name,
-                    type:    $type,
-                    ttl:     $ttl,
+                    id: $this->buildRecordId($zoneId, $name, $type, $content),
+                    zoneId: $zoneId,
+                    name: $name,
+                    type: $type,
+                    ttl: $ttl,
                     content: $content,
                     comment: ((string) ($r['comment'] ?? '')) ?: null,
                 );
@@ -177,19 +178,19 @@ final class PowerDnsProvider extends AbstractDnsProvider
                 $record->name,
                 $record->type->value,
                 $record->ttl,
-                array_map(static fn(string $c) => ['content' => $c, 'disabled' => false], $contents),
+                array_map(static fn(string $c): array => ['content' => $c, 'disabled' => false], $contents),
                 'REPLACE',
             );
         }
 
         return new Record(
-            id:       $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
-            zoneId:   $record->zoneId,
-            name:     $record->name,
-            type:     $record->type,
-            ttl:      $record->ttl,
-            content:  $record->content,
-            comment:  $record->comment,
+            id: $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
+            zoneId: $record->zoneId,
+            name: $record->name,
+            type: $record->type,
+            ttl: $record->ttl,
+            content: $record->content,
+            comment: $record->comment,
             metadata: $record->metadata,
         );
     }
@@ -198,10 +199,9 @@ final class PowerDnsProvider extends AbstractDnsProvider
     {
         [$name, $typeStr, $oldHash] = $this->parseRecordId($record->zoneId, $record->id);
 
-        $rrset    = $this->fetchRRSet($record->zoneId, $name, $typeStr);
-        $ttl      = $rrset['ttl'];
-        $updated  = array_map(
-            fn(string $c) => self::contentHash($c) === $oldHash ? $record->content : $c,
+        $rrset   = $this->fetchRRSet($record->zoneId, $name, $typeStr);
+        $updated = array_map(
+            fn(string $c): string => self::contentHash($c) === $oldHash ? $record->content : $c,
             $rrset['contents'],
         );
         $updated = array_values(array_unique($updated));
@@ -210,19 +210,19 @@ final class PowerDnsProvider extends AbstractDnsProvider
             $record->zoneId,
             $record->name,
             $record->type->value,
-            $record->ttl !== $ttl ? $record->ttl : $ttl,
-            array_map(static fn(string $c) => ['content' => $c, 'disabled' => false], $updated),
+            $record->ttl,
+            array_map(static fn(string $c): array => ['content' => $c, 'disabled' => false], $updated),
             'REPLACE',
         );
 
         return new Record(
-            id:       $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
-            zoneId:   $record->zoneId,
-            name:     $record->name,
-            type:     $record->type,
-            ttl:      $record->ttl,
-            content:  $record->content,
-            comment:  $record->comment,
+            id: $this->buildRecordId($record->zoneId, $record->name, $record->type, $record->content),
+            zoneId: $record->zoneId,
+            name: $record->name,
+            type: $record->type,
+            ttl: $record->ttl,
+            content: $record->content,
+            comment: $record->comment,
             metadata: $record->metadata,
         );
     }
@@ -230,7 +230,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         [$name, $typeStr, $oldHash] = $this->parseRecordId($zoneId, $recordId);
-        $rrset = $this->fetchRRSet($zoneId, $name, $typeStr);
+        $rrset                      = $this->fetchRRSet($zoneId, $name, $typeStr);
 
         // Find the actual content string by matching the hash.
         $toRemove = null;
@@ -257,7 +257,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
         // Read-modify-write: remove the entry and REPLACE, or DELETE if empty.
         $remaining = array_values(array_filter(
             $rrset['contents'],
-            static fn(string $c) => $c !== $toRemove,
+            static fn(string $c): bool => $c !== $toRemove,
         ));
 
         if ($remaining === []) {
@@ -270,8 +270,11 @@ final class PowerDnsProvider extends AbstractDnsProvider
             ], false);
         } else {
             $this->patchRrset(
-                $zoneId, $name, $typeStr, $rrset['ttl'],
-                array_map(static fn(string $c) => ['content' => $c, 'disabled' => false], $remaining),
+                $zoneId,
+                $name,
+                $typeStr,
+                $rrset['ttl'],
+                array_map(static fn(string $c): array => ['content' => $c, 'disabled' => false], $remaining),
                 'REPLACE',
             );
         }
@@ -396,13 +399,12 @@ final class PowerDnsProvider extends AbstractDnsProvider
      */
     private function fetchRRSet(string $zoneId, string $name, string $type): array
     {
-        $row = (array) $this->request('GET', $this->serverPath('zones/' . rawurlencode($zoneId)));
+        $row    = (array) $this->request('GET', $this->serverPath('zones/' . rawurlencode($zoneId)));
         $needle = rtrim($name, '.');
         foreach ((array) ($row['rrsets'] ?? []) as $rrset) {
             $rrset = (array) $rrset;
             if (
-                rtrim((string) ($rrset['name'] ?? ''), '.') === $needle &&
-                strtoupper((string) ($rrset['type'] ?? '')) === strtoupper($type)
+                rtrim((string) ($rrset['name'] ?? ''), '.') === $needle && strtoupper((string) ($rrset['type'] ?? '')) === strtoupper($type)
             ) {
                 $contents = [];
                 foreach ((array) ($rrset['records'] ?? []) as $r) {
@@ -462,9 +464,9 @@ final class PowerDnsProvider extends AbstractDnsProvider
         }
 
         try {
-            $info    = (array) $this->request('GET', $this->serverPath(''));
-            $rawVal  = $info['version'] ?? '0.0.0';
-            $raw     = is_string($rawVal) ? $rawVal : '0.0.0';
+            $info   = (array) $this->request('GET', $this->serverPath(''));
+            $rawVal = $info['version'] ?? '0.0.0';
+            $raw    = is_string($rawVal) ? $rawVal : '0.0.0';
         } catch (\Throwable) {
             $this->supportsExtendFlag = false;
             return false;
@@ -473,12 +475,12 @@ final class PowerDnsProvider extends AbstractDnsProvider
         // Strip pre-release/build suffixes: "4.9.12-alpha1" → "4.9.12"
         $version = preg_replace('/[^0-9.].*$/', '', $raw) ?? '0.0.0';
 
-        $parts = explode('.', $version . '.0.0');
+        $parts                   = explode('.', $version . '.0.0');
         [$major, $minor, $patch] = [(int) $parts[0], (int) $parts[1], (int) $parts[2]];
 
         $this->supportsExtendFlag = match (true) {
-            $major >= 6                                  => true,
-            $major === 5 && $minor >= 1                  => true,
+            $major                                 >= 6                                  => true,
+            $major === 5 && $minor                 >= 1                  => true,
             $major === 5 && $minor === 0 && $patch >= 2  => true,
             $major === 4 && $minor === 9 && $patch >= 12 => true,
             default                                      => false,
@@ -489,7 +491,6 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     /**
      * @param array<string, mixed>|null $data
-     * @return mixed
      */
     private function request(string $method, string $endpoint, ?array $data = null, bool $decode = true): mixed
     {
@@ -518,7 +519,8 @@ final class PowerDnsProvider extends AbstractDnsProvider
                 $detail  = is_array($decoded) && isset($decoded['error'])
                     ? (string) $decoded['error']
                     : $raw;
-            } catch (\Throwable) {}
+            } catch (\Throwable) {
+            }
             throw new ProviderRequestException(
                 sprintf('PowerDNS API HTTP %d: %s', $status, $detail ?: $e->getMessage()),
                 $status,

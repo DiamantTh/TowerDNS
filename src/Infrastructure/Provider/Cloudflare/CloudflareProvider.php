@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -32,7 +33,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  */
 final class CloudflareProvider extends AbstractDnsProvider
 {
-    public const ID = 'cloudflare';
+    public const string ID = 'cloudflare';
 
     private readonly CloudflareApiClient $client;
 
@@ -106,7 +107,7 @@ final class CloudflareProvider extends AbstractDnsProvider
         $records = [];
         foreach ($this->client->listDnsRecords($zoneId) as $row) {
             $r = $this->mapRecord($zoneId, $row);
-            if ($r !== null) {
+            if ($r instanceof Record) {
                 $records[] = $r;
             }
         }
@@ -115,7 +116,7 @@ final class CloudflareProvider extends AbstractDnsProvider
 
     public function createRecord(Record $record): Record
     {
-        $name = $this->toFqdn($record->name, $record->zoneId);
+        $name    = $this->toFqdn($record->name, $record->zoneId);
         $payload = [
             'name'    => $name,
             'type'    => $record->type->value,
@@ -164,8 +165,8 @@ final class CloudflareProvider extends AbstractDnsProvider
         $status = strtolower((string) ($row['status'] ?? 'inactive'));
 
         $state = match ($status) {
-            'active'           => DnssecState::SIGNED,
-            'pending'          => DnssecState::PARTIAL,
+            'active'  => DnssecState::SIGNED,
+            'pending' => DnssecState::PARTIAL,
             'disabled',
             'inactive',
             'pending-disabled',
@@ -181,8 +182,8 @@ final class CloudflareProvider extends AbstractDnsProvider
         }
 
         return new DnssecProfile(
-            zoneId:   $zoneId,
-            state:    $state,
+            zoneId: $zoneId,
+            state: $state,
             features: ['auto_managed' => true, 'ds_available' => isset($row['ds'])],
             metadata: $metadata,
         );
@@ -211,11 +212,11 @@ final class CloudflareProvider extends AbstractDnsProvider
     {
         $name = rtrim((string) ($row['name'] ?? ''), '.');
         return new Zone(
-            id:         $name,
-            name:       $name,
+            id: $name,
+            name: $name,
             providerId: self::ID,
-            active:     (string) ($row['status'] ?? '') === 'active',
-            metadata:   [
+            active: (string) ($row['status'] ?? '') === 'active',
+            metadata: [
                 'cf_id'  => (string) ($row['id'] ?? ''),
                 'plan'   => (string) ($row['plan']['name'] ?? ''),
                 'paused' => (bool) ($row['paused'] ?? false),
@@ -241,11 +242,11 @@ final class CloudflareProvider extends AbstractDnsProvider
         $comment = (string) ($row['comment'] ?? '');
 
         return new Record(
-            id:      $id !== '' ? $id : self::contentHash($content),
-            zoneId:  $zoneId,
-            name:    $subname,
-            type:    $type,
-            ttl:     $ttl,
+            id: $id !== '' ? $id : self::contentHash($content),
+            zoneId: $zoneId,
+            name: $subname,
+            type: $type,
+            ttl: $ttl,
             content: $content,
             comment: $comment !== '' ? $comment : null,
         );

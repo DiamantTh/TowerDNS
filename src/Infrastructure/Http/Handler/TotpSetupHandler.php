@@ -31,17 +31,16 @@ use TowerDNS\Domain\Auth\User;
  * Disable flow:
  *   POST action=disable: verify current TOTP code → clear secret in DB.
  */
-final class TotpSetupHandler implements RequestHandlerInterface
+final readonly class TotpSetupHandler implements RequestHandlerInterface
 {
-    private const SESSION_KEY = 'totp_setup_secret';
-    private const ISSUER      = 'TowerDNS';
+    private const string SESSION_KEY = 'totp_setup_secret';
+    private const string ISSUER      = 'TowerDNS';
 
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly UserRepositoryInterface   $users,
-        private readonly TotpService               $totp,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private UserRepositoryInterface   $users,
+        private TotpService               $totp,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -98,14 +97,14 @@ final class TotpSetupHandler implements RequestHandlerInterface
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
                 $this->renderer->render('app::profile/totp', [
-                    'user'           => $user,
-                    'totpActive'     => false,
+                    'user'            => $user,
+                    'totpActive'      => false,
                     'provisioningUri' => null,
-                    'secret'         => null,
+                    'secret'          => null,
                     'secretFormatted' => null,
-                    'error'          => 'Ungültige Anfrage. Bitte versuche es erneut.',
-                    'success'        => null,
-                    'csrfToken'      => $guard->generateToken(),
+                    'error'           => 'Ungültige Anfrage. Bitte versuche es erneut.',
+                    'success'         => null,
+                    'csrfToken'       => $guard->generateToken(),
                 ]),
                 400,
             );
@@ -187,14 +186,14 @@ final class TotpSetupHandler implements RequestHandlerInterface
 
         return $this->renderSetupForm(
             $user,
-            $this->generateFreshSecret($user),
+            $this->generateFreshSecret(),
             null,
             'Zwei-Faktor-Authentifizierung wurde deaktiviert.',
             $guard,
         );
     }
 
-    private function generateFreshSecret(User $user): string
+    private function generateFreshSecret(): string
     {
         // Generate new secret but do NOT store it yet — the user must confirm
         return $this->totp->generateSecret();

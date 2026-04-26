@@ -24,14 +24,13 @@ use TowerDNS\Domain\Auth\User;
 /**
  * POST /users — legt einen neuen Benutzer an.
  */
-final class UserCreateHandler implements RequestHandlerInterface
+final readonly class UserCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly UserRepositoryInterface $users,
-        private readonly AuthorizationService    $authz,
-        private readonly PasswordPolicy          $passwordPolicy,
-    ) {
-    }
+        private UserRepositoryInterface $users,
+        private AuthorizationService    $authz,
+        private PasswordPolicy          $passwordPolicy,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

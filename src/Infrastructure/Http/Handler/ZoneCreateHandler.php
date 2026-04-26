@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -20,12 +21,11 @@ use TowerDNS\Domain\Auth\User;
 /**
  * POST /zones/{provider} — creates a new zone for the given provider.
  */
-final class ZoneCreateHandler implements RequestHandlerInterface
+final readonly class ZoneCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly DnsManagementService $dns,
-    ) {
-    }
+        private DnsManagementService $dns,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

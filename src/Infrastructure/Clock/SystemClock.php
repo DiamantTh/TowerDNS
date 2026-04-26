@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Clock;
 
-use DateTimeImmutable;
 use Psr\Clock\ClockInterface;
 
 /**
@@ -15,8 +14,8 @@ use Psr\Clock\ClockInterface;
  */
 final class SystemClock implements ClockInterface
 {
-    public function now(): DateTimeImmutable
+    public function now(): \DateTimeImmutable
     {
-        return new DateTimeImmutable();
+        return new \DateTimeImmutable();
     }
 }

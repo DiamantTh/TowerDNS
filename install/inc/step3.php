@@ -49,16 +49,16 @@ function processStep3(): array
             ],
         };
 
-        $conn          = \Doctrine\DBAL\DriverManager::getConnection($params);
-        $schemaManager = new \TowerDNS\Infrastructure\Persistence\SchemaManager($conn);
+        $conn          = Doctrine\DBAL\DriverManager::getConnection($params);
+        $schemaManager = new TowerDNS\Infrastructure\Persistence\SchemaManager($conn);
 
         // ── Schema + System-Rollen anlegen ────────────────────────────────
         $schemaManager->createTablesIfNotExist();
         $schemaManager->seedSystemRoles();
 
         // ── Admin-Benutzer anlegen ────────────────────────────────────────
-        $now     = (new \DateTime())->format('Y-m-d H:i:s');
-        $hash    = password_hash(
+        $now  = (new DateTime())->format('Y-m-d H:i:s');
+        $hash = password_hash(
             $admin['password'],
             PASSWORD_ARGON2ID,
             ['memory_cost' => 131072, 'time_cost' => 4, 'threads' => 4]
@@ -75,88 +75,88 @@ function processStep3(): array
 
         // ── Runtime-Verzeichnisse anlegen ─────────────────────────────────────
         foreach ([
-            PROJECT_ROOT . '/configs'          => 0750,
-            PROJECT_ROOT . '/cache/twig'       => 0750,
-            PROJECT_ROOT . '/cache/ratelimit'  => 0750,
-            PROJECT_ROOT . '/data'             => 0750,
-            PROJECT_ROOT . '/logs'             => 0750,
+            PROJECT_ROOT . '/configs'         => 0o750,
+            PROJECT_ROOT . '/cache/twig'      => 0o750,
+            PROJECT_ROOT . '/cache/ratelimit' => 0o750,
+            PROJECT_ROOT . '/data'            => 0o750,
+            PROJECT_ROOT . '/logs'            => 0o750,
         ] as $dir => $mode) {
             if (!is_dir($dir) && !@mkdir($dir, $mode, true)) {
-                throw new \RuntimeException(sprintf('Verzeichnis konnte nicht erstellt werden: %s', $dir));
+                throw new RuntimeException(sprintf('Verzeichnis konnte nicht erstellt werden: %s', $dir));
             }
         }
         $cfgDir = PROJECT_ROOT . '/configs';
 
         // ── configs/config.local.toml ──────────────────────────────────
         $encKey          = base64_encode(random_bytes(32));
-        $escapedEncKey   = addcslashes($encKey,        '"\\');
+        $escapedEncKey   = addcslashes($encKey, '"\\');
         $escapedDomain   = addcslashes($app['domain'], '"\\');
-        $escapedAppName  = addcslashes($app['name'],   '"\\');
-        $escapedAppTheme = addcslashes($app['theme'],  '"\\');
+        $escapedAppName  = addcslashes($app['name'], '"\\');
+        $escapedAppTheme = addcslashes($app['theme'], '"\\');
         $forceHttps      = $app['https'] ? 'true' : 'false';
 
         $localToml = <<<TOML
-# TowerDNS — Lokale Konfiguration (auto-generiert am {$now})
-# NIEMALS ins Git einpflegen!
+            # TowerDNS — Lokale Konfiguration (auto-generiert am {$now})
+            # NIEMALS ins Git einpflegen!
 
-[security]
-encryption_key = "{$escapedEncKey}"
+            [security]
+            encryption_key = "{$escapedEncKey}"
 
-[security.password]
-min_length = 16
-min_score  = 2
+            [security.password]
+            min_length = 16
+            min_score  = 2
 
-[app]
-domain      = "{$escapedDomain}"
-force_https = {$forceHttps}
-debug       = false
+            [app]
+            domain      = "{$escapedDomain}"
+            force_https = {$forceHttps}
+            debug       = false
 
-[application]
-name = "{$escapedAppName}"
+            [application]
+            name = "{$escapedAppName}"
 
-[theme]
-name = "{$escapedAppTheme}"
-TOML;
+            [theme]
+            name = "{$escapedAppTheme}"
+            TOML;
 
         $localTomlFile = $cfgDir . '/config.local.toml';
         if (file_exists($localTomlFile)) {
             copy($localTomlFile, $localTomlFile . '.bak.' . date('Y-m-d-H-i-s'));
         }
         file_put_contents($localTomlFile, $localToml);
-        chmod($localTomlFile, 0600);
+        chmod($localTomlFile, 0o600);
 
         // ── configs/database.toml ──────────────────────────────────────────────
         if ($db['driver'] === 'pdo_sqlite') {
             $escapedPath = addcslashes($db['path'], '"\\');
-            $dbToml = <<<TOML
-# TowerDNS — Datenbankkonfiguration (auto-generiert am {$now})
+            $dbToml      = <<<TOML
+                # TowerDNS — Datenbankkonfiguration (auto-generiert am {$now})
 
-[database]
-driver = "pdo_sqlite"
+                [database]
+                driver = "pdo_sqlite"
 
-[database.sqlite]
-path = "{$escapedPath}"
-TOML;
+                [database.sqlite]
+                path = "{$escapedPath}"
+                TOML;
         } else {
-            $dbDriver  = addcslashes($db['driver'],     '"\\');
-            $dbHost    = addcslashes($db['host'],       '"\\');
-            $dbPort    = (int) $db['port'];
-            $dbName    = addcslashes($db['name'],       '"\\');
-            $dbUser    = addcslashes($db['user'],       '"\\');
-            $dbPass    = addcslashes($db['pass'] ?? '', '"\\');
+            $dbDriver = addcslashes($db['driver'], '"\\');
+            $dbHost   = addcslashes($db['host'], '"\\');
+            $dbPort   = (int) $db['port'];
+            $dbName   = addcslashes($db['name'], '"\\');
+            $dbUser   = addcslashes($db['user'], '"\\');
+            $dbPass   = addcslashes($db['pass'] ?? '', '"\\');
 
             $dbToml = <<<TOML
-# TowerDNS — Datenbankkonfiguration (auto-generiert am {$now})
-# Passwort besser via DB_PASSWORD-Umgebungsvariable statt in dieser Datei.
+                # TowerDNS — Datenbankkonfiguration (auto-generiert am {$now})
+                # Passwort besser via DB_PASSWORD-Umgebungsvariable statt in dieser Datei.
 
-[database]
-driver   = "{$dbDriver}"
-host     = "{$dbHost}"
-port     = {$dbPort}
-name     = "{$dbName}"
-user     = "{$dbUser}"
-password = "{$dbPass}"
-TOML;
+                [database]
+                driver   = "{$dbDriver}"
+                host     = "{$dbHost}"
+                port     = {$dbPort}
+                name     = "{$dbName}"
+                user     = "{$dbUser}"
+                password = "{$dbPass}"
+                TOML;
             if ($db['driver'] === 'pdo_mysql') {
                 $dbToml .= "\ncharset   = \"utf8mb4\"";
                 $dbToml .= "\ncollation = \"utf8mb4_unicode_ci\"";
@@ -168,7 +168,7 @@ TOML;
             copy($dbTomlFile, $dbTomlFile . '.bak.' . date('Y-m-d-H-i-s'));
         }
         file_put_contents($dbTomlFile, $dbToml);
-        chmod($dbTomlFile, 0600);
+        chmod($dbTomlFile, 0o600);
 
         // ── configs/providers.toml ────────────────────────────────────────
         $providersToml = "# TowerDNS — Provider-Konfiguration (auto-generiert am {$now})\n";
@@ -180,8 +180,8 @@ TOML;
         }
 
         if (isset($providers['powerdns'])) {
-            $u = addcslashes($providers['powerdns']['base_url'],  '"\\');
-            $k = addcslashes($providers['powerdns']['api_key'],   '"\\');
+            $u = addcslashes($providers['powerdns']['base_url'], '"\\');
+            $k = addcslashes($providers['powerdns']['api_key'], '"\\');
             $s = addcslashes($providers['powerdns']['server_id'], '"\\');
             $providersToml .= "[providers.powerdns]\nbase_url  = \"{$u}\"\napi_key   = \"{$k}\"\nserver_id = \"{$s}\"\n\n";
         }
@@ -202,7 +202,7 @@ TOML;
             copy($providersTomlFile, $providersTomlFile . '.bak.' . date('Y-m-d-H-i-s'));
         }
         file_put_contents($providersTomlFile, rtrim($providersToml) . "\n");
-        chmod($providersTomlFile, 0600);
+        chmod($providersTomlFile, 0o600);
 
         // ── Lock-Datei ────────────────────────────────────────────────────
         file_put_contents(LOCK_FILE, $now . "\n");
@@ -219,8 +219,7 @@ TOML;
             $_SESSION['install_providers'],
             $_SESSION['install_step']
         );
-
-    } catch (\Throwable $ex) {
+    } catch (Throwable $ex) {
         return [sprintf(t('step3.install_failed'), e($ex->getMessage()))];
     }
 

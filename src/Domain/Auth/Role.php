@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -11,7 +12,7 @@ use Laminas\Permissions\Rbac\RoleInterface;
 final class Role implements RoleInterface
 {
     /** @var array<string, true> */
-    private array $permissionMap;
+    private array $permissionMap = [];
 
     /** @var array<string, RoleInterface> */
     private array $children = [];
@@ -28,7 +29,6 @@ final class Role implements RoleInterface
         array $permissions = [],
         public readonly bool $isSystem = false,
     ) {
-        $this->permissionMap = [];
         foreach ($permissions as $perm) {
             $this->permissionMap[$perm->value] = true;
         }
@@ -51,14 +51,7 @@ final class Role implements RoleInterface
         if (isset($this->permissionMap[$name])) {
             return true;
         }
-
-        foreach ($this->children as $child) {
-            if ($child->hasPermission($name)) {
-                return true;
-            }
-        }
-
-        return false;
+        return array_any($this->children, fn($child) => $child->hasPermission($name));
     }
 
     public function addChild(RoleInterface $child): void

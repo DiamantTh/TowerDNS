@@ -21,12 +21,11 @@ use TowerDNS\Domain\Auth\User;
  * Deletes one of the current user's WebAuthn credentials.
  * credentialId is base64url-encoded raw credential bytes.
  */
-final class WebAuthnDeleteHandler implements RequestHandlerInterface
+final readonly class WebAuthnDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly WebAuthnCredentialRepositoryInterface $credentialRepo,
-    ) {
-    }
+        private WebAuthnCredentialRepositoryInterface $credentialRepo,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -43,8 +42,8 @@ final class WebAuthnDeleteHandler implements RequestHandlerInterface
 
         // credentialId in the URL is base64url-encoded raw bytes.
         /** @var array<string, string> $routeParams */
-        $routeParams  = $request->getAttribute(\Mezzio\Router\RouteResult::class)?->getMatchedParams() ?? [];
-        $credIdUrl    = (string) ($routeParams['credentialId'] ?? '');
+        $routeParams = $request->getAttribute(\Mezzio\Router\RouteResult::class)?->getMatchedParams() ?? [];
+        $credIdUrl   = (string) ($routeParams['credentialId'] ?? '');
 
         if ($credIdUrl === '') {
             return new RedirectResponse('/profile/webauthn?error=' . rawurlencode('Schlüssel nicht gefunden.'));

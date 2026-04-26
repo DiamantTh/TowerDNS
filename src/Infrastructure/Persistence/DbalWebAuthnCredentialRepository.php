@@ -12,13 +12,12 @@ use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use Webauthn\PublicKeyCredentialSource;
 
-final class DbalWebAuthnCredentialRepository implements WebAuthnCredentialRepositoryInterface
+final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredentialRepositoryInterface
 {
     public function __construct(
-        private readonly Connection          $connection,
-        private readonly SerializerInterface $serializer,
-    ) {
-    }
+        private Connection          $connection,
+        private SerializerInterface $serializer,
+    ) {}
 
     public function findByUserId(string $userId): array
     {
@@ -70,7 +69,7 @@ final class DbalWebAuthnCredentialRepository implements WebAuthnCredentialReposi
 
     public function save(string $userId, string $name, PublicKeyCredentialSource $source): void
     {
-        $now  = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+        $now  = new \DateTimeImmutable()->format('Y-m-d H:i:s');
         $data = $this->serializer->serialize($source, 'json');
 
         $this->connection->insert('webauthn_credentials', [
@@ -86,19 +85,19 @@ final class DbalWebAuthnCredentialRepository implements WebAuthnCredentialReposi
     public function updateAfterAuthentication(string $credentialId, int $counter): void
     {
         $source = $this->findByCredentialId($credentialId);
-        if ($source === null) {
+        if (!$source instanceof PublicKeyCredentialSource) {
             return;
         }
 
         // Update the counter in the stored source object.
         $source->counter = $counter;
-        $data = $this->serializer->serialize($source, 'json');
+        $data            = $this->serializer->serialize($source, 'json');
 
         $this->connection->update(
             'webauthn_credentials',
             [
                 'data'         => $data,
-                'last_used_at' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                'last_used_at' => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
             ],
             ['credential_id' => $credentialId],
         );

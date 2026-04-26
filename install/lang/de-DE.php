@@ -9,7 +9,6 @@ declare(strict_types=1);
  * Text domain: installer
  */
 return [
-
     '' => [
         'plural_forms' => 'nplurals=2; plural=(n!=1);',
     ],
@@ -66,20 +65,20 @@ return [
     'step2.heading'    => 'Konfiguration',
     'step2.subheading' => 'Konfiguriere Datenbank, Admin-Konto, Anwendungseinstellungen und DNS-Provider.',
 
-    'step2.db_section'     => 'Datenbank',
-    'step2.db_driver'      => 'Datenbank-Treiber',
-    'step2.hostname'       => 'Host',
-    'step2.port'           => 'Port',
-    'step2.dbname'         => 'Datenbankname',
-    'step2.dbuser'         => 'Datenbankbenutzer',
-    'step2.dbpass'         => 'Datenbankpasswort',
-    'step2.db_create'      => 'Datenbank und Benutzer automatisch anlegen (erfordert Root-/Superuser-Zugriff)',
-    'step2.root_hint'      => 'Die Root-Zugangsdaten werden nur temporär verwendet, um Datenbank und Benutzer anzulegen. Sie werden nie gespeichert.',
-    'step2.root_user'      => 'Root-Benutzer',
-    'step2.root_pass'      => 'Root-Passwort',
-    'step2.sqlite_path'    => 'SQLite-Dateipfad',
-    'step2.sqlite_hint'    => 'Leer lassen für den Standard-Pfad in data/.',
-    'step2.pgsql_hint'     => 'Datenbank und Benutzer müssen für PostgreSQL bereits existieren.',
+    'step2.db_section'  => 'Datenbank',
+    'step2.db_driver'   => 'Datenbank-Treiber',
+    'step2.hostname'    => 'Host',
+    'step2.port'        => 'Port',
+    'step2.dbname'      => 'Datenbankname',
+    'step2.dbuser'      => 'Datenbankbenutzer',
+    'step2.dbpass'      => 'Datenbankpasswort',
+    'step2.db_create'   => 'Datenbank und Benutzer automatisch anlegen (erfordert Root-/Superuser-Zugriff)',
+    'step2.root_hint'   => 'Die Root-Zugangsdaten werden nur temporär verwendet, um Datenbank und Benutzer anzulegen. Sie werden nie gespeichert.',
+    'step2.root_user'   => 'Root-Benutzer',
+    'step2.root_pass'   => 'Root-Passwort',
+    'step2.sqlite_path' => 'SQLite-Dateipfad',
+    'step2.sqlite_hint' => 'Leer lassen für den Standard-Pfad in data/.',
+    'step2.pgsql_hint'  => 'Datenbank und Benutzer müssen für PostgreSQL bereits existieren.',
 
     'step2.admin_section'      => 'Admin-Konto',
     'step2.admin_username'     => 'Benutzername',
@@ -89,14 +88,14 @@ return [
     'step2.admin_pass_confirm' => 'Passwort wiederholen',
     'step2.pass_mismatch_live' => 'Passwörter stimmen nicht überein.',
 
-    'step2.app_section'      => 'Anwendungseinstellungen',
-    'step2.app_name'         => 'Anwendungsname',
-    'step2.app_domain'       => 'Domain',
-    'step2.app_domain_hint'  => 'optional',
-    'step2.app_domain_help'  => 'z. B. tower.example.com — wird für Cookie-Domain und HSTS verwendet.',
-    'step2.app_theme'        => 'Theme',
-    'step2.app_https'        => 'HTTPS erzwingen / Strict-Transport-Security',
-    'step2.btn_next'         => 'Weiter zur Bestätigung',
+    'step2.app_section'     => 'Anwendungseinstellungen',
+    'step2.app_name'        => 'Anwendungsname',
+    'step2.app_domain'      => 'Domain',
+    'step2.app_domain_hint' => 'optional',
+    'step2.app_domain_help' => 'z. B. tower.example.com — wird für Cookie-Domain und HSTS verwendet.',
+    'step2.app_theme'       => 'Theme',
+    'step2.app_https'       => 'HTTPS erzwingen / Strict-Transport-Security',
+    'step2.btn_next'        => 'Weiter zur Bestätigung',
 
     // Provider-Abschnitt
     'step2.provider_section'                 => 'DNS-Provider',

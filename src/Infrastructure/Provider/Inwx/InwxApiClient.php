@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -27,10 +28,10 @@ use GuzzleHttp\RequestOptions;
  */
 final class InwxApiClient
 {
-    private const API_URL = 'https://api.inwx.com/jsonrpc/';
+    private const string API_URL = 'https://api.inwx.com/jsonrpc/';
 
-    private ClientInterface $http;
-    private CookieJar $jar;
+    private readonly ClientInterface $http;
+    private readonly CookieJar $jar;
     private bool $loggedIn = false;
     private int $requestId = 1;
 
@@ -61,7 +62,7 @@ final class InwxApiClient
         $this->ensureLoggedIn();
         $result  = $this->call('nameserver.list', ['pagelimit' => 100, 'page' => 1, 'wide' => '1']);
         $entries = (array) ($result['domains'] ?? $result['list'] ?? []);
-        return array_values(array_map(fn($e) => (array) $e, $entries));
+        return array_values(array_map(fn($e): array => (array) $e, $entries));
     }
 
     /**
@@ -70,7 +71,7 @@ final class InwxApiClient
     public function createZone(string $domainName): array
     {
         $this->ensureLoggedIn();
-        return (array) $this->call('nameserver.create', [
+        return $this->call('nameserver.create', [
             'domain'   => $domainName,
             'type'     => 'MASTER',
             'ns'       => ['ns.inwx.de', 'ns2.inwx.de'],
@@ -92,7 +93,7 @@ final class InwxApiClient
     public function getZoneInfo(string $domainName): array
     {
         $this->ensureLoggedIn();
-        return (array) $this->call('nameserver.info', ['domain' => $domainName]);
+        return $this->call('nameserver.info', ['domain' => $domainName]);
     }
 
     /**
@@ -102,7 +103,7 @@ final class InwxApiClient
     public function createRecord(array $params): array
     {
         $this->ensureLoggedIn();
-        return (array) $this->call('nameserver.createRecord', $params);
+        return $this->call('nameserver.createRecord', $params);
     }
 
     /**
@@ -112,7 +113,7 @@ final class InwxApiClient
     public function updateRecord(array $params): array
     {
         $this->ensureLoggedIn();
-        return (array) $this->call('nameserver.updateRecord', $params);
+        return $this->call('nameserver.updateRecord', $params);
     }
 
     public function deleteRecord(int $recordId): void
@@ -130,7 +131,7 @@ final class InwxApiClient
     {
         $this->ensureLoggedIn();
         try {
-            return (array) $this->call('nameserver.dnskeyInfo', ['domain' => $domainName]);
+            return $this->call('nameserver.dnskeyInfo', ['domain' => $domainName]);
         } catch (InwxApiException) {
             // Provider may not support DNSSEC key info for this domain.
             return [];
@@ -217,9 +218,9 @@ final class InwxApiClient
 
         try {
             $response = $this->http->request('POST', self::API_URL, [
-                RequestOptions::HEADERS     => ['Content-Type' => 'application/json'],
-                RequestOptions::JSON        => $payload,
-                RequestOptions::COOKIES     => $this->jar,
+                RequestOptions::HEADERS => ['Content-Type' => 'application/json'],
+                RequestOptions::JSON    => $payload,
+                RequestOptions::COOKIES => $this->jar,
             ]);
         } catch (GuzzleException $e) {
             throw new InwxApiException('INWX-Verbindungsfehler: ' . $e->getMessage(), 0, $e);

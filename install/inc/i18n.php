@@ -70,7 +70,7 @@ function initTranslator(): string
     $locale  = detectInstallerLocale();
     $langDir = INSTALL_DIR . '/lang';
 
-    $translator = new \Laminas\I18n\Translator\Translator();
+    $translator = new Laminas\I18n\Translator\Translator();
     $translator->setLocale($locale);
 
     // en-GB immer als Basis laden (Fallback für fehlende Schlüssel)
@@ -103,7 +103,7 @@ function initTranslator(): string
  */
 function t(string $key, string $domain = 'installer'): string
 {
-    /** @var \Laminas\I18n\Translator\Translator|null $t */
+    /** @var Laminas\I18n\Translator\Translator|null $t */
     $t = $GLOBALS['_installer_translator'] ?? null;
     if ($t === null) {
         return $key;

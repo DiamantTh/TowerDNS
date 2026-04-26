@@ -38,8 +38,10 @@
         "web-auth/webauthn-lib": "^5.2"
     },
     "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.75",
         "phpstan/phpstan": "^2.1",
-        "phpunit/phpunit": "^11.0"
+        "phpunit/phpunit": "^11.0",
+        "rector/rector": "^2.4"
     },
     "autoload": {
         "psr-4": {
@@ -55,8 +57,12 @@
         "phpstan": "phpstan analyse --configuration=phpstan.neon",
         "lint":    "find src tests -name '*.php' -exec php -l {} \\;",
         "test":    "phpunit",
+        "cs":      "PHP_CS_FIXER_IGNORE_ENV=1 php-cs-fixer fix",
+        "cs-check": "PHP_CS_FIXER_IGNORE_ENV=1 php-cs-fixer fix --dry-run --diff",
+        "rector":  "rector process",
+        "rector-check": "rector process --dry-run",
         "analyse": "@phpstan",
-        "check":   ["@lint", "@analyse", "@test"]
+        "check":   ["@lint", "@cs-check", "@rector-check", "@analyse", "@test"]
     },
     "config": {
         "sort-packages": true,

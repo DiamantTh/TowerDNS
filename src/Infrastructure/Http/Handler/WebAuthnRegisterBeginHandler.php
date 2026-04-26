@@ -27,13 +27,12 @@ use TowerDNS\Domain\Auth\User;
  *   name       – human-readable label for the new key
  *   csrf_token – CSRF token
  */
-final class WebAuthnRegisterBeginHandler implements RequestHandlerInterface
+final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly WebAuthnService                       $webAuthn,
-        private readonly WebAuthnCredentialRepositoryInterface $credentialRepo,
-    ) {
-    }
+        private WebAuthnService                       $webAuthn,
+        private WebAuthnCredentialRepositoryInterface $credentialRepo,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -60,13 +59,13 @@ final class WebAuthnRegisterBeginHandler implements RequestHandlerInterface
         $currentUser = $request->getAttribute(User::class);
 
         // Collect existing credential IDs to pass as excludeCredentials.
-        $existing = $this->credentialRepo->findByUserId($currentUser->id);
+        $existing   = $this->credentialRepo->findByUserId($currentUser->id);
         $excludeIds = array_column($existing, 'credential_id');
 
         $options = $this->webAuthn->createRegistrationOptions(
-            userId:               $currentUser->id,
-            userEmail:            $currentUser->email,
-            displayName:          $currentUser->displayName ?? $currentUser->email,
+            userId: $currentUser->id,
+            userEmail: $currentUser->email,
+            displayName: $currentUser->displayName ?? $currentUser->email,
             excludedCredentialIds: $excludeIds,
         );
 

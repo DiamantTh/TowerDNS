@@ -24,14 +24,13 @@ use TowerDNS\Application\Services\WebAuthnService;
  * Generates assertion options and stores the challenge in the session.
  * Requires session[mfa_pending] to be set by LoginHandler.
  */
-final class WebAuthnAuthHandler implements RequestHandlerInterface
+final readonly class WebAuthnAuthHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface              $renderer,
-        private readonly WebAuthnService                       $webAuthn,
-        private readonly WebAuthnCredentialRepositoryInterface $credentialRepo,
-    ) {
-    }
+        private TemplateRendererInterface              $renderer,
+        private WebAuthnService                       $webAuthn,
+        private WebAuthnCredentialRepositoryInterface $credentialRepo,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -50,11 +49,11 @@ final class WebAuthnAuthHandler implements RequestHandlerInterface
         }
 
         $credentialIds = array_column(
-            array_map(static fn(array $k) => ['credential_id' => $k['source']->publicKeyCredentialId], $credentials),
+            array_map(static fn(array $k): array => ['credential_id' => $k['source']->publicKeyCredentialId], $credentials),
             'credential_id',
         );
 
-        $options    = $this->webAuthn->createAuthenticationOptions($credentialIds);
+        $options     = $this->webAuthn->createAuthenticationOptions($credentialIds);
         $optionsJson = $this->webAuthn->serializeRequestOptions($options);
 
         $session->set('webauthn_auth_options', $optionsJson);

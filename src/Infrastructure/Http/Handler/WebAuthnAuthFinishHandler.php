@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\JsonResponse;
-use Laminas\Diactoros\Response\RedirectResponse;
 use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -27,14 +26,13 @@ use Webauthn\Exception\AuthenticatorResponseVerificationException;
  * The request body must be the JSON object produced by
  * navigator.credentials.get() (with ArrayBuffers encoded as base64url).
  */
-final class WebAuthnAuthFinishHandler implements RequestHandlerInterface
+final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly WebAuthnService                       $webAuthn,
-        private readonly WebAuthnCredentialRepositoryInterface $credentialRepo,
-        private readonly UserRepositoryInterface               $users,
-    ) {
-    }
+        private WebAuthnService                       $webAuthn,
+        private WebAuthnCredentialRepositoryInterface $credentialRepo,
+        private UserRepositoryInterface               $users,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -58,7 +56,7 @@ final class WebAuthnAuthFinishHandler implements RequestHandlerInterface
 
         // Determine which credential was used.
         /** @var array<string, mixed> $parsed */
-        $parsed = json_decode($body, true) ?? [];
+        $parsed   = json_decode($body, true) ?? [];
         $rawIdB64 = (string) ($parsed['rawId'] ?? $parsed['id'] ?? '');
         if ($rawIdB64 === '') {
             return new JsonResponse(['error' => 'Keine Credential-ID im Response.'], 422);
@@ -70,7 +68,7 @@ final class WebAuthnAuthFinishHandler implements RequestHandlerInterface
         }
 
         $source = $this->credentialRepo->findByCredentialId($credentialId);
-        if ($source === null) {
+        if (!$source instanceof \Webauthn\PublicKeyCredentialSource) {
             return new JsonResponse(['error' => 'Schlüssel nicht gefunden.'], 422);
         }
 

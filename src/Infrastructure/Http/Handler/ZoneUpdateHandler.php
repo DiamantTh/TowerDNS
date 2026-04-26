@@ -22,12 +22,11 @@ use TowerDNS\Domain\DNS\RecordType;
 /**
  * POST /zones/{provider}/{zone}/records/{record}/update — updates an existing DNS record.
  */
-final class ZoneUpdateHandler implements RequestHandlerInterface
+final readonly class ZoneUpdateHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly DnsManagementService $dns,
-    ) {
-    }
+        private DnsManagementService $dns,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -67,11 +66,11 @@ final class ZoneUpdateHandler implements RequestHandlerInterface
         }
 
         $record = new Record(
-            id:      $recordId,
-            zoneId:  $zoneId,
-            name:    $name,
-            type:    $type,
-            ttl:     $ttl,
+            id: $recordId,
+            zoneId: $zoneId,
+            name: $name,
+            type: $type,
+            ttl: $ttl,
             content: $content,
             comment: $comment !== '' ? $comment : null,
         );

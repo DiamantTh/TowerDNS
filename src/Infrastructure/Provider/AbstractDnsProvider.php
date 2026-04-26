@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -17,7 +18,7 @@ use TowerDNS\Application\Contracts\ProviderCapabilitySet;
  */
 abstract class AbstractDnsProvider implements DnsProviderInterface
 {
-    private ProviderCapabilitySet $capabilitySet;
+    private readonly ProviderCapabilitySet $capabilitySet;
 
     public function __construct()
     {

@@ -29,14 +29,13 @@ use Webauthn\PublicKeyCredentialUserEntity;
  * The RP ID must match the effective domain (e.g. "example.com").
  * The allowed origin is derived as "https://{rpId}".
  */
-final class WebAuthnService
+final readonly class WebAuthnService
 {
     public function __construct(
-        private readonly SerializerInterface $serializer,
-        private readonly string              $rpId,
-        private readonly string              $rpName,
-    ) {
-    }
+        private SerializerInterface $serializer,
+        private string              $rpId,
+        private string              $rpName,
+    ) {}
 
     // ── Registration ──────────────────────────────────────────────────────────
 
@@ -60,7 +59,7 @@ final class WebAuthnService
         ];
 
         $excludeCredentials = array_map(
-            static fn(string $id) => new PublicKeyCredentialDescriptor(
+            static fn(string $id): PublicKeyCredentialDescriptor => new PublicKeyCredentialDescriptor(
                 PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
                 $id,
             ),
@@ -118,7 +117,7 @@ final class WebAuthnService
     public function createAuthenticationOptions(array $allowedCredentialIds = []): PublicKeyCredentialRequestOptions
     {
         $allowCredentials = array_map(
-            static fn(string $id) => new PublicKeyCredentialDescriptor(
+            static fn(string $id): PublicKeyCredentialDescriptor => new PublicKeyCredentialDescriptor(
                 PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
                 $id,
             ),

@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -31,14 +32,13 @@ use TowerDNS\Domain\Auth\User;
  * field in the submitted form. Empty strings for required fields clear the
  * corresponding provider section entirely (effectively disabling it).
  */
-final class ProviderCredentialsHandler implements RequestHandlerInterface
+final readonly class ProviderCredentialsHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly AuthorizationService $authz,
-        private readonly string $credentialsPath,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private AuthorizationService $authz,
+        private string $credentialsPath,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -141,7 +141,7 @@ final class ProviderCredentialsHandler implements RequestHandlerInterface
     private function renderForm(ServerRequestInterface $request, string $csrfToken): ResponseInterface
     {
         $query   = $request->getQueryParams();
-        $error   = isset($query['error'])   ? (string) $query['error']   : null;
+        $error   = isset($query['error']) ? (string) $query['error'] : null;
         $success = isset($query['success']) ? (string) $query['success'] : null;
 
         $config    = $this->loadConfig();
@@ -164,12 +164,12 @@ final class ProviderCredentialsHandler implements RequestHandlerInterface
         ];
 
         return new HtmlResponse($this->renderer->render('app::credentials', [
-            'active'      => 'credentials',
-            'csrfToken'   => $csrfToken,
-            'configured'  => $configured,
-            'values'      => $values,
-            'error'       => $error,
-            'success'     => $success,
+            'active'     => 'credentials',
+            'csrfToken'  => $csrfToken,
+            'configured' => $configured,
+            'values'     => $values,
+            'error'      => $error,
+            'success'    => $success,
         ]));
     }
 

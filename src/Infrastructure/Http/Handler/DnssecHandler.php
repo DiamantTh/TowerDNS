@@ -23,13 +23,12 @@ use TowerDNS\Domain\Auth\User;
  * GET  /zones/{provider}/{zone}/dnssec — DNSSEC-Status anzeigen
  * POST /zones/{provider}/{zone}/dnssec — DNSSEC-Aktion ausführen (enable/disable/…)
  */
-final class DnssecHandler implements RequestHandlerInterface
+final readonly class DnssecHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly DnsManagementService      $dns,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private DnsManagementService      $dns,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -50,7 +49,7 @@ final class DnssecHandler implements RequestHandlerInterface
 
         // GET — Flash-Nachrichten aus Query-Params lesen
         $queryParams  = $request->getQueryParams();
-        $flashError   = isset($queryParams['error'])   && is_string($queryParams['error'])   ? $queryParams['error']   : null;
+        $flashError   = isset($queryParams['error'])   && is_string($queryParams['error']) ? $queryParams['error'] : null;
         $flashSuccess = isset($queryParams['success']) && is_string($queryParams['success']) ? $queryParams['success'] : null;
 
         // Status laden
@@ -120,7 +119,10 @@ final class DnssecHandler implements RequestHandlerInterface
         // Einfache Payload-Weiterleitung (z. B. key.add braucht Typ-Felder)
         $payload = [];
         foreach ($body as $key => $value) {
-            if ($key === 'csrf_token' || $key === 'action') {
+            if ($key === 'csrf_token') {
+                continue;
+            }
+            if ($key === 'action') {
                 continue;
             }
             if (is_string($value) && $value !== '') {
@@ -130,8 +132,6 @@ final class DnssecHandler implements RequestHandlerInterface
 
         try {
             $this->dns->executeDnssecAction($user, $providerId, $zoneId, $action, $payload);
-        } catch (AuthorizationException $e) {
-            return new RedirectResponse($back . '?error=' . rawurlencode($e->getMessage()));
         } catch (\Throwable $e) {
             return new RedirectResponse($back . '?error=' . rawurlencode($e->getMessage()));
         }

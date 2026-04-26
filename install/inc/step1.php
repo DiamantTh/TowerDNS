@@ -12,7 +12,7 @@ function processStep1(): void
 {
     verifyCsrf();
 
-    $reqs = getRequirements();
+    $reqs        = getRequirements();
     $allRequired = true;
     foreach ($reqs as $req) {
         if ($req['required'] && !$req['ok']) {

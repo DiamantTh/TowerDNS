@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -29,13 +30,12 @@ use TowerDNS\Domain\DNS\Zone;
  *  4. normalises user-supplied input where applicable, and
  *  5. delegates to the provider adapter.
  */
-final class DnsManagementService
+final readonly class DnsManagementService
 {
     public function __construct(
-        private readonly AuthorizationService $authorizationService,
-        private readonly ProviderRegistry $providers,
-    ) {
-    }
+        private AuthorizationService $authorizationService,
+        private ProviderRegistry $providers,
+    ) {}
 
     /**
      * @return list<ProviderSummaryDTO>

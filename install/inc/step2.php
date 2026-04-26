@@ -31,18 +31,17 @@ function processStep2(): array
             return $errors;
         }
         $dir = dirname($path);
-        if (!is_dir($dir) && !@mkdir($dir, 0750, true)) {
+        if (!is_dir($dir) && !@mkdir($dir, 0o750, true)) {
             $errors[] = sprintf(t('step2.dir_create_failed'), e($dir));
             return $errors;
         }
         try {
             new PDO('sqlite:' . $path);
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             $errors[] = sprintf(t('step2.sqlite_error'), e($ex->getMessage()));
             return $errors;
         }
         $_SESSION['install_db'] = ['driver' => 'pdo_sqlite', 'path' => $path];
-
     } elseif ($driver === 'pdo_pgsql') {
         $host = trim((string) ($_POST['pg_host'] ?? 'localhost'));
         $port = (int) ($_POST['pg_port'] ?? 5432);
@@ -69,11 +68,12 @@ function processStep2(): array
         try {
             $pdo = new PDO(
                 "pgsql:host={$host};port={$port};dbname={$name}",
-                $user, $pass,
-                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                $user,
+                $pass,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
             unset($pdo);
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             $errors[] = sprintf(t('step2.pgsql_error'), e($ex->getMessage()));
             return $errors;
         }
@@ -86,7 +86,6 @@ function processStep2(): array
             'user'   => $user,
             'pass'   => $pass,
         ];
-
     } else {
         // MySQL / MariaDB
         $host   = trim((string) ($_POST['db_host'] ?? 'localhost'));
@@ -122,14 +121,15 @@ function processStep2(): array
             try {
                 $rootPdo = new PDO(
                     "mysql:host={$host};port={$port};charset=utf8mb4",
-                    $rootUser, $rootPass,
-                    [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                    $rootUser,
+                    $rootPass,
+                    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
                 );
                 $rootPdo->exec("CREATE DATABASE IF NOT EXISTS `{$name}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
                 $rootPdo->exec("CREATE USER IF NOT EXISTS '{$user}'@'%' IDENTIFIED BY " . $rootPdo->quote($pass));
                 $rootPdo->exec("GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$user}'@'%'");
-                $rootPdo->exec("FLUSH PRIVILEGES");
-            } catch (\Exception $ex) {
+                $rootPdo->exec('FLUSH PRIVILEGES');
+            } catch (Exception $ex) {
                 $errors[] = sprintf(t('step2.root_error'), e($ex->getMessage()));
                 return $errors;
             }
@@ -138,11 +138,12 @@ function processStep2(): array
         try {
             $pdo = new PDO(
                 "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4",
-                $user, $pass,
-                [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]
+                $user,
+                $pass,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
             unset($pdo);
-        } catch (\Exception $ex) {
+        } catch (Exception $ex) {
             $errors[] = sprintf(t('step2.mysql_error'), e($ex->getMessage()));
             return $errors;
         }
@@ -181,9 +182,9 @@ function processStep2(): array
 
     // Passwort-Stärke via zxcvbn prüfen (Score 0–4, Minimum 2)
     try {
-        $policy = new \TowerDNS\Application\Services\PasswordPolicy(12, 2);
+        $policy = new TowerDNS\Application\Services\PasswordPolicy(12, 2);
         $policy->assertValid($adminPass);
-    } catch (\InvalidArgumentException $ex) {
+    } catch (InvalidArgumentException $ex) {
         $errors[] = e($ex->getMessage());
         return $errors;
     }
@@ -317,8 +318,8 @@ ob_start();
         <label class="label"><?= e(t('step2.db_driver')) ?></label>
         <div class="control"><div class="select">
             <select name="db_driver" id="db_driver" onchange="toggleDb()">
-                <option value="pdo_mysql"  <?= !extension_loaded('pdo_mysql')  ? 'disabled' : '' ?>>MySQL / MariaDB</option>
-                <option value="pdo_pgsql"  <?= !extension_loaded('pdo_pgsql')  ? 'disabled' : '' ?>>PostgreSQL</option>
+                <option value="pdo_mysql"  <?= !extension_loaded('pdo_mysql') ? 'disabled' : '' ?>>MySQL / MariaDB</option>
+                <option value="pdo_pgsql"  <?= !extension_loaded('pdo_pgsql') ? 'disabled' : '' ?>>PostgreSQL</option>
                 <option value="pdo_sqlite" <?= !extension_loaded('pdo_sqlite') ? 'disabled' : '' ?>>SQLite</option>
             </select>
         </div></div>

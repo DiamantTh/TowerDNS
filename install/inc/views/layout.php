@@ -16,11 +16,11 @@ declare(strict_types=1);
  *   string[] $errors        – Fehlermeldungen
  */
 
-$locale       = str_replace('_', '-', (string) ($GLOBALS['_installer_locale'] ?? 'en-GB'));
-$showProgress = $showProgress ?? true;
-$errors       = $errors ?? [];
-$stepLabels   = $stepLabels ?? [];
-$displayStep  = $displayStep ?? 1;
+$locale = str_replace('_', '-', (string) ($GLOBALS['_installer_locale'] ?? 'en-GB'));
+$showProgress ??= true;
+$errors       ??= [];
+$stepLabels   ??= [];
+$displayStep  ??= 1;
 ?><!DOCTYPE html>
 <html lang="<?= e($locale) ?>" data-theme="light">
 <head>
@@ -70,7 +70,7 @@ $displayStep  = $displayStep ?? 1;
             <?php foreach (INSTALLER_LANGS as $code => $native):
                 $active = (str_replace('_', '-', $locale) === $code) ? ' active' : '';
                 $url    = 'index.php?lang=' . urlencode($code);
-            ?>
+                ?>
             <a href="<?= e($url) ?>" class="<?= $active ?>" lang="<?= e($code) ?>"
                hreflang="<?= e($code) ?>"><?= e($native) ?></a>
             <?php endforeach; ?>
@@ -83,7 +83,7 @@ $displayStep  = $displayStep ?? 1;
                 $n    = $i + 1;
                 $cls  = $n < $displayStep ? 'done' : ($n === $displayStep ? 'active' : '');
                 $icon = $n < $displayStep ? '✓ ' : '';
-            ?>
+                ?>
             <div class="pb-step <?= e($cls) ?>"><?= $icon . e($lbl) ?></div>
             <?php endforeach; ?>
         </div>

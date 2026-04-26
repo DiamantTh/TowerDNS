@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -18,8 +19,8 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
-use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /**
  * Handles GET /login (show form) and POST /login (authenticate).
@@ -29,18 +30,17 @@ use TowerDNS\Infrastructure\RateLimit\RateLimiter;
  *     → if TOTP enabled: set session[mfa_pending] and redirect to /login/totp
  *     → else: complete login immediately
  */
-final class LoginHandler implements RequestHandlerInterface
+final readonly class LoginHandler implements RequestHandlerInterface
 {
-    private const RATE_LIMIT        = 10;
-    private const RATE_WINDOW_SECS  = 300; // 5 minutes
+    private const int RATE_LIMIT       = 10;
+    private const int RATE_WINDOW_SECS = 300; // 5 minutes
 
     public function __construct(
-        private readonly TemplateRendererInterface              $renderer,
-        private readonly UserRepositoryInterface               $users,
-        private readonly CacheInterface                        $cache,
-        private readonly WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
-    ) {
-    }
+        private TemplateRendererInterface              $renderer,
+        private UserRepositoryInterface               $users,
+        private CacheInterface                        $cache,
+        private WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -99,7 +99,7 @@ final class LoginHandler implements RequestHandlerInterface
         $email = trim((string) ($body['email'] ?? ''));
         $pass  = (string) ($body['password'] ?? '');
 
-        $error = $this->authenticate($email, $pass, $session, $guard);
+        $error = $this->authenticate($email, $pass, $session);
 
         if ($error !== null) {
             return new HtmlResponse(
@@ -131,7 +131,6 @@ final class LoginHandler implements RequestHandlerInterface
         string $email,
         string $password,
         mixed  $session,
-        CsrfGuardInterface $guard,
     ): ?string {
         if ($email === '' || $password === '') {
             return 'E-Mail und Passwort sind erforderlich.';
@@ -156,7 +155,7 @@ final class LoginHandler implements RequestHandlerInterface
 
         // Hash matched — now load the full user object (with roles).
         $user = $this->users->findByEmail($email);
-        if ($user === null) {
+        if (!$user instanceof \TowerDNS\Domain\Auth\User) {
             // Account disabled between hash-fetch and user-load (race), or
             // findByEmail's active=1 guard excluded it.
             return 'Ungültige Anmeldedaten.';

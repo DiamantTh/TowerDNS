@@ -23,14 +23,13 @@ use TowerDNS\Domain\Auth\User;
 /**
  * GET /roles — Rollenübersicht mit Anlegen-Formular.
  */
-final class RoleListHandler implements RequestHandlerInterface
+final readonly class RoleListHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface $renderer,
-        private readonly RoleRepositoryInterface   $roles,
-        private readonly AuthorizationService      $authz,
-    ) {
-    }
+        private TemplateRendererInterface $renderer,
+        private RoleRepositoryInterface   $roles,
+        private AuthorizationService      $authz,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -68,7 +67,7 @@ final class RoleListHandler implements RequestHandlerInterface
                 'roles'       => $allRoles,
                 'permissions' => Permission::cases(),
                 'csrfToken'   => $csrfToken,
-                'error'       => is_string($flashError)   ? $flashError   : null,
+                'error'       => is_string($flashError) ? $flashError : null,
                 'success'     => is_string($flashSuccess) ? $flashSuccess : null,
             ]),
         );

@@ -25,13 +25,12 @@ use TowerDNS\Domain\Auth\User;
  * Systemrollen können nicht gelöscht werden; der Repository wirft eine
  * DomainException, die hier in eine Fehlermeldung umgewandelt wird.
  */
-final class RoleDeleteHandler implements RequestHandlerInterface
+final readonly class RoleDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly RoleRepositoryInterface $roles,
-        private readonly AuthorizationService    $authz,
-    ) {
-    }
+        private RoleRepositoryInterface $roles,
+        private AuthorizationService    $authz,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

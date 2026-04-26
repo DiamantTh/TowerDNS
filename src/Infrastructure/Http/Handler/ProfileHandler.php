@@ -26,14 +26,13 @@ use TowerDNS\Domain\Auth\User;
  * registrierten WebAuthn-Keys. Von hier aus gelangt man zu den
  * Unter-Seiten /profile/password, /profile/totp und /profile/webauthn.
  */
-final class ProfileHandler implements RequestHandlerInterface
+final readonly class ProfileHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly TemplateRendererInterface              $renderer,
-        private readonly UserRepositoryInterface               $users,
-        private readonly WebAuthnCredentialRepositoryInterface $webauthn,
-    ) {
-    }
+        private TemplateRendererInterface              $renderer,
+        private UserRepositoryInterface               $users,
+        private WebAuthnCredentialRepositoryInterface $webauthn,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {

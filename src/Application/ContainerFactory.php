@@ -28,10 +28,9 @@ use Mezzio\Container\ServerRequestFactoryFactory;
 use Mezzio\Csrf\CsrfGuardFactoryInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Csrf\SessionCsrfGuardFactory;
-use Mezzio\MiddlewareContainer;
-use Mezzio\MiddlewareFactory;
-use Mezzio\MiddlewareFactoryInterface;
 use Mezzio\Middleware\ErrorResponseGenerator;
+use Mezzio\MiddlewareContainer;
+use Mezzio\MiddlewareFactoryInterface;
 use Mezzio\Response\ServerRequestErrorResponseGenerator;
 use Mezzio\Router\FastRouteRouter;
 use Mezzio\Router\FastRouteRouterFactory;
@@ -53,31 +52,31 @@ use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Provider\ProviderRegistry;
-use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
-use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
-use Webauthn\AttestationStatement\AttestationStatementSupportManager;
-use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
-use Webauthn\Denormalizer\WebauthnSerializerFactory;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Clock\SystemClock;
-use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
-use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
+use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
+use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
 use TowerDNS\Infrastructure\Provider\DeSEC\DeSECApiClient;
 use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
 use TowerDNS\Infrastructure\Provider\Inwx\InwxProvider;
 use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
 use Twig\Environment;
+use Webauthn\AttestationStatement\AttestationStatementSupportManager;
+use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
+use Webauthn\Denormalizer\WebauthnSerializerFactory;
 
 final class ContainerFactory
 {
@@ -110,11 +109,10 @@ final class ContainerFactory
         $builder->useAutowiring(true);
 
         $builder->addDefinitions([
-
             // ── Application config consumed by Mezzio factories ───────────────
             'config' => [
-                'debug'  => $debug,
-                'mezzio' => [],
+                'debug'     => $debug,
+                'mezzio'    => [],
                 'templates' => [
                     'extension' => 'html.twig',
                     'paths'     => [
@@ -130,7 +128,7 @@ final class ContainerFactory
                 'session' => [
                     'persistence' => [
                         'ext' => [
-                            'non_locking' => true,
+                            'non_locking'                    => true,
                             'delete_cookie_on_empty_session' => false,
                         ],
                     ],
@@ -225,29 +223,19 @@ final class ContainerFactory
             ),
 
             SystemSettingsHandler::class => \DI\factory(
-                static function (
-                    TemplateRendererInterface $renderer,
-                    AuthorizationService $authz,
-                ) use ($projectRoot): SystemSettingsHandler {
-                    return new SystemSettingsHandler(
-                        $renderer,
-                        $authz,
-                        $projectRoot . '/configs/config.local.toml',
-                    );
-                }
+                static fn(TemplateRendererInterface $renderer, AuthorizationService $authz): SystemSettingsHandler => new SystemSettingsHandler(
+                    $renderer,
+                    $authz,
+                    $projectRoot . '/configs/config.local.toml',
+                )
             ),
 
             ProviderCredentialsHandler::class => \DI\factory(
-                static function (
-                    TemplateRendererInterface $renderer,
-                    AuthorizationService $authz,
-                ) use ($projectRoot): ProviderCredentialsHandler {
-                    return new ProviderCredentialsHandler(
-                        $renderer,
-                        $authz,
-                        $projectRoot . '/configs/providers.toml',
-                    );
-                }
+                static fn(TemplateRendererInterface $renderer, AuthorizationService $authz): ProviderCredentialsHandler => new ProviderCredentialsHandler(
+                    $renderer,
+                    $authz,
+                    $projectRoot . '/configs/providers.toml',
+                )
             ),            // ── PSR-16 cache (Symfony FilesystemAdapter) ──────────────────────
             CacheInterface::class => \DI\factory(
                 static function () use ($projectRoot): CacheInterface {
@@ -265,7 +253,7 @@ final class ContainerFactory
                 $asm = new AttestationStatementSupportManager([
                     new NoneAttestationStatementSupport(),
                 ]);
-                return (new WebauthnSerializerFactory($asm))->create();
+                return new WebauthnSerializerFactory($asm)->create();
             }),
 
             // ── WebAuthn credential repository ────────────────────────────────
@@ -278,7 +266,7 @@ final class ContainerFactory
                 $sec = (array) ($appConf['security']['password'] ?? []);
                 return new PasswordPolicy(
                     (int) ($sec['min_length'] ?? 16),
-                    (int) ($sec['min_score']  ?? 0),
+                    (int) ($sec['min_score'] ?? 0),
                 );
             }),
 
@@ -288,93 +276,63 @@ final class ContainerFactory
 
             // ── Mezzio: router ────────────────────────────────────────────────
             RouterInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): FastRouteRouter {
-                    return (new FastRouteRouterFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): FastRouteRouter => (new FastRouteRouterFactory())($c)
             ),
             RouteCollectorInterface::class => \DI\factory(
-                static function (RouterInterface $router): RouteCollector {
-                    return new RouteCollector($router);
-                }
+                static fn(RouterInterface $router): RouteCollector => new RouteCollector($router)
             ),
 
             // ── Mezzio: middleware container & factory ────────────────────────
             MiddlewareContainer::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): MiddlewareContainer {
-                    return (new MiddlewareContainerFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): MiddlewareContainer => (new MiddlewareContainerFactory())($c)
             ),
             MiddlewareFactoryInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): MiddlewareFactoryInterface {
-                    return (new MiddlewareFactoryFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): MiddlewareFactoryInterface => (new MiddlewareFactoryFactory())($c)
             ),
 
             // ── Mezzio: pipeline (string key) ─────────────────────────────────
             'Mezzio\ApplicationPipeline' => \DI\factory(
-                static function (): MiddlewarePipe {
-                    return new MiddlewarePipe();
-                }
+                static fn(): MiddlewarePipe => new MiddlewarePipe()
             ),
 
             // ── PSR-7 / PSR-17 ────────────────────────────────────────────────
             ResponseInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): callable {
-                    return (new ResponseFactoryFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): callable => (new ResponseFactoryFactory())($c)
             ),
             ServerRequestInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): callable {
-                    return (new ServerRequestFactoryFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): callable => (new ServerRequestFactoryFactory())($c)
             ),
 
             // ── Mezzio: emitter & runner ──────────────────────────────────────
             EmitterInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): EmitterInterface {
-                    return (new EmitterFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): EmitterInterface => (new EmitterFactory())($c)
             ),
             ServerRequestErrorResponseGenerator::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): ServerRequestErrorResponseGenerator {
-                    return (new ServerRequestErrorResponseGeneratorFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): ServerRequestErrorResponseGenerator => (new ServerRequestErrorResponseGeneratorFactory())($c)
             ),
             RequestHandlerRunnerInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): \Laminas\HttpHandlerRunner\RequestHandlerRunner {
-                    return (new RequestHandlerRunnerFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): \Laminas\HttpHandlerRunner\RequestHandlerRunner => (new RequestHandlerRunnerFactory())($c)
             ),
 
             // ── Mezzio: application ───────────────────────────────────────────
             \Mezzio\Application::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): \Mezzio\Application {
-                    return (new ApplicationFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): \Mezzio\Application => (new ApplicationFactory())($c)
             ),
 
             // ── Mezzio: error handling ────────────────────────────────────────
             ErrorResponseGenerator::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): ErrorResponseGenerator {
-                    return (new ErrorResponseGeneratorFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): ErrorResponseGenerator => (new ErrorResponseGeneratorFactory())($c)
             ),
             ErrorHandler::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): ErrorHandler {
-                    return (new ErrorHandlerFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): ErrorHandler => (new ErrorHandlerFactory())($c)
             ),
 
             // ── Session ───────────────────────────────────────────────────────
             SessionPersistenceInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): \Mezzio\Session\Ext\PhpSessionPersistence {
-                    return (new PhpSessionPersistenceFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): \Mezzio\Session\Ext\PhpSessionPersistence => (new PhpSessionPersistenceFactory())($c)
             ),
             SessionMiddleware::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): SessionMiddleware {
-                    return (new SessionMiddlewareFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): SessionMiddleware => (new SessionMiddlewareFactory())($c)
             ),
 
             // ── Twig ──────────────────────────────────────────────────────────
@@ -386,9 +344,7 @@ final class ContainerFactory
                 }
             ),
             TemplateRendererInterface::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c): \Mezzio\Twig\TwigRenderer {
-                    return (new TwigRendererFactory())($c);
-                }
+                static fn(\Psr\Container\ContainerInterface $c): \Mezzio\Twig\TwigRenderer => (new TwigRendererFactory())($c)
             ),
         ]);
 

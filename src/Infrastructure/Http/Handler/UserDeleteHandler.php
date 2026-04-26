@@ -24,13 +24,12 @@ use TowerDNS\Domain\Auth\User;
  *
  * Verhindert Selbst-Löschung des angemeldeten Benutzers.
  */
-final class UserDeleteHandler implements RequestHandlerInterface
+final readonly class UserDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private readonly UserRepositoryInterface $users,
-        private readonly AuthorizationService    $authz,
-    ) {
-    }
+        private UserRepositoryInterface $users,
+        private AuthorizationService    $authz,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -60,7 +59,7 @@ final class UserDeleteHandler implements RequestHandlerInterface
         }
 
         $target = $this->users->findById($targetId);
-        if ($target === null) {
+        if (!$target instanceof User) {
             return new RedirectResponse('/users?error=' . rawurlencode('Benutzer nicht gefunden.'));
         }
 

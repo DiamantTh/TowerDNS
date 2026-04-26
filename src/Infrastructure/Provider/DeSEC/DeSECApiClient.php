@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2026 TowerDNS contributors
 
@@ -24,22 +25,20 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
  *  - throws a TowerDNS-typed exception, and
  *  - is injectable for testing (HTTP client may be passed in).
  */
-final class DeSECApiClient
+final readonly class DeSECApiClient
 {
-    private const DEFAULT_BASE_URL = 'https://desec.io/api/v1/domains/';
+    private const string DEFAULT_BASE_URL = 'https://desec.io/api/v1/domains/';
 
     private ClientInterface $http;
 
     /** @var array<string, string> */
     private array $headers;
 
-    private ?RateLimiter $rateLimiter;
-
     public function __construct(
         string $token,
         ?ClientInterface $http = null,
         string $baseUrl = self::DEFAULT_BASE_URL,
-        ?RateLimiter $rateLimiter = null,
+        private ?RateLimiter $rateLimiter = null,
     ) {
         if ($token === '') {
             throw new DeSECApiException('deSEC API-Token darf nicht leer sein.');
@@ -56,8 +55,6 @@ final class DeSECApiClient
             'Content-Type'  => 'application/json',
             'Accept'        => 'application/json',
         ];
-
-        $this->rateLimiter = $rateLimiter;
     }
 
     /**
@@ -158,7 +155,7 @@ final class DeSECApiClient
 
     public function deleteRRSet(string $domainName, string $subname, string $type): bool
     {
-        $sub = $subname === '' ? '@' : $subname;
+        $sub      = $subname === '' ? '@' : $subname;
         $response = $this->request(
             'DELETE',
             $this->domainPath($domainName, sprintf('rrsets/%s/%s/', $sub, strtoupper($type))),
@@ -186,7 +183,7 @@ final class DeSECApiClient
      */
     private function fetchAllPages(string $endpoint): array
     {
-        $all = [];
+        $all    = [];
         $cursor = null;
 
         do {
@@ -266,7 +263,6 @@ final class DeSECApiClient
 
     /**
      * @param array<string, mixed>|list<array<string, mixed>>|null $data
-     * @return mixed
      */
     private function request(string $method, string $endpoint, ?array $data = null, bool $decodeJson = true): mixed
     {

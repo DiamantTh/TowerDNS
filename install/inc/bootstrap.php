@@ -12,10 +12,10 @@ declare(strict_types=1);
  */
 
 define('PROJECT_ROOT', dirname(__DIR__, 2));
-define('INSTALL_DIR',  dirname(__DIR__));
-define('LOCK_FILE',    INSTALL_DIR . '/.lock');
-define('TOKEN_FILE',   INSTALL_DIR . '/.install_token');
-define('VENDOR_OK',    is_dir(PROJECT_ROOT . '/vendor') && is_file(PROJECT_ROOT . '/vendor/autoload.php'));
+define('INSTALL_DIR', dirname(__DIR__));
+define('LOCK_FILE', INSTALL_DIR . '/.lock');
+define('TOKEN_FILE', INSTALL_DIR . '/.install_token');
+define('VENDOR_OK', is_dir(PROJECT_ROOT . '/vendor') && is_file(PROJECT_ROOT . '/vendor/autoload.php'));
 
 // ── Session ────────────────────────────────────────────────────────────────
 if (session_status() === PHP_SESSION_NONE) {
@@ -51,7 +51,7 @@ function checkInstallerToken(): bool
     if (!is_file(TOKEN_FILE)) {
         $token = bin2hex(random_bytes(24));
         file_put_contents(TOKEN_FILE, $token);
-        chmod(TOKEN_FILE, 0600);
+        chmod(TOKEN_FILE, 0o600);
     }
 
     $storedToken = rtrim((string) file_get_contents(TOKEN_FILE));
