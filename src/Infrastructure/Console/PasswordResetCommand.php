@@ -131,9 +131,6 @@ final class PasswordResetCommand extends Command
 
     /**
      * Builds a DBAL connection from the parsed database.toml config.
-     */
-    /**
-     * Builds a DBAL connection from the parsed database.toml config.
      *
      * @param array<string, mixed> $dbConf
      */

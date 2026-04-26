@@ -49,7 +49,7 @@ final class DbalAuditLogRepository implements AuditLogRepositoryInterface
         );
     }
 
-    public function findByZone(int $zoneId, int $limit = 50, int $offset = 0): array
+    public function findByZone(string $zoneId, int $limit = 50, int $offset = 0): array
     {
         return $this->connection->fetchAllAssociative(
             'SELECT * FROM audit_logs WHERE zone_id = ?

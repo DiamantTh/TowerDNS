@@ -29,7 +29,7 @@ interface AuditLogRepositoryInterface
      * Returns the most recent N entries for a zone.
      * @return list<array<string, mixed>>
      */
-    public function findByZone(int $zoneId, int $limit = 50, int $offset = 0): array;
+    public function findByZone(string $zoneId, int $limit = 50, int $offset = 0): array;
 
     /**
      * Returns all entries for a specific admin impersonation session.
