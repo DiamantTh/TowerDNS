@@ -15,6 +15,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Domain\Auth\User;
 
@@ -27,6 +28,7 @@ final readonly class RecordDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
         private DnsManagementService $dns,
+        private AuditLogService      $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -50,6 +52,7 @@ final readonly class RecordDeleteHandler implements RequestHandlerInterface
 
         try {
             $this->dns->deleteRecord($user, $providerId, $zoneId, $recordId);
+            $this->audit->recordRecordDelete($request, $user->id, null, $zoneId, $recordId, '');
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode('Keine Berechtigung zum Löschen von Einträgen.'));
         } catch (\Throwable $e) {

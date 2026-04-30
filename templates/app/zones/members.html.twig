@@ -1,0 +1,101 @@
+{% extends 'app/layout.html.twig' %}
+
+{% block title %}Zonen-Mitglieder — TowerDNS{% endblock %}
+
+{% block body %}
+<section class="section" id="main-content">
+    <div class="container">
+        <nav class="breadcrumb" aria-label="breadcrumbs">
+            <ul>
+                <li><a href="/accounts">Accounts</a></li>
+                <li><a href="/accounts/{{ accountId }}/providers">Provider</a></li>
+                <li class="is-active"><a href="#" aria-current="page">Zone {{ zoneId }} — Mitglieder</a></li>
+            </ul>
+        </nav>
+
+        <h1 class="title">Zonen-Mitglieder</h1>
+        <p class="subtitle">Zone: <code>{{ zoneId }}</code></p>
+
+        {% if error %}
+            <div class="notification is-danger is-light">{{ error }}</div>
+        {% endif %}
+
+        <div class="box">
+            <h2 class="subtitle">Aktuelle Mitglieder</h2>
+            {% if members is empty %}
+                <p class="has-text-grey">Keine zonenspezifischen Mitglieder.</p>
+            {% else %}
+                <table class="table is-fullwidth is-striped">
+                    <thead>
+                        <tr>
+                            <th>Benutzer-ID</th>
+                            <th>Rolle</th>
+                            <th>Seit</th>
+                            <th>Aktion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in members %}
+                        <tr>
+                            <td><code>{{ m.userId }}</code></td>
+                            <td>{{ m.role.value }}</td>
+                            <td>{{ m.createdAt }}</td>
+                            <td>
+                                <form method="post" style="display:inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                                    <input type="hidden" name="action" value="revoke">
+                                    <input type="hidden" name="user_id" value="{{ m.userId }}">
+                                    <button class="button is-danger is-small"
+                                            onclick="return confirm('Zugang für {{ m.userId }} entziehen?')">
+                                        Entziehen
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+
+        <div class="box">
+            <h2 class="subtitle">Zugang gewähren</h2>
+            <form method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrfToken }}">
+                <input type="hidden" name="action" value="grant">
+
+                <div class="field">
+                    <label class="label" for="user_id">Benutzer</label>
+                    <div class="control">
+                        <div class="select is-fullwidth">
+                            <select name="user_id" id="user_id" required>
+                                <option value="">— Benutzer wählen —</option>
+                                {% for u in allUsers %}
+                                    <option value="{{ u.id }}">{{ u.email }}{% if u.displayName %} ({{ u.displayName }}){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label class="label" for="role">Rolle</label>
+                    <div class="control">
+                        <div class="select">
+                            <select name="role" id="role" required>
+                                {% for r in roles %}
+                                    <option value="{{ r.value }}">{{ r.value }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <button class="button is-primary" type="submit">Zugang gewähren</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

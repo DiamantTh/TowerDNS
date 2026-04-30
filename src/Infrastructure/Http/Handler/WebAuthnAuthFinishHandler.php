@@ -14,6 +14,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\WebAuthnService;
 use Webauthn\Exception\AuthenticatorResponseVerificationException;
 
@@ -32,6 +33,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         private WebAuthnService                       $webAuthn,
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
         private UserRepositoryInterface               $users,
+        private AuditLogService                       $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -90,6 +92,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         $session->regenerate();
         $session->set('user_id', $userId);
         $this->users->updateLastLoginAt($userId);
+        $this->audit->recordLogin($request, $userId);
 
         return new JsonResponse(['ok' => true, 'redirect' => '/']);
     }

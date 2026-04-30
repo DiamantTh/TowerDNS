@@ -456,9 +456,29 @@ final readonly class SchemaManager
         $auditLogs->addIndex(['actor_user_id'], 'idx_al_actor');
         $auditLogs->addIndex(['created_at'], 'idx_al_created_at');
 
+        // password_reset_tokens ----------------------------------------------
+        $pwResetTokens = new Table('password_reset_tokens');
+        $pwResetTokens->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $pwResetTokens->addColumn('user_id', Types::GUID);
+        $pwResetTokens->addColumn('token_hash', Types::STRING, ['length' => 64]);
+        $pwResetTokens->addColumn('created_at', Types::STRING, ['length' => 19]);
+        $pwResetTokens->addColumn('expires_at', Types::STRING, ['length' => 19]);
+        $pwResetTokens->addColumn('used_at', Types::STRING, ['length' => 19, 'notnull' => false]);
+        $pwResetTokens->setPrimaryKey(['id']);
+        $pwResetTokens->addUniqueIndex(['token_hash'], 'uq_prt_token_hash');
+        $pwResetTokens->addIndex(['user_id'], 'idx_prt_user_id');
+        $pwResetTokens->addForeignKeyConstraint(
+            'users',
+            ['user_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_prt_user_id',
+        );
+
         return [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $apiKeys,
             $accounts, $accMembers, $provAccounts, $zoneMembers, $impSessions, $auditLogs,
+            $pwResetTokens,
         ];
     }
 }

@@ -15,6 +15,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Application\Validation\RecordInputFilter;
 use TowerDNS\Domain\Auth\User;
@@ -28,6 +29,7 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
         private DnsManagementService $dns,
+        private AuditLogService      $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -91,7 +93,8 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
         );
 
         try {
-            $this->dns->createRecord($user, $providerId, $record);
+            $created = $this->dns->createRecord($user, $providerId, $record);
+            $this->audit->recordRecordCreate($request, $user->id, null, $zoneId, $created->name, $created->type->value);
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode('Keine Berechtigung zum Anlegen von Einträgen.'));
         } catch (\Throwable $e) {

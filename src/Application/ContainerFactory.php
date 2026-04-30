@@ -59,6 +59,7 @@ use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
+use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
@@ -74,6 +75,7 @@ use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Clock\SystemClock;
+use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
@@ -82,6 +84,7 @@ use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAdminImpersonationSessionRepository;
 use TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAuditLogRepository;
+use TowerDNS\Infrastructure\Persistence\DbalPasswordResetTokenRepository;
 use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
@@ -201,6 +204,7 @@ final class ContainerFactory
             AuditLogRepositoryInterface::class                  => \DI\autowire(DbalAuditLogRepository::class),
             ZoneMembershipRepositoryInterface::class            => \DI\autowire(DbalZoneMembershipRepository::class),
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
+            PasswordResetTokenRepositoryInterface::class        => \DI\autowire(DbalPasswordResetTokenRepository::class),
 
             // ── Credential service (app-key encryption) ───────────────────────
             CredentialService::class => \DI\factory(static function () use ($appConf): CredentialService {
@@ -271,6 +275,19 @@ final class ContainerFactory
                     $authz,
                     $projectRoot . '/configs/config.local.toml',
                 )
+            ),
+
+            ForgotPasswordHandler::class => \DI\factory(
+                static function (
+                    TemplateRendererInterface $renderer,
+                    UserRepositoryInterface $users,
+                    PasswordResetTokenRepositoryInterface $tokens,
+                    MailService $mail,
+                ) use ($appConf): ForgotPasswordHandler {
+                    $app     = (array) ($appConf['app'] ?? []);
+                    $baseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
+                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl);
+                }
             ),
 
             ProviderCredentialsHandler::class => \DI\factory(

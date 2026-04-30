@@ -27,7 +27,7 @@ interface ZoneMembershipRepositoryInterface
 
     public function findMembership(string $zoneId, string $userId): ?ZoneMembership;
 
-    public function grant(string $zoneId, string $userId, TeamRole $role, string $createdAt, ?string $grantedBy = null): void;
+    public function grant(string $zoneId, string $userId, TeamRole $role, string $createdAt, int $accountId = 0, ?string $grantedBy = null): void;
 
     public function updateRole(string $zoneId, string $userId, TeamRole $role): void;
 

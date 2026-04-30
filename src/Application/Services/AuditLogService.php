@@ -84,29 +84,39 @@ final class AuditLogService
         $this->record($request, 'user.password.reset', 'user', $userId, $userId);
     }
 
-    public function recordZoneCreate(ServerRequestInterface $request, string $actorId, int $accountId, string $zoneId, string $zoneName): void
+    public function recordZoneCreate(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $zoneName): void
     {
         $this->record($request, 'zone.create', 'zone', $zoneId, $actorId, $accountId, $zoneId, null, null, null, null, ['name' => $zoneName]);
     }
 
-    public function recordZoneDelete(ServerRequestInterface $request, string $actorId, int $accountId, string $zoneId, string $zoneName): void
+    public function recordZoneDelete(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $zoneName): void
     {
         $this->record($request, 'zone.delete', 'zone', $zoneId, $actorId, $accountId, $zoneId, null, null, null, ['name' => $zoneName]);
     }
 
-    public function recordRecordCreate(ServerRequestInterface $request, string $actorId, int $accountId, string $zoneId, string $recordName, string $type): void
+    public function recordRecordCreate(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $recordName, string $type): void
     {
         $this->record($request, 'zone.record.create', 'record', null, $actorId, $accountId, $zoneId, null, null, null, null, null, ['record' => $recordName, 'type' => $type]);
     }
 
-    public function recordRecordUpdate(ServerRequestInterface $request, string $actorId, int $accountId, string $zoneId, string $recordName, string $type): void
+    public function recordRecordUpdate(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $recordName, string $type): void
     {
         $this->record($request, 'zone.record.update', 'record', null, $actorId, $accountId, $zoneId, null, null, null, null, null, ['record' => $recordName, 'type' => $type]);
     }
 
-    public function recordRecordDelete(ServerRequestInterface $request, string $actorId, int $accountId, string $zoneId, string $recordName, string $type): void
+    public function recordRecordDelete(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $recordName, string $type): void
     {
         $this->record($request, 'zone.record.delete', 'record', null, $actorId, $accountId, $zoneId, null, null, null, null, null, ['record' => $recordName, 'type' => $type]);
+    }
+
+    public function recordZoneMemberGranted(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $targetUserId, string $role): void
+    {
+        $this->record($request, 'zone.member.grant', 'user', $targetUserId, $actorId, $accountId, $zoneId, null, null, null, null, null, ['role' => $role]);
+    }
+
+    public function recordZoneMemberRevoked(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $targetUserId): void
+    {
+        $this->record($request, 'zone.member.revoke', 'user', $targetUserId, $actorId, $accountId, $zoneId);
     }
 
     public function recordProviderAccountCreated(ServerRequestInterface $request, string $actorId, int $accountId, int $providerAccountId, string $name, string $providerType): void

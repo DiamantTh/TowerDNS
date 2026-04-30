@@ -14,6 +14,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Application\Validation\RecordInputFilter;
 use TowerDNS\Domain\Auth\User;
@@ -27,6 +28,7 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
 {
     public function __construct(
         private DnsManagementService $dns,
+        private AuditLogService      $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -94,6 +96,7 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
 
         try {
             $this->dns->updateRecord($user, $providerId, $record);
+            $this->audit->recordRecordUpdate($request, $user->id, null, $zoneId, $record->name, $record->type->value);
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode('Keine Berechtigung zum Bearbeiten von Einträgen.'));
         } catch (\Throwable $e) {

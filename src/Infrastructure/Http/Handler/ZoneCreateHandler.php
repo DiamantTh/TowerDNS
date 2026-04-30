@@ -15,6 +15,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Domain\Auth\User;
 
@@ -25,6 +26,7 @@ final readonly class ZoneCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
         private DnsManagementService $dns,
+        private AuditLogService      $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -50,7 +52,8 @@ final readonly class ZoneCreateHandler implements RequestHandlerInterface
         }
 
         try {
-            $this->dns->createZone($user, $providerId, $zoneName);
+            $zone = $this->dns->createZone($user, $providerId, $zoneName);
+            $this->audit->recordZoneCreate($request, $user->id, null, $zone->id, $zone->name);
         } catch (AuthorizationException) {
             return new RedirectResponse('/zones?error=' . rawurlencode('Keine Berechtigung zum Anlegen von Zonen.'));
         } catch (\Throwable $e) {

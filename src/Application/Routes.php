@@ -13,6 +13,7 @@ use TowerDNS\Infrastructure\Http\Handler\AdminSwitchHandler;
 use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\DnssecHandler;
+use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
 use TowerDNS\Infrastructure\Http\Handler\PasswordChangeHandler;
@@ -23,6 +24,7 @@ use TowerDNS\Infrastructure\Http\Handler\RecordCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordEditHandler;
 use TowerDNS\Infrastructure\Http\Handler\RecordListHandler;
+use TowerDNS\Infrastructure\Http\Handler\ResetPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\RoleCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\RoleDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RoleEditHandler;
@@ -43,6 +45,7 @@ use TowerDNS\Infrastructure\Http\Handler\WebAuthnRegisterFinishHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneListHandler;
+use TowerDNS\Infrastructure\Http\Handler\ZoneMembersHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneUpdateHandler;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 
@@ -58,6 +61,12 @@ final class Routes
         $app->get('/login/webauthn', WebAuthnAuthHandler::class, 'login.webauthn.form');
         $app->post('/login/webauthn/finish', WebAuthnAuthFinishHandler::class, 'login.webauthn.finish');
         $app->post('/logout', [RequireAuthMiddleware::class, LogoutHandler::class], 'logout');
+
+        // Passwort-Reset (public — kein RequireAuthMiddleware)
+        $app->get('/password/forgot', ForgotPasswordHandler::class, 'password.forgot.form');
+        $app->post('/password/forgot', ForgotPasswordHandler::class, 'password.forgot.submit');
+        $app->get('/password/reset', ResetPasswordHandler::class, 'password.reset.form');
+        $app->post('/password/reset', ResetPasswordHandler::class, 'password.reset.submit');
 
         // ── Dashboard ─────────────────────────────────────────────────────────
         $app->get('/', [RequireAuthMiddleware::class, DashboardHandler::class], 'dashboard');
@@ -124,6 +133,10 @@ final class Routes
         $app->post('/accounts/{id}/providers', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.create');
         $app->post('/accounts/{id}/providers/{pid}/replace', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.replace');
         $app->post('/accounts/{id}/providers/{pid}/deactivate', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.deactivate');
+
+        // ── Zone members ──────────────────────────────────────────────────────
+        $app->get('/accounts/{id}/providers/{pid}/zones/{zone}/members', [RequireAuthMiddleware::class, ZoneMembersHandler::class], 'zone.members');
+        $app->post('/accounts/{id}/providers/{pid}/zones/{zone}/members', [RequireAuthMiddleware::class, ZoneMembersHandler::class], 'zone.members.submit');
 
         // ── Admin Switch ──────────────────────────────────────────────────────
         $app->get('/admin/switch', [RequireAuthMiddleware::class, AdminSwitchHandler::class], 'admin.switch.form');

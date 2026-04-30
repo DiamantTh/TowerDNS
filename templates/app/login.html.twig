@@ -9,6 +9,12 @@
         <div class="box">
             <h2 class="subtitle">Anmelden</h2>
 
+            {% if app.request.query.get('reset') %}
+                <div class="notification is-success is-light">
+                    Dein Passwort wurde erfolgreich geändert. Du kannst dich jetzt anmelden.
+                </div>
+            {% endif %}
+
             {% if error %}
                 <div class="notification is-danger is-light">
                     {{ error }}
@@ -39,6 +45,10 @@
                         Anmelden
                     </button>
                 </div>
+
+                <p class="mt-3 has-text-centered">
+                    <a href="/password/forgot">Passwort vergessen?</a>
+                </p>
             </form>
         </div>
     </div>

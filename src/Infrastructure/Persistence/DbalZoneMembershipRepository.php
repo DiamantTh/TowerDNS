@@ -43,9 +43,10 @@ final class DbalZoneMembershipRepository implements ZoneMembershipRepositoryInte
         return $row !== false ? $this->hydrate($row) : null;
     }
 
-    public function grant(string $zoneId, string $userId, TeamRole $role, string $createdAt, ?string $grantedBy = null): void
+    public function grant(string $zoneId, string $userId, TeamRole $role, string $createdAt, int $accountId = 0, ?string $grantedBy = null): void
     {
         $this->connection->insert('zone_memberships', [
+            'account_id' => $accountId,
             'zone_id'    => $zoneId,
             'user_id'    => $userId,
             'role'       => $role->value,

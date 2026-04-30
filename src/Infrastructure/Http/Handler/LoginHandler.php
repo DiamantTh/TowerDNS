@@ -19,6 +19,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Validation\LoginInputFilter;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
@@ -41,6 +42,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private UserRepositoryInterface               $users,
         private CacheInterface                        $cache,
         private WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
+        private AuditLogService                       $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -111,7 +113,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
             $email    = $filtered['email'];
         }
 
-        $error = $this->authenticate($email, $pass, $session);
+        $error = $this->authenticate($request, $email, $pass, $session);
 
         if ($error !== null) {
             return new HtmlResponse(
@@ -140,6 +142,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
     }
 
     private function authenticate(
+        ServerRequestInterface $request,
         string $email,
         string $password,
         mixed  $session,
@@ -162,6 +165,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         $valid = password_verify($password, $hashToVerify);
 
         if ($hash === null || !$valid) {
+            $this->audit->recordLoginFailed($request, $email);
             return 'Ungültige Anmeldedaten.';
         }
 
@@ -170,6 +174,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         if (!$user instanceof \TowerDNS\Domain\Auth\User) {
             // Account disabled between hash-fetch and user-load (race), or
             // findByEmail's active=1 guard excluded it.
+            $this->audit->recordLoginFailed($request, $email);
             return 'Ungültige Anmeldedaten.';
         }
 
@@ -201,6 +206,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         $session->regenerate();
         $session->set('user_id', $user->id);
         $this->users->updateLastLoginAt($user->id);
+        $this->audit->recordLogin($request, $user->id);
 
         return null;
     }

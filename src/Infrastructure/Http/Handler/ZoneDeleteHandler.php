@@ -15,6 +15,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Domain\Auth\User;
 
@@ -28,6 +29,7 @@ final readonly class ZoneDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
         private DnsManagementService $dns,
+        private AuditLogService      $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -48,6 +50,7 @@ final readonly class ZoneDeleteHandler implements RequestHandlerInterface
 
         try {
             $this->dns->deleteZone($user, $providerId, $zoneId);
+            $this->audit->recordZoneDelete($request, $user->id, null, $zoneId, $zoneId);
         } catch (AuthorizationException) {
             return new RedirectResponse('/zones?error=' . rawurlencode('Keine Berechtigung zum Löschen von Zonen.'));
         } catch (\Throwable $e) {

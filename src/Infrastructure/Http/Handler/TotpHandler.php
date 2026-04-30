@@ -17,6 +17,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\TotpService;
 
 /**
@@ -33,6 +34,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         private TemplateRendererInterface $renderer,
         private UserRepositoryInterface   $users,
         private TotpService               $totp,
+        private AuditLogService           $audit,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -88,6 +90,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         $session->regenerate();
         $session->set('user_id', $userId);
         $this->users->updateLastLoginAt($userId);
+        $this->audit->recordLogin($request, $userId);
 
         return new RedirectResponse('/');
     }
