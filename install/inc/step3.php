@@ -55,6 +55,7 @@ function processStep3(): array
         // ── Schema + System-Rollen anlegen ────────────────────────────────
         $schemaManager->createTablesIfNotExist();
         $schemaManager->seedSystemRoles();
+        $schemaManager->seedSystemSettingsDefaults();
 
         // ── Admin-Benutzer anlegen ────────────────────────────────────────
         $now  = (new DateTime())->format('Y-m-d H:i:s');
@@ -103,13 +104,15 @@ function processStep3(): array
         $localToml = <<<TOML
             # TowerDNS — Lokale Konfiguration (auto-generiert am {$now})
             # NIEMALS ins Git einpflegen!
+            #
+            # Diese Datei enthält ausschliesslich Bootstrap-Werte
+            # (DB-Connection, Crypto-Schluessel, Hostname). Alle
+            # Runtime-Einstellungen (Passwort-Policy, HIBP, Theme, Mailer
+            # …) liegen in der DB-Tabelle `system_settings` und werden
+            # ueber die Web-UI gepflegt.
 
             [security]
             encryption_key = "{$escapedEncKey}"
-
-            [security.password]
-            min_length = 16
-            min_score  = 2
 
             [app]
             domain      = "{$escapedDomain}"

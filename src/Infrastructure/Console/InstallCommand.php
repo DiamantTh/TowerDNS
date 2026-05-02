@@ -227,6 +227,9 @@ final class InstallCommand extends Command
             $io->writeln('  Seeding system roles …');
             $schemaManager->seedSystemRoles();
 
+            $io->writeln('  Seeding default system settings …');
+            $schemaManager->seedSystemSettingsDefaults();
+
             $io->writeln('  Creating admin user …');
             $hash = password_hash($adminPass, PASSWORD_ARGON2ID, [
                 'memory_cost' => 131072,
@@ -290,14 +293,25 @@ final class InstallCommand extends Command
 
     private function askPassword(SymfonyStyle $io): string
     {
+        // Use defaults from PasswordPolicy so CLI-installer and web-installer agree.
+        $policy = new \TowerDNS\Application\Services\PasswordPolicy(
+            \TowerDNS\Application\Services\PasswordPolicy::DEFAULT_MIN_LENGTH,
+            2,
+        );
+
         while (true) {
-            $pass1 = (string) ($io->askHidden('Admin password (min 12 chars)') ?? '');
-            if (strlen($pass1) < 12) {
-                $io->warning('Password must be at least 12 characters.');
+            $pass1 = (string) ($io->askHidden(sprintf(
+                'Admin password (min %d chars)',
+                $policy->getMinLength(),
+            )) ?? '');
+            try {
+                $policy->assertValid($pass1);
+            } catch (\InvalidArgumentException $e) {
+                $io->warning($e->getMessage());
                 continue;
             }
             $pass2 = (string) ($io->askHidden('Repeat password') ?? '');
-            if ($pass1 !== $pass2) {
+            if (!hash_equals($pass1, $pass2)) {
                 $io->warning('Passwords do not match.');
                 continue;
             }

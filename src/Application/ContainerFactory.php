@@ -62,19 +62,24 @@ use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
+use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\BreachedPasswordCheckerInterface;
 use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Services\DnsManagementService;
 use TowerDNS\Application\Services\MailService;
+use TowerDNS\Application\Services\NullBreachedPasswordChecker;
+use TowerDNS\Application\Services\PasswordGenerator;
 use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Clock\SystemClock;
+use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
@@ -87,6 +92,7 @@ use TowerDNS\Infrastructure\Persistence\DbalAuditLogRepository;
 use TowerDNS\Infrastructure\Persistence\DbalPasswordResetTokenRepository;
 use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
+use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\DbalZoneMembershipRepository;
@@ -205,6 +211,7 @@ final class ContainerFactory
             ZoneMembershipRepositoryInterface::class            => \DI\autowire(DbalZoneMembershipRepository::class),
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
             PasswordResetTokenRepositoryInterface::class        => \DI\autowire(DbalPasswordResetTokenRepository::class),
+            SystemSettingsRepositoryInterface::class            => \DI\autowire(DbalSystemSettingsRepository::class),
 
             // ── Credential service (app-key encryption) ───────────────────────
             CredentialService::class => \DI\factory(static function () use ($appConf): CredentialService {
@@ -270,9 +277,14 @@ final class ContainerFactory
             ),
 
             SystemSettingsHandler::class => \DI\factory(
-                static fn(TemplateRendererInterface $renderer, AuthorizationService $authz): SystemSettingsHandler => new SystemSettingsHandler(
+                static fn(
+                    TemplateRendererInterface          $renderer,
+                    AuthorizationService               $authz,
+                    SystemSettingsRepositoryInterface  $settings,
+                ): SystemSettingsHandler => new SystemSettingsHandler(
                     $renderer,
                     $authz,
+                    $settings,
                     $projectRoot . '/configs/config.local.toml',
                 )
             ),
@@ -321,14 +333,40 @@ final class ContainerFactory
             // ── PSR-20 Clock ──────────────────────────────────────────────────
             ClockInterface::class => \DI\autowire(SystemClock::class),
 
+            // ── Breached-password checker (HIBP, optional) ────────────────────
+            BreachedPasswordCheckerInterface::class => \DI\factory(
+                static function (\Psr\Container\ContainerInterface $c): BreachedPasswordCheckerInterface {
+                    $settings = $c->get(SystemSettingsRepositoryInterface::class);
+                    if (!(bool) $settings->get('security.password.hibp_enabled', false)) {
+                        return new NullBreachedPasswordChecker();
+                    }
+                    $logger = $c->has(\Psr\Log\LoggerInterface::class)
+                        ? $c->get(\Psr\Log\LoggerInterface::class)
+                        : new \Psr\Log\NullLogger();
+                    /** @var \Psr\Log\LoggerInterface $logger */
+                    return new HibpRangePasswordChecker(
+                        new \GuzzleHttp\Client(),
+                        (bool)  $settings->get('security.password.hibp_fail_open', true),
+                        $logger,
+                        (float) $settings->get('security.password.hibp_timeout', 3.0),
+                    );
+                }
+            ),
+
             // ── Password policy ───────────────────────────────────────────────
-            PasswordPolicy::class => \DI\factory(static function () use ($appConf): PasswordPolicy {
-                $sec = (array) ($appConf['security']['password'] ?? []);
-                return new PasswordPolicy(
-                    (int) ($sec['min_length'] ?? 16),
-                    (int) ($sec['min_score'] ?? 0),
-                );
-            }),
+            PasswordPolicy::class => \DI\factory(
+                static function (\Psr\Container\ContainerInterface $c): PasswordPolicy {
+                    $settings = $c->get(SystemSettingsRepositoryInterface::class);
+                    return new PasswordPolicy(
+                        (int) $settings->get('security.password.min_length', PasswordPolicy::DEFAULT_MIN_LENGTH),
+                        (int) $settings->get('security.password.min_score',  PasswordPolicy::DEFAULT_MIN_SCORE),
+                        $c->get(BreachedPasswordCheckerInterface::class),
+                    );
+                }
+            ),
+
+            // ── Password generator (uses policy for retry-validation) ─────────
+            PasswordGenerator::class => \DI\autowire(),
 
             // ── CSRF ──────────────────────────────────────────────────────────
             CsrfGuardFactoryInterface::class => \DI\autowire(SessionCsrfGuardFactory::class),

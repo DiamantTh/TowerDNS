@@ -17,6 +17,10 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use TowerDNS\Application\Services\NullBreachedPasswordChecker;
+use TowerDNS\Application\Services\PasswordGenerator;
+use TowerDNS\Application\Services\PasswordPolicy;
+use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
 
 /**
  * Resets the password of a TowerDNS user from the command line.
@@ -81,13 +85,25 @@ final class PasswordResetCommand extends Command
 
         $userId = (string) $row['id'];
 
-        // ── Determine new password ────────────────────────────────────────
+        $policy    = $this->loadPasswordPolicy($conn);
+        $generator = new PasswordGenerator($policy);
+
+        // ── Determine new password ─────────────────────────────────
         if ($generate) {
-            $newPassword = $this->generatePassword(24);
+            try {
+                $newPassword = $generator->generate(max(24, $policy->getMinLength() + 8));
+            } catch (\RuntimeException $e) {
+                $io->error($e->getMessage());
+                return Command::FAILURE;
+            }
+            $io->success('Generated password: ' . $newPassword);
+            $io->warning('Write this down NOW — it will not be shown again.');
         } else {
-            $newPassword = $io->askHidden('New password (min. 12 characters)') ?? '';
-            if (strlen($newPassword) < 12) {
-                $io->error('Password must be at least 12 characters long.');
+            $newPassword = $io->askHidden(sprintf('New password (min. %d characters)', $policy->getMinLength())) ?? '';
+            try {
+                $policy->assertValid($newPassword);
+            } catch (\InvalidArgumentException $e) {
+                $io->error($e->getMessage());
                 return Command::FAILURE;
             }
             $confirm = $io->askHidden('Confirm password') ?? '';
@@ -168,15 +184,56 @@ final class PasswordResetCommand extends Command
         return DriverManager::getConnection($params);
     }
 
-    /** Generates a cryptographically secure random password. */
-    private function generatePassword(int $length): string
+    /**
+     * Loads the password policy (incl. optional HIBP checker) from the
+     * `system_settings` DB table, falling back to code defaults when the
+     * row is missing.
+     */
+    private function loadPasswordPolicy(Connection $conn): PasswordPolicy
     {
-        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*-_=+';
-        $max   = strlen($chars) - 1;
-        $pwd   = '';
-        for ($i = 0; $i < $length; $i++) {
-            $pwd .= $chars[random_int(0, $max)];
+        $settings = $this->loadSettings($conn);
+
+        $hibpEnabled = (bool) ($settings['security.password.hibp_enabled'] ?? false);
+        $checker     = $hibpEnabled
+            ? new HibpRangePasswordChecker(
+                new \GuzzleHttp\Client(),
+                (bool) ($settings['security.password.hibp_fail_open'] ?? true),
+                new \Psr\Log\NullLogger(),
+                (float) ($settings['security.password.hibp_timeout'] ?? 3.0),
+            )
+            : new NullBreachedPasswordChecker();
+
+        return new PasswordPolicy(
+            (int) ($settings['security.password.min_length'] ?? PasswordPolicy::DEFAULT_MIN_LENGTH),
+            (int) ($settings['security.password.min_score']  ?? PasswordPolicy::DEFAULT_MIN_SCORE),
+            $checker,
+        );
+    }
+
+    /**
+     * Returns the full system_settings table as a key=>value map, with values
+     * JSON-decoded. Returns an empty array when the table is missing.
+     *
+     * @return array<string, mixed>
+     */
+    private function loadSettings(Connection $conn): array
+    {
+        try {
+            $rows = $conn->fetchAllAssociative(
+                'SELECT setting_key, setting_value FROM system_settings'
+            );
+        } catch (\Throwable) {
+            return [];
         }
-        return $pwd;
+
+        $out = [];
+        foreach ($rows as $r) {
+            $key = (string) $r['setting_key'];
+            $raw = (string) $r['setting_value'];
+            /** @var mixed $decoded */
+            $decoded   = json_decode($raw, true);
+            $out[$key] = json_last_error() === JSON_ERROR_NONE ? $decoded : $raw;
+        }
+        return $out;
     }
 }

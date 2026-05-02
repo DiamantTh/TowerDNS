@@ -219,6 +219,48 @@ final readonly class SchemaManager
     }
 
     /**
+     * Seeds runtime-configurable system settings with sensible defaults.
+     *
+     * Idempotent — existing keys are left untouched. Bootstrap config
+     * (DB connection, encryption key, app hostname, …) stays in TOML and
+     * is NOT touched by this method.
+     */
+    public function seedSystemSettingsDefaults(): void
+    {
+        $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
+
+        $defaults = [
+            'security.password.min_length'     => 16,
+            'security.password.min_score'      => 2,
+            'security.password.hibp_enabled'   => false,
+            'security.password.hibp_fail_open' => true,
+            'security.password.hibp_timeout'   => 3.0,
+        ];
+
+        foreach ($defaults as $key => $value) {
+            $exists = $this->connection->fetchOne(
+                'SELECT setting_key FROM system_settings WHERE setting_key = ?',
+                [$key],
+            );
+            if ($exists !== false) {
+                continue;
+            }
+
+            $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($encoded === false) {
+                continue;
+            }
+
+            $this->connection->insert('system_settings', [
+                'setting_key'   => $key,
+                'setting_value' => $encoded,
+                'updated_at'    => $now,
+                'updated_by'    => null,
+            ]);
+        }
+    }
+
+    /**
      * Builds the canonical set of DBAL Table objects in dependency order.
      *
      * @return list<Table>
@@ -475,10 +517,27 @@ final readonly class SchemaManager
             'fk_prt_user_id',
         );
 
+        // system_settings ----------------------------------------------------
+        // Runtime-konfigurierbare Werte (UI-editierbar). Bootstrap-Werte
+        // (DB-Connection, encryption_key, app.hostname) bleiben in TOML.
+        $systemSettings = new Table('system_settings');
+        $systemSettings->addColumn('setting_key', Types::STRING, ['length' => 120]);
+        $systemSettings->addColumn('setting_value', Types::TEXT);
+        $systemSettings->addColumn('updated_at', Types::DATETIME_MUTABLE);
+        $systemSettings->addColumn('updated_by', Types::GUID, ['notnull' => false]);
+        $systemSettings->setPrimaryKey(['setting_key']);
+        $systemSettings->addForeignKeyConstraint(
+            'users',
+            ['updated_by'],
+            ['id'],
+            ['onDelete' => 'SET NULL'],
+            'fk_ss_updated_by',
+        );
+
         return [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $apiKeys,
             $accounts, $accMembers, $provAccounts, $zoneMembers, $impSessions, $auditLogs,
-            $pwResetTokens,
+            $pwResetTokens, $systemSettings,
         ];
     }
 }

@@ -17,6 +17,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
@@ -30,9 +31,10 @@ use TowerDNS\Domain\Auth\User;
 final readonly class SystemSettingsHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private TemplateRendererInterface $renderer,
-        private AuthorizationService      $authz,
-        private string                    $configPath,
+        private TemplateRendererInterface         $renderer,
+        private AuthorizationService              $authz,
+        private SystemSettingsRepositoryInterface $settings,
+        private string                            $configPath,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -91,8 +93,6 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
 
         $app  = (array) ($conf['app'] ?? []);
         $appl = (array) ($conf['application'] ?? []);
-        $sec  = (array) ($conf['security'] ?? []);
-        $pwd  = (array) ($sec['password'] ?? []);
         $thm  = (array) ($conf['theme'] ?? []);
 
         // ContainerFactory liest 'hostname' als rpId; Installer schreibt 'domain'.
@@ -105,8 +105,8 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             'app_force_https'     => (bool) ($app['force_https'] ?? false),
             'app_debug'           => (bool) ($app['debug'] ?? false),
             'theme_name'          => (string) ($thm['name'] ?? 'default'),
-            'pwd_min_length'      => (int) ($pwd['min_length'] ?? 16),
-            'pwd_min_score'       => (int) ($pwd['min_score'] ?? 2),
+            'pwd_min_length'      => (int) $this->settings->get('security.password.min_length', 16),
+            'pwd_min_score'       => (int) $this->settings->get('security.password.min_score', 2),
             'mailer_dsn'          => (string) (($conf['mailer']['dsn'] ?? '') ?: 'null://null'),
             'mailer_from_address' => (string) ($conf['mailer']['from_address'] ?? ''),
         ];
@@ -185,15 +185,13 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         $thmSection['name'] = $themeName;
         $conf['theme']      = $thmSection;
 
-        // [security.password]
-        /** @var array<string, mixed> $secSection */
-        $secSection = (array) ($conf['security'] ?? []);
-        /** @var array<string, mixed> $pwdSection */
-        $pwdSection               = (array) ($secSection['password'] ?? []);
-        $pwdSection['min_length'] = $pwdMinLen;
-        $pwdSection['min_score']  = $pwdMinScore;
-        $secSection['password']   = $pwdSection;
-        $conf['security']         = $secSection;
+        // [security.password] → jetzt DB; aus TOML entfernen, falls noch vorhanden.
+        if (isset($conf['security']) && is_array($conf['security'])) {
+            unset($conf['security']['password']);
+            if ($conf['security'] === []) {
+                unset($conf['security']);
+            }
+        }
 
         // [mailer]
         /** @var array<string, mixed> $mailerSection */
@@ -207,6 +205,12 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             if (file_put_contents($this->configPath, $toml) === false) {
                 throw new \RuntimeException('Konfigurationsdatei konnte nicht geschrieben werden.');
             }
+
+            // Runtime-Werte (DB)
+            $this->settings->setMany([
+                'security.password.min_length' => $pwdMinLen,
+                'security.password.min_score'  => $pwdMinScore,
+            ], $user->id);
         } catch (\Throwable $e) {
             return new HtmlResponse(
                 $this->renderer->render('app::settings', [
