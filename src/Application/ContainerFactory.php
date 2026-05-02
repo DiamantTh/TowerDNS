@@ -344,11 +344,16 @@ final class ContainerFactory
                         ? $c->get(\Psr\Log\LoggerInterface::class)
                         : new \Psr\Log\NullLogger();
                     /** @var \Psr\Log\LoggerInterface $logger */
+                    $timeout = (float) $settings->get('security.password.hibp_timeout', 3.0);
                     return new HibpRangePasswordChecker(
-                        new \GuzzleHttp\Client(),
-                        (bool)  $settings->get('security.password.hibp_fail_open', true),
+                        new \GuzzleHttp\Client([
+                            \GuzzleHttp\RequestOptions::TIMEOUT         => $timeout,
+                            \GuzzleHttp\RequestOptions::CONNECT_TIMEOUT => $timeout,
+                            \GuzzleHttp\RequestOptions::HTTP_ERRORS     => true,
+                        ]),
+                        new \Laminas\Diactoros\RequestFactory(),
+                        (bool) $settings->get('security.password.hibp_fail_open', true),
                         $logger,
-                        (float) $settings->get('security.password.hibp_timeout', 3.0),
                     );
                 }
             ),

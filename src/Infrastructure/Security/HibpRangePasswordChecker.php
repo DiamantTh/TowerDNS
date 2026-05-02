@@ -7,9 +7,9 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Security;
 
-use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
+use Psr\Http\Client\ClientExceptionInterface;
+use Psr\Http\Client\ClientInterface;
+use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use TowerDNS\Application\Services\BreachedPasswordCheckerInterface;
@@ -32,10 +32,10 @@ final readonly class HibpRangePasswordChecker implements BreachedPasswordChecker
     private const string ENDPOINT = 'https://api.pwnedpasswords.com/range/';
 
     public function __construct(
-        private ClientInterface $http,
-        private bool            $failOpen = true,
-        private LoggerInterface $logger = new NullLogger(),
-        private float           $timeout = 3.0,
+        private ClientInterface        $http,
+        private RequestFactoryInterface $requestFactory,
+        private bool                   $failOpen = true,
+        private LoggerInterface        $logger   = new NullLogger(),
     ) {}
 
     public function timesSeen(string $password): int
@@ -49,16 +49,13 @@ final readonly class HibpRangePasswordChecker implements BreachedPasswordChecker
         $suffix = substr($sha1, 5);
 
         try {
-            $response = $this->http->request('GET', self::ENDPOINT . $prefix, [
-                RequestOptions::HEADERS         => [
-                    'Add-Padding' => 'true', // server adds noise to defeat traffic analysis
-                    'User-Agent'  => 'TowerDNS-HIBP-Check',
-                ],
-                RequestOptions::TIMEOUT         => $this->timeout,
-                RequestOptions::CONNECT_TIMEOUT => $this->timeout,
-                RequestOptions::HTTP_ERRORS     => true,
-            ]);
-        } catch (GuzzleException $e) {
+            $request = $this->requestFactory
+                ->createRequest('GET', self::ENDPOINT . $prefix)
+                ->withHeader('Add-Padding', 'true') // server adds noise to defeat traffic analysis
+                ->withHeader('User-Agent', 'TowerDNS-HIBP-Check');
+
+            $response = $this->http->sendRequest($request);
+        } catch (ClientExceptionInterface $e) {
             $this->logger->warning('HIBP range lookup failed', ['error' => $e->getMessage()]);
             if ($this->failOpen) {
                 return 0;

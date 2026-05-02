@@ -196,10 +196,14 @@ final class PasswordResetCommand extends Command
         $hibpEnabled = (bool) ($settings['security.password.hibp_enabled'] ?? false);
         $checker     = $hibpEnabled
             ? new HibpRangePasswordChecker(
-                new \GuzzleHttp\Client(),
+                new \GuzzleHttp\Client([
+                    \GuzzleHttp\RequestOptions::TIMEOUT         => (float) ($settings['security.password.hibp_timeout'] ?? 3.0),
+                    \GuzzleHttp\RequestOptions::CONNECT_TIMEOUT => (float) ($settings['security.password.hibp_timeout'] ?? 3.0),
+                    \GuzzleHttp\RequestOptions::HTTP_ERRORS     => true,
+                ]),
+                new \Laminas\Diactoros\RequestFactory(),
                 (bool) ($settings['security.password.hibp_fail_open'] ?? true),
                 new \Psr\Log\NullLogger(),
-                (float) ($settings['security.password.hibp_timeout'] ?? 3.0),
             )
             : new NullBreachedPasswordChecker();
 
