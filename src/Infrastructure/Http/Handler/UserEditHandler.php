@@ -19,6 +19,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -33,6 +34,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         private UserRepositoryInterface   $users,
         private RoleRepositoryInterface   $roles,
         private AuthorizationService      $authz,
+        private PasswordPolicy            $passwordPolicy,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -123,8 +125,10 @@ final readonly class UserEditHandler implements RequestHandlerInterface
             $newPassword = (string) ($body['new_password'] ?? '');
             $keepKeys    = isset($body['keep_api_keys']);
 
-            if (strlen($newPassword) < 12) {
-                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode('Das neue Passwort muss mindestens 12 Zeichen lang sein.'));
+            try {
+                $this->passwordPolicy->assertValid($newPassword);
+            } catch (\InvalidArgumentException $e) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($e->getMessage()));
             }
 
             /** @var non-empty-string $hash */

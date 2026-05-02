@@ -10,24 +10,33 @@ namespace TowerDNS\Application\Services;
 use ZxcvbnPhp\Zxcvbn;
 
 /**
- * Configurable password strength policy using zxcvbn.
+ * Configurable password strength policy using zxcvbn and (optionally) HIBP.
  *
  * Configuration (passed via constructor):
  *   minLength  int  8–128,  default 16
  *   minScore   int  0–4,    default 0  (0 = disabled)
+ *   checker    BreachedPasswordCheckerInterface (default: Null = disabled)
  */
 final readonly class PasswordPolicy
 {
+    public const int DEFAULT_MIN_LENGTH = 16;
+    public const int DEFAULT_MIN_SCORE  = 0;
+
     private const int FLOOR   = 8;
     private const int CEILING = 128;
 
     private int $minLength;
     private int $minScore;
+    private BreachedPasswordCheckerInterface $breachChecker;
 
-    public function __construct(int $minLength = 16, int $minScore = 0)
-    {
-        $this->minLength = max(self::FLOOR, min(self::CEILING, $minLength));
-        $this->minScore  = max(0, min(4, $minScore));
+    public function __construct(
+        int $minLength = self::DEFAULT_MIN_LENGTH,
+        int $minScore = self::DEFAULT_MIN_SCORE,
+        ?BreachedPasswordCheckerInterface $breachChecker = null,
+    ) {
+        $this->minLength     = max(self::FLOOR, min(self::CEILING, $minLength));
+        $this->minScore      = max(0, min(4, $minScore));
+        $this->breachChecker = $breachChecker ?? new NullBreachedPasswordChecker();
     }
 
     public function getMinLength(): int
@@ -60,6 +69,14 @@ final readonly class PasswordPolicy
                 $hint        = $suggestions !== [] ? ' ' . implode(' ', $suggestions) : '';
                 throw new \InvalidArgumentException('Das Passwort ist zu schwach.' . $hint);
             }
+        }
+
+        $seen = $this->breachChecker->timesSeen($password);
+        if ($seen > 0) {
+            throw new \InvalidArgumentException(sprintf(
+                'Dieses Passwort wurde in bekannten Datenleaks %s mal gefunden. Bitte ein anderes wählen.',
+                number_format($seen, 0, ',', '.'),
+            ));
         }
     }
 

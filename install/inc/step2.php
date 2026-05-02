@@ -170,7 +170,7 @@ function processStep2(): array
     if (!filter_var($adminEmail, FILTER_VALIDATE_EMAIL) || strlen($adminEmail) > 254) {
         $errors[] = t('step2.admin_email_invalid');
     }
-    if (strlen($adminPass) < 12) {
+    if (strlen($adminPass) < TowerDNS\Application\Services\PasswordPolicy::DEFAULT_MIN_LENGTH) {
         $errors[] = t('step2.admin_pass_short');
     }
     if ($adminPass !== $adminPass2) {
@@ -180,9 +180,14 @@ function processStep2(): array
         return $errors;
     }
 
-    // Passwort-Stärke via zxcvbn prüfen (Score 0–4, Minimum 2)
+    // Passwort-Stärke via zxcvbn prüfen (Score 0–4, Minimum 2).
+    // HIBP ist hier bewusst aus: configs existieren noch nicht und der
+    // Installer soll auch in air-gapped Umgebungen ohne Internet laufen.
     try {
-        $policy = new TowerDNS\Application\Services\PasswordPolicy(12, 2);
+        $policy = new TowerDNS\Application\Services\PasswordPolicy(
+            TowerDNS\Application\Services\PasswordPolicy::DEFAULT_MIN_LENGTH,
+            2,
+        );
         $policy->assertValid($adminPass);
     } catch (InvalidArgumentException $ex) {
         $errors[] = e($ex->getMessage());
@@ -442,14 +447,14 @@ ob_start();
                     <span class="tag is-light is-size-7"><?= e(t('step2.admin_pass_min')) ?></span>
                 </label>
                 <div class="control"><input class="input" type="password" name="admin_pass"
-                     required minlength="12" autocomplete="new-password" id="admin_pass"></div>
+                     required minlength="16" autocomplete="new-password" id="admin_pass"></div>
             </div>
         </div>
         <div class="column">
             <div class="field">
                 <label class="label"><?= e(t('step2.admin_pass_confirm')) ?></label>
                 <div class="control"><input class="input" type="password" name="admin_pass2"
-                     required minlength="12" autocomplete="new-password" id="admin_pass2"></div>
+                     required minlength="16" autocomplete="new-password" id="admin_pass2"></div>
             </div>
         </div>
     </div>

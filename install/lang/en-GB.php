@@ -84,7 +84,7 @@ return [
     'step2.admin_username'     => 'Username',
     'step2.admin_email'        => 'E-mail address',
     'step2.admin_pass'         => 'Password',
-    'step2.admin_pass_min'     => 'min. 12 characters',
+    'step2.admin_pass_min'     => 'min. 16 characters',
     'step2.admin_pass_confirm' => 'Repeat password',
     'step2.pass_mismatch_live' => 'Passwords do not match.',
 
@@ -126,7 +126,7 @@ return [
     'step2.mysql_error'                       => 'MySQL/MariaDB connection failed: %s',
     'step2.admin_user_invalid'                => 'Username must be 3–50 characters (a-z, 0-9, -, _, .).',
     'step2.admin_email_invalid'               => 'Invalid or too long e-mail address.',
-    'step2.admin_pass_short'                  => 'Password must be at least 12 characters.',
+    'step2.admin_pass_short'                  => 'Password must be at least 16 characters.',
     'step2.admin_pass_mismatch'               => 'Passwords do not match.',
     'step2.app_name_invalid'                  => 'Application name must be 1–100 characters.',
     'step2.app_domain_invalid'                => 'Invalid domain name (only a-z, 0-9, -, .).',

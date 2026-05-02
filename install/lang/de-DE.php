@@ -84,7 +84,7 @@ return [
     'step2.admin_username'     => 'Benutzername',
     'step2.admin_email'        => 'E-Mail-Adresse',
     'step2.admin_pass'         => 'Passwort',
-    'step2.admin_pass_min'     => 'mind. 12 Zeichen',
+    'step2.admin_pass_min'     => 'mind. 16 Zeichen',
     'step2.admin_pass_confirm' => 'Passwort wiederholen',
     'step2.pass_mismatch_live' => 'Passwörter stimmen nicht überein.',
 
@@ -126,7 +126,7 @@ return [
     'step2.mysql_error'                       => 'MySQL/MariaDB-Verbindung fehlgeschlagen: %s',
     'step2.admin_user_invalid'                => 'Benutzername muss 3–50 Zeichen enthalten (a-z, 0-9, -, _, .).',
     'step2.admin_email_invalid'               => 'Ungültige oder zu lange E-Mail-Adresse.',
-    'step2.admin_pass_short'                  => 'Passwort muss mindestens 12 Zeichen lang sein.',
+    'step2.admin_pass_short'                  => 'Passwort muss mindestens 16 Zeichen lang sein.',
     'step2.admin_pass_mismatch'               => 'Passwörter stimmen nicht überein.',
     'step2.app_name_invalid'                  => 'Anwendungsname muss 1–100 Zeichen lang sein.',
     'step2.app_domain_invalid'                => 'Ungültiger Domainname (nur a-z, 0-9, -, .).',
