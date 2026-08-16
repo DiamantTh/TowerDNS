@@ -8,16 +8,16 @@ TowerDNS ist ein DNS-Management-Panel mit gemeinsamer Kernlogik und austauschbar
 
 ```
 src/
-  Domain/         kanonische DNS- und RBAC-Modelle
-  Application/    Workflows, Validierung, Capabilities, Rechtepruefung
-  Infrastructure/ Provider-Adapter (deSEC, PowerDNS, Cloudflare, INWX)
-  UI/             (folgt) Panel ohne direkte Provider-Logik
+  Domain/         kanonische DNS-, RBAC- und Account-Modelle
+  Application/    Workflows, Validierung, Capabilities, Rechtepruefung, Services
+  Infrastructure/ Provider-Adapter, HTTP-Handler, Persistenz, Console
 ```
 
-1. **UI** verwendet ausschliesslich Application-Services. Sie kennt keine Provider-spezifischen Endpunkte.
+1. **Infrastructure/Http** enthaelt die PSR-15-Handler (Mezzio). Handler delegieren ausschliesslich an Application-Services und kennen keine Provider-spezifischen Endpunkte.
 2. **Application** orchestriert Workflows, normalisiert Eingaben (`DnsNameValidator`, `RecordValidator`), prueft Rechte zentral (`AuthorizationService`) und prueft Provider-Faehigkeiten (`Capability` + `ProviderCapabilitySet`).
-3. **Domain** stellt das kanonische DNS-Modell (`Zone`, `Record`, `RecordType`, `DnssecProfile`, `DnssecState`) und das RBAC-Modell (`User`, `Role`, `Permission`).
+3. **Domain** stellt das kanonische DNS-Modell (`Zone`, `Record`, `RecordType`, `DnssecProfile`, `DnssecState`), das RBAC-Modell (`User`, `Role`, `Permission`) und das Account-Modell (`Account`, `AccountMembership`, `ZoneMembership`, `AuditLogEntry`).
 4. **Infrastructure/Provider** kapselt jede externe API in einem eigenen Adapter unter `src/Infrastructure/Provider/<Provider>/`.
+5. **Infrastructure/Persistence** implementiert alle Repository-Interfaces per Doctrine DBAL. `SchemaManager` verwaltet das DB-Schema und die Seed-Daten idempotent.
 
 ## Provider-Registry
 
@@ -59,3 +59,24 @@ Neuen Provider hinzufuegen:
 2. Adapter-Klasse `<Name>Provider extends AbstractDnsProvider` erstellen und `capabilityMap()` deklarieren.
 3. `DnsProviderInterface` implementieren.
 4. Adapter-Instanz beim Bootstrap an die `ProviderRegistry` uebergeben.
+
+## Sicherheits-Subsystem
+
+### Authentifizierung
+
+- **Passwort** mit bcrypt (`password_hash`), Policy-gesteuert via `PasswordPolicy` (Mindestlaenge, zxcvbn-Score).
+- **TOTP** (`TotpService`): SHA-512, 8 Stellen, 64-Byte-Secret, Aegis/FreeOTP+-kompatibel. Google Authenticator ist wegen SHA-1-Beschraenkung inkompatibel.
+- **FIDO2/WebAuthn** (`WebAuthnService`): Resident-Key-Support, ES256/RS256, challenge-basierte Login-Ceremony.
+
+### HIBP-Integration (Have I Been Pwned)
+
+`HibpRangePasswordChecker` implementiert `BreachedPasswordCheckerInterface` via k-Anonymity Range-API (kein Klartextpasswort verlaesst das System). PSR-18 als Client-Interface; Guzzle wird nur in Kompositionsstellen (`ContainerFactory`, Console-Commands) als Konkrete eingesetzt. Im Air-gapped-Betrieb oder wenn HIBP in `system_settings` deaktiviert ist, wird automatisch `NullBreachedPasswordChecker` gewaehlt.
+
+### Konfiguration: Bootstrap vs. Runtime
+
+| Quelle           | Enthaelt                                               |
+|------------------|--------------------------------------------------------|
+| TOML-Config      | DB-Verbindung, `encryption_key`, Hostname, App-Name    |
+| `system_settings`| Passwort-Policy, HIBP-Flags, zukuenftige Runtime-Werte |
+
+TOML enthaelt ausschliesslich Bootstrap-Parameter, die vor jeder DB-Verbindung benoetigt werden. Alle ueber die Admin-UI aenderbaren Einstellungen werden in der Tabelle `system_settings` gespeichert (`DbalSystemSettingsRepository`, per-Request-Cache).

@@ -23,7 +23,12 @@ TowerDNS ist der offizielle technische Nachfolger von [desec-manager](https://gi
 | `App\Security\DomainValidator`         | `TowerDNS\Application\Validation\DnsNameValidator` (auf DNS reduziert, IDN-tauglich) |
 | `App\Entity\User` / Rollenrepository   | `TowerDNS\Domain\Auth\User` / `Role` / `Permission`                                  |
 
-Bewusst **nicht** uebernommen wurden: WebAuthn, TOTP, Cookie-/Session-Stack, Themes, Mailer, Twig-Templates. Diese Themen werden in der neuen UI- und Sicherheitsschicht eigenstaendig modelliert (eigene Tickets), nicht als deSEC-spezifische Bestandteile mitgezogen.
+In TowerDNS eigenstaendig neu modelliert (nicht aus desec-manager portiert):
+- **WebAuthn** (`WebAuthnService`, `web-auth/webauthn-lib`): Resident-Key, ES256/RS256, vollstaendige Registration- und Authentication-Ceremony
+- **TOTP** (`TotpService`, `spomky-labs/otphp`): SHA-512, 8 Stellen, 64-Byte-Secret
+- **Mailer** (`MailService`, Symfony Mailer): Passwort-Reset, zukuenftige Benachrichtigungen
+- **Svelte-UI**: eigenstaendige Skeleton/Svelte-Oberflaeche ohne Twig- oder desec-manager-Abhaengigkeit
+- **Passwort-Policy + HIBP** (`PasswordPolicy`, `HibpRangePasswordChecker`): zxcvbn-Score, optionale HIBP Range-API, eigene Implementierung ohne externe Client-Libs
 
 ## Zielprovider
 
@@ -41,7 +46,6 @@ Bewusst **nicht** uebernommen wurden: WebAuthn, TOTP, Cookie-/Session-Stack, The
 
 ## Naechste Schritte
 
-- Persistenz fuer Provider-Konfigurationen, User und Rollen anbinden.
-- UI/HTTP-Layer auf den neuen Application-Services aufsetzen.
-- Cloudflare- und INWX-Adapter ausimplementieren.
+- Cloudflare- und INWX-Adapter ausimplementieren (Skelette vorhanden, Capabilities deklariert).
 - Importpfad fuer bestehende deSEC-Bestaende aus desec-manager-Datenbanken bereitstellen.
+- Runtime-Settings (App-Name, Force-HTTPS, Theme, Mailer) aus TOML in `system_settings` migrieren.

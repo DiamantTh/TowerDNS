@@ -51,7 +51,7 @@ TowerDNS uebernimmt den Stack des Vorgaengerprojekts desec-manager und entwickel
 
 - PHP >= 8.4, Composer (PSR-4 unter `TowerDNS\`)
 - HTTP-Schicht: Mezzio (PSR-15) + FastRoute + PHP-DI
-- Templates/Renderer: Twig via `mezzio-twigrenderer`
+- UI-Renderer: Svelte-Anwendungsshell mit sicherem JSON-Bootstrap (ohne Twig)
 - Sessions/CSRF: `mezzio-session`, `mezzio-session-ext`, `mezzio-csrf`
 - Validierung/Filter/Inputs: Laminas (`laminas-filter`, `laminas-validator`, `laminas-inputfilter`, `laminas-i18n`)
 - RBAC-Bibliothek: `laminas/laminas-permissions-rbac` (eigene Permission/Role-Domain dazu)
@@ -61,7 +61,7 @@ TowerDNS uebernimmt den Stack des Vorgaengerprojekts desec-manager und entwickel
 - Caching: Symfony Cache, PSR Simple Cache
 - CLI/Mailer/Konfig: Symfony Console, Symfony Mailer, `yosymfony/toml`
 - Authentifizierung: WebAuthn (`web-auth/webauthn-lib`), TOTP (`spomky-labs/otphp`), Passwortpruefung (`bjeavons/zxcvbn-php`)
-- Frontend: Svelte 5 + Vite 6 + TypeScript (uebernommen aus desec-manager)
+- Frontend: Skeleton 5 + Svelte 5 + Tailwind CSS 4 + Vite 6 + TypeScript
 - Tests/Statisch: PHPUnit 11, PHPStan 2 (Level 8)
 - Saubere Layer-Struktur unter `src/Domain`, `src/Application`, `src/Infrastructure`, `src/UI`
 
@@ -83,8 +83,23 @@ TowerDNS uebernimmt den Stack des Vorgaengerprojekts desec-manager und entwickel
 composer install
 composer check       # lint + phpstan + phpunit
 npm install
-npm run build        # Svelte/Vite-Bundles -> themes/default/js/
+npm run check
+npm run build        # produktionsfertige Assets -> httpdocs/assets/
 ```
+
+Die gebauten Assets werden mit dem Release ausgeliefert; auf dem Zielsystem
+ist deshalb kein Node.js erforderlich. Mezzio liefert Seitendaten und
+CSRF-geschuetzte Endpunkte; Svelte rendert die gesamte Anwendung.
+
+## Themes
+
+Themes liegen unter `themes/<name>/theme.json`. Das Manifest ordnet das
+TowerDNS-Theme einem gebuendelten Skeleton-Theme zu. Markup und Verhalten
+bleiben zentral in Svelte; Themes variieren die Skeleton-Design-Tokens.
+
+Das globale Theme wird bei der Installation oder in den Systemeinstellungen
+aus den validierten Manifesten gewaehlt. Benutzer koennen im Profil dieses
+Theme erben (`system`) oder eines der installierten Themes auswaehlen.
 
 Weiterfuehrende Dokumentation:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
