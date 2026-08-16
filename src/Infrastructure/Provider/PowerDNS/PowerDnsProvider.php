@@ -479,8 +479,8 @@ final class PowerDnsProvider extends AbstractDnsProvider
         [$major, $minor, $patch] = [(int) $parts[0], (int) $parts[1], (int) $parts[2]];
 
         $this->supportsExtendFlag = match (true) {
-            $major                                 >= 6                                  => true,
-            $major === 5 && $minor                 >= 1                  => true,
+            $major                                 >= 6  => true,
+            $major === 5 && $minor                 >= 1  => true,
             $major === 5 && $minor === 0 && $patch >= 2  => true,
             $major === 4 && $minor === 9 && $patch >= 12 => true,
             default                                      => false,

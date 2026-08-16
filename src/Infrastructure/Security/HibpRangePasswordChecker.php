@@ -35,7 +35,7 @@ final readonly class HibpRangePasswordChecker implements BreachedPasswordChecker
         private ClientInterface        $http,
         private RequestFactoryInterface $requestFactory,
         private bool                   $failOpen = true,
-        private LoggerInterface        $logger   = new NullLogger(),
+        private LoggerInterface        $logger = new NullLogger(),
     ) {}
 
     public function timesSeen(string $password): int

@@ -209,7 +209,7 @@ final class PasswordResetCommand extends Command
 
         return new PasswordPolicy(
             (int) ($settings['security.password.min_length'] ?? PasswordPolicy::DEFAULT_MIN_LENGTH),
-            (int) ($settings['security.password.min_score']  ?? PasswordPolicy::DEFAULT_MIN_SCORE),
+            (int) ($settings['security.password.min_score'] ?? PasswordPolicy::DEFAULT_MIN_SCORE),
             $checker,
         );
     }

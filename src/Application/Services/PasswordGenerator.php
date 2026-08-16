@@ -24,9 +24,9 @@ final readonly class PasswordGenerator
     private const string DIGIT  = '23456789';                    // no 0, 1
     private const string SYMBOL = '!@#$%^&*-_=+?';
 
-    private const int MIN_LENGTH    = 12;
-    private const int MAX_LENGTH    = 128;
-    private const int MAX_RETRIES   = 8;
+    private const int MIN_LENGTH  = 12;
+    private const int MAX_LENGTH  = 128;
+    private const int MAX_RETRIES = 8;
 
     public function __construct(private ?PasswordPolicy $policy = null) {}
 
@@ -77,7 +77,7 @@ final readonly class PasswordGenerator
 
         // Fisher-Yates shuffle with CSPRNG.
         for ($i = count($chars) - 1; $i > 0; $i--) {
-            $j           = random_int(0, $i);
+            $j                       = random_int(0, $i);
             [$chars[$i], $chars[$j]] = [$chars[$j], $chars[$i]];
         }
 
