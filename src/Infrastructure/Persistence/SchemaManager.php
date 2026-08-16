@@ -167,7 +167,7 @@ final readonly class SchemaManager
             'password_hash' => $passwordHash,
             'totp_secret'   => null,
             'active'        => true,
-            'theme'         => 'default',
+            'theme'         => 'system',
             'locale'        => 'en',
             'last_login_at' => null,
             'created_at'    => $now,
@@ -296,7 +296,7 @@ final readonly class SchemaManager
         $users->addColumn('password_hash', Types::STRING, ['length' => 255]);
         $users->addColumn('totp_secret', Types::STRING, ['length' => 255, 'notnull' => false]);
         $users->addColumn('active', Types::BOOLEAN, ['default' => true]);
-        $users->addColumn('theme', Types::STRING, ['length' => 64, 'default' => 'default']);
+        $users->addColumn('theme', Types::STRING, ['length' => 64, 'default' => 'system']);
         $users->addColumn('locale', Types::STRING, ['length' => 16, 'default' => 'en']);
         $users->addColumn('last_login_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
         $users->addColumn('created_at', Types::DATETIME_MUTABLE);

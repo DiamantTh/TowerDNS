@@ -13,6 +13,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 
 /**
@@ -129,9 +130,10 @@ final class InstallCommand extends Command
         // ──────────────────────────────────────────────────────────────────
         $io->section('Step 3: Application settings');
 
+        $themeNames = array_keys((new ThemeManager($this->projectRoot))->getAvailable());
         $appName    = $io->ask('Application name', 'TowerDNS')                  ?? 'TowerDNS';
         $appDomain  = $io->ask('Domain (optional, e.g. tower.example.com)', '') ?? '';
-        $appTheme   = $io->ask('Theme name', 'default')                         ?? 'default';
+        $appTheme   = (string) $io->choice('Theme', $themeNames, 'default');
         $appHttps   = $io->confirm('Force HTTPS (HSTS)', true);
         $sentryDsn  = $io->ask('Sentry DSN (leave blank to skip)', '')                                           ?? '';
         $mailerDsn  = $io->ask('Mailer DSN (e.g. smtp://user:pass@smtp.example.com:587, or blank for none)', '') ?? '';

@@ -58,7 +58,7 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
             return $this->handlePost($request, $guard);
         }
 
-        return $this->renderForm($request, $guard->generateToken());
+        return $this->renderForm($request, $user, $guard->generateToken());
     }
 
     private function handlePost(ServerRequestInterface $request, CsrfGuardInterface $guard): ResponseInterface
@@ -138,7 +138,7 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
         return new RedirectResponse('/credentials?success=' . rawurlencode('Zugangsdaten gespeichert.'));
     }
 
-    private function renderForm(ServerRequestInterface $request, string $csrfToken): ResponseInterface
+    private function renderForm(ServerRequestInterface $request, User $user, string $csrfToken): ResponseInterface
     {
         $query   = $request->getQueryParams();
         $error   = isset($query['error']) ? (string) $query['error'] : null;
@@ -164,6 +164,7 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
         ];
 
         return new HtmlResponse($this->renderer->render('app::credentials', [
+            'user'       => $user,
             'active'     => 'credentials',
             'csrfToken'  => $csrfToken,
             'configured' => $configured,

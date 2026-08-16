@@ -1,0 +1,1 @@
+<script lang="ts">let {value}:{value:number|null}=$props();</script>{#if value!==null}<div class="strength" data-score={value}><span style={`width:${(value+1)*20}%`}></span></div><p class="help">{['Sehr schwach','Schwach','Okay','Stark','Sehr stark'][value]}</p>{/if}

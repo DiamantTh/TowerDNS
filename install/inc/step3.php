@@ -82,7 +82,6 @@ function processStep3(): array
         // ── Runtime-Verzeichnisse anlegen ─────────────────────────────────────
         foreach ([
             PROJECT_ROOT . '/configs'         => 0o750,
-            PROJECT_ROOT . '/cache/twig'      => 0o750,
             PROJECT_ROOT . '/cache/ratelimit' => 0o750,
             PROJECT_ROOT . '/data'            => 0o750,
             PROJECT_ROOT . '/logs'            => 0o750,

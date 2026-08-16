@@ -1,0 +1,7 @@
+{
+  "name": "Modern",
+  "description": "Helles, neutrales Skeleton-Theme mit weichen Kontrasten.",
+  "version": "1.0.0",
+  "framework": "skeleton-5+svelte-5",
+  "skeleton_theme": "modern"
+}

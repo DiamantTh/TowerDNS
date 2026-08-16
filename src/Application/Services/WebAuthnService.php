@@ -103,8 +103,10 @@ final readonly class WebAuthnService
         $factory = new CeremonyStepManagerFactory();
         $factory->setAllowedOrigins(['https://' . $this->rpId]);
 
-        return AuthenticatorAttestationResponseValidator::create($factory->creationCeremony())
+        $record = AuthenticatorAttestationResponseValidator::create($factory->creationCeremony())
             ->check($credential->response, $options, $this->rpId);
+
+        return PublicKeyCredentialSource::fromCredentialRecord($record);
     }
 
     // ── Authentication ────────────────────────────────────────────────────────
@@ -155,8 +157,10 @@ final readonly class WebAuthnService
         $factory = new CeremonyStepManagerFactory();
         $factory->setAllowedOrigins(['https://' . $this->rpId]);
 
-        return AuthenticatorAssertionResponseValidator::create($factory->requestCeremony())
+        $record = AuthenticatorAssertionResponseValidator::create($factory->requestCeremony())
             ->check($source, $credential->response, $options, $this->rpId, $userHandle);
+
+        return PublicKeyCredentialSource::fromCredentialRecord($record);
     }
 
     // ── Serialization helpers ─────────────────────────────────────────────────

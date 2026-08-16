@@ -1,0 +1,7 @@
+{
+  "name": "Terminus",
+  "description": "Kontrastreiches Terminal-Theme für technische Oberflächen.",
+  "version": "1.0.0",
+  "framework": "skeleton-5+svelte-5",
+  "skeleton_theme": "terminus"
+}

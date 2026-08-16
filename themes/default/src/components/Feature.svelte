@@ -1,0 +1,1 @@
+<script lang="ts">let {title,text,href}:{title:string,text:string,href:string}=$props();</script><article class="feature-card"><span class="feature-icon">◆</span><h2>{title}</h2><p>{text}</p><a class="button is-primary" {href}>Öffnen</a></article>

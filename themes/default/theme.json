@@ -1,0 +1,7 @@
+{
+  "name": "TowerDNS Default",
+  "description": "Klares blaues Skeleton-Theme für den täglichen Betrieb.",
+  "version": "1.0.0",
+  "framework": "skeleton-5+svelte-5",
+  "skeleton_theme": "cerberus"
+}

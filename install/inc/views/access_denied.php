@@ -8,14 +8,14 @@ http_response_code(403);
 $wrongToken = isset($_POST['install_token']) && $_POST['install_token'] !== '';
 ?><!DOCTYPE html>
 <html lang="<?= e(str_replace('_', '-', (string) ($GLOBALS['_installer_locale'] ?? 'en-GB'))) ?>"
-      data-theme="light">
+      data-theme="cerberus">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <meta name="color-scheme" content="light">
     <title><?= e(t('access.title')) ?> — TowerDNS</title>
-    <link rel="stylesheet" href="../../assets/css/bulma.min.css">
-    <link rel="icon" type="image/svg+xml" href="../../assets/img/favicon.svg">
+    <script src="/assets/theme-init.bundle.js"></script>
+    <link rel="stylesheet" href="/assets/app.css">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <style>
         :root { color-scheme: light; }
         body { background: linear-gradient(135deg,#e3f0ff 0%,#e8f5e9 100%); min-height: 100vh; }
@@ -27,7 +27,7 @@ $wrongToken = isset($_POST['install_token']) && $_POST['install_token'] !== '';
 <section class="section">
     <div class="token-card">
         <div class="has-text-centered mb-5">
-            <img src="../../assets/img/favicon.svg" alt="TowerDNS" width="64" height="64">
+            <img src="/favicon.svg" alt="TowerDNS" width="64" height="64">
             <h1 class="title is-4 mt-2" style="color:#1565c0">TowerDNS — <?= e(t('layout.title')) ?></h1>
         </div>
 
@@ -69,5 +69,6 @@ $wrongToken = isset($_POST['install_token']) && $_POST['install_token'] !== '';
         </div>
     </div>
 </section>
+<script type="module" src="/assets/app.bundle.js"></script>
 </body>
 </html>

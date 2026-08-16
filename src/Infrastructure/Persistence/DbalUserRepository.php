@@ -33,7 +33,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findById(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, display_name FROM users WHERE id = ? AND active = 1',
+            'SELECT id, email, display_name, theme FROM users WHERE id = ? AND active = 1',
             [$id],
         );
 
@@ -46,13 +46,14 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             (string) ($raw['email'] ?? ''),
             $this->loadRolesForUser((string) ($raw['id'] ?? '')),
             isset($raw['display_name']) && $raw['display_name'] !== '' ? (string) $raw['display_name'] : null,
+            (string) ($raw['theme'] ?? 'system'),
         );
     }
 
     public function findByEmail(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, display_name FROM users WHERE email = ? AND active = 1',
+            'SELECT id, email, display_name, theme FROM users WHERE email = ? AND active = 1',
             [$email],
         );
 
@@ -65,6 +66,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             (string) ($raw['email'] ?? ''),
             $this->loadRolesForUser((string) ($raw['id'] ?? '')),
             isset($raw['display_name']) && $raw['display_name'] !== '' ? (string) $raw['display_name'] : null,
+            (string) ($raw['theme'] ?? 'system'),
         );
     }
 
@@ -116,6 +118,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             'password_hash' => $passwordHash,
             'totp_secret'   => null,
             'active'        => true,
+            'theme'         => 'system',
             'created_at'    => $now,
             'updated_at'    => $now,
         ]);
@@ -145,6 +148,18 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         );
     }
 
+    public function updateTheme(string $userId, string $theme): void
+    {
+        $this->connection->update(
+            'users',
+            [
+                'theme'      => $theme,
+                'updated_at' => $this->clock->now()->format('Y-m-d H:i:s'),
+            ],
+            ['id' => $userId],
+        );
+    }
+
     public function syncRoles(string $userId, array $roleIds): void
     {
         $this->connection->beginTransaction();
@@ -169,7 +184,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findAll(): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, email, display_name FROM users WHERE active = 1 ORDER BY email',
+            'SELECT id, email, display_name, theme FROM users WHERE active = 1 ORDER BY email',
         );
 
         if ($rows === []) {
@@ -191,6 +206,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
                 (string) ($row['email'] ?? ''),
                 $rolesByUser[$uid] ?? [],
                 $dn,
+                (string) ($row['theme'] ?? 'system'),
             );
         }
 

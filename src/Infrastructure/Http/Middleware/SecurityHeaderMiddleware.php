@@ -28,9 +28,9 @@ final class SecurityHeaderMiddleware implements MiddlewareInterface
             ->withHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
             ->withHeader('Content-Security-Policy', implode('; ', [
                 "default-src 'self'",
-                "style-src 'self' https://cdn.jsdelivr.net",
-                "font-src 'self' https://cdn.jsdelivr.net",
-                "script-src 'self' 'unsafe-inline'",
+                "style-src 'self' 'unsafe-inline'",
+                "font-src 'self'",
+                "script-src 'self'",
                 "img-src 'self' data:",
                 "connect-src 'self'",
                 "frame-ancestors 'none'",

@@ -71,6 +71,12 @@ interface UserRepositoryInterface
     public function updateDisplayName(string $userId, string $displayName): void;
 
     /**
+     * Stores the user's visual theme preference. "system" inherits the
+     * globally configured theme.
+     */
+    public function updateTheme(string $userId, string $theme): void;
+
+    /**
      * Atomically replaces the full set of roles assigned to a user.
      * All roles not present in $roleIds are unassigned.
      *

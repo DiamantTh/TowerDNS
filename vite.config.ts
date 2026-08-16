@@ -3,23 +3,22 @@
 
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
+import tailwindcss from '@tailwindcss/vite'
 
-// Jede Svelte-App (Seiten-Bereich) ist ein eigener Entry-Point.
-// Output: themes/default/js/<name>.bundle.js — von PHP-Templates eingebunden.
+// Svelte renders the complete application UI from the server bootstrap.
 export default defineConfig({
-    plugins: [svelte()],
+    plugins: [tailwindcss(), svelte()],
     build: {
         outDir: 'httpdocs/assets',
-        emptyOutDir: false,
+        emptyOutDir: true,
         rollupOptions: {
             input: {
-                records: 'themes/default/src/records/main.ts',
-                pwtools: 'themes/default/src/pwtools/main.ts',
-                // weitere Bereiche bei Bedarf
+                app: 'themes/default/src/app/main.ts',
+                'theme-init': 'themes/default/src/app/theme-init.ts',
             },
             output: {
                 entryFileNames: '[name].bundle.js',
-                chunkFileNames: '[name].chunk.js',
+                chunkFileNames: '[name]-[hash].chunk.js',
                 assetFileNames: '[name][extname]',
             },
         },

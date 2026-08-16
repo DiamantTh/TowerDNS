@@ -1,0 +1,1 @@
+<script lang="ts">let {title,text,href}:{title:string,text:string,href:string}=$props();</script><article class="setting-row"><div><strong>{title}</strong><p class="muted">{text}</p></div><a class="button" {href}>Verwalten</a></article>

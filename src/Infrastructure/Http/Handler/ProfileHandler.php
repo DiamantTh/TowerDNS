@@ -17,6 +17,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Auth\User;
 
 /**
@@ -32,6 +33,7 @@ final readonly class ProfileHandler implements RequestHandlerInterface
         private TemplateRendererInterface              $renderer,
         private UserRepositoryInterface               $users,
         private WebAuthnCredentialRepositoryInterface $webauthn,
+        private ThemeManager                          $themes,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -54,9 +56,16 @@ final readonly class ProfileHandler implements RequestHandlerInterface
             }
 
             $displayName = trim((string) ($body['display_name'] ?? ''));
-            $this->users->updateDisplayName($currentUser->id, $displayName);
+            $theme       = trim((string) ($body['theme'] ?? 'system'));
 
-            return new RedirectResponse('/profile?success=' . rawurlencode('Anzeigename aktualisiert.'));
+            if ($theme !== 'system' && !$this->themes->has($theme)) {
+                return new RedirectResponse('/profile?error=' . rawurlencode('Das ausgewählte Theme ist nicht installiert oder ungültig.'));
+            }
+
+            $this->users->updateDisplayName($currentUser->id, $displayName);
+            $this->users->updateTheme($currentUser->id, $theme);
+
+            return new RedirectResponse('/profile?success=' . rawurlencode('Profileinstellungen aktualisiert.'));
         }
 
         // ── GET ───────────────────────────────────────────────────────────

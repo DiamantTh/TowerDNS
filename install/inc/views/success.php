@@ -13,14 +13,14 @@ $result = $_SESSION['install_result'] ?? [];
 unset($_SESSION['install_result']);
 ?><!DOCTYPE html>
 <html lang="<?= e(str_replace('_', '-', (string) ($GLOBALS['_installer_locale'] ?? 'en-GB'))) ?>"
-      data-theme="light">
+      data-theme="cerberus">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <meta name="color-scheme" content="light">
     <title><?= e(t('success.heading')) ?> — TowerDNS</title>
-    <link rel="stylesheet" href="../../assets/css/bulma.min.css">
-    <link rel="icon" type="image/svg+xml" href="../../assets/img/favicon.svg">
+    <script src="/assets/theme-init.bundle.js"></script>
+    <link rel="stylesheet" href="/assets/app.css">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <style>
         :root { color-scheme: light; }
         body { background: #f5f5f5; }
@@ -72,5 +72,6 @@ unset($_SESSION['install_result']);
 
     </div>
 </div>
+<script type="module" src="/assets/app.bundle.js"></script>
 </body>
 </html>

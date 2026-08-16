@@ -17,6 +17,7 @@ final readonly class User
         public string $email,
         public array $roles = [],
         public ?string $displayName = null,
+        public string $theme = 'system',
     ) {}
 
     public function hasPermission(Permission $permission): bool

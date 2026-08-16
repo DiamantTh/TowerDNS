@@ -448,6 +448,7 @@ ob_start();
                 </label>
                 <div class="control"><input class="input" type="password" name="admin_pass"
                      required minlength="16" autocomplete="new-password" id="admin_pass"></div>
+                <div data-password-strength="admin_pass"></div>
             </div>
         </div>
         <div class="column">

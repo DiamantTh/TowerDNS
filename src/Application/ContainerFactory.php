@@ -44,8 +44,6 @@ use Mezzio\Session\SessionMiddleware;
 use Mezzio\Session\SessionMiddlewareFactory;
 use Mezzio\Session\SessionPersistenceInterface;
 use Mezzio\Template\TemplateRendererInterface;
-use Mezzio\Twig\TwigEnvironmentFactory;
-use Mezzio\Twig\TwigRendererFactory;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -78,8 +76,8 @@ use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
+use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Infrastructure\Clock\SystemClock;
-use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
@@ -102,8 +100,8 @@ use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
 use TowerDNS\Infrastructure\Provider\Inwx\InwxProvider;
 use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
 use TowerDNS\Infrastructure\Provider\ProviderAccountAdapterFactory;
-use TowerDNS\Infrastructure\Twig\TranslatorExtension;
-use Twig\Environment;
+use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
+use TowerDNS\Infrastructure\Ui\SvelteRenderer;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
 use Webauthn\Denormalizer\WebauthnSerializerFactory;
@@ -132,7 +130,8 @@ final class ContainerFactory
         $provConf = $loadToml('providers.toml');
 
         $debug           = (bool) ($appConf['app']['debug'] ?? false);
-        $twigCacheActive = !$debug;
+        $configuredTheme = (string) ($appConf['theme']['name'] ?? 'default');
+        $themeManager    = new ThemeManager($projectRoot, $configuredTheme);
 
         // ── Build DI container ────────────────────────────────────────────────
         $builder = new ContainerBuilder();
@@ -141,20 +140,8 @@ final class ContainerFactory
         $builder->addDefinitions([
             // ── Application config consumed by Mezzio factories ───────────────
             'config' => [
-                'debug'     => $debug,
-                'mezzio'    => [],
-                'templates' => [
-                    'extension' => 'html.twig',
-                    'paths'     => [
-                        'app'   => [$projectRoot . '/templates/app'],
-                        'error' => [$projectRoot . '/templates/error'],
-                    ],
-                ],
-                'twig' => [
-                    'cache_dir'   => $projectRoot . '/cache/twig',
-                    'debug'       => $debug,
-                    'auto_reload' => $debug,
-                ],
+                'debug'   => $debug,
+                'mezzio'  => [],
                 'session' => [
                     'persistence' => [
                         'ext' => [
@@ -266,8 +253,10 @@ final class ContainerFactory
             AuthorizationService::class     => \DI\autowire(),
             DnsManagementService::class     => \DI\autowire(),
             TotpService::class              => \DI\autowire(),
+            ThemeManager::class             => $themeManager,
             AuthenticationMiddleware::class => \DI\autowire(),
-            RequireAuthMiddleware::class    => \DI\autowire(),            WebAuthnService::class => \DI\factory(
+            RequireAuthMiddleware::class    => \DI\autowire(),
+            WebAuthnService::class          => \DI\factory(
                 static function (SerializerInterface $serializer) use ($appConf): WebAuthnService {
                     $app    = (array) ($appConf['app'] ?? []);
                     $rpId   = (string) ($app['hostname'] ?? 'localhost');
@@ -281,10 +270,12 @@ final class ContainerFactory
                     TemplateRendererInterface          $renderer,
                     AuthorizationService               $authz,
                     SystemSettingsRepositoryInterface  $settings,
+                    ThemeManager                       $themes,
                 ): SystemSettingsHandler => new SystemSettingsHandler(
                     $renderer,
                     $authz,
                     $settings,
+                    $themes,
                     $projectRoot . '/configs/config.local.toml',
                 )
             ),
@@ -364,7 +355,7 @@ final class ContainerFactory
                     $settings = $c->get(SystemSettingsRepositoryInterface::class);
                     return new PasswordPolicy(
                         (int) $settings->get('security.password.min_length', PasswordPolicy::DEFAULT_MIN_LENGTH),
-                        (int) $settings->get('security.password.min_score',  PasswordPolicy::DEFAULT_MIN_SCORE),
+                        (int) $settings->get('security.password.min_score', PasswordPolicy::DEFAULT_MIN_SCORE),
                         $c->get(BreachedPasswordCheckerInterface::class),
                     );
                 }
@@ -483,16 +474,8 @@ final class ContainerFactory
             ),
 
             // ── Twig ──────────────────────────────────────────────────────────
-            Environment::class => \DI\factory(
-                static function (\Psr\Container\ContainerInterface $c) use ($twigCacheActive): Environment {
-                    $env = (new TwigEnvironmentFactory())($c);
-                    $env->addGlobal('twig_cache_active', $twigCacheActive);
-                    $env->addExtension($c->get(TranslatorExtension::class));
-                    return $env;
-                }
-            ),
             TemplateRendererInterface::class => \DI\factory(
-                static fn(\Psr\Container\ContainerInterface $c): \Mezzio\Twig\TwigRenderer => (new TwigRendererFactory())($c)
+                static fn(): SvelteRenderer => new SvelteRenderer($themeManager, $debug)
             ),
         ]);
 

@@ -38,7 +38,7 @@ function rmDirRecursive(string $dir): bool
     return rmdir($dir);
 }
 
-/** Verfügbare Themes aus dem themes-Verzeichnis ermitteln */
+/** Verfügbare und valide Themes aus dem themes-Verzeichnis ermitteln. */
 function getAvailableThemes(): array
 {
     $themesDir = PROJECT_ROOT . '/themes';
@@ -48,8 +48,26 @@ function getAvailableThemes(): array
 
     $themes = [];
     foreach (new DirectoryIterator($themesDir) as $entry) {
-        if ($entry->isDir() && !$entry->isDot()) {
-            $themes[] = $entry->getFilename();
+        if (!$entry->isDir() || $entry->isDot()) {
+            continue;
+        }
+
+        $name = $entry->getFilename();
+        if (preg_match('/\A[a-z0-9][a-z0-9_-]{0,63}\z/', $name) !== 1) {
+            continue;
+        }
+
+        $manifest = $entry->getPathname() . '/theme.json';
+        $raw      = is_file($manifest) ? file_get_contents($manifest) : false;
+        /** @var mixed $meta */
+        $meta = is_string($raw) ? json_decode($raw, true) : null;
+
+        if (is_array($meta)
+            && isset($meta['skeleton_theme'])
+            && is_string($meta['skeleton_theme'])
+            && preg_match('/\A[a-z0-9][a-z0-9_-]{0,63}\z/', $meta['skeleton_theme']) === 1
+        ) {
+            $themes[] = $name;
         }
     }
 

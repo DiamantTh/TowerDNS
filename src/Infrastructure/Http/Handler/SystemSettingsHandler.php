@@ -19,6 +19,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -34,6 +35,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         private TemplateRendererInterface         $renderer,
         private AuthorizationService              $authz,
         private SystemSettingsRepositoryInterface $settings,
+        private ThemeManager                      $themes,
         private string                            $configPath,
     ) {}
 
@@ -153,6 +155,21 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         }
         if ($themeName === '') {
             $themeName = 'default';
+        }
+        if (!$this->themes->has($themeName)) {
+            $fields               = $this->readFields();
+            $fields['theme_name'] = $themeName;
+
+            return new HtmlResponse(
+                $this->renderer->render('app::settings', [
+                    'user'      => $user,
+                    'fields'    => $fields,
+                    'error'     => 'Das ausgewählte Theme ist nicht installiert oder ungültig.',
+                    'success'   => null,
+                    'csrfToken' => $csrfToken,
+                ]),
+                422,
+            );
         }
         if ($mailerDsn === '') {
             $mailerDsn = 'null://null';

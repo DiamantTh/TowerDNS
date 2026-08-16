@@ -22,13 +22,14 @@ $errors       ??= [];
 $stepLabels   ??= [];
 $displayStep  ??= 1;
 ?><!DOCTYPE html>
-<html lang="<?= e($locale) ?>" data-theme="light">
+<html lang="<?= e($locale) ?>" data-theme="cerberus">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <meta name="color-scheme" content="light">
     <title><?= e($pageTitle ?? 'TowerDNS — ' . t('layout.title')) ?></title>
-    <link rel="stylesheet" href="../../assets/css/bulma.min.css">
+    <script src="/assets/theme-init.bundle.js"></script>
+    <link rel="stylesheet" href="/assets/app.css">
     <link rel="icon" type="image/svg+xml" href="../../assets/img/favicon.svg">
     <style>
         :root { --primary: #1565c0; --primary-dark: #0d47a1; color-scheme: light; }
@@ -103,5 +104,6 @@ $displayStep  ??= 1;
 
     </div>
 </div>
+<script type="module" src="/assets/app.bundle.js"></script>
 </body>
 </html>
