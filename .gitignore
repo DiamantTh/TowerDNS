@@ -15,7 +15,6 @@ composer.lock
 .php-cs-fixer.cache
 build/
 coverage/
-httpdocs/assets/
 # Runtime / generated files
 cache/
 logs/
