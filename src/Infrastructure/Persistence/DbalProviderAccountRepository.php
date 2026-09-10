@@ -11,9 +11,9 @@ use Doctrine\DBAL\Connection;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Domain\Account\ProviderAccount;
 
-final class DbalProviderAccountRepository implements ProviderAccountRepositoryInterface
+final readonly class DbalProviderAccountRepository implements ProviderAccountRepositoryInterface
 {
-    public function __construct(private readonly Connection $connection) {}
+    public function __construct(private Connection $connection) {}
 
     public function findById(int $id): ?ProviderAccount
     {
@@ -85,7 +85,7 @@ final class DbalProviderAccountRepository implements ProviderAccountRepositoryIn
         $this->connection->update(
             'provider_accounts',
             ['last_used_at' => $timestamp],
-            ['id'           => $id]
+            ['id' => $id]
         );
     }
 
@@ -94,7 +94,7 @@ final class DbalProviderAccountRepository implements ProviderAccountRepositoryIn
         $this->connection->update(
             'provider_accounts',
             ['last_tested_at' => $timestamp],
-            ['id'             => $id]
+            ['id' => $id]
         );
     }
 
@@ -103,7 +103,7 @@ final class DbalProviderAccountRepository implements ProviderAccountRepositoryIn
         $this->connection->update(
             'provider_accounts',
             ['is_active' => 0],
-            ['id'        => $id, 'account_id' => $accountId]
+            ['id' => $id, 'account_id' => $accountId]
         );
     }
 

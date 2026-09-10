@@ -10,7 +10,6 @@ configs/*.toml
 configs/config.php
 node_modules/
 .svelte-kit/
-composer.lock
 .phpunit.cache/
 .php-cs-fixer.cache
 build/

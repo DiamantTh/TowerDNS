@@ -11,16 +11,16 @@ use Doctrine\DBAL\Connection;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Domain\Auth\PasswordResetToken;
 
-final class DbalPasswordResetTokenRepository implements PasswordResetTokenRepositoryInterface
+final readonly class DbalPasswordResetTokenRepository implements PasswordResetTokenRepositoryInterface
 {
-    public function __construct(private readonly Connection $connection) {}
+    public function __construct(private Connection $connection) {}
 
     public function create(string $userId, string $tokenHash, string $expiresAt): void
     {
         $this->connection->insert('password_reset_tokens', [
             'user_id'    => $userId,
             'token_hash' => $tokenHash,
-            'created_at' => (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+            'created_at' => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
             'expires_at' => $expiresAt,
             'used_at'    => null,
         ]);
@@ -41,7 +41,7 @@ final class DbalPasswordResetTokenRepository implements PasswordResetTokenReposi
         $this->connection->update(
             'password_reset_tokens',
             ['used_at' => $usedAt],
-            ['id'      => $id]
+            ['id' => $id]
         );
     }
 

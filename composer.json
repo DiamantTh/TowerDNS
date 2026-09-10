@@ -11,7 +11,9 @@
         "bjeavons/zxcvbn-php": "^1.4",
         "devium/toml": "^1.0",
         "doctrine/dbal": "^3.7",
+        "google/apiclient": "^2.19",
         "guzzlehttp/guzzle": "^7.8",
+        "inwx/domrobot": "^3.6",
         "laminas/laminas-diactoros": "^3.5",
         "laminas/laminas-filter": "^2.35",
         "laminas/laminas-i18n": "^2.28",
@@ -24,6 +26,7 @@
         "mezzio/mezzio-session": "^1.10",
         "mezzio/mezzio-session-ext": "^1.6",
         "monolog/monolog": "^3.0",
+        "ovh/ovh": "^3.5",
         "php-di/php-di": "^7.1",
         "psr/clock": "^1.0",
         "psr/log": "^3.0",
@@ -36,10 +39,11 @@
         "web-auth/webauthn-lib": "^5.2"
     },
     "require-dev": {
-        "friendsofphp/php-cs-fixer": "^3.75",
-        "phpstan/phpstan": "2.1.51",
+        "friendsofphp/php-cs-fixer": "^3.95",
+        "phpstan/phpstan": "2.2.13",
         "phpunit/phpunit": "^11.0",
-        "rector/rector": "2.4.2"
+        "rector/rector": "2.6.6",
+        "symfony/polyfill-iconv": "^1.37"
     },
     "autoload": {
         "psr-4": {
@@ -51,12 +55,15 @@
             "TowerDNS\\Tests\\": "tests/"
         }
     },
+    "bin": [
+        "bin/towerdns"
+    ],
     "scripts": {
         "phpstan": "phpstan analyse --configuration=phpstan.neon",
         "lint":    "find src tests -name '*.php' -exec php -l {} \\;",
         "test":    "phpunit",
-        "cs":      "PHP_CS_FIXER_IGNORE_ENV=1 php-cs-fixer fix",
-        "cs-check": "PHP_CS_FIXER_IGNORE_ENV=1 php-cs-fixer fix --dry-run --diff",
+        "cs":      "php-cs-fixer fix",
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
         "rector":  "rector process",
         "rector-check": "rector process --dry-run",
         "analyse": "@phpstan",

@@ -20,6 +20,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 
 /**
  * GET+POST /credentials — provider credential management.
@@ -38,6 +39,7 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
         private TemplateRendererInterface $renderer,
         private AuthorizationService $authz,
         private string $credentialsPath,
+        private DnsProviderFactory $providerFactory,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -76,55 +78,21 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
         // Load current state
         $config = $this->loadConfig();
 
-        switch ($provider) {
-            case 'desec':
-                $token = trim((string) ($body['desec_token'] ?? ''));
-                if ($token !== '') {
-                    $config['providers']['desec'] = ['token' => $token];
-                } else {
-                    unset($config['providers']['desec']);
-                }
-                break;
-
-            case 'powerdns':
-                $baseUrl  = trim((string) ($body['powerdns_base_url'] ?? ''));
-                $apiKey   = trim((string) ($body['powerdns_api_key'] ?? ''));
-                $serverId = trim((string) ($body['powerdns_server_id'] ?? 'localhost'));
-                if ($baseUrl !== '' && $apiKey !== '') {
-                    $config['providers']['powerdns'] = [
-                        'base_url'  => $baseUrl,
-                        'api_key'   => $apiKey,
-                        'server_id' => $serverId !== '' ? $serverId : 'localhost',
-                    ];
-                } else {
-                    unset($config['providers']['powerdns']);
-                }
-                break;
-
-            case 'cloudflare':
-                $apiToken = trim((string) ($body['cloudflare_api_token'] ?? ''));
-                if ($apiToken !== '') {
-                    $config['providers']['cloudflare'] = ['api_token' => $apiToken];
-                } else {
-                    unset($config['providers']['cloudflare']);
-                }
-                break;
-
-            case 'inwx':
-                $username = trim((string) ($body['inwx_username'] ?? ''));
-                $password = trim((string) ($body['inwx_password'] ?? ''));
-                if ($username !== '' && $password !== '') {
-                    $config['providers']['inwx'] = [
-                        'username' => $username,
-                        'password' => $password,
-                    ];
-                } else {
-                    unset($config['providers']['inwx']);
-                }
-                break;
-
-            default:
-                return new RedirectResponse('/credentials?error=' . rawurlencode('Unbekannter Provider.'));
+        $credentials = $this->providerFactory->credentialsFromInput($provider, $body);
+        if ($credentials === null) {
+            return new RedirectResponse('/credentials?error=' . rawurlencode('Unbekannter Provider.'));
+        }
+        $stored     = (array) ($config['providers'][$provider] ?? []);
+        $definition = $this->providerFactory->definitions()[$provider];
+        foreach ($definition['credentials'] as $key => $field) {
+            if ($field['secret'] && $credentials[$key] === '' && isset($stored[$key])) {
+                $credentials[$key] = (string) $stored[$key];
+            }
+        }
+        if ($this->providerFactory->credentialsComplete($provider, $credentials)) {
+            $config['providers'][$provider] = $credentials;
+        } else {
+            return new RedirectResponse('/credentials?error=' . rawurlencode('Credentials unvollständig.'));
         }
 
         try {
@@ -148,29 +116,27 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
         $providers = (array) ($config['providers'] ?? []);
 
         // Expose only non-sensitive metadata (no plain-text secrets in template)
-        $configured = [
-            'desec'      => isset($providers['desec']['token']),
-            'powerdns'   => isset($providers['powerdns']['base_url']),
-            'cloudflare' => isset($providers['cloudflare']['api_token']),
-            'inwx'       => isset($providers['inwx']['username']),
-        ];
-
-        $values = [
-            'desec_token'          => '',
-            'powerdns_base_url'    => (string) ($providers['powerdns']['base_url'] ?? ''),
-            'powerdns_server_id'   => (string) ($providers['powerdns']['server_id'] ?? 'localhost'),
-            'cloudflare_api_token' => '',
-            'inwx_username'        => (string) ($providers['inwx']['username'] ?? ''),
-        ];
+        $configured = [];
+        $values     = [];
+        foreach ($this->providerFactory->definitions() as $id => $definition) {
+            $stored          = (array) ($providers[$id] ?? []);
+            $configured[$id] = $this->providerFactory->credentialsComplete($id, $stored);
+            foreach ($definition['credentials'] as $key => $field) {
+                $values[$field['input']] = $field['secret']
+                    ? ''
+                    : (string) ($stored[$key] ?? $field['default'] ?? '');
+            }
+        }
 
         return new HtmlResponse($this->renderer->render('app::credentials', [
-            'user'       => $user,
-            'active'     => 'credentials',
-            'csrfToken'  => $csrfToken,
-            'configured' => $configured,
-            'values'     => $values,
-            'error'      => $error,
-            'success'    => $success,
+            'user'                => $user,
+            'active'              => 'credentials',
+            'csrfToken'           => $csrfToken,
+            'configured'          => $configured,
+            'values'              => $values,
+            'providerDefinitions' => $this->providerFactory->definitions(),
+            'error'               => $error,
+            'success'             => $success,
         ]));
     }
 

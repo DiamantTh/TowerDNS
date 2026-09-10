@@ -78,6 +78,10 @@ use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Infrastructure\Clock\SystemClock;
+use TowerDNS\Infrastructure\Console\InstallCommand;
+use TowerDNS\Infrastructure\Console\PasswordResetCommand;
+use TowerDNS\Infrastructure\Console\RecordListCommand;
+use TowerDNS\Infrastructure\Console\ZoneListCommand;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
@@ -94,11 +98,7 @@ use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\DbalZoneMembershipRepository;
-use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
-use TowerDNS\Infrastructure\Provider\DeSEC\DeSECApiClient;
-use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
-use TowerDNS\Infrastructure\Provider\Inwx\InwxProvider;
-use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
+use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 use TowerDNS\Infrastructure\Provider\ProviderAccountAdapterFactory;
 use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
 use TowerDNS\Infrastructure\Ui\SvelteRenderer;
@@ -132,6 +132,7 @@ final class ContainerFactory
         $debug           = (bool) ($appConf['app']['debug'] ?? false);
         $configuredTheme = (string) ($appConf['theme']['name'] ?? 'default');
         $themeManager    = new ThemeManager($projectRoot, $configuredTheme);
+        $providerFactory = new DnsProviderFactory();
 
         // ── Build DI container ────────────────────────────────────────────────
         $builder = new ContainerBuilder();
@@ -215,35 +216,15 @@ final class ContainerFactory
             AccountProviderFactoryInterface::class => \DI\autowire(ProviderAccountAdapterFactory::class),
 
             // ── Provider registry ─────────────────────────────────────────────
-            ProviderRegistry::class => \DI\factory(static function () use ($provConf): ProviderRegistry {
+            DnsProviderFactory::class => $providerFactory,
+            ProviderRegistry::class   => \DI\factory(static function () use ($provConf, $providerFactory): ProviderRegistry {
                 $registry  = new ProviderRegistry();
                 $providers = (array) ($provConf['providers'] ?? []);
 
-                if (isset($providers['desec']['token'])) {
-                    $registry->register(new DeSECProvider(new DeSECApiClient(
-                        (string) $providers['desec']['token']
-                    )));
-                }
-
-                if (isset($providers['powerdns']['base_url'], $providers['powerdns']['api_key'])) {
-                    $registry->register(new PowerDnsProvider(
-                        (string) $providers['powerdns']['base_url'],
-                        (string) $providers['powerdns']['api_key'],
-                        (string) ($providers['powerdns']['server_id'] ?? 'localhost'),
-                    ));
-                }
-
-                if (isset($providers['cloudflare']['api_token'])) {
-                    $registry->register(new CloudflareProvider(
-                        (string) $providers['cloudflare']['api_token']
-                    ));
-                }
-
-                if (isset($providers['inwx']['username'], $providers['inwx']['password'])) {
-                    $registry->register(new InwxProvider(
-                        (string) $providers['inwx']['username'],
-                        (string) $providers['inwx']['password'],
-                    ));
+                foreach ($providers as $type => $credentials) {
+                    if (is_string($type) && is_array($credentials) && $providerFactory->credentialsComplete($type, $credentials)) {
+                        $registry->register($providerFactory->build($type, $credentials));
+                    }
                 }
 
                 return $registry;
@@ -294,10 +275,15 @@ final class ContainerFactory
             ),
 
             ProviderCredentialsHandler::class => \DI\factory(
-                static fn(TemplateRendererInterface $renderer, AuthorizationService $authz): ProviderCredentialsHandler => new ProviderCredentialsHandler(
+                static fn(
+                    TemplateRendererInterface $renderer,
+                    AuthorizationService $authz,
+                    DnsProviderFactory $providerFactory,
+                ): ProviderCredentialsHandler => new ProviderCredentialsHandler(
                     $renderer,
                     $authz,
                     $projectRoot . '/configs/providers.toml',
+                    $providerFactory,
                 )
             ),            // ── PSR-16 cache (Symfony FilesystemAdapter) ──────────────────────
             CacheInterface::class => \DI\factory(
@@ -477,6 +463,16 @@ final class ContainerFactory
             TemplateRendererInterface::class => \DI\factory(
                 static fn(): SvelteRenderer => new SvelteRenderer($themeManager, $debug)
             ),
+
+            // ── Console commands ─────────────────────────────────────────────
+            InstallCommand::class => \DI\factory(
+                static fn(): InstallCommand => new InstallCommand($projectRoot)
+            ),
+            PasswordResetCommand::class => \DI\factory(
+                static fn(): PasswordResetCommand => new PasswordResetCommand($projectRoot)
+            ),
+            ZoneListCommand::class   => \DI\autowire(),
+            RecordListCommand::class => \DI\autowire(),
         ]);
 
         return $builder->build();

@@ -26,11 +26,11 @@ use TowerDNS\Domain\Auth\User;
  *   - System admins with Permission::USER_MANAGE bypass account checks entirely
  *     (this is the Admin-Switch path — must be audited separately)
  */
-final class PermissionService
+final readonly class PermissionService
 {
     public function __construct(
-        private readonly AccountRepositoryInterface       $accounts,
-        private readonly ZoneMembershipRepositoryInterface $zoneMemberships,
+        private AccountRepositoryInterface       $accounts,
+        private ZoneMembershipRepositoryInterface $zoneMemberships,
     ) {}
 
     // ── Account-level checks ──────────────────────────────────────────────────
@@ -51,25 +51,25 @@ final class PermissionService
 
     public function canViewAccount(int $accountId, User $user): bool
     {
-        return $this->getAccountRole($accountId, $user) !== null;
+        return $this->getAccountRole($accountId, $user) instanceof TeamRole;
     }
 
     public function canManageAccount(int $accountId, User $user): bool
     {
         $role = $this->getAccountRole($accountId, $user);
-        return $role !== null && $role->canManageAccount();
+        return $role instanceof TeamRole && $role->canManageAccount();
     }
 
     public function canManageMembers(int $accountId, User $user): bool
     {
         $role = $this->getAccountRole($accountId, $user);
-        return $role !== null && $role->canManageMembers();
+        return $role instanceof TeamRole && $role->canManageMembers();
     }
 
     public function canManageProviderAccounts(int $accountId, User $user): bool
     {
         $role = $this->getAccountRole($accountId, $user);
-        return $role !== null && $role->canManageProviderAccounts();
+        return $role instanceof TeamRole && $role->canManageProviderAccounts();
     }
 
     public function canDeleteAccount(int $accountId, User $user): bool
@@ -78,7 +78,7 @@ final class PermissionService
             return true;
         }
         $role = $this->getAccountRole($accountId, $user);
-        return $role !== null && $role->canDeleteAccount();
+        return $role instanceof TeamRole && $role->canDeleteAccount();
     }
 
     public function canViewAuditLog(int $accountId, User $user): bool
@@ -87,7 +87,7 @@ final class PermissionService
             return true;
         }
         $role = $this->getAccountRole($accountId, $user);
-        return $role !== null && $role->canViewAuditLog();
+        return $role instanceof TeamRole && $role->canViewAuditLog();
     }
 
     // ── Zone-level checks ─────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ final class PermissionService
 
         // Account-level role supersedes zone-level role
         $accountRole = $this->accounts->getEffectiveRole($accountId, $user->id);
-        if ($accountRole !== null) {
+        if ($accountRole instanceof TeamRole) {
             return $accountRole;
         }
 
@@ -122,13 +122,13 @@ final class PermissionService
     public function canViewZone(string $zoneId, int $accountId, User $user): bool
     {
         $role = $this->getZoneRole($zoneId, $accountId, $user);
-        return $role !== null && $role->canViewZone();
+        return $role instanceof TeamRole && $role->canViewZone();
     }
 
     public function canManageZoneRecords(string $zoneId, int $accountId, User $user): bool
     {
         $role = $this->getZoneRole($zoneId, $accountId, $user);
-        return $role !== null && $role->canManageZoneRecords();
+        return $role instanceof TeamRole && $role->canManageZoneRecords();
     }
 
     // ── Impersonation ─────────────────────────────────────────────────────────

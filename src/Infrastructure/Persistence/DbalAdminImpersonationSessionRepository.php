@@ -11,9 +11,9 @@ use Doctrine\DBAL\Connection;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Domain\Account\AdminImpersonationSession;
 
-final class DbalAdminImpersonationSessionRepository implements AdminImpersonationSessionRepositoryInterface
+final readonly class DbalAdminImpersonationSessionRepository implements AdminImpersonationSessionRepositoryInterface
 {
-    public function __construct(private readonly Connection $connection) {}
+    public function __construct(private Connection $connection) {}
 
     public function findById(string $id): ?AdminImpersonationSession
     {
@@ -26,7 +26,7 @@ final class DbalAdminImpersonationSessionRepository implements AdminImpersonatio
 
     public function findActiveForActor(string $actorUserId): ?AdminImpersonationSession
     {
-        $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+        $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
         $row = $this->connection->fetchAssociative(
             'SELECT * FROM admin_impersonation_sessions
              WHERE actor_user_id = ?
@@ -65,7 +65,7 @@ final class DbalAdminImpersonationSessionRepository implements AdminImpersonatio
         $this->connection->update(
             'admin_impersonation_sessions',
             ['ended_at' => $endedAt],
-            ['id'       => $id]
+            ['id' => $id]
         );
     }
 

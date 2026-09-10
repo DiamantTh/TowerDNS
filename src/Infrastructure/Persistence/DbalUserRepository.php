@@ -95,7 +95,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $this->connection->update(
             'users',
             ['totp_secret' => $secret, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')],
-            ['id'          => $userId],
+            ['id' => $userId],
         );
     }
 
@@ -104,7 +104,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $this->connection->update(
             'users',
             ['last_login_at' => $this->clock->now()->format('Y-m-d H:i:s')],
-            ['id'            => $userId],
+            ['id' => $userId],
         );
     }
 
@@ -295,13 +295,11 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $roleObjects = [];
         foreach ($urRows as $row) {
             $rid = (string) ($row['role_id'] ?? '');
-            if (!isset($roleObjects[$rid])) {
-                $roleObjects[$rid] = new Role(
-                    $rid,
-                    (string) ($row['role_name'] ?? ''),
-                    $permsByRole[$rid] ?? [],
-                );
-            }
+            $roleObjects[$rid] ??= new Role(
+                $rid,
+                (string) ($row['role_name'] ?? ''),
+                $permsByRole[$rid] ?? [],
+            );
         }
 
         // Map roles back to user IDs.

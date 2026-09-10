@@ -7,49 +7,26 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Provider\Inwx;
 
-use GuzzleHttp\Client;
-use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Cookie\CookieJar;
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
 
-/**
- * Thin JSON-RPC client for the INWX nameserver API.
- *
- * INWX uses a proprietary JSON-RPC dialect (no jsonrpc version field, no id
- * field in responses) at https://api.inwx.com/jsonrpc/. Sessions are managed
- * via the domrobot cookie set on successful login.
- *
- * A login/logout pair is performed transparently on each client creation.
- * This fits PHP-FPM's per-request execution model. For long-lived processes
- * the session remains valid until the server-side timeout (~1 h).
- *
- * @see https://www.inwx.de/de/api-documentation
- */
+use INWX\Domrobot;
+use INWX\CallFailedException;
+
+/** DNS-only facade over the maintained INWX Domrobot SDK. */
 final class InwxApiClient
 {
-    private const string API_URL = 'https://api.inwx.com/jsonrpc/';
-
-    private readonly ClientInterface $http;
-    private readonly CookieJar $jar;
+    private readonly Domrobot $sdk;
     private bool $loggedIn = false;
-    private int $requestId = 1;
 
     public function __construct(
         private readonly string $username,
         private readonly string $password,
-        ?ClientInterface $http = null,
+        ?Domrobot $sdk = null,
+        private readonly ?string $sharedSecret = null,
     ) {
         if ($username === '' || $password === '') {
             throw new InwxApiException('INWX-Benutzername und Passwort dürfen nicht leer sein.');
         }
-
-        $this->jar  = new CookieJar();
-        $this->http = $http ?? new Client([
-            'timeout'     => 30,
-            'http_errors' => false,
-            'cookies'     => $this->jar,
-        ]);
+        $this->sdk = $sdk ?? (new Domrobot())->useLive()->useJson()->setDebug(false);
     }
 
     // ── Zone operations ───────────────────────────────────────────────────────
@@ -158,14 +135,14 @@ final class InwxApiClient
             return;
         }
 
-        $response = $this->rawCall([
-            'method' => 'account.login',
-            'params' => [
-                'lang' => 'en',
-                'user' => $this->username,
-                'pass' => $this->password,
-            ],
-        ]);
+        try {
+            $response = $this->sdk->login($this->username, $this->password, $this->sharedSecret);
+        } catch (CallFailedException $e) {
+            throw new InwxApiException('INWX-Login konnte nicht ausgeführt werden.', 0, $e);
+        }
+        if (!empty($response['resData']['tfa']) && empty($this->sharedSecret)) {
+            throw new InwxApiException('INWX erfordert einen konfigurierten zweiten Faktor.');
+        }
 
         $code = (int) ($response['code'] ?? 0);
         if ($code !== 1000) {
@@ -187,10 +164,12 @@ final class InwxApiClient
      */
     private function call(string $method, array $params = []): array
     {
-        $response = $this->rawCall([
-            'method' => $method,
-            'params' => $params,
-        ]);
+        [$object, $operation] = explode('.', $method, 2);
+        try {
+            $response = $this->sdk->call($object, $operation, $params);
+        } catch (CallFailedException $e) {
+            throw new InwxApiException('INWX-DNS-Aufruf fehlgeschlagen: ' . $method, 0, $e);
+        }
 
         $code = (int) ($response['code'] ?? 0);
 
@@ -206,33 +185,4 @@ final class InwxApiClient
         return (array) ($response['resData'] ?? []);
     }
 
-    /**
-     * Perform a raw HTTP POST and return the decoded response body.
-     *
-     * @param array<string, mixed> $payload
-     * @return array<string, mixed>
-     */
-    private function rawCall(array $payload): array
-    {
-        $payload['id'] = $this->requestId++;
-
-        try {
-            $response = $this->http->request('POST', self::API_URL, [
-                RequestOptions::HEADERS => ['Content-Type' => 'application/json'],
-                RequestOptions::JSON    => $payload,
-                RequestOptions::COOKIES => $this->jar,
-            ]);
-        } catch (GuzzleException $e) {
-            throw new InwxApiException('INWX-Verbindungsfehler: ' . $e->getMessage(), 0, $e);
-        }
-
-        /** @var array<string, mixed> $decoded */
-        $decoded = json_decode((string) $response->getBody(), true) ?? [];
-
-        if ($decoded === []) {
-            throw new InwxApiException('INWX-API lieferte keine gültige JSON-Antwort.');
-        }
-
-        return $decoded;
-    }
 }

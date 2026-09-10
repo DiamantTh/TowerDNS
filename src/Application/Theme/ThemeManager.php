@@ -27,7 +27,7 @@ final class ThemeManager
     public function getActive(?string $preferredTheme = null): Theme
     {
         $requested = $preferredTheme;
-        if ($requested === null || $requested === '' || $requested === 'system') {
+        if (in_array($requested, [null, '', 'system'], true)) {
             $requested = $this->configuredTheme;
         }
 
@@ -58,20 +58,18 @@ final class ThemeManager
                 }
 
                 $theme = $this->readTheme($themesDir, $name);
-                if ($theme !== null) {
+                if ($theme instanceof Theme) {
                     $themes[$name] = $theme;
                 }
             }
         }
 
-        if (!isset($themes['default'])) {
-            $themes['default'] = new Theme(
-                'default',
-                'TowerDNS Default',
-                'Bundled fallback theme.',
-                'cerberus',
-            );
-        }
+        $themes['default'] ??= new Theme(
+            'default',
+            'TowerDNS Default',
+            'Bundled fallback theme.',
+            'cerberus',
+        );
 
         ksort($themes);
         $this->themes = $themes;

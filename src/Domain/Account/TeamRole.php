@@ -38,7 +38,7 @@ enum TeamRole: string
     {
         return match ($this) {
             self::OWNER, self::ADMIN => true,
-            default => false,
+            default                  => false,
         };
     }
 
@@ -46,7 +46,7 @@ enum TeamRole: string
     {
         return match ($this) {
             self::OWNER, self::ADMIN => true,
-            default => false,
+            default                  => false,
         };
     }
 
@@ -54,7 +54,7 @@ enum TeamRole: string
     {
         return match ($this) {
             self::OWNER, self::ADMIN => true,
-            default => false,
+            default                  => false,
         };
     }
 
@@ -62,7 +62,7 @@ enum TeamRole: string
     {
         return match ($this) {
             self::OWNER, self::ADMIN, self::DNS_MANAGER => true,
-            default => false,
+            default                                     => false,
         };
     }
 
@@ -77,7 +77,7 @@ enum TeamRole: string
     {
         return match ($this) {
             self::OWNER, self::ADMIN, self::AUDITOR => true,
-            default => false,
+            default                                 => false,
         };
     }
 

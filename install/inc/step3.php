@@ -58,7 +58,7 @@ function processStep3(): array
         $schemaManager->seedSystemSettingsDefaults();
 
         // ── Admin-Benutzer anlegen ────────────────────────────────────────
-        $now  = (new DateTime())->format('Y-m-d H:i:s');
+        $now  = new DateTime()->format('Y-m-d H:i:s');
         $hash = password_hash(
             $admin['password'],
             PASSWORD_ARGON2ID,

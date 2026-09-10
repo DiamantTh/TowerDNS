@@ -75,10 +75,10 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
         if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
             $user = $this->users->findByEmail($email);
 
-            if ($user !== null) {
+            if ($user instanceof \TowerDNS\Domain\Auth\User) {
                 $rawToken  = bin2hex(random_bytes(32)); // 64-char hex string
                 $tokenHash = hash('sha256', $rawToken);
-                $expiresAt = (new \DateTimeImmutable())
+                $expiresAt = new \DateTimeImmutable()
                     ->modify('+' . self::TOKEN_TTL_SECONDS . ' seconds')
                     ->format('Y-m-d H:i:s');
 

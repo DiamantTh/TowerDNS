@@ -25,15 +25,13 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
             [$userId],
         );
 
-        return array_map(static function (array $row): array {
-            return [
-                'id'         => (int) $row['id'],
-                'name'       => (string) $row['name'],
-                'created_at' => isset($row['created_at']) ? (string) $row['created_at'] : null,
-                'last_used'  => isset($row['last_used']) ? (string) $row['last_used'] : null,
-                'is_active'  => (bool) $row['is_active'],
-            ];
-        }, $rows);
+        return array_map(static fn(array $row): array => [
+            'id'         => (int) $row['id'],
+            'name'       => (string) $row['name'],
+            'created_at' => isset($row['created_at']) ? (string) $row['created_at'] : null,
+            'last_used'  => isset($row['last_used']) ? (string) $row['last_used'] : null,
+            'is_active'  => (bool) $row['is_active'],
+        ], $rows);
     }
 
     public function create(string $userId, string $name, string $keyHash, string $createdAt): int

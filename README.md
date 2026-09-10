@@ -18,7 +18,7 @@ Schwerpunkte:
 - Verwaltung von Zonen, Records, TTL, Kommentaren, Tags und Metadaten
 - Striktes Rollen- und Rechtesystem mit zentraler Pruefung in der Application-Schicht
 - DNSSEC als eigener fachlicher Bereich, nicht als Sonderbehandlung am Rand
-- Provideradapter fuer deSEC, PowerDNS, Cloudflare und INWX
+- Provideradapter fuer deSEC, PowerDNS, Cloudflare, INWX und Netcup CCP DNS
 
 ## Architektur
 
@@ -26,7 +26,7 @@ Layer:
 - UI: einheitliche Oberflaeche ohne direkte Anbieterlogik
 - Application/Core: providerneutrale Workflows, Validierung, Normalisierung und Rechtepruefung
 - Provider-Abstraktion: gemeinsamer Vertrag und capability-orientiertes Modell
-- Provider-Implementierungen: deSEC, PDNS, Cloudflare, INWX als getrennte Adapter
+- Provider-Implementierungen: deSEC, PDNS, Cloudflare, INWX und Netcup als getrennte Adapter
 - Domain-Modell: kanonische Darstellung von DNS-Objekten inklusive DNSSEC
 
 ## DNSSEC-Grundsatz
@@ -73,6 +73,9 @@ TowerDNS uebernimmt den Stack des Vorgaengerprojekts desec-manager und entwickel
 - Eingabevalidierung mit IDN-Normalisierung (`DnsNameValidator`) und Record-Pruefung (`RecordValidator`)
 - deSEC-Adapter funktional aus desec-manager portiert (`DeSECApiClient`, `DeSECProvider`)
 - PowerDNS-Adapter inkl. nativer DNSSEC-Steuerung (`cryptokeys`-API)
+- Netcup-CCP-DNS-Adapter fuer explizit konfigurierte Legacy-DNS-Zonen; er
+  arbeitet wegen Netcups Vollersetzungs-API konservativ als Read-Modify-Write
+  und unterstützt damit auch TLSA-Records
 - Cloudflare- und INWX-Adapter als Skelette mit korrekt deklarierten Capabilities
 - PHPUnit- und PHPStan-Konfiguration (Level 8), erste Tests fuer Validierung und Service
 - AGPL-3.0-or-later, durchgaengig SPDX-Header in allen PHP-Dateien
@@ -90,6 +93,31 @@ npm run build        # produktionsfertige Assets -> httpdocs/assets/
 Die gebauten Assets werden mit dem Release ausgeliefert; auf dem Zielsystem
 ist deshalb kein Node.js erforderlich. Mezzio liefert Seitendaten und
 CSRF-geschuetzte Endpunkte; Svelte rendert die gesamte Anwendung.
+
+## Kommandozeile
+
+TowerDNS stellt seine Verwaltungsbefehle über `bin/towerdns` bereit. Der
+Einstiegspunkt ist außerdem als Composer-Binary deklariert, sodass er bei einer
+Verwendung als Abhängigkeit unter `vendor/bin/towerdns` verfügbar ist.
+Die Commands werden dabei über denselben PHP-DI-Container wie die HTTP-Anwendung
+aufgelöst.
+
+```bash
+php bin/towerdns list --format=toml # außerdem: txt, json, xml, md
+php bin/towerdns              # interaktive Installation
+php bin/towerdns towerdns:user:password-reset admin@example.org --generate
+php bin/towerdns zone:list desec
+php bin/towerdns record:list desec example.org --format=json | jq '.records[]'
+```
+
+`record:list` erwartet stets den Zonennamen. TowerDNS löst ihn beim Provider
+auf dessen technische Zonen-ID auf; diese wird nur im strukturierten Output
+(`--format=json` oder `--format=toml`) ausgegeben.
+
+Globale Optionen: `-h`/`--help`, `-v`/`-V`/`--version` sowie `--verbose`.
+
+`php install/install-cli.php` bleibt für bestehende Installationsanleitungen als
+Weiterleitung erhalten.
 
 ## Themes
 

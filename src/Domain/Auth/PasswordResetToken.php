@@ -20,7 +20,7 @@ final readonly class PasswordResetToken
 
     public function isExpired(): bool
     {
-        return $this->expiresAt < (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+        return $this->expiresAt < new \DateTimeImmutable()->format('Y-m-d H:i:s');
     }
 
     public function isUsed(): bool

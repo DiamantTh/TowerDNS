@@ -18,9 +18,9 @@ use TowerDNS\Domain\Account\AuditLogEntry;
  * or admin actions MUST be recorded via this service.
  * NEVER include credentials or secrets in any parameter passed here.
  */
-final class AuditLogService
+final readonly class AuditLogService
 {
-    public function __construct(private readonly AuditLogRepositoryInterface $repository) {}
+    public function __construct(private AuditLogRepositoryInterface $repository) {}
 
     /**
      * Core write method. All other methods delegate here.
@@ -64,7 +64,7 @@ final class AuditLogService
             userAgent: $userAgent,
         );
 
-        $this->repository->append($entry, (new \DateTimeImmutable())->format('Y-m-d H:i:s'));
+        $this->repository->append($entry, new \DateTimeImmutable()->format('Y-m-d H:i:s'));
     }
 
     // ── Convenience wrappers ──────────────────────────────────────────────────

@@ -7,11 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Provider\PowerDNS;
 
-use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
-use GuzzleHttp\Exception\BadResponseException;
-use GuzzleHttp\Exception\GuzzleException;
-use GuzzleHttp\RequestOptions;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
@@ -21,7 +17,6 @@ use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
-use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /**
  * Adapter for the PowerDNS Authoritative Server HTTP API.
@@ -36,31 +31,15 @@ final class PowerDnsProvider extends AbstractDnsProvider
 {
     public const string ID = 'powerdns';
 
-    private readonly ClientInterface $http;
-
-    /**
-     * Whether the server supports EXTEND/PRUNE changetypes.
-     * True for PDNS ≥ 4.9.12 (stable branch) or ≥ 5.0.2.
-     * Lazily resolved via {@see supportsExtend()}.
-     */
-    private ?bool $supportsExtendFlag = null;
+    private readonly PowerDnsApiClient $client;
 
     public function __construct(
         string $baseUrl,
-        private readonly string $apiKey,
-        private readonly string $serverId = 'localhost',
+        string $apiKey,
+        string $serverId = 'localhost',
         ?ClientInterface $http = null,
     ) {
-        if ($baseUrl === '' || $this->apiKey === '') {
-            throw new ProviderRequestException('PowerDNS-Adapter benoetigt Basis-URL und API-Key.');
-        }
-
-        $this->http = $http ?? new Client([
-            'base_uri'    => rtrim($baseUrl, '/') . '/',
-            'timeout'     => 30,
-            'http_errors' => true,
-        ]);
-
+        $this->client = new PowerDnsApiClient($baseUrl, $apiKey, $serverId, $http);
         parent::__construct();
     }
 
@@ -102,7 +81,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     public function listZones(): array
     {
-        $rows  = $this->request('GET', $this->serverPath('zones'));
+        $rows  = $this->client->request('GET', $this->client->serverPath('zones'));
         $zones = [];
         foreach ((array) $rows as $row) {
             $zones[] = $this->mapZone((array) $row);
@@ -113,7 +92,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
     public function createZone(string $zoneName): Zone
     {
         $canonical = rtrim($zoneName, '.') . '.';
-        $row       = $this->request('POST', $this->serverPath('zones'), [
+        $row       = $this->client->request('POST', $this->client->serverPath('zones'), [
             'name'        => $canonical,
             'kind'        => 'Native',
             'nameservers' => [],
@@ -124,12 +103,12 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     public function deleteZone(string $zoneId): void
     {
-        $this->request('DELETE', $this->serverPath('zones/' . rawurlencode($zoneId)), null, false);
+        $this->client->request('DELETE', $this->client->serverPath('zones/' . rawurlencode($zoneId)), null, false);
     }
 
     public function listRecords(string $zoneId): array
     {
-        $row     = (array) $this->request('GET', $this->serverPath('zones/' . rawurlencode($zoneId)));
+        $row     = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
         $records = [];
         foreach ((array) ($row['rrsets'] ?? []) as $rrset) {
             $rrset = (array) $rrset;
@@ -137,7 +116,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
             if ($type === null) {
                 continue;
             }
-            $name = rtrim((string) ($rrset['name'] ?? ''), '.');
+            $name = $this->fromFqdn((string) ($rrset['name'] ?? ''), $zoneId);
             $ttl  = (int) ($rrset['ttl'] ?? 3600);
             foreach ((array) ($rrset['records'] ?? []) as $r) {
                 $r         = (array) $r;
@@ -158,7 +137,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     public function createRecord(Record $record): Record
     {
-        if ($this->supportsExtend()) {
+        if ($this->client->supportsExtend()) {
             $this->patchRrset(
                 $record->zoneId,
                 $record->name,
@@ -246,7 +225,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
             return;
         }
 
-        if ($this->supportsExtend()) {
+        if ($this->client->supportsExtend()) {
             // PRUNE removes specific records without touching the rest.
             $this->patchRrset($zoneId, $name, $typeStr, $rrset['ttl'], [
                 ['content' => $toRemove, 'disabled' => false],
@@ -261,9 +240,9 @@ final class PowerDnsProvider extends AbstractDnsProvider
         ));
 
         if ($remaining === []) {
-            $this->request('PATCH', $this->serverPath('zones/' . rawurlencode($zoneId)), [
+            $this->client->request('PATCH', $this->client->serverPath('zones/' . rawurlencode($zoneId)), [
                 'rrsets' => [[
-                    'name'       => rtrim($name, '.') . '.',
+                    'name'       => $this->toFqdn($name, $zoneId) . '.',
                     'type'       => strtoupper($typeStr),
                     'changetype' => 'DELETE',
                 ]],
@@ -282,8 +261,8 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     public function getDnssecProfile(string $zoneId): DnssecProfile
     {
-        $zone = (array) $this->request('GET', $this->serverPath('zones/' . rawurlencode($zoneId)));
-        $keys = (array) $this->request('GET', $this->serverPath('zones/' . rawurlencode($zoneId) . '/cryptokeys'));
+        $zone = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
+        $keys = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId) . '/cryptokeys'));
 
         $signed = (bool) ($zone['dnssec'] ?? false);
         $state  = $signed ? DnssecState::SIGNED : DnssecState::UNSIGNED;
@@ -305,16 +284,16 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
     {
-        $base = $this->serverPath('zones/' . rawurlencode($zoneId));
+        $base = $this->client->serverPath('zones/' . rawurlencode($zoneId));
         switch ($action) {
             case 'enable':
-                $this->request('PUT', $base, ['dnssec' => true], false);
+                $this->client->request('PUT', $base, ['dnssec' => true], false);
                 break;
             case 'disable':
-                $this->request('PUT', $base, ['dnssec' => false], false);
+                $this->client->request('PUT', $base, ['dnssec' => false], false);
                 break;
             case 'key.add':
-                $this->request('POST', $base . '/cryptokeys', $payload, false);
+                $this->client->request('POST', $base . '/cryptokeys', $payload, false);
                 break;
             case 'key.remove':
                 $idVal = $payload['id'] ?? null;
@@ -322,7 +301,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
                 if ($keyId === '') {
                     throw new ProviderRequestException('PowerDNS key.remove benoetigt "id" im Payload.');
                 }
-                $this->request('DELETE', $base . '/cryptokeys/' . rawurlencode($keyId), null, false);
+                $this->client->request('DELETE', $base . '/cryptokeys/' . rawurlencode($keyId), null, false);
                 break;
             case 'key.activate':
             case 'key.deactivate':
@@ -331,7 +310,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
                 if ($keyId === '') {
                     throw new ProviderRequestException('PowerDNS ' . $action . ' benoetigt "id" im Payload.');
                 }
-                $this->request('PUT', $base . '/cryptokeys/' . rawurlencode($keyId), [
+                $this->client->request('PUT', $base . '/cryptokeys/' . rawurlencode($keyId), [
                     'active' => $action === 'key.activate',
                 ], false);
                 break;
@@ -374,7 +353,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
         string $changetype,
     ): void {
         $payload = [
-            'name'       => rtrim($name, '.') . '.',
+            'name'       => $this->toFqdn($name, $zoneId) . '.',
             'type'       => strtoupper($type),
             'changetype' => $changetype,
             'records'    => $records,
@@ -383,7 +362,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
         if (!in_array($changetype, ['DELETE', 'PRUNE'], true)) {
             $payload['ttl'] = $ttl;
         }
-        $this->request('PATCH', $this->serverPath('zones/' . rawurlencode($zoneId)), [
+        $this->client->request('PATCH', $this->client->serverPath('zones/' . rawurlencode($zoneId)), [
             'rrsets' => [$payload],
         ], false);
     }
@@ -399,8 +378,8 @@ final class PowerDnsProvider extends AbstractDnsProvider
      */
     private function fetchRRSet(string $zoneId, string $name, string $type): array
     {
-        $row    = (array) $this->request('GET', $this->serverPath('zones/' . rawurlencode($zoneId)));
-        $needle = rtrim($name, '.');
+        $row    = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
+        $needle = $this->toFqdn($name, $zoneId);
         foreach ((array) ($row['rrsets'] ?? []) as $rrset) {
             $rrset = (array) $rrset;
             if (
@@ -444,104 +423,35 @@ final class PowerDnsProvider extends AbstractDnsProvider
         return [$parts[1], $parts[2], $parts[3]];
     }
 
-    private function serverPath(string $suffix): string
+    /** Convert a relative record name to the FQDN required by the PDNS API. */
+    private function toFqdn(string $name, string $zoneId): string
     {
-        return sprintf('api/v1/servers/%s/%s', rawurlencode($this->serverId), $suffix);
+        $name = rtrim($name, '.');
+        $zone = rtrim($zoneId, '.');
+
+        if ($name === '' || $name === '@') {
+            return $zone;
+        }
+
+        if ($name === $zone || str_ends_with($name, '.' . $zone)) {
+            return $name;
+        }
+
+        return $name . '.' . $zone;
     }
 
-    /**
-     * Lazily detect whether the connected PDNS server supports the
-     * EXTEND/PRUNE changetypes introduced in 4.9.12 and 5.0.2.
-     *
-     * The version is retrieved once via GET /api/v1/servers/{id} and cached
-     * for the lifetime of this adapter instance. On any network error the
-     * method defaults to false (safe fallback to read-modify-write).
-     */
-    private function supportsExtend(): bool
+    /** Convert a PDNS FQDN to TowerDNS's relative record-name representation. */
+    private function fromFqdn(string $name, string $zoneId): string
     {
-        if ($this->supportsExtendFlag !== null) {
-            return $this->supportsExtendFlag;
+        $name = rtrim($name, '.');
+        $zone = rtrim($zoneId, '.');
+
+        if ($name === $zone) {
+            return '';
         }
 
-        try {
-            $info   = (array) $this->request('GET', $this->serverPath(''));
-            $rawVal = $info['version'] ?? '0.0.0';
-            $raw    = is_string($rawVal) ? $rawVal : '0.0.0';
-        } catch (\Throwable) {
-            $this->supportsExtendFlag = false;
-            return false;
-        }
+        $suffix = '.' . $zone;
 
-        // Strip pre-release/build suffixes: "4.9.12-alpha1" → "4.9.12"
-        $version = preg_replace('/[^0-9.].*$/', '', $raw) ?? '0.0.0';
-
-        $parts                   = explode('.', $version . '.0.0');
-        [$major, $minor, $patch] = [(int) $parts[0], (int) $parts[1], (int) $parts[2]];
-
-        $this->supportsExtendFlag = match (true) {
-            $major                                 >= 6  => true,
-            $major === 5 && $minor                 >= 1  => true,
-            $major === 5 && $minor === 0 && $patch >= 2  => true,
-            $major === 4 && $minor === 9 && $patch >= 12 => true,
-            default                                      => false,
-        };
-
-        return $this->supportsExtendFlag;
-    }
-
-    /**
-     * @param array<string, mixed>|null $data
-     */
-    private function request(string $method, string $endpoint, ?array $data = null, bool $decode = true): mixed
-    {
-        try {
-            $options = [
-                RequestOptions::HEADERS => [
-                    'X-API-Key' => $this->apiKey,
-                    'Accept'    => 'application/json',
-                ],
-            ];
-            if ($data !== null) {
-                $options[RequestOptions::JSON] = $data;
-            }
-            $response = $this->http->request($method, $endpoint, $options);
-        } catch (BadResponseException $e) {
-            $status = $e->getResponse()->getStatusCode();
-            if ($status === 429) {
-                $retryAfter = (int) ($e->getResponse()->getHeaderLine('Retry-After') ?: 5);
-                throw new RateLimitExceededException(self::ID, $retryAfter, $e);
-            }
-            // Attempt to surface the PDNS error message from the JSON body.
-            $detail = '';
-            try {
-                $raw     = $e->getResponse()->getBody()->getContents();
-                $decoded = json_decode($raw, true);
-                $detail  = is_array($decoded) && isset($decoded['error'])
-                    ? (string) $decoded['error']
-                    : $raw;
-            } catch (\Throwable) {
-            }
-            throw new ProviderRequestException(
-                sprintf('PowerDNS API HTTP %d: %s', $status, $detail ?: $e->getMessage()),
-                $status,
-                $e,
-            );
-        } catch (GuzzleException $e) {
-            throw new ProviderRequestException(
-                'PowerDNS API-Aufruf fehlgeschlagen: ' . $e->getMessage(),
-                (int) $e->getCode(),
-                $e,
-            );
-        }
-
-        if (!$decode) {
-            return null;
-        }
-
-        $body = $response->getBody()->getContents();
-        if ($body === '') {
-            return [];
-        }
-        return json_decode($body, true);
+        return str_ends_with($name, $suffix) ? substr($name, 0, -strlen($suffix)) : $name;
     }
 }

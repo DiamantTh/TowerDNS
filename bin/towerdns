@@ -1,0 +1,45 @@
+#!/usr/bin/env php
+<?php
+
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2026 TowerDNS contributors
+
+declare(strict_types=1);
+
+if (PHP_SAPI !== 'cli') {
+    fwrite(STDERR, "This script must be run from the command line.\n");
+    exit(1);
+}
+
+if (PHP_VERSION_ID < 80400) {
+    fwrite(STDERR, 'TowerDNS requires PHP >= 8.4 (you have ' . PHP_VERSION . ")\n");
+    exit(1);
+}
+
+$projectRoot = dirname(__DIR__);
+$autoload = $projectRoot . '/vendor/autoload.php';
+
+if (!is_file($autoload)) {
+    fwrite(STDERR, "vendor/autoload.php not found.\nRun: composer install --no-dev\n");
+    exit(1);
+}
+
+require $autoload;
+
+use TowerDNS\Application\ContainerFactory;
+use TowerDNS\Infrastructure\Console\ConsoleApplicationFactory;
+
+// TowerDNS reserves -v for the version shortcut. Symfony Console's default
+// verbosity shortcut is deliberately available only as --verbose here.
+$_SERVER['argv'] = array_map(
+    static fn(string $argument): string => match ($argument) {
+        '-v' => '-V',
+        '-vv', '-vvv' => '--invalid-verbosity-shortcut',
+        default => $argument,
+    },
+    $_SERVER['argv'],
+);
+
+$container = ContainerFactory::create($projectRoot);
+
+ConsoleApplicationFactory::create($container)->run();

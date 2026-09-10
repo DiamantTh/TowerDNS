@@ -125,7 +125,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 name: $name,
                 slug: $slug,
                 ownerUserId: $user->id,
-                createdAt: (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
             );
         } catch (\Throwable $e) {
             return new RedirectResponse('/accounts?error=' . rawurlencode($e->getMessage()));
@@ -142,7 +142,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $user    = $request->getAttribute(User::class);
         $account = $this->accounts->findById($accountId);
 
-        if ($account === null) {
+        if (!$account instanceof \TowerDNS\Domain\Account\Account) {
             return new HtmlResponse('Account nicht gefunden.', 404);
         }
 
@@ -216,7 +216,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $accountId = (int) $request->getAttribute('id', 0);
         $account   = $this->accounts->findById($accountId);
 
-        if ($account === null) {
+        if (!$account instanceof \TowerDNS\Domain\Account\Account) {
             return new HtmlResponse('Account nicht gefunden.', 404);
         }
 
@@ -295,7 +295,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
                     accountId: $accountId,
                     userId: $targetUserId,
                     role: $role,
-                    createdAt: (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                    createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
                     invitedBy: $user->id,
                 );
                 $this->audit->recordMemberInvited($request, $user->id, $accountId, $targetUserId, $role->value);

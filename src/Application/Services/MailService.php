@@ -21,14 +21,14 @@ use Symfony\Component\Mime\Email;
  *   smtp://user:pass@host:587
  *   sendmail://default
  */
-final class MailService
+final readonly class MailService
 {
-    private readonly MailerInterface $mailer;
+    private MailerInterface $mailer;
 
     public function __construct(
         string $dsn,
-        private readonly string $fromAddress,
-        private readonly string $fromName,
+        private string $fromAddress,
+        private string $fromName,
     ) {
         $transport    = Transport::fromDsn($dsn);
         $this->mailer = new Mailer($transport);
@@ -43,7 +43,7 @@ final class MailService
         string $htmlBody,
         string $textBody = '',
     ): void {
-        $email = (new Email())
+        $email = new Email()
             ->from(new Address($this->fromAddress, $this->fromName))
             ->to($to)
             ->subject($subject)

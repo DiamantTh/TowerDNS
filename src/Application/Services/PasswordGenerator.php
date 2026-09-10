@@ -41,7 +41,7 @@ final readonly class PasswordGenerator
 
         for ($attempt = 0; $attempt < self::MAX_RETRIES; $attempt++) {
             $candidate = $this->buildOne($length);
-            if ($this->policy === null) {
+            if (!$this->policy instanceof PasswordPolicy) {
                 return $candidate;
             }
             try {

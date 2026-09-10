@@ -32,14 +32,14 @@ namespace TowerDNS\Application\Services;
  *     the frontend, written to exceptions, or serialised anywhere.
  *   - Use {@see self::wipe()} to zero plaintext strings after use.
  */
-final class CredentialService
+final readonly class CredentialService
 {
-    private const V3_AEGIS256  = "\x03";
-    private const V2_XCHACHA20 = "\x02";
-    private const V1_SECRETBOX = "\x01";
+    private const string V3_AEGIS256  = "\x03";
+    private const string V2_XCHACHA20 = "\x02";
+    private const string V1_SECRETBOX = "\x01";
 
     /** 32-byte raw key */
-    private readonly string $rawKey;
+    private string $rawKey;
 
     /**
      * @param string $b64AppKey  Base64-encoded 32-byte key from [security] encryption_key

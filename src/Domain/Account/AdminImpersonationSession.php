@@ -32,7 +32,7 @@ final readonly class AdminImpersonationSession
     public function isExpired(): bool
     {
         return $this->endedAt !== null || (
-            $this->expiresAt !== '' && $this->expiresAt < (new \DateTimeImmutable())->format('Y-m-d H:i:s')
+            $this->expiresAt !== '' && $this->expiresAt < new \DateTimeImmutable()->format('Y-m-d H:i:s')
         );
     }
 }

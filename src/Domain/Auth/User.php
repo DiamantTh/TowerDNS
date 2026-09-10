@@ -22,6 +22,6 @@ final readonly class User
 
     public function hasPermission(Permission $permission): bool
     {
-        return array_any($this->roles, fn($role) => $role->has($permission));
+        return array_any($this->roles, fn(Role $role): bool => $role->has($permission));
     }
 }

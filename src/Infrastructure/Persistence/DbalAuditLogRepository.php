@@ -15,9 +15,9 @@ use TowerDNS\Domain\Account\AuditLogEntry;
  * Append-only audit log repository.
  * Rows are never updated or deleted.
  */
-final class DbalAuditLogRepository implements AuditLogRepositoryInterface
+final readonly class DbalAuditLogRepository implements AuditLogRepositoryInterface
 {
-    public function __construct(private readonly Connection $connection) {}
+    public function __construct(private Connection $connection) {}
 
     public function append(AuditLogEntry $entry, string $createdAt): void
     {

@@ -26,9 +26,9 @@ use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
  * Resets the password of a TowerDNS user from the command line.
  *
  * Usage:
- *   php install/install-cli.php towerdns:user:password-reset admin@example.com
- *   php install/install-cli.php towerdns:user:password-reset admin@example.com --generate
- *   php install/install-cli.php towerdns:user:password-reset admin@example.com --keep-api-keys
+ *   php bin/towerdns towerdns:user:password-reset admin@example.com
+ *   php bin/towerdns towerdns:user:password-reset admin@example.com --generate
+ *   php bin/towerdns towerdns:user:password-reset admin@example.com --keep-api-keys
  */
 #[AsCommand(
     name: 'towerdns:user:password-reset',

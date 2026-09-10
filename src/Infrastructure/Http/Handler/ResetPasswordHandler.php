@@ -96,16 +96,14 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         $password = (string) ($body['password'] ?? '');
         $confirm  = (string) ($body['password_confirm'] ?? '');
 
-        $renderError = function (string $msg) use ($guard, $rawToken): HtmlResponse {
-            return new HtmlResponse(
-                $this->renderer->render('app::reset_password', [
-                    'csrfToken' => $guard->generateToken(),
-                    'token'     => $rawToken,
-                    'error'     => $msg,
-                ]),
-                422
-            );
-        };
+        $renderError = (fn(string $msg): HtmlResponse => new HtmlResponse(
+            $this->renderer->render('app::reset_password', [
+                'csrfToken' => $guard->generateToken(),
+                'token'     => $rawToken,
+                'error'     => $msg,
+            ]),
+            422
+        ));
 
         if ($password !== $confirm) {
             return $renderError('Die Passwörter stimmen nicht überein.');
@@ -120,19 +118,19 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         $tokenHash = hash('sha256', $rawToken);
         $record    = $this->tokens->findByHash($tokenHash);
 
-        if ($record === null || !$record->isValid()) {
+        if (!$record instanceof \TowerDNS\Domain\Auth\PasswordResetToken || !$record->isValid()) {
             return $renderError('Der Reset-Link ist ungültig oder abgelaufen.');
         }
 
         $user = $this->users->findById($record->userId);
-        if ($user === null) {
+        if (!$user instanceof \TowerDNS\Domain\Auth\User) {
             return $renderError('Benutzer nicht gefunden.');
         }
 
         $newHash = password_hash($password, PASSWORD_ARGON2ID);
 
         $this->users->updatePasswordHash($record->userId, $newHash);
-        $this->tokens->markUsed($record->id, (new \DateTimeImmutable())->format('Y-m-d H:i:s'));
+        $this->tokens->markUsed($record->id, new \DateTimeImmutable()->format('Y-m-d H:i:s'));
         $this->audit->recordPasswordReset($request, $record->userId);
 
         return new RedirectResponse('/login?reset=1');
@@ -143,6 +141,6 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
     private function tokenIsValid(string $rawToken): bool
     {
         $record = $this->tokens->findByHash(hash('sha256', $rawToken));
-        return $record !== null && $record->isValid();
+        return $record instanceof \TowerDNS\Domain\Auth\PasswordResetToken && $record->isValid();
     }
 }

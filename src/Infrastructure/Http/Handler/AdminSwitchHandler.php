@@ -174,7 +174,7 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
 
         $activeSession = $this->sessions->findActiveForActor($user->id);
 
-        if ($activeSession === null) {
+        if (!$activeSession instanceof \TowerDNS\Domain\Account\AdminImpersonationSession) {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode('Keine aktive Sitzung gefunden.'));
         }
 

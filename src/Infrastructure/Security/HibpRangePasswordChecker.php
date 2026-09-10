@@ -78,7 +78,7 @@ final readonly class HibpRangePasswordChecker implements BreachedPasswordChecker
             if (strcasecmp($parts[0], $suffix) === 0) {
                 $count = (int) $parts[1];
                 // Padding rows are returned with count 0 — ignore those.
-                return $count > 0 ? $count : 0;
+                return max($count, 0);
             }
         }
 

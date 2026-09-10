@@ -26,7 +26,7 @@ final class SvelteRenderer implements TemplateRendererInterface
 
     public function render(string $name, array|object $params = []): string
     {
-        $provided    = is_object($params) ? get_object_vars($params) : (array) $params;
+        $provided    = is_object($params) ? get_object_vars($params) : $params;
         $data        = array_replace($this->defaults[self::TEMPLATE_ALL] ?? [], $this->defaults[$name] ?? [], $provided);
         $user        = $data['user'] ?? $data['currentUser'] ?? null;
         $activeTheme = $this->themes->getActive($user instanceof User ? $user->theme : null);
@@ -34,7 +34,7 @@ final class SvelteRenderer implements TemplateRendererInterface
         $payload     = [
             'page'   => $page,
             'props'  => $this->normalize($data),
-            'themes' => array_map(static fn($theme): array => $theme->toArray(), array_values($this->themes->getAvailable())),
+            'themes' => array_map(static fn(\TowerDNS\Application\Theme\Theme $theme): array => $theme->toArray(), array_values($this->themes->getAvailable())),
             'theme'  => $activeTheme->toArray(),
             'debug'  => $this->debug,
         ];

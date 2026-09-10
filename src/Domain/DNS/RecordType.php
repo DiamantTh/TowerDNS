@@ -17,6 +17,7 @@ enum RecordType: string
     case NS     = 'NS';
     case SRV    = 'SRV';
     case CAA    = 'CAA';
+    case TLSA   = 'TLSA';
     case PTR    = 'PTR';
     case SOA    = 'SOA';
     case DS     = 'DS';

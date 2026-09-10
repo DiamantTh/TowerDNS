@@ -51,7 +51,7 @@ final class Role implements RoleInterface
         if (isset($this->permissionMap[$name])) {
             return true;
         }
-        return array_any($this->children, fn($child) => $child->hasPermission($name));
+        return array_any($this->children, fn(RoleInterface $child): bool => $child->hasPermission($name));
     }
 
     public function addChild(RoleInterface $child): void

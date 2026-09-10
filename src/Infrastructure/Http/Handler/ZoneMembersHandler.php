@@ -141,7 +141,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
                     zoneId: $zoneId,
                     userId: $targetUserId,
                     role: $role,
-                    createdAt: (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                    createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
                     accountId: $accountId,
                     grantedBy: $user->id,
                 );

@@ -219,7 +219,7 @@ final readonly class DnsManagementService
         $this->permissions->assertCanViewAccount($accountId, $user);
 
         $pa = $this->providerAccounts->findById($providerAccountId);
-        if ($pa === null || $pa->accountId !== $accountId || !$pa->isActive) {
+        if (!$pa instanceof ProviderAccount || $pa->accountId !== $accountId || !$pa->isActive) {
             throw new \DomainException(sprintf(
                 'ProviderAccount %d ist in Account %d nicht verfügbar.',
                 $providerAccountId,

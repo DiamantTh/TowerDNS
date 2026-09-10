@@ -13,9 +13,9 @@ use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\AccountMembership;
 use TowerDNS\Domain\Account\TeamRole;
 
-final class DbalAccountRepository implements AccountRepositoryInterface
+final readonly class DbalAccountRepository implements AccountRepositoryInterface
 {
-    public function __construct(private readonly Connection $connection) {}
+    public function __construct(private Connection $connection) {}
 
     public function findById(int $id): ?Account
     {
@@ -129,7 +129,7 @@ final class DbalAccountRepository implements AccountRepositoryInterface
     {
         $this->connection->update(
             'account_memberships',
-            ['role'       => $role->value],
+            ['role' => $role->value],
             ['account_id' => $accountId, 'user_id' => $userId]
         );
     }

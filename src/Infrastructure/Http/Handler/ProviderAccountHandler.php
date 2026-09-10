@@ -22,9 +22,7 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Domain\Auth\User;
-use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
-use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
-use TowerDNS\Infrastructure\Provider\Inwx\InwxProvider;
+use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 
 /**
  * Provider-Account management for an account (tenant).
@@ -37,13 +35,6 @@ use TowerDNS\Infrastructure\Provider\Inwx\InwxProvider;
  */
 final readonly class ProviderAccountHandler implements RequestHandlerInterface
 {
-    /** Allowed provider types that normal users can create. PowerDNS is system-only. */
-    private const array ALLOWED_TYPES = [
-        DeSECProvider::ID,
-        CloudflareProvider::ID,
-        InwxProvider::ID,
-    ];
-
     public function __construct(
         private TemplateRendererInterface          $renderer,
         private AccountRepositoryInterface         $accounts,
@@ -51,6 +42,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         private PermissionService                  $permissions,
         private CredentialService                  $credentials,
         private AuditLogService                    $audit,
+        private DnsProviderFactory                 $providerFactory,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -82,7 +74,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         $user    = $request->getAttribute(User::class);
         $account = $this->accounts->findById($accountId);
 
-        if ($account === null) {
+        if (!$account instanceof \TowerDNS\Domain\Account\Account) {
             return new HtmlResponse('Account nicht gefunden.', 404);
         }
 
@@ -104,7 +96,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
                 'user'         => $user,
                 'account'      => $account,
                 'providers'    => $providers,
-                'allowedTypes' => self::ALLOWED_TYPES,
+                'allowedTypes' => $this->providerFactory->userManagedTypes(),
                 'csrfToken'    => $csrfToken,
                 'error'        => is_string($flashError) ? $flashError : null,
             ]),
@@ -139,7 +131,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         $credJson     = $this->buildCredentialsJson($providerType, $body);
         $base         = '/accounts/' . $accountId . '/providers';
 
-        if (!in_array($providerType, self::ALLOWED_TYPES, strict: true)) {
+        if (!in_array($providerType, $this->providerFactory->userManagedTypes(), strict: true)) {
             return new RedirectResponse($base . '?error=' . rawurlencode('Unbekannter Provider-Typ.'));
         }
 
@@ -161,7 +153,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
                 name: $name,
                 credentialsEncrypted: $encrypted,
                 credentialsVersion: 3,
-                createdAt: (new \DateTimeImmutable())->format('Y-m-d H:i:s'),
+                createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
             );
 
             $this->audit->recordProviderAccountCreated($request, $user->id, $accountId, $paId, $name, $providerType);
@@ -187,7 +179,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         }
 
         $pa = $this->providerAccounts->findById($paId);
-        if ($pa === null || $pa->accountId !== $accountId) {
+        if (!$pa instanceof \TowerDNS\Domain\Account\ProviderAccount || $pa->accountId !== $accountId) {
             return new HtmlResponse('Provider-Account nicht gefunden.', 404);
         }
 
@@ -235,7 +227,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         }
 
         $pa = $this->providerAccounts->findById($paId);
-        if ($pa === null || $pa->accountId !== $accountId) {
+        if (!$pa instanceof \TowerDNS\Domain\Account\ProviderAccount || $pa->accountId !== $accountId) {
             return new HtmlResponse('Provider-Account nicht gefunden.', 404);
         }
 
@@ -265,29 +257,10 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
      */
     private function buildCredentialsJson(string $providerType, array $body): ?string
     {
-        $creds = match ($providerType) {
-            DeSECProvider::ID => [
-                'token' => trim($body['desec_token'] ?? ''),
-            ],
-            CloudflareProvider::ID => [
-                'api_token' => trim($body['cloudflare_api_token'] ?? ''),
-            ],
-            InwxProvider::ID => [
-                'username' => trim($body['inwx_username'] ?? ''),
-                'password' => trim($body['inwx_password'] ?? ''),
-            ],
-            default => null,
-        };
+        $creds = $this->providerFactory->credentialsFromInput($providerType, $body);
 
-        if ($creds === null) {
+        if ($creds === null || !$this->providerFactory->credentialsComplete($providerType, $creds)) {
             return null;
-        }
-
-        // Reject if any required value is empty
-        foreach ($creds as $value) {
-            if ($value === '') {
-                return null;
-            }
         }
 
         return json_encode($creds, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);

@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Console;
 
 use Doctrine\DBAL\DriverManager;
+use Devium\Toml\Toml;
+use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -19,7 +21,7 @@ use TowerDNS\Infrastructure\Persistence\SchemaManager;
 /**
  * Interactive CLI installer for TowerDNS.
  *
- * Run via:  php install/install-cli.php
+ * Run via: php bin/towerdns
  */
 #[AsCommand(name: 'towerdns:install', description: 'Install TowerDNS interactively')]
 final class InstallCommand extends Command
@@ -130,7 +132,7 @@ final class InstallCommand extends Command
         // ──────────────────────────────────────────────────────────────────
         $io->section('Step 3: Application settings');
 
-        $themeNames = array_keys((new ThemeManager($this->projectRoot))->getAvailable());
+        $themeNames = array_keys(new ThemeManager($this->projectRoot)->getAvailable());
         $appName    = $io->ask('Application name', 'TowerDNS')                  ?? 'TowerDNS';
         $appDomain  = $io->ask('Domain (optional, e.g. tower.example.com)', '') ?? '';
         $appTheme   = (string) $io->choice('Theme', $themeNames, 'default');
@@ -150,40 +152,25 @@ final class InstallCommand extends Command
 
         $providers = [];
 
-        if ($io->confirm('Enable deSEC provider', false)) {
-            $token              = $io->ask('deSEC API token') ?? '';
-            $providers['desec'] = ['token' => substr($token, 0, 512)];
-        }
-
-        if ($io->confirm('Enable PowerDNS provider', false)) {
-            $pdnsUrl = $io->ask(
-                'PowerDNS API base URL (e.g. http://localhost:8081)',
-                null,
-                static function (?string $v): string {
-                    if (filter_var((string) $v, FILTER_VALIDATE_URL) === false) {
-                        throw new \RuntimeException('Invalid URL.');
+        $factory = new DnsProviderFactory();
+        foreach ($factory->definitions() as $id => $definition) {
+            if (!$io->confirm('Enable ' . $definition['label'] . ' provider', false)) {
+                continue;
+            }
+            $credentials = [];
+            foreach ($definition['credentials'] as $key => $field) {
+                $validator = static function (?string $value) use ($field): string {
+                    $value = trim($value ?? '');
+                    if ($field['required'] && $value === '') {
+                        throw new \RuntimeException($field['label'] . ' is required.');
                     }
-                    return (string) $v;
-                }
-            )                                                                    ?? '';
-            $pdnsKey               = $io->ask('PowerDNS API key')                ?? '';
-            $pdnsServer            = $io->ask('PowerDNS server ID', 'localhost') ?? 'localhost';
-            $providers['powerdns'] = [
-                'base_url'  => $pdnsUrl,
-                'api_key'   => $pdnsKey,
-                'server_id' => $pdnsServer,
-            ];
-        }
-
-        if ($io->confirm('Enable Cloudflare provider', false)) {
-            $cfToken                 = $io->ask('Cloudflare API token') ?? '';
-            $providers['cloudflare'] = ['api_token' => substr($cfToken, 0, 512)];
-        }
-
-        if ($io->confirm('Enable INWX provider', false)) {
-            $inwxUser          = $io->ask('INWX username')       ?? '';
-            $inwxPass          = $io->askHidden('INWX password') ?? '';
-            $providers['inwx'] = ['username' => $inwxUser, 'password' => $inwxPass];
+                    return $value;
+                };
+                $credentials[$key] = $field['secret']
+                    ? ($io->askHidden($field['label'], $validator) ?? '')
+                    : ($io->ask($field['label'], $field['default'] ?? null, $validator) ?? '');
+            }
+            $providers[$id] = $credentials;
         }
 
         if ($providers === []) {
@@ -202,8 +189,8 @@ final class InstallCommand extends Command
 
         $io->definitionList(
             ['Database' => $dbSummary],
-            ['Admin'     => $adminUsername . ' <' . $adminEmail . '>'],
-            ['App'       => $appName . ($appDomain !== '' ? ' (' . $appDomain . ')' : '') . ' — HTTPS: ' . ($appHttps ? 'yes' : 'no')],
+            ['Admin' => $adminUsername . ' <' . $adminEmail . '>'],
+            ['App' => $appName . ($appDomain !== '' ? ' (' . $appDomain . ')' : '') . ' — HTTPS: ' . ($appHttps ? 'yes' : 'no')],
             ['Providers' => implode(', ', array_keys($providers))],
         );
 
@@ -217,10 +204,10 @@ final class InstallCommand extends Command
         // ──────────────────────────────────────────────────────────────────
         $io->writeln('Installing …');
 
-        $now = (new \DateTime())->format('Y-m-d H:i:s');
+        $now = new \DateTime()->format('Y-m-d H:i:s');
 
         try {
-            $conn          = $this->buildConnection($db, $this->projectRoot);
+            $conn          = $this->buildConnection($db);
             $schemaManager = new SchemaManager($conn);
 
             $io->writeln('  Creating database tables …');
@@ -324,7 +311,7 @@ final class InstallCommand extends Command
     /**
      * @param array<string, string> $db
      */
-    private function buildConnection(array $db, string $projectRoot): \Doctrine\DBAL\Connection
+    private function buildConnection(array $db): \Doctrine\DBAL\Connection
     {
         $params = match ($db['driver']) {
             'pdo_sqlite' => ['driver' => 'pdo_sqlite', 'path' => $db['path']],
@@ -451,28 +438,9 @@ final class InstallCommand extends Command
      */
     private function writeProvidersToml(string $cfgDir, string $now, array $providers): void
     {
-        $esc  = static fn(string $s): string => addcslashes($s, '"\\');
         $toml = "# TowerDNS — Provider configuration (auto-generated {$now})\n";
         $toml .= "# Never commit this file!\n\n";
-
-        if (isset($providers['desec'])) {
-            $toml .= "[providers.desec]\ntoken = \"{$esc($providers['desec']['token'])}\"\n\n";
-        }
-        if (isset($providers['powerdns'])) {
-            $p = $providers['powerdns'];
-            $toml .= "[providers.powerdns]\n"
-                   . "base_url  = \"{$esc($p['base_url'])}\"\n"
-                   . "api_key   = \"{$esc($p['api_key'])}\"\n"
-                   . "server_id = \"{$esc($p['server_id'])}\"\n\n";
-        }
-        if (isset($providers['cloudflare'])) {
-            $toml .= "[providers.cloudflare]\napi_token = \"{$esc($providers['cloudflare']['api_token'])}\"\n\n";
-        }
-        if (isset($providers['inwx'])) {
-            $toml .= "[providers.inwx]\n"
-                   . "username = \"{$esc($providers['inwx']['username'])}\"\n"
-                   . "password = \"{$esc($providers['inwx']['password'])}\"\n\n";
-        }
+        $toml .= Toml::encode(['providers' => $providers]);
 
         $file = $cfgDir . '/providers.toml';
         if (file_exists($file)) {

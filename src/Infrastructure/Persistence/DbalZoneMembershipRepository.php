@@ -12,9 +12,9 @@ use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Account\ZoneMembership;
 
-final class DbalZoneMembershipRepository implements ZoneMembershipRepositoryInterface
+final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepositoryInterface
 {
-    public function __construct(private readonly Connection $connection) {}
+    public function __construct(private Connection $connection) {}
 
     public function findByZoneId(string $zoneId): array
     {
@@ -59,7 +59,7 @@ final class DbalZoneMembershipRepository implements ZoneMembershipRepositoryInte
     {
         $this->connection->update(
             'zone_memberships',
-            ['role'    => $role->value],
+            ['role' => $role->value],
             ['zone_id' => $zoneId, 'user_id' => $userId]
         );
     }

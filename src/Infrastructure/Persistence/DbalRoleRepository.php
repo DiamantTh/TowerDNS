@@ -82,7 +82,7 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
                 $this->connection->update(
                     'roles',
                     ['name' => $role->name],
-                    ['id'   => $role->id],
+                    ['id' => $role->id],
                 );
             }
 
