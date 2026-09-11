@@ -42,6 +42,11 @@ final class PowerDnsApiClient
         return sprintf('api/v1/servers/%s/%s', rawurlencode($this->serverId), $suffix);
     }
 
+    public function serverId(): string
+    {
+        return $this->serverId;
+    }
+
     public function supportsExtend(): bool
     {
         if ($this->supportsExtendFlag !== null) {

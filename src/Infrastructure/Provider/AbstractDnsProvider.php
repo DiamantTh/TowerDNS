@@ -9,6 +9,8 @@ namespace TowerDNS\Infrastructure\Provider;
 
 use TowerDNS\Application\Contracts\DnsProviderInterface;
 use TowerDNS\Application\Contracts\ProviderCapabilitySet;
+use TowerDNS\Application\Contracts\ProviderConstraintProfile;
+use TowerDNS\Application\Contracts\ProviderConstraintProviderInterface;
 use TowerDNS\Application\Contracts\RrsetProviderInterface;
 use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\Rrset;
@@ -19,7 +21,7 @@ use TowerDNS\Domain\DNS\Rrset;
  * Concrete adapters declare a capability map; this base class wraps it in an
  * immutable {@see ProviderCapabilitySet}.
  */
-abstract class AbstractDnsProvider implements DnsProviderInterface, RrsetProviderInterface
+abstract class AbstractDnsProvider implements DnsProviderInterface, RrsetProviderInterface, ProviderConstraintProviderInterface
 {
     private readonly ProviderCapabilitySet $capabilitySet;
 
@@ -36,6 +38,11 @@ abstract class AbstractDnsProvider implements DnsProviderInterface, RrsetProvide
     public function capabilities(): ProviderCapabilitySet
     {
         return $this->capabilitySet;
+    }
+
+    public function constraints(): ProviderConstraintProfile
+    {
+        return new ProviderConstraintProfile('provider_defined', 'immediate', false);
     }
 
     /** @return list<Rrset> */

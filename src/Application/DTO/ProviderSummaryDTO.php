@@ -11,10 +11,12 @@ final readonly class ProviderSummaryDTO
 {
     /**
      * @param array<string, bool> $capabilities
+     * @param array<string, scalar|list<string>> $constraints
      */
     public function __construct(
         public string $id,
         public string $displayName,
         public array $capabilities,
+        public array $constraints = [],
     ) {}
 }

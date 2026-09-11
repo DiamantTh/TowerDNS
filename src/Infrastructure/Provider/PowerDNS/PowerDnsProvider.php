@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Provider\PowerDNS;
 
 use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ProviderConstraintProfile;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DnssecProfile;
@@ -79,6 +80,16 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
             Capability::PROVIDER_CREDENTIALS_MANAGE => true,
         ];
+    }
+
+    public function constraints(): ProviderConstraintProfile
+    {
+        return new ProviderConstraintProfile(
+            $this->client->supportsExtend() ? 'atomic_extend' : 'atomic_replace',
+            'immediate',
+            true,
+            ['server_id' => $this->client->serverId()],
+        );
     }
 
     public function listZones(): array

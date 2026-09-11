@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application\Provider;
 
 use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\ProviderConstraintProviderInterface;
 use TowerDNS\Application\DTO\ProviderSummaryDTO;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
 
@@ -71,6 +72,12 @@ final class ProviderRegistry
                 $provider->id(),
                 $provider->displayName(),
                 $provider->capabilities()->all(),
+                $provider instanceof ProviderConstraintProviderInterface ? [
+                    'rrset_write_mode' => $provider->constraints()->rrsetWriteMode,
+                    'read_back_consistency' => $provider->constraints()->readBackConsistency,
+                    'rfc3597_write' => $provider->constraints()->supportsRfc3597Write,
+                    ...$provider->constraints()->details,
+                ] : [],
             );
         }
 
