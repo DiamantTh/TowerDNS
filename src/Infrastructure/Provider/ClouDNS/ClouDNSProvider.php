@@ -13,6 +13,7 @@ use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
@@ -109,6 +110,45 @@ final class ClouDNSProvider extends AbstractDnsProvider
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         $this->client->request('delete-record', ['domain-name' => $zoneId, 'record-id' => $recordId]);
+    }
+
+    public function replaceRrset(Rrset $rrset): Rrset
+    {
+        $type = RecordType::tryFrom($rrset->type->presentation);
+        if ($type === null) {
+            throw new CapabilityException('ClouDNS-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
+        }
+        $existing = array_values(array_filter($this->listRecords($rrset->zoneId),
+            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0));
+        $byContent = [];
+        foreach ($existing as $record) { $byContent[$record->content] = $record; }
+        $created = [];
+        try {
+            foreach (array_values(array_unique($rrset->rdata)) as $content) {
+                if (!isset($byContent[$content])) {
+                    $created[] = $this->createRecord(new Record('', $rrset->zoneId, $rrset->ownerName, $type, $rrset->ttl, $content));
+                } elseif ($byContent[$content]->ttl !== $rrset->ttl) {
+                    $this->updateRecord(new Record($byContent[$content]->id, $rrset->zoneId, $rrset->ownerName, $type, $rrset->ttl, $content));
+                }
+            }
+            foreach ($existing as $record) {
+                if (!in_array($record->content, $rrset->rdata, true)) { $this->deleteRecord($rrset->zoneId, $record->id); }
+            }
+        } catch (\Throwable $error) {
+            foreach ($created as $record) { try { $this->deleteRecord($rrset->zoneId, $record->id); } catch (\Throwable) {} }
+            throw new ProviderRequestException('ClouDNS-RRset-Änderung konnte nicht vollständig angewendet werden.', previous: $error);
+        }
+        foreach ($this->listRrsets($rrset->zoneId) as $observed) {
+            if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) { return $observed; }
+        }
+        throw new ProviderRequestException('ClouDNS lieferte das geschriebene RRset nicht zurück.');
+    }
+
+    public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+    {
+        foreach ($this->listRecords($zoneId) as $record) {
+            if ($record->type->value === $type && strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) === 0) { $this->deleteRecord($zoneId, $record->id); }
+        }
     }
 
     public function getDnssecProfile(string $zoneId): DnssecProfile
