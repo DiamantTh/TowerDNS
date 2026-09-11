@@ -57,6 +57,11 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
         $content = trim((string) ($body['content'] ?? ''));
         $comment = trim((string) ($body['comment'] ?? ''));
 
+        if ($typeRaw === '') {
+            $existing = $this->dns->findRecordForUpdate($user, $providerId, $zoneId, $recordId);
+            $typeRaw = $existing?->type->value ?? '';
+        }
+
         $recordFilter = new RecordInputFilter();
         $recordFilter->setData([
             'name'    => $name,

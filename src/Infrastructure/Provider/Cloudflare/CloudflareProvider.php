@@ -9,10 +9,12 @@ namespace TowerDNS\Infrastructure\Provider\Cloudflare;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
+use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
@@ -155,6 +157,64 @@ final class CloudflareProvider extends AbstractDnsProvider
     {
         // recordId is the Cloudflare native UUID
         $this->client->deleteDnsRecord($zoneId, $recordId);
+    }
+
+    public function replaceRrset(Rrset $rrset): Rrset
+    {
+        $type = RecordType::tryFrom($rrset->type->presentation);
+        if ($type === null) {
+            throw new CapabilityException('Cloudflare-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
+        }
+
+        $existing = array_values(array_filter($this->listRecords($rrset->zoneId),
+            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0));
+        $wanted = array_values(array_unique($rrset->rdata));
+        $oldByContent = [];
+        foreach ($existing as $record) {
+            $oldByContent[$record->content] = $record;
+        }
+
+        $created = [];
+        try {
+            foreach ($wanted as $content) {
+                if (!isset($oldByContent[$content])) {
+                    $created[] = $this->createRecord(new Record('', $rrset->zoneId, $rrset->ownerName, $type, $rrset->ttl, $content));
+                } elseif ($oldByContent[$content]->ttl !== $rrset->ttl) {
+                    $this->updateRecord(new Record($oldByContent[$content]->id, $rrset->zoneId, $rrset->ownerName, $type, $rrset->ttl, $content));
+                }
+            }
+            foreach ($existing as $record) {
+                if (!in_array($record->content, $wanted, true)) {
+                    $this->deleteRecord($rrset->zoneId, $record->id);
+                }
+            }
+        } catch (\Throwable $error) {
+            foreach ($created as $record) {
+                try { $this->deleteRecord($rrset->zoneId, $record->id); } catch (\Throwable) {}
+            }
+            throw new ProviderRequestException('Cloudflare-RRset-Änderung konnte nicht vollständig angewendet werden.', previous: $error);
+        }
+
+        return $this->readRrset($rrset);
+    }
+
+    public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+    {
+        foreach ($this->listRecords($zoneId) as $record) {
+            if ($record->type->value === $type && strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) === 0) {
+                $this->deleteRecord($zoneId, $record->id);
+            }
+        }
+    }
+
+    private function readRrset(Rrset $expected): Rrset
+    {
+        foreach ($this->listRrsets($expected->zoneId) as $rrset) {
+            if ($rrset->type->equals($expected->type) && strcasecmp(rtrim($rrset->ownerName, '.'), rtrim($expected->ownerName, '.')) === 0) {
+                return $rrset;
+            }
+        }
+        throw new ProviderRequestException('Cloudflare lieferte das geschriebene RRset nicht zurück.');
     }
 
     // ── DNSSEC operations ─────────────────────────────────────────────────────

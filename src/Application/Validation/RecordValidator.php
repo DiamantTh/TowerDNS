@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Validation;
 
+use TowerDNS\Application\Dns\RdataCanonicalizer;
+use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\RecordType;
 
 /**
@@ -39,20 +41,6 @@ final class RecordValidator
             throw new \InvalidArgumentException('Record-Content darf nicht leer sein.');
         }
 
-        switch ($type) {
-            case RecordType::A:
-                if (!filter_var($content, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-                    throw new \InvalidArgumentException('A-Record erwartet eine IPv4-Adresse.');
-                }
-                break;
-            case RecordType::AAAA:
-                if (!filter_var($content, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-                    throw new \InvalidArgumentException('AAAA-Record erwartet eine IPv6-Adresse.');
-                }
-                break;
-            default:
-                // Other record types are validated by the provider adapter.
-                break;
-        }
+        RdataCanonicalizer::canonicalize(DnsRecordType::parse($type->value), $content);
     }
 }

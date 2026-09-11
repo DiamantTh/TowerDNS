@@ -109,6 +109,20 @@ final class PowerDnsProviderTest extends TestCase
         self::assertSame('www', $records[0]->name);
     }
 
+    public function testListsUnknownTypesAsRrsetsInsteadOfDroppingThem(): void
+    {
+        $provider = $this->provider([
+            $this->jsonResponse(['rrsets' => [[
+                'name' => 'x.example.org.', 'type' => 'TYPE65400', 'ttl' => 300,
+                'records' => [['content' => '\\# 2 AABB']],
+            ]]]),
+        ]);
+
+        $sets = $provider->listRrsets('example.org.');
+        self::assertSame('TYPE65400', $sets[0]->type->presentation);
+        self::assertSame(['\\# 2 AABB'], $sets[0]->rdata);
+    }
+
     /**
      * @param list<Response> $responses
      */

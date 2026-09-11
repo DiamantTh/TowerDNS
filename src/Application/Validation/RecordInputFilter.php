@@ -21,7 +21,7 @@ use Laminas\Validator\StringLength;
  * - name    : required, 1-255 chars
  * - type    : required, 1-32 chars (further type validation is done by RecordType enum)
  * - ttl     : integer 30-604800 (RecordValidator::MIN_TTL / MAX_TTL)
- * - content : required, max 65 535 chars
+ * - content : required, max 131 070 chars (RFC 3597/TLSA hex presentation)
  *
  * @template-extends InputFilter<array<string, mixed>>
  */
@@ -50,7 +50,7 @@ final class RecordInputFilter extends InputFilter
         $content->getFilterChain()->attach(new StringTrim());
         $content->getValidatorChain()
             ->attach(new NotEmpty(), true)
-            ->attach(new StringLength(['min' => 1, 'max' => 65535]));
+            ->attach(new StringLength(['min' => 1, 'max' => 131070]));
 
         $this->add($name);
         $this->add($type);

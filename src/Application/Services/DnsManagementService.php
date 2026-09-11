@@ -10,6 +10,9 @@ namespace TowerDNS\Application\Services;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\RrsetProviderInterface;
+use TowerDNS\Application\Dns\RdataCanonicalizer;
+use TowerDNS\Application\Dns\RrsetComparator;
 use TowerDNS\Application\DTO\ProviderSummaryDTO;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Provider\ProviderRegistry;
@@ -20,6 +23,7 @@ use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Domain\DNS\DnssecProfile;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\Zone;
 
@@ -91,6 +95,30 @@ final readonly class DnsManagementService
         return $provider->listRecords($zoneId);
     }
 
+    /** @return list<Rrset> */
+    public function listRrsets(User $user, string $providerId, string $zoneId): array
+    {
+        $this->authorizationService->assert($user, Permission::RECORD_READ);
+        $provider = $this->resolve($providerId, Capability::RECORD_LIST);
+        return $this->rrsetProvider($provider)->listRrsets($zoneId);
+    }
+
+    /** Writes a complete RRset and verifies it by reading it back from the provider API. */
+    public function replaceRrset(User $user, string $providerId, Rrset $rrset): Rrset
+    {
+        $this->authorizationService->assert($user, Permission::RECORD_UPDATE);
+        $provider = $this->resolve($providerId, Capability::RECORD_UPDATE);
+        RecordValidator::assertTtl($rrset->ttl);
+        foreach ($rrset->rdata as $rdata) {
+            RdataCanonicalizer::canonicalize($rrset->type, $rdata);
+        }
+        $observed = $this->rrsetProvider($provider)->replaceRrset($rrset);
+        if (!RrsetComparator::equals($rrset, $observed)) {
+            throw new \RuntimeException('Provider-Read-back stimmt nicht mit dem geschriebenen RRset überein.');
+        }
+        return $observed;
+    }
+
     public function createRecord(User $user, string $providerId, Record $record): Record
     {
         $this->authorizationService->assert($user, Permission::RECORD_CREATE);
@@ -111,6 +139,22 @@ final readonly class DnsManagementService
         RecordValidator::assertContent($record->type, $record->content);
 
         return $provider->updateRecord($record);
+    }
+
+    /**
+     * Resolves an existing record for an update without requiring RECORD_READ.
+     * The edit form deliberately does not trust a client-supplied record type.
+     */
+    public function findRecordForUpdate(User $user, string $providerId, string $zoneId, string $recordId): ?Record
+    {
+        $this->authorizationService->assert($user, Permission::RECORD_UPDATE);
+        $provider = $this->resolve($providerId, Capability::RECORD_LIST);
+        foreach ($provider->listRecords($zoneId) as $record) {
+            if ($record->id === $recordId) {
+                return $record;
+            }
+        }
+        return null;
     }
 
     public function deleteRecord(User $user, string $providerId, string $zoneId, string $recordId): void
@@ -252,6 +296,14 @@ final readonly class DnsManagementService
             ));
         }
 
+        return $provider;
+    }
+
+    private function rrsetProvider(DnsProviderInterface $provider): RrsetProviderInterface
+    {
+        if (!$provider instanceof RrsetProviderInterface) {
+            throw new CapabilityException(sprintf('Provider "%s" unterstützt keine RRset-Operationen.', $provider->id()));
+        }
         return $provider;
     }
 }

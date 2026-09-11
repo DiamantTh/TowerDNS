@@ -13,8 +13,10 @@ use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
@@ -133,6 +135,55 @@ final class PowerDnsProvider extends AbstractDnsProvider
             }
         }
         return $records;
+    }
+
+    /** @return list<Rrset> */
+    public function listRrsets(string $zoneId): array
+    {
+        $row = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
+        $sets = [];
+        foreach ((array) ($row['rrsets'] ?? []) as $raw) {
+            $raw = (array) $raw;
+            try {
+                $type = DnsRecordType::parse((string) ($raw['type'] ?? ''));
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+            $rdata = [];
+            foreach ((array) ($raw['records'] ?? []) as $record) {
+                $record = (array) $record;
+                $content = (string) ($record['content'] ?? '');
+                if ($content !== '') {
+                    $rdata[] = $content;
+                }
+            }
+            if ($rdata !== []) {
+                $sets[] = new Rrset($zoneId, $this->fromFqdn((string) ($raw['name'] ?? ''), $zoneId), $type, (int) ($raw['ttl'] ?? 3600), $rdata);
+            }
+        }
+        return $sets;
+    }
+
+    public function replaceRrset(Rrset $rrset): Rrset
+    {
+        $this->patchRrset($rrset->zoneId, $rrset->ownerName, $rrset->type->presentation, $rrset->ttl,
+            array_map(static fn(string $rdata): array => ['content' => $rdata, 'disabled' => false], $rrset->rdata), 'REPLACE');
+        return $this->readRrset($rrset);
+    }
+
+    public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+    {
+        $this->patchRrset($zoneId, $ownerName, $type, 0, [], 'DELETE');
+    }
+
+    private function readRrset(Rrset $expected): Rrset
+    {
+        foreach ($this->listRrsets($expected->zoneId) as $rrset) {
+            if ($rrset->type->equals($expected->type) && strcasecmp(rtrim($rrset->ownerName, '.'), rtrim($expected->ownerName, '.')) === 0) {
+                return $rrset;
+            }
+        }
+        throw new ProviderRequestException('PowerDNS lieferte das geschriebene RRset nicht zurück.');
     }
 
     public function createRecord(Record $record): Record

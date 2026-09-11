@@ -11,8 +11,10 @@ use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
@@ -114,6 +116,40 @@ final class DeSECProvider extends AbstractDnsProvider
             }
         }
         return $records;
+    }
+
+    /** @return list<Rrset> */
+    public function listRrsets(string $zoneId): array
+    {
+        $sets = [];
+        foreach ($this->client->getRRSets($zoneId) as $raw) {
+            try {
+                $type = DnsRecordType::parse((string) ($raw['type'] ?? ''));
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+            $rdata = array_values(array_filter((array) ($raw['records'] ?? []), 'is_string'));
+            if ($rdata !== []) {
+                $sets[] = new Rrset($zoneId, (string) ($raw['subname'] ?? ''), $type, (int) ($raw['ttl'] ?? 3600), $rdata);
+            }
+        }
+        return $sets;
+    }
+
+    public function replaceRrset(Rrset $rrset): Rrset
+    {
+        $this->client->modifyRRSet($rrset->zoneId, $rrset->ownerName, $rrset->type->presentation, $rrset->rdata, $rrset->ttl);
+        foreach ($this->listRrsets($rrset->zoneId) as $observed) {
+            if ($observed->type->equals($rrset->type) && strcasecmp($observed->ownerName, $rrset->ownerName) === 0) {
+                return $observed;
+            }
+        }
+        throw new \RuntimeException('deSEC lieferte das geschriebene RRset nicht zurück.');
+    }
+
+    public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+    {
+        $this->client->deleteRRSet($zoneId, $ownerName, $type);
     }
 
     public function createRecord(Record $record): Record
