@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Provider\Cloudflare;
 
+use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
@@ -39,9 +40,9 @@ final class CloudflareProvider extends AbstractDnsProvider
 
     private readonly CloudflareApiClient $client;
 
-    public function __construct(string $apiToken)
+    public function __construct(string $apiToken, ?ClientInterface $http = null)
     {
-        $this->client = new CloudflareApiClient($apiToken);
+        $this->client = new CloudflareApiClient($apiToken, $http);
         parent::__construct();
     }
 
