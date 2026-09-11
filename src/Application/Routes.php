@@ -29,6 +29,8 @@ use TowerDNS\Infrastructure\Http\Handler\RoleCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\RoleDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RoleEditHandler;
 use TowerDNS\Infrastructure\Http\Handler\RoleListHandler;
+use TowerDNS\Infrastructure\Http\Handler\RrsetDeleteHandler;
+use TowerDNS\Infrastructure\Http\Handler\RrsetReplaceHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpSetupHandler;
@@ -108,6 +110,8 @@ final class Routes
         $app->get('/zones/{provider}/{zone}/records/{record}/edit', [RequireAuthMiddleware::class, RecordEditHandler::class], 'records.edit.form');
         $app->post('/zones/{provider}/{zone}/records/{record}/update', [RequireAuthMiddleware::class, ZoneUpdateHandler::class], 'records.update');
         $app->post('/zones/{provider}/{zone}/records/{record}/delete', [RequireAuthMiddleware::class, RecordDeleteHandler::class], 'records.delete');
+        $app->post('/zones/{provider}/{zone}/rrsets', [RequireAuthMiddleware::class, RrsetReplaceHandler::class], 'rrsets.replace');
+        $app->post('/zones/{provider}/{zone}/rrsets/{owner}/{type}/delete', [RequireAuthMiddleware::class, RrsetDeleteHandler::class], 'rrsets.delete');
 
         // ── DNSSEC ────────────────────────────────────────────────────────────
         $app->get('/zones/{provider}/{zone}/dnssec', [RequireAuthMiddleware::class, DnssecHandler::class], 'dnssec.status');

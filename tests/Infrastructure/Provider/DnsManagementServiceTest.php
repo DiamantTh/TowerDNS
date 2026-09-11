@@ -64,6 +64,73 @@ final class DnsManagementServiceTest extends TestCase
         self::assertSame('xn--mller-kva.eu', $zone->name);
     }
 
+    public function testDeleteRrsetRequiresVerifiedAbsence(): void
+    {
+        $role     = new Role('r', 'editor', [Permission::RECORD_DELETE]);
+        $user     = new User('u1', 'u@example.com', [$role]);
+        $provider = new class implements DnsProviderInterface, \TowerDNS\Application\Contracts\RrsetProviderInterface {
+            public bool $deleted = false;
+            public function id(): string
+            {
+                return 'fake';
+            }
+            public function displayName(): string
+            {
+                return 'Fake';
+            }
+            public function capabilities(): ProviderCapabilitySet
+            {
+                return new ProviderCapabilitySet([Capability::RECORD_DELETE => true, Capability::RECORD_LIST => true]);
+            }
+            public function listZones(): array
+            {
+                return [];
+            }
+            public function createZone(string $zoneName): Zone
+            {
+                return new Zone($zoneName, $zoneName, 'fake', true);
+            }
+            public function deleteZone(string $zoneId): void {}
+            public function listRecords(string $zoneId): array
+            {
+                return [];
+            }
+            public function createRecord(Record $record): Record
+            {
+                return $record;
+            }
+            public function updateRecord(Record $record): Record
+            {
+                return $record;
+            }
+            public function deleteRecord(string $zoneId, string $recordId): void {}
+            public function getDnssecProfile(string $zoneId): DnssecProfile
+            {
+                return new DnssecProfile($zoneId, DnssecState::UNKNOWN);
+            }
+            public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+            {
+                return new DnssecProfile($zoneId, DnssecState::UNKNOWN);
+            }
+            public function listRrsets(string $zoneId): array
+            {
+                return [];
+            }
+            public function replaceRrset(\TowerDNS\Domain\DNS\Rrset $rrset): \TowerDNS\Domain\DNS\Rrset
+            {
+                return $rrset;
+            }
+            public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+            {
+                $this->deleted = $zoneId === 'example.org' && $ownerName === '_443._tcp' && $type === 'TLSA';
+            }
+        };
+
+        $service = $this->makeService([$provider]);
+        $service->deleteRrset($user, 'fake', 'example.org', '_443._tcp', 'tlsa');
+        self::assertTrue($provider->deleted);
+    }
+
     /** @param list<DnsProviderInterface> $providers */
     private function makeService(array $providers): DnsManagementService
     {

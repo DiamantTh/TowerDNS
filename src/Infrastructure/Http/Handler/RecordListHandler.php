@@ -39,17 +39,18 @@ final readonly class RecordListHandler implements RequestHandlerInterface
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $flashError = $request->getQueryParams()['error'] ?? null;
+        $flashError   = $request->getQueryParams()['error']   ?? null;
+        $flashSuccess = $request->getQueryParams()['success'] ?? null;
 
         try {
-            $records = $this->dns->listRecords($user, $providerId, $zoneId);
+            $rrsets = $this->dns->listRrsets($user, $providerId, $zoneId);
         } catch (AuthorizationException $e) {
             return new HtmlResponse(
                 $this->renderer->render('app::zones/records', [
                     'user'       => $user,
                     'providerId' => $providerId,
                     'zoneId'     => $zoneId,
-                    'records'    => [],
+                    'rrsets'     => [],
                     'csrfToken'  => $csrfToken,
                     'error'      => $e->getMessage(),
                 ]),
@@ -61,7 +62,7 @@ final readonly class RecordListHandler implements RequestHandlerInterface
                     'user'       => $user,
                     'providerId' => $providerId,
                     'zoneId'     => $zoneId,
-                    'records'    => [],
+                    'rrsets'     => [],
                     'csrfToken'  => $csrfToken,
                     'error'      => $e->getMessage(),
                 ]),
@@ -74,9 +75,10 @@ final readonly class RecordListHandler implements RequestHandlerInterface
                 'user'       => $user,
                 'providerId' => $providerId,
                 'zoneId'     => $zoneId,
-                'records'    => $records,
+                'rrsets'     => $rrsets,
                 'csrfToken'  => $csrfToken,
                 'error'      => is_string($flashError) ? $flashError : null,
+                'success'    => is_string($flashSuccess) ? $flashSuccess : null,
             ]),
         );
     }

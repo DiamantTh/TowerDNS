@@ -22,9 +22,10 @@ use TowerDNS\Application\Validation\RecordValidator;
 use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Record;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 
 /**
@@ -117,6 +118,24 @@ final readonly class DnsManagementService
             throw new \RuntimeException('Provider-Read-back stimmt nicht mit dem geschriebenen RRset überein.');
         }
         return $observed;
+    }
+
+    /** Deletes a complete RRset and confirms that it is absent on read-back. */
+    public function deleteRrset(User $user, string $providerId, string $zoneId, string $ownerName, string $type): void
+    {
+        $this->authorizationService->assert($user, Permission::RECORD_DELETE);
+        $provider   = $this->resolve($providerId, Capability::RECORD_DELETE);
+        $recordType = DnsRecordType::parse($type);
+
+        $rrsets = $this->rrsetProvider($provider);
+        $rrsets->deleteRrset($zoneId, $ownerName, $recordType->presentation);
+
+        foreach ($rrsets->listRrsets($zoneId) as $rrset) {
+            if ($rrset->type->equals($recordType)
+                && strcasecmp(rtrim($rrset->ownerName, '.'), rtrim($ownerName, '.')) === 0) {
+                throw new \RuntimeException('Provider-Read-back enthält das gelöschte RRset weiterhin.');
+            }
+        }
     }
 
     public function createRecord(User $user, string $providerId, Record $record): Record
