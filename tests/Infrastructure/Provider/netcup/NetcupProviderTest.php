@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Tests\Infrastructure\Provider\Netcup;
+namespace TowerDNS\Tests\Infrastructure\Provider\netcup;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
@@ -16,8 +16,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
-use TowerDNS\Infrastructure\Provider\Netcup\NetcupApiClient;
-use TowerDNS\Infrastructure\Provider\Netcup\NetcupProvider;
+use TowerDNS\Infrastructure\Provider\netcup\NetcupApiClient;
+use TowerDNS\Infrastructure\Provider\netcup\NetcupProvider;
 
 final class NetcupProviderTest extends TestCase
 {

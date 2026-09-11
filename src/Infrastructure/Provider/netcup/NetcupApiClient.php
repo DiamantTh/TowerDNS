@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\Netcup;
+namespace TowerDNS\Infrastructure\Provider\netcup;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
