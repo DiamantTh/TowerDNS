@@ -81,6 +81,7 @@ use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Console\InstallCommand;
 use TowerDNS\Infrastructure\Console\PasswordResetCommand;
 use TowerDNS\Infrastructure\Console\RecordListCommand;
+use TowerDNS\Infrastructure\Console\RrsetListCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
@@ -473,6 +474,7 @@ final class ContainerFactory
             ),
             ZoneListCommand::class   => \DI\autowire(),
             RecordListCommand::class => \DI\autowire(),
+            RrsetListCommand::class  => \DI\autowire(),
         ]);
 
         return $builder->build();
