@@ -18,8 +18,10 @@ use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
@@ -171,6 +173,46 @@ final class GoogleCloudDnsProvider extends AbstractDnsProvider
         $this->change($zoneId, $additions, [$old]);
     }
 
+    /** @return list<Rrset> */
+    public function listRrsets(string $zoneId): array
+    {
+        $zone = $this->getZone($zoneId);
+        $sets = [];
+        $options = [];
+        do {
+            $page = $this->request(fn() => $this->client->resourceRecordSets->listResourceRecordSets($this->projectId, $zoneId, $options));
+            foreach ($page->getRrsets() ?? [] as $native) {
+                if ($native->getRoutingPolicy() !== null || ($native->getRrdatas() ?? []) === []) { continue; }
+                try { $type = DnsRecordType::parse((string) $native->getType()); } catch (\InvalidArgumentException) { continue; }
+                $rdata = array_values($native->getRrdatas() ?? []);
+                if ($rdata === []) { continue; }
+                $sets[] = new Rrset($zoneId, $this->relativeName((string) $native->getName(), $zone), $type, (int) $native->getTtl(), $rdata);
+            }
+            $options = ['pageToken' => $page->getNextPageToken()];
+        } while ($options['pageToken'] !== null && $options['pageToken'] !== '');
+        return $sets;
+    }
+
+    public function replaceRrset(Rrset $rrset): Rrset
+    {
+        $zone = $this->getZone($rrset->zoneId);
+        $name = $this->absoluteName($rrset->ownerName, $zone);
+        $old = $this->findRrset($rrset->zoneId, $name, $rrset->type->presentation);
+        $new = $this->rrset($name, $rrset->type->presentation, $rrset->ttl, array_values(array_unique($rrset->rdata)));
+        $this->change($rrset->zoneId, [$new], $old === null ? [] : [$old]);
+        foreach ($this->listRrsets($rrset->zoneId) as $observed) {
+            if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) { return $observed; }
+        }
+        throw new ProviderRequestException('Google Cloud DNS lieferte das geschriebene RRset nicht zurück.');
+    }
+
+    public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+    {
+        $zone = $this->getZone($zoneId);
+        $old = $this->findRrset($zoneId, $this->absoluteName($ownerName, $zone), $type);
+        if ($old !== null) { $this->change($zoneId, [], [$old]); }
+    }
+
     public function getDnssecProfile(string $zoneId): DnssecProfile
     {
         $state = $this->getZone($zoneId)->getDnssecConfig()?->getState();
@@ -260,6 +302,13 @@ final class GoogleCloudDnsProvider extends AbstractDnsProvider
             throw new \InvalidArgumentException('Record name must belong to the managed zone.');
         }
         return $normalized . '.' . $apex . '.';
+    }
+
+    private function relativeName(string $name, ManagedZone $zone): string
+    {
+        $name = rtrim($name, '.');
+        $apex = rtrim((string) $zone->getDnsName(), '.');
+        return strcasecmp($name, $apex) === 0 ? '' : substr($name, 0, -strlen($apex) - 1);
     }
 
     private function mapRecord(string $zoneId, ManagedZone $zone, ResourceRecordSet $rrset, RecordType $type, string $content): Record
