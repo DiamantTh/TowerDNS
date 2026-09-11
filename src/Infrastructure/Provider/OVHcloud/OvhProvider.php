@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\Ovh;
+namespace TowerDNS\Infrastructure\Provider\OVHcloud;
 
 use GuzzleHttp\Exception\GuzzleException;
 use Ovh\Api;

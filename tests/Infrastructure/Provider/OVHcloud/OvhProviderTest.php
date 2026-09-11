@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Tests\Infrastructure\Provider\Ovh;
+namespace TowerDNS\Tests\Infrastructure\Provider\OVHcloud;
 
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Request;
@@ -17,7 +17,7 @@ use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
-use TowerDNS\Infrastructure\Provider\Ovh\OvhProvider;
+use TowerDNS\Infrastructure\Provider\OVHcloud\OvhProvider;
 
 final class OvhProviderTest extends TestCase
 {

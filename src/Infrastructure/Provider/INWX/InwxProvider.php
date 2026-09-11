@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\Inwx;
+namespace TowerDNS\Infrastructure\Provider\INWX;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;

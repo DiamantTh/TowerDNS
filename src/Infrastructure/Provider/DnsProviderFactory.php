@@ -12,7 +12,7 @@ use TowerDNS\Application\Exception\ProviderNotFoundException;
 use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
 use TowerDNS\Infrastructure\Provider\DeSEC\DeSECApiClient;
 use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
-use TowerDNS\Infrastructure\Provider\Inwx\InwxProvider;
+use TowerDNS\Infrastructure\Provider\INWX\InwxProvider;
 use TowerDNS\Infrastructure\Provider\Netcup\NetcupApiClient;
 use TowerDNS\Infrastructure\Provider\Netcup\NetcupProvider;
 use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
