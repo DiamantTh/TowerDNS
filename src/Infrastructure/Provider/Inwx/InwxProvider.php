@@ -13,6 +13,7 @@ use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
@@ -173,6 +174,55 @@ final class InwxProvider extends AbstractDnsProvider
             throw new InwxApiException('Ungültige INWX-Record-ID: ' . $recordId);
         }
         $this->client->deleteRecord($inwxId);
+    }
+
+    public function replaceRrset(Rrset $rrset): Rrset
+    {
+        $type = RecordType::tryFrom($rrset->type->presentation);
+        if ($type === null) {
+            throw new CapabilityException('INWX-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
+        }
+        $existing = array_values(array_filter($this->listRecords($rrset->zoneId),
+            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0));
+        $byContent = [];
+        foreach ($existing as $record) {
+            $byContent[$record->content] = $record;
+        }
+        $created = [];
+        try {
+            foreach (array_values(array_unique($rrset->rdata)) as $content) {
+                if (!isset($byContent[$content])) {
+                    $created[] = $this->createRecord(new Record('', $rrset->zoneId, $rrset->ownerName, $type, $rrset->ttl, $content));
+                } elseif ($byContent[$content]->ttl !== $rrset->ttl) {
+                    $this->updateRecord(new Record($byContent[$content]->id, $rrset->zoneId, $rrset->ownerName, $type, $rrset->ttl, $content));
+                }
+            }
+            foreach ($existing as $record) {
+                if (!in_array($record->content, $rrset->rdata, true)) {
+                    $this->deleteRecord($rrset->zoneId, $record->id);
+                }
+            }
+        } catch (\Throwable $error) {
+            foreach ($created as $record) {
+                try { $this->deleteRecord($rrset->zoneId, $record->id); } catch (\Throwable) {}
+            }
+            throw new InwxApiException('INWX-RRset-Änderung konnte nicht vollständig angewendet werden.', previous: $error);
+        }
+        foreach ($this->listRrsets($rrset->zoneId) as $observed) {
+            if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) {
+                return $observed;
+            }
+        }
+        throw new InwxApiException('INWX lieferte das geschriebene RRset nicht zurück.');
+    }
+
+    public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+    {
+        foreach ($this->listRecords($zoneId) as $record) {
+            if ($record->type->value === $type && strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) === 0) {
+                $this->deleteRecord($zoneId, $record->id);
+            }
+        }
     }
 
     // ── DNSSEC operations ─────────────────────────────────────────────────────
