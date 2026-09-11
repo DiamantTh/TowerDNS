@@ -15,8 +15,10 @@ use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
 
 final class PowerDnsProviderTest extends TestCase
@@ -121,6 +123,24 @@ final class PowerDnsProviderTest extends TestCase
         $sets = $provider->listRrsets('example.org.');
         self::assertSame('TYPE65400', $sets[0]->type->presentation);
         self::assertSame(['\\# 2 AABB'], $sets[0]->rdata);
+    }
+
+    public function testReplaceRrsetWritesThenReadsItBack(): void
+    {
+        $provider = $this->provider([
+            new Response(204),
+            $this->jsonResponse(['rrsets' => [[
+                'name' => '_443._tcp.example.org.', 'type' => 'TLSA', 'ttl' => 600,
+                'records' => [['content' => '3 1 1 aabb']],
+            ]]]),
+        ]);
+
+        $result = $provider->replaceRrset(new Rrset(
+            'example.org.', '_443._tcp', DnsRecordType::parse('TLSA'), 600, ['3 1 1 aabb'],
+        ));
+
+        self::assertSame(600, $result->ttl);
+        self::assertSame('REPLACE', json_decode((string) $this->requests[0]->getBody(), true, flags: JSON_THROW_ON_ERROR)['rrsets'][0]['changetype']);
     }
 
     /**
