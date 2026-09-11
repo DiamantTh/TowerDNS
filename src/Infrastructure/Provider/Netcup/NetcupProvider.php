@@ -13,6 +13,7 @@ use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
+use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
 
@@ -143,6 +144,41 @@ final class NetcupProvider extends AbstractDnsProvider
         if (count($raw) === count($remaining)) {
             throw new NetcupApiException('Der zu löschende Netcup-Record wurde nicht gefunden.');
         }
+        $this->client->replaceDnsRecords($zoneId, $remaining);
+    }
+
+    public function replaceRrset(Rrset $rrset): Rrset
+    {
+        $this->assertAllowedZone($rrset->zoneId);
+        $type = RecordType::tryFrom($rrset->type->presentation);
+        if ($type === null) {
+            throw new CapabilityException('Netcup-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
+        }
+        $raw = $this->client->listDnsRecords($rrset->zoneId);
+        $remaining = array_values(array_filter($raw, function (array $row) use ($rrset, $type): bool {
+            $record = $this->mapRecord($rrset->zoneId, $row);
+            return !$record instanceof Record || $record->type !== $type || strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) !== 0;
+        }));
+        foreach (array_values(array_unique($rrset->rdata)) as $rdata) {
+            $remaining[] = $this->toApiRecord(new Record('', $rrset->zoneId, $rrset->ownerName, $type, $rrset->ttl, $rdata));
+        }
+        $this->client->replaceDnsRecords($rrset->zoneId, $remaining);
+        foreach ($this->listRrsets($rrset->zoneId) as $observed) {
+            if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) {
+                return $observed;
+            }
+        }
+        throw new NetcupApiException('Netcup lieferte das geschriebene RRset nicht zurück.');
+    }
+
+    public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+    {
+        $this->assertAllowedZone($zoneId);
+        $raw = $this->client->listDnsRecords($zoneId);
+        $remaining = array_values(array_filter($raw, function (array $row) use ($zoneId, $ownerName, $type): bool {
+            $record = $this->mapRecord($zoneId, $row);
+            return !$record instanceof Record || $record->type->value !== $type || strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) !== 0;
+        }));
         $this->client->replaceDnsRecords($zoneId, $remaining);
     }
 
