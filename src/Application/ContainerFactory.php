@@ -52,6 +52,7 @@ use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
+use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Application\Provider\ProviderRegistry;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
@@ -79,6 +80,7 @@ use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Console\InstallCommand;
+use TowerDNS\Infrastructure\Console\ModuleListCommand;
 use TowerDNS\Infrastructure\Console\PasswordResetCommand;
 use TowerDNS\Infrastructure\Console\RecordListCommand;
 use TowerDNS\Infrastructure\Console\RrsetListCommand;
@@ -472,9 +474,11 @@ final class ContainerFactory
             PasswordResetCommand::class => \DI\factory(
                 static fn(): PasswordResetCommand => new PasswordResetCommand($projectRoot)
             ),
-            ZoneListCommand::class   => \DI\autowire(),
-            RecordListCommand::class => \DI\autowire(),
-            RrsetListCommand::class  => \DI\autowire(),
+            ZoneListCommand::class      => \DI\autowire(),
+            RecordListCommand::class    => \DI\autowire(),
+            RrsetListCommand::class     => \DI\autowire(),
+            ModuleListCommand::class    => \DI\autowire(),
+            LocalModuleDiscovery::class => \DI\factory(static fn() => new LocalModuleDiscovery($projectRoot . '/modules')),
         ]);
 
         return $builder->build();
