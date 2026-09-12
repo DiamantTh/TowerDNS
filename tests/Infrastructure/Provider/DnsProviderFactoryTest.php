@@ -12,6 +12,7 @@ use TowerDNS\Application\Exception\ProviderNotFoundException;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
+use TowerDNS\Module\Cloudflare\CloudflareProvider;
 use TowerDNS\Module\DeSEC\DeSECProvider;
 use TowerDNS\Module\PowerDNS\PowerDNSProvider;
 
@@ -52,6 +53,14 @@ final class DnsProviderFactoryTest extends TestCase
 
         self::assertInstanceOf(DeSECProvider::class, $factory->build('desec', ['token' => 'secret']));
         self::assertSame('deSEC', $factory->definitions()['desec']['label']);
+    }
+
+    public function testBuildsCloudflareFromItsLocalModuleContribution(): void
+    {
+        $factory = $this->moduleFactory();
+
+        self::assertInstanceOf(CloudflareProvider::class, $factory->build('cloudflare', ['api_token' => 'secret']));
+        self::assertSame('Cloudflare', $factory->definitions()['cloudflare']['label']);
     }
 
     private function moduleFactory(): DnsProviderFactory

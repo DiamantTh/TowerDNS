@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\Cloudflare;
+namespace TowerDNS\Module\Cloudflare;
 
 use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
@@ -38,11 +38,11 @@ final class CloudflareProvider extends AbstractDnsProvider
 {
     public const string ID = 'cloudflare';
 
-    private readonly CloudflareApiClient $client;
+    private readonly CloudflareAPIClient $client;
 
     public function __construct(string $apiToken, ?ClientInterface $http = null)
     {
-        $this->client = new CloudflareApiClient($apiToken, $http);
+        $this->client = new CloudflareAPIClient($apiToken, $http);
         parent::__construct();
     }
 
@@ -167,9 +167,11 @@ final class CloudflareProvider extends AbstractDnsProvider
             throw new CapabilityException('Cloudflare-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
         }
 
-        $existing = array_values(array_filter($this->listRecords($rrset->zoneId),
-            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0));
-        $wanted = array_values(array_unique($rrset->rdata));
+        $existing = array_values(array_filter(
+            $this->listRecords($rrset->zoneId),
+            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0
+        ));
+        $wanted       = array_values(array_unique($rrset->rdata));
         $oldByContent = [];
         foreach ($existing as $record) {
             $oldByContent[$record->content] = $record;
@@ -191,7 +193,10 @@ final class CloudflareProvider extends AbstractDnsProvider
             }
         } catch (\Throwable $error) {
             foreach ($created as $record) {
-                try { $this->deleteRecord($rrset->zoneId, $record->id); } catch (\Throwable) {}
+                try {
+                    $this->deleteRecord($rrset->zoneId, $record->id);
+                } catch (\Throwable) {
+                }
             }
             throw new ProviderRequestException('Cloudflare-RRset-Änderung konnte nicht vollständig angewendet werden.', previous: $error);
         }

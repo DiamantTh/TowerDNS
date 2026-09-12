@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Tests\Infrastructure\Provider\Cloudflare;
+namespace TowerDNS\Module\Cloudflare\Tests;
+
+require_once dirname(__DIR__) . '/module.php';
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
@@ -13,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\Rrset;
-use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
+use TowerDNS\Module\Cloudflare\CloudflareProvider;
 
 final class CloudflareProviderTest extends TestCase
 {
@@ -29,7 +31,7 @@ final class CloudflareProviderTest extends TestCase
             $this->json(['result' => [$this->record(600)], 'result_info' => ['total_pages' => 1]]),
         ]);
 
-        $rrset = new Rrset('example.org', '_443._tcp', DnsRecordType::parse('TLSA'), 600, ['3 1 1 aabb']);
+        $rrset    = new Rrset('example.org', '_443._tcp', DnsRecordType::parse('TLSA'), 600, ['3 1 1 aabb']);
         $observed = $provider->replaceRrset($rrset);
 
         self::assertSame(600, $observed->ttl);
@@ -41,7 +43,9 @@ final class CloudflareProviderTest extends TestCase
     private function provider(array $responses): CloudflareProvider
     {
         $stack = HandlerStack::create(new MockHandler($responses));
-        $stack->push(Middleware::tap(function (RequestInterface $request): void { $this->requests[] = $request; }));
+        $stack->push(Middleware::tap(function (RequestInterface $request): void {
+            $this->requests[] = $request;
+        }));
         return new CloudflareProvider('test-token', new Client(['base_uri' => 'https://api.cloudflare.com/client/v4/', 'handler' => $stack]));
     }
 

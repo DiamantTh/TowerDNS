@@ -5,8 +5,8 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\Cloudflare;
+namespace TowerDNS\Module\Cloudflare;
 
 use TowerDNS\Application\Exception\ProviderRequestException;
 
-final class CloudflareApiException extends ProviderRequestException {}
+final class CloudflareAPIException extends ProviderRequestException {}

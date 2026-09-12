@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\Cloudflare;
+namespace TowerDNS\Module\Cloudflare;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
@@ -23,7 +23,7 @@ use GuzzleHttp\RequestOptions;
  *
  * @see https://developers.cloudflare.com/api/
  */
-final class CloudflareApiClient
+final class CloudflareAPIClient
 {
     private const string BASE_URI = 'https://api.cloudflare.com/client/v4/';
 
@@ -40,7 +40,7 @@ final class CloudflareApiClient
         ?ClientInterface $http = null,
     ) {
         if ($apiToken === '') {
-            throw new CloudflareApiException('Cloudflare API-Token darf nicht leer sein.');
+            throw new CloudflareAPIException('Cloudflare API-Token darf nicht leer sein.');
         }
 
         $this->http = $http ?? new Client([
@@ -187,7 +187,7 @@ final class CloudflareApiClient
         $uuid   = (string) ($result['id'] ?? '');
 
         if ($uuid === '') {
-            throw new CloudflareApiException(sprintf('Cloudflare-Zone "%s" nicht gefunden.', $zoneName));
+            throw new CloudflareAPIException(sprintf('Cloudflare-Zone "%s" nicht gefunden.', $zoneName));
         }
 
         $this->zoneUuidCache[$zoneName] = $uuid;
@@ -204,7 +204,7 @@ final class CloudflareApiClient
         $accounts = (array) ($data['result'] ?? []);
 
         if ($accounts === []) {
-            throw new CloudflareApiException('Kein Cloudflare-Konto für diesen API-Token gefunden.');
+            throw new CloudflareAPIException('Kein Cloudflare-Konto für diesen API-Token gefunden.');
         }
 
         $first           = (array) $accounts[0];
@@ -275,9 +275,9 @@ final class CloudflareApiClient
             $msg     = $errors !== []
                 ? (string) (((array) $errors[0])['message'] ?? 'Unbekannter Fehler')
                 : 'HTTP ' . $e->getResponse()->getStatusCode();
-            throw new CloudflareApiException('Cloudflare-API-Fehler: ' . $msg, $e->getCode(), $e);
+            throw new CloudflareAPIException('Cloudflare-API-Fehler: ' . $msg, $e->getCode(), $e);
         } catch (GuzzleException $e) {
-            throw new CloudflareApiException('Cloudflare-Verbindungsfehler: ' . $e->getMessage(), 0, $e);
+            throw new CloudflareAPIException('Cloudflare-Verbindungsfehler: ' . $e->getMessage(), 0, $e);
         }
 
         if (!$decode) {
@@ -292,7 +292,7 @@ final class CloudflareApiClient
             $msg    = $errors !== []
                 ? (string) (((array) $errors[0])['message'] ?? 'Unbekannter Fehler')
                 : 'Cloudflare-API-Fehler ohne Details';
-            throw new CloudflareApiException('Cloudflare-API-Fehler: ' . $msg);
+            throw new CloudflareAPIException('Cloudflare-API-Fehler: ' . $msg);
         }
 
         return $data;
