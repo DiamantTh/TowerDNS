@@ -5,7 +5,9 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Tests\Infrastructure\Provider\OVHcloud;
+namespace TowerDNS\Module\OVHcloud\Tests;
+
+require_once dirname(__DIR__) . '/module.php';
 
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Request;
@@ -17,9 +19,9 @@ use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
-use TowerDNS\Infrastructure\Provider\OVHcloud\OvhProvider;
+use TowerDNS\Module\OVHcloud\OVHcloudProvider;
 
-final class OvhProviderTest extends TestCase
+final class OVHcloudProviderTest extends TestCase
 {
     public function testListsZonesUsingDnsDeploymentStatusOnly(): void
     {
@@ -29,7 +31,7 @@ final class OvhProviderTest extends TestCase
             ['/domain/zone/example.org/status', null, null, ['isDeployed' => true]],
             ['/domain/zone/pending.org/status', null, null, ['isDeployed' => false]],
         ]);
-        $zones = new OvhProvider($api)->listZones();
+        $zones = new OVHcloudProvider($api)->listZones();
         self::assertCount(2, $zones);
         self::assertTrue($zones[0]->active);
         self::assertFalse($zones[1]->active);
@@ -47,7 +49,7 @@ final class OvhProviderTest extends TestCase
         ]);
         $api->expects(self::never())->method('put');
         $api->expects(self::never())->method('delete');
-        $records = new OvhProvider($api)->listRecords('example.org');
+        $records = new OVHcloudProvider($api)->listRecords('example.org');
         self::assertCount(1, $records);
         self::assertSame('17', $records[0]->id);
         self::assertSame('_443._tcp', $records[0]->name);
@@ -57,7 +59,7 @@ final class OvhProviderTest extends TestCase
 
     public function testCreatesTlsaThenRefreshesWithoutReplacingSiblings(): void
     {
-        $api = $this->createMock(Api::class);
+        $api   = $this->createMock(Api::class);
         $calls = [];
         $api->expects(self::exactly(2))->method('post')->willReturnCallback(
             function (string $path, ?array $payload) use (&$calls): ?array {
@@ -67,18 +69,18 @@ final class OvhProviderTest extends TestCase
         );
         $api->expects(self::never())->method('put');
         $api->expects(self::never())->method('delete');
-        $record = new OvhProvider($api)->createRecord($this->record());
+        $record = new OVHcloudProvider($api)->createRecord($this->record());
         self::assertSame('17', $record->id);
         self::assertSame([
             ['/domain/zone/example.org/record', ['fieldType' => 'TLSA',
-                'subDomain' => '_443._tcp', 'target' => '3 1 1 deadbeef', 'ttl' => 300]],
+                'subDomain'                                  => '_443._tcp', 'target' => '3 1 1 deadbeef', 'ttl' => 300]],
             ['/domain/zone/example.org/refresh', null],
         ], $calls);
     }
 
     public function testUpdateUsesNativeIdAndReadsBackAfterPublishing(): void
     {
-        $api = $this->createMock(Api::class);
+        $api   = $this->createMock(Api::class);
         $calls = [];
         $api->expects(self::exactly(2))->method('get')->with('/domain/zone/example.org/record/17')
             ->willReturnCallback(function () use (&$calls): array {
@@ -87,11 +89,15 @@ final class OvhProviderTest extends TestCase
             });
         $api->expects(self::once())->method('put')->with('/domain/zone/example.org/record/17', [
             'subDomain' => '_443._tcp', 'target' => '3 1 1 deadbeef', 'ttl' => 300,
-        ])->willReturnCallback(static function () use (&$calls): void { $calls[] = 'put'; });
+        ])->willReturnCallback(static function () use (&$calls): void {
+            $calls[] = 'put';
+        });
         $api->expects(self::once())->method('post')->with('/domain/zone/example.org/refresh', null)
-            ->willReturnCallback(static function () use (&$calls): void { $calls[] = 'refresh'; });
+            ->willReturnCallback(static function () use (&$calls): void {
+                $calls[] = 'refresh';
+            });
         $api->expects(self::never())->method('delete');
-        $updated = new OvhProvider($api)->updateRecord($this->record());
+        $updated = new OVHcloudProvider($api)->updateRecord($this->record());
         self::assertSame('17', $updated->id);
         self::assertSame(['get', 'put', 'refresh', 'get'], $calls);
     }
@@ -103,18 +109,22 @@ final class OvhProviderTest extends TestCase
         $api->expects(self::never())->method('put');
         $api->expects(self::never())->method('post');
         $this->expectException(CapabilityException::class);
-        new OvhProvider($api)->updateRecord($this->record());
+        new OVHcloudProvider($api)->updateRecord($this->record());
     }
 
     public function testDeleteRefreshesZoneAndOnlyDeletesSpecifiedId(): void
     {
-        $api = $this->createMock(Api::class);
+        $api   = $this->createMock(Api::class);
         $calls = [];
         $api->expects(self::once())->method('delete')->with('/domain/zone/example.org/record/17')
-            ->willReturnCallback(static function () use (&$calls): void { $calls[] = 'delete'; });
+            ->willReturnCallback(static function () use (&$calls): void {
+                $calls[] = 'delete';
+            });
         $api->expects(self::once())->method('post')->with('/domain/zone/example.org/refresh', null)
-            ->willReturnCallback(static function () use (&$calls): void { $calls[] = 'refresh'; });
-        new OvhProvider($api)->deleteRecord('example.org', '17');
+            ->willReturnCallback(static function () use (&$calls): void {
+                $calls[] = 'refresh';
+            });
+        new OVHcloudProvider($api)->deleteRecord('example.org', '17');
         self::assertSame(['delete', 'refresh'], $calls);
     }
 
@@ -129,7 +139,7 @@ final class OvhProviderTest extends TestCase
         });
         $this->expectException(ProviderRequestException::class);
         $this->expectExceptionMessage('Änderung gespeichert');
-        new OvhProvider($api)->createRecord($this->record());
+        new OVHcloudProvider($api)->createRecord($this->record());
     }
 
     public function testDnssecReadMapsPendingStateAndCapabilitiesAreConservative(): void
@@ -137,7 +147,7 @@ final class OvhProviderTest extends TestCase
         $api = $this->createMock(Api::class);
         $api->expects(self::once())->method('get')->with('/domain/zone/example.org/dnssec')
             ->willReturn(['status' => 'enableInProgress']);
-        $provider = new OvhProvider($api);
+        $provider = new OVHcloudProvider($api);
         self::assertSame(DnssecState::PARTIAL, $provider->getDnssecProfile('example.org')->state);
         self::assertFalse($provider->capabilities()->supports(Capability::ZONE_CREATE));
         self::assertFalse($provider->capabilities()->supports(Capability::ZONE_DELETE));
@@ -160,7 +170,7 @@ final class OvhProviderTest extends TestCase
                     'target' => '"hello" "world"', 'ttl' => 300];
             },
         );
-        $result = new OvhProvider($api)->createRecord(new Record('', 'example.org', '@', RecordType::TXT, 300, '"hello" "world"'));
+        $result = new OVHcloudProvider($api)->createRecord(new Record('', 'example.org', '@', RecordType::TXT, 300, '"hello" "world"'));
         self::assertSame('', $result->name);
         self::assertSame('"hello" "world"', $result->content);
     }

@@ -16,6 +16,7 @@ use TowerDNS\Module\Cloudflare\CloudflareProvider;
 use TowerDNS\Module\DeSEC\DeSECProvider;
 use TowerDNS\Module\INWX\INWXProvider;
 use TowerDNS\Module\netcup\NetcupProvider;
+use TowerDNS\Module\OVHcloud\OVHcloudProvider;
 use TowerDNS\Module\PowerDNS\PowerDNSProvider;
 
 final class DnsProviderFactoryTest extends TestCase
@@ -87,6 +88,18 @@ final class DnsProviderFactoryTest extends TestCase
             'zones'           => 'example.org',
         ]));
         self::assertSame('netcup', $factory->definitions()['netcup']['label']);
+    }
+
+    public function testBuildsOVHcloudFromItsLocalModuleContribution(): void
+    {
+        $factory = $this->moduleFactory();
+
+        self::assertInstanceOf(OVHcloudProvider::class, $factory->build('ovh', [
+            'application_key'    => 'app-key',
+            'application_secret' => 'app-secret',
+            'consumer_key'       => 'consumer-key',
+        ]));
+        self::assertSame('OVHcloud', $factory->definitions()['ovh']['label']);
     }
 
     private function moduleFactory(): DnsProviderFactory

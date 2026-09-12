@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\OVHcloud;
+namespace TowerDNS\Module\OVHcloud;
 
 use GuzzleHttp\Exception\GuzzleException;
 use Ovh\Api;
@@ -26,7 +26,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  * @see https://api.ovh.com/1.0/domain.json
  * @see https://github.com/ovh/php-ovh
  */
-final class OvhProvider extends AbstractDnsProvider
+final class OVHcloudProvider extends AbstractDnsProvider
 {
     public const string ID = 'ovh';
 
@@ -48,13 +48,13 @@ final class OvhProvider extends AbstractDnsProvider
     protected function capabilityMap(): array
     {
         return [
-            Capability::ZONE_LIST => true,
-            Capability::ZONE_READ => true,
-            Capability::RECORD_LIST => true,
-            Capability::RECORD_CREATE => true,
-            Capability::RECORD_UPDATE => true,
-            Capability::RECORD_DELETE => true,
-            Capability::DNSSEC_STATUS_READ => true,
+            Capability::ZONE_LIST                   => true,
+            Capability::ZONE_READ                   => true,
+            Capability::RECORD_LIST                 => true,
+            Capability::RECORD_CREATE               => true,
+            Capability::RECORD_UPDATE               => true,
+            Capability::RECORD_DELETE               => true,
+            Capability::DNSSEC_STATUS_READ          => true,
             Capability::PROVIDER_CREDENTIALS_MANAGE => true,
         ];
     }
@@ -63,8 +63,8 @@ final class OvhProvider extends AbstractDnsProvider
     {
         $zones = [];
         foreach ((array) $this->request('GET', '/domain/zone') as $name) {
-            $name = (string) $name;
-            $status = (array) $this->request('GET', $this->zonePath($name) . '/status');
+            $name    = (string) $name;
+            $status  = (array) $this->request('GET', $this->zonePath($name) . '/status');
             $zones[] = new Zone($name, $name, self::ID, (bool) ($status['isDeployed'] ?? false));
         }
         return $zones;
@@ -108,7 +108,7 @@ final class OvhProvider extends AbstractDnsProvider
     {
         $this->assertWritable($record);
         $path = $this->recordPath($record->zoneId, $record->id);
-        $old = (array) $this->request('GET', $path);
+        $old  = (array) $this->request('GET', $path);
         if (($old['fieldType'] ?? '') !== $record->type->value) {
             throw new CapabilityException('OVH erlaubt keinen Typwechsel bestehender Records; bitte einen neuen Record erstellen.');
         }
@@ -130,10 +130,14 @@ final class OvhProvider extends AbstractDnsProvider
         if ($type === null) {
             throw new CapabilityException('OVHcloud-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
         }
-        $existing = array_values(array_filter($this->listRecords($rrset->zoneId),
-            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0));
+        $existing = array_values(array_filter(
+            $this->listRecords($rrset->zoneId),
+            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0
+        ));
         $byContent = [];
-        foreach ($existing as $record) { $byContent[$record->content] = $record; }
+        foreach ($existing as $record) {
+            $byContent[$record->content] = $record;
+        }
         foreach (array_values(array_unique($rrset->rdata)) as $content) {
             if (!isset($byContent[$content])) {
                 $this->createRecord(new Record('', $rrset->zoneId, $rrset->ownerName, $type, $rrset->ttl, $content));
@@ -142,10 +146,14 @@ final class OvhProvider extends AbstractDnsProvider
             }
         }
         foreach ($existing as $record) {
-            if (!in_array($record->content, $rrset->rdata, true)) { $this->deleteRecord($rrset->zoneId, $record->id); }
+            if (!in_array($record->content, $rrset->rdata, true)) {
+                $this->deleteRecord($rrset->zoneId, $record->id);
+            }
         }
         foreach ($this->listRrsets($rrset->zoneId) as $observed) {
-            if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) { return $observed; }
+            if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) {
+                return $observed;
+            }
         }
         throw new ProviderRequestException('OVHcloud lieferte das geschriebene RRset nicht zurück.');
     }
@@ -153,20 +161,22 @@ final class OvhProvider extends AbstractDnsProvider
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         foreach ($this->listRecords($zoneId) as $record) {
-            if ($record->type->value === $type && strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) === 0) { $this->deleteRecord($zoneId, $record->id); }
+            if ($record->type->value === $type && strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) === 0) {
+                $this->deleteRecord($zoneId, $record->id);
+            }
         }
     }
 
     public function getDnssecProfile(string $zoneId): DnssecProfile
     {
-        $row = (array) $this->request('GET', $this->zonePath($zoneId) . '/dnssec');
+        $row    = (array) $this->request('GET', $this->zonePath($zoneId) . '/dnssec');
         $status = (string) ($row['status'] ?? '');
         return new DnssecProfile($zoneId, match ($status) {
-            'enabled' => DnssecState::SIGNED,
-            'disabled' => DnssecState::UNSIGNED,
+            'enabled'                               => DnssecState::SIGNED,
+            'disabled'                              => DnssecState::UNSIGNED,
             'enableInProgress', 'disableInProgress' => DnssecState::PARTIAL,
-            default => DnssecState::UNKNOWN,
-        }, metadata: ['status' => $status]);
+            default                                 => DnssecState::UNKNOWN,
+        }, metadata: ['status'                      => $status]);
     }
 
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
@@ -190,7 +200,7 @@ final class OvhProvider extends AbstractDnsProvider
     private function recordPayload(Record $record): array
     {
         return ['subDomain' => $record->name === '@' ? '' : $record->name,
-            'target' => $record->content, 'ttl' => $record->ttl];
+            'target'        => $record->content, 'ttl' => $record->ttl];
     }
 
     /** @param array<string, mixed> $row */
@@ -205,8 +215,14 @@ final class OvhProvider extends AbstractDnsProvider
             $soa = (array) $this->request('GET', $this->zonePath($zoneId) . '/soa');
             $ttl = (int) ($soa['ttl'] ?? 0);
         }
-        return new Record((string) $row['id'], $zoneId, (string) ($row['subDomain'] ?? ''),
-            $type, $ttl, (string) $row['target']);
+        return new Record(
+            (string) $row['id'],
+            $zoneId,
+            (string) ($row['subDomain'] ?? ''),
+            $type,
+            $ttl,
+            (string) $row['target']
+        );
     }
 
     private function zonePath(string $zoneId): string
@@ -236,11 +252,11 @@ final class OvhProvider extends AbstractDnsProvider
     {
         try {
             return match ($method) {
-                'GET' => $this->client->get($path),
-                'POST' => $this->client->post($path, $payload),
-                'PUT' => $this->client->put($path, $payload ?? []),
+                'GET'    => $this->client->get($path),
+                'POST'   => $this->client->post($path, $payload),
+                'PUT'    => $this->client->put($path, $payload ?? []),
                 'DELETE' => $this->client->delete($path),
-                default => throw new \LogicException('Unsupported OVH API method.'),
+                default  => throw new \LogicException('Unsupported OVH API method.'),
             };
         } catch (GuzzleException | \JsonException $e) {
             // Avoid exposing signed request headers or response bodies containing credentials.
