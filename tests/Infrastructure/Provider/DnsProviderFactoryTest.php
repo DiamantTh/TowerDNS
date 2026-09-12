@@ -15,6 +15,7 @@ use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 use TowerDNS\Module\Cloudflare\CloudflareProvider;
 use TowerDNS\Module\ClouDNS\ClouDNSProvider;
 use TowerDNS\Module\DeSEC\DeSECProvider;
+use TowerDNS\Module\GoogleCloudDNS\GoogleCloudDNSProvider;
 use TowerDNS\Module\INWX\INWXProvider;
 use TowerDNS\Module\netcup\NetcupProvider;
 use TowerDNS\Module\OVHcloud\OVHcloudProvider;
@@ -112,6 +113,24 @@ final class DnsProviderFactoryTest extends TestCase
             'auth_password' => 'secret',
         ]));
         self::assertSame('ClouDNS', $factory->definitions()['cloudns']['label']);
+    }
+
+    public function testBuildsGoogleCloudDNSFromItsLocalModuleContribution(): void
+    {
+        $factory        = $this->moduleFactory();
+        $serviceAccount = json_encode([
+            'type'         => 'service_account',
+            'project_id'   => 'example-project',
+            'private_key'  => '-----BEGIN PRIVATE KEY-----\nexample\n-----END PRIVATE KEY-----\n',
+            'client_email' => 'towerdns@example-project.iam.gserviceaccount.com',
+            'client_id'    => '1234567890',
+        ], JSON_THROW_ON_ERROR);
+
+        self::assertInstanceOf(GoogleCloudDNSProvider::class, $factory->build('google-cloud-dns', [
+            'project_id'           => 'example-project',
+            'service_account_json' => $serviceAccount,
+        ]));
+        self::assertSame('Google Cloud DNS', $factory->definitions()['google-cloud-dns']['label']);
     }
 
     private function moduleFactory(): DnsProviderFactory
