@@ -32,7 +32,7 @@ final readonly class PermissionService
         ?AuthorizationService $authorization = null,
         ?RbacPermissionChecker $rbac = null,
     ) {
-        $this->rbac = $rbac ?? new RbacPermissionChecker();
+        $this->rbac          = $rbac          ?? new RbacPermissionChecker();
         $this->authorization = $authorization ?? new AuthorizationService($this->rbac);
     }
 
@@ -43,6 +43,10 @@ final readonly class PermissionService
 
     public function authorizeAccount(User $user, Permission $permission, int $accountId): bool
     {
+        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)) {
+            return true;
+        }
+
         $role = $this->accounts->getEffectiveRole($accountId, $user->id);
 
         return $role instanceof TeamRole && $this->roleGrants($role, $permission);
@@ -50,6 +54,10 @@ final readonly class PermissionService
 
     public function authorizeZone(User $user, Permission $permission, int $accountId, string $zoneId): bool
     {
+        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)) {
+            return true;
+        }
+
         $accountRole = $this->accounts->getEffectiveRole($accountId, $user->id);
         if ($accountRole instanceof TeamRole && $this->roleGrants($accountRole, $permission)) {
             return true;
@@ -126,7 +134,7 @@ final readonly class PermissionService
 
     public function canImpersonate(User $actor): bool
     {
-        return $this->authorizeSystem($actor, Permission::USER_MANAGE);
+        return $this->authorizeSystem($actor, Permission::SYSTEM_IMPERSONATION_EXECUTE);
     }
 
     // ── Assertions ──────────────────────────────────────────────────────────

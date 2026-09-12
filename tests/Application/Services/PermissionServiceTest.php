@@ -94,6 +94,29 @@ final class PermissionServiceTest extends TestCase
         self::assertFalse($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-a'));
     }
 
+    public function testExplicitSystemAccountAccessGrantsGlobalAccountAndZoneAccess(): void
+    {
+        $service = $this->serviceFor();
+        $user    = new User('operator-1', 'operator@example.test', [
+            new Role('operator', 'System operator', [Permission::SYSTEM_ACCOUNTS_ACCESS]),
+        ]);
+
+        self::assertTrue($service->authorizeAccount($user, Permission::ACCOUNT_READ, 42));
+        self::assertTrue($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-a'));
+    }
+
+    public function testImpersonationRequiresItsOwnSystemPermission(): void
+    {
+        $service = $this->serviceFor();
+
+        self::assertFalse($service->canImpersonate(new User('iam-1', 'iam@example.test', [
+            new Role('iam', 'IAM administrator', [Permission::USER_MANAGE]),
+        ])));
+        self::assertTrue($service->canImpersonate(new User('operator-1', 'operator@example.test', [
+            new Role('operator', 'System operator', [Permission::SYSTEM_IMPERSONATION_EXECUTE]),
+        ])));
+    }
+
     private function serviceFor(?TeamRole $accountRole = null, ?ZoneMembership $zoneMembership = null): PermissionService
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);

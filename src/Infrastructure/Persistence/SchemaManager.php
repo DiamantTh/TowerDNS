@@ -126,6 +126,9 @@ final readonly class SchemaManager
             );
 
             if ($exists !== false) {
+                if ($id === 'superadmin') {
+                    $this->ensureRolePermissions($id, $def['permissions']);
+                }
                 continue;
             }
 
@@ -139,6 +142,24 @@ final readonly class SchemaManager
             foreach ($def['permissions'] as $permission) {
                 $this->connection->insert('role_permissions', [
                     'role_id'    => $id,
+                    'permission' => $permission->value,
+                ]);
+            }
+        }
+    }
+
+    /** @param list<Permission> $permissions */
+    private function ensureRolePermissions(string $roleId, array $permissions): void
+    {
+        foreach ($permissions as $permission) {
+            $exists = $this->connection->fetchOne(
+                'SELECT 1 FROM role_permissions WHERE role_id = ? AND permission = ?',
+                [$roleId, $permission->value],
+            );
+
+            if ($exists === false) {
+                $this->connection->insert('role_permissions', [
+                    'role_id'    => $roleId,
                     'permission' => $permission->value,
                 ]);
             }
