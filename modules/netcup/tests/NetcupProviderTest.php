@@ -5,7 +5,9 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Tests\Infrastructure\Provider\netcup;
+namespace TowerDNS\Module\netcup\Tests;
+
+require_once dirname(__DIR__) . '/module.php';
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
@@ -16,8 +18,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
-use TowerDNS\Infrastructure\Provider\netcup\NetcupApiClient;
-use TowerDNS\Infrastructure\Provider\netcup\NetcupProvider;
+use TowerDNS\Module\netcup\NetcupAPIClient;
+use TowerDNS\Module\netcup\NetcupProvider;
 
 final class NetcupProviderTest extends TestCase
 {
@@ -76,7 +78,7 @@ final class NetcupProviderTest extends TestCase
         $stack->push(Middleware::tap(function (RequestInterface $request): void {
             $this->requests[] = $request;
         }));
-        $client = new NetcupApiClient(
+        $client = new NetcupAPIClient(
             '12345',
             'api-key',
             'api-password',

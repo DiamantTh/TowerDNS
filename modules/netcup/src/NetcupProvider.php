@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\netcup;
+namespace TowerDNS\Module\netcup;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
@@ -32,7 +32,7 @@ final class NetcupProvider extends AbstractDnsProvider
     private array $zones;
 
     /** @param list<string> $zones */
-    public function __construct(private readonly NetcupApiClient $client, array $zones)
+    public function __construct(private readonly NetcupAPIClient $client, array $zones)
     {
         $this->zones = array_values(array_unique(array_filter(array_map(
             static fn(string $zone): string => rtrim(trim($zone), '.'),
@@ -126,7 +126,7 @@ final class NetcupProvider extends AbstractDnsProvider
             }
         }
         if (!$replaced) {
-            throw new NetcupApiException('Der zu aktualisierende Netcup-Record wurde nicht gefunden.');
+            throw new NetcupAPIException('Der zu aktualisierende Netcup-Record wurde nicht gefunden.');
         }
         $this->client->replaceDnsRecords($record->zoneId, $raw);
         return $this->withId($record);
@@ -142,7 +142,7 @@ final class NetcupProvider extends AbstractDnsProvider
             return $mapped === null || $mapped->name !== $name || $mapped->type->value !== $type || self::contentHash($mapped->content) !== $hash;
         }));
         if (count($raw) === count($remaining)) {
-            throw new NetcupApiException('Der zu löschende Netcup-Record wurde nicht gefunden.');
+            throw new NetcupAPIException('Der zu löschende Netcup-Record wurde nicht gefunden.');
         }
         $this->client->replaceDnsRecords($zoneId, $remaining);
     }
@@ -154,7 +154,7 @@ final class NetcupProvider extends AbstractDnsProvider
         if ($type === null) {
             throw new CapabilityException('Netcup-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
         }
-        $raw = $this->client->listDnsRecords($rrset->zoneId);
+        $raw       = $this->client->listDnsRecords($rrset->zoneId);
         $remaining = array_values(array_filter($raw, function (array $row) use ($rrset, $type): bool {
             $record = $this->mapRecord($rrset->zoneId, $row);
             return !$record instanceof Record || $record->type !== $type || strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) !== 0;
@@ -168,13 +168,13 @@ final class NetcupProvider extends AbstractDnsProvider
                 return $observed;
             }
         }
-        throw new NetcupApiException('Netcup lieferte das geschriebene RRset nicht zurück.');
+        throw new NetcupAPIException('Netcup lieferte das geschriebene RRset nicht zurück.');
     }
 
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         $this->assertAllowedZone($zoneId);
-        $raw = $this->client->listDnsRecords($zoneId);
+        $raw       = $this->client->listDnsRecords($zoneId);
         $remaining = array_values(array_filter($raw, function (array $row) use ($zoneId, $ownerName, $type): bool {
             $record = $this->mapRecord($zoneId, $row);
             return !$record instanceof Record || $record->type->value !== $type || strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) !== 0;
@@ -261,7 +261,7 @@ final class NetcupProvider extends AbstractDnsProvider
     private function assertAllowedZone(string $zone): void
     {
         if (!in_array(rtrim($zone, '.'), $this->zones, true)) {
-            throw new NetcupApiException(sprintf('Netcup-Zone "%s" ist nicht im konfigurierten Zone-Allowlist.', $zone));
+            throw new NetcupAPIException(sprintf('Netcup-Zone "%s" ist nicht im konfigurierten Zone-Allowlist.', $zone));
         }
     }
 }

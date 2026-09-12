@@ -5,6 +5,6 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\netcup;
+namespace TowerDNS\Module\netcup;
 
-final class NetcupApiException extends \RuntimeException {}
+final class NetcupAPIException extends \RuntimeException {}

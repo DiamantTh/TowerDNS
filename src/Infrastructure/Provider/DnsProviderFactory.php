@@ -10,8 +10,6 @@ namespace TowerDNS\Infrastructure\Provider;
 use TowerDNS\Application\Contracts\DnsProviderInterface;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
-use TowerDNS\Infrastructure\Provider\netcup\NetcupApiClient;
-use TowerDNS\Infrastructure\Provider\netcup\NetcupProvider;
 
 /** Central catalogue and construction point for DNS-provider adapters. */
 final class DnsProviderFactory
@@ -25,16 +23,6 @@ final class DnsProviderFactory
      * }>
      */
     private const array DEFINITIONS = [
-        'netcup' => [
-            'label'        => 'Netcup CCP DNS',
-            'user_managed' => true,
-            'credentials'  => [
-                'customer_number' => ['input' => 'netcup_customer_number', 'label' => 'Kundennummer', 'required' => true, 'secret' => false],
-                'api_key'         => ['input' => 'netcup_api_key', 'label' => 'Legacy API-Key', 'required' => true, 'secret' => true],
-                'api_password'    => ['input' => 'netcup_api_password', 'label' => 'Legacy API-Passwort', 'required' => true, 'secret' => true],
-                'zones'           => ['input' => 'netcup_zones', 'label' => 'Zonen (kommagetrennt)', 'required' => true, 'secret' => false],
-            ],
-        ],
     ];
 
     public function supports(string $type): bool
@@ -120,21 +108,7 @@ final class DnsProviderFactory
         }
 
         return match ($type) {
-            NetcupProvider::ID => new NetcupProvider(
-                new NetcupApiClient(
-                    (string) $credentials['customer_number'],
-                    (string) $credentials['api_key'],
-                    (string) $credentials['api_password'],
-                ),
-                $this->parseZones((string) $credentials['zones']),
-            ),
             default => throw ProviderNotFoundException::forId($type),
         };
-    }
-
-    /** @return list<string> */
-    private function parseZones(string $zones): array
-    {
-        return array_values(array_filter(array_map('trim', explode(',', $zones))));
     }
 }

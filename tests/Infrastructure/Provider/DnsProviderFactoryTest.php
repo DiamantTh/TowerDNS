@@ -15,6 +15,7 @@ use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 use TowerDNS\Module\Cloudflare\CloudflareProvider;
 use TowerDNS\Module\DeSEC\DeSECProvider;
 use TowerDNS\Module\INWX\INWXProvider;
+use TowerDNS\Module\netcup\NetcupProvider;
 use TowerDNS\Module\PowerDNS\PowerDNSProvider;
 
 final class DnsProviderFactoryTest extends TestCase
@@ -73,6 +74,19 @@ final class DnsProviderFactoryTest extends TestCase
             'password' => 'secret',
         ]));
         self::assertSame('INWX', $factory->definitions()['inwx']['label']);
+    }
+
+    public function testBuildsNetcupFromItsLocalModuleContribution(): void
+    {
+        $factory = $this->moduleFactory();
+
+        self::assertInstanceOf(NetcupProvider::class, $factory->build('netcup', [
+            'customer_number' => '12345',
+            'api_key'         => 'key',
+            'api_password'    => 'secret',
+            'zones'           => 'example.org',
+        ]));
+        self::assertSame('netcup', $factory->definitions()['netcup']['label']);
     }
 
     private function moduleFactory(): DnsProviderFactory

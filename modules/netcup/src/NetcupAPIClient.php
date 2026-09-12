@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\netcup;
+namespace TowerDNS\Module\netcup;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
@@ -21,7 +21,7 @@ use GuzzleHttp\RequestOptions;
  *
  * @see https://www.netcup.com/en/helpcenter/documentation/domain/our-api
  */
-final readonly class NetcupApiClient
+final readonly class NetcupAPIClient
 {
     public const string DEFAULT_ENDPOINT = 'https://ccp.netcup.net/run/webservice/servers/endpoint.php?JSON';
 
@@ -35,7 +35,7 @@ final readonly class NetcupApiClient
         string $endpoint = self::DEFAULT_ENDPOINT,
     ) {
         if ($customerNumber === '' || $apiKey === '' || $apiPassword === '') {
-            throw new NetcupApiException('Netcup-Kundennummer, API-Key und API-Passwort dürfen nicht leer sein.');
+            throw new NetcupAPIException('Netcup-Kundennummer, API-Key und API-Passwort dürfen nicht leer sein.');
         }
 
         $this->http = $http ?? new Client([
@@ -90,7 +90,7 @@ final readonly class NetcupApiClient
                     'apikey'         => $this->apiKey,
                     'apisessionid'   => $session,
                 ]);
-            } catch (NetcupApiException) {
+            } catch (NetcupAPIException) {
                 // A successful DNS mutation must not become a failure merely
                 // because the best-effort session cleanup was unavailable.
             }
@@ -106,7 +106,7 @@ final readonly class NetcupApiClient
         ]);
         $session = (string) ($data['apisessionid'] ?? '');
         if ($session === '') {
-            throw new NetcupApiException('Netcup login lieferte keine API-Session-ID.');
+            throw new NetcupAPIException('Netcup login lieferte keine API-Session-ID.');
         }
         return $session;
     }
@@ -123,19 +123,19 @@ final readonly class NetcupApiClient
                 RequestOptions::JSON    => ['action' => $action, 'param' => $params],
             ]);
         } catch (GuzzleException $e) {
-            throw new NetcupApiException('Netcup API-Aufruf fehlgeschlagen: ' . $e->getMessage(), 0, $e);
+            throw new NetcupAPIException('Netcup API-Aufruf fehlgeschlagen: ' . $e->getMessage(), 0, $e);
         }
 
         /** @var mixed $decoded */
         $decoded = json_decode((string) $response->getBody(), true);
         if (!is_array($decoded)) {
-            throw new NetcupApiException(sprintf('Netcup API lieferte keine JSON-Antwort (HTTP %d).', $response->getStatusCode()));
+            throw new NetcupAPIException(sprintf('Netcup API lieferte keine JSON-Antwort (HTTP %d).', $response->getStatusCode()));
         }
 
         $status = (int) ($decoded['statuscode'] ?? 0);
         if ($response->getStatusCode() >= 400 || $status !== 2000) {
             $message = (string) ($decoded['longmessage'] ?? $decoded['shortmessage'] ?? 'Unbekannter Fehler');
-            throw new NetcupApiException(sprintf('Netcup API %s fehlgeschlagen (%d): %s', $action, $status, $message));
+            throw new NetcupAPIException(sprintf('Netcup API %s fehlgeschlagen (%d): %s', $action, $status, $message));
         }
 
         return (array) ($decoded['responsedata'] ?? []);
