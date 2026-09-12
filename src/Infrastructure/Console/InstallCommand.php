@@ -7,9 +7,8 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Console;
 
-use Doctrine\DBAL\DriverManager;
 use Devium\Toml\Toml;
-use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
+use Doctrine\DBAL\DriverManager;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -17,6 +16,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
+use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 
 /**
  * Interactive CLI installer for TowerDNS.
@@ -26,8 +26,10 @@ use TowerDNS\Infrastructure\Persistence\SchemaManager;
 #[AsCommand(name: 'towerdns:install', description: 'Install TowerDNS interactively')]
 final class InstallCommand extends Command
 {
-    public function __construct(private readonly string $projectRoot)
-    {
+    public function __construct(
+        private readonly string $projectRoot,
+        private readonly ?DnsProviderFactory $providerFactory = null,
+    ) {
         parent::__construct();
     }
 
@@ -152,7 +154,7 @@ final class InstallCommand extends Command
 
         $providers = [];
 
-        $factory = new DnsProviderFactory();
+        $factory = $this->providerFactory ?? new DnsProviderFactory();
         foreach ($factory->definitions() as $id => $definition) {
             if (!$io->confirm('Enable ' . $definition['label'] . ' provider', false)) {
                 continue;

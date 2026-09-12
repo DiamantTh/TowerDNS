@@ -9,11 +9,13 @@
     <testsuites>
         <testsuite name="TowerDNS">
             <directory>tests</directory>
+            <directory>modules</directory>
         </testsuite>
     </testsuites>
     <source>
         <include>
             <directory>src</directory>
+            <directory>modules</directory>
         </include>
     </source>
 </phpunit>

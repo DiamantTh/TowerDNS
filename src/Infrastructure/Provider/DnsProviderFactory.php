@@ -9,9 +9,8 @@ namespace TowerDNS\Infrastructure\Provider;
 
 use TowerDNS\Application\Contracts\DnsProviderInterface;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
+use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
-use TowerDNS\Infrastructure\Provider\DeSEC\DeSECApiClient;
-use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
 use TowerDNS\Infrastructure\Provider\INWX\InwxProvider;
 use TowerDNS\Infrastructure\Provider\netcup\NetcupApiClient;
 use TowerDNS\Infrastructure\Provider\netcup\NetcupProvider;
@@ -20,6 +19,7 @@ use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
 /** Central catalogue and construction point for DNS-provider adapters. */
 final class DnsProviderFactory
 {
+    public function __construct(private readonly ?ProviderModuleRegistry $moduleRegistry = null) {}
     /**
      * @var array<string, array{
      *   label: string,
@@ -28,13 +28,6 @@ final class DnsProviderFactory
      * }>
      */
     private const array DEFINITIONS = [
-        'desec' => [
-            'label'        => 'deSEC',
-            'user_managed' => true,
-            'credentials'  => [
-                'token' => ['input' => 'desec_token', 'label' => 'API-Token', 'required' => true, 'secret' => true],
-            ],
-        ],
         'cloudflare' => [
             'label'        => 'Cloudflare',
             'user_managed' => true,
@@ -73,14 +66,14 @@ final class DnsProviderFactory
 
     public function supports(string $type): bool
     {
-        return isset(self::DEFINITIONS[$type]);
+        return isset($this->definitions()[$type]);
     }
 
     /** @return list<string> */
     public function userManagedTypes(): array
     {
         return array_keys(array_filter(
-            self::DEFINITIONS,
+            $this->definitions(),
             static fn(array $definition): bool => $definition['user_managed'],
         ));
     }
@@ -94,7 +87,15 @@ final class DnsProviderFactory
      */
     public function definitions(): array
     {
-        return self::DEFINITIONS;
+        $definitions = self::DEFINITIONS;
+        foreach ($this->moduleRegistry?->definitions() ?? [] as $id => $definition) {
+            $definitions[$id] = [
+                'label'        => $definition->displayName,
+                'user_managed' => $definition->userManaged,
+                'credentials'  => $definition->credentials,
+            ];
+        }
+        return $definitions;
     }
 
     /**
@@ -103,7 +104,7 @@ final class DnsProviderFactory
      */
     public function credentialsFromInput(string $type, array $input): ?array
     {
-        $definition = self::DEFINITIONS[$type] ?? null;
+        $definition = $this->definitions()[$type] ?? null;
         if ($definition === null) {
             return null;
         }
@@ -119,7 +120,7 @@ final class DnsProviderFactory
     /** @param array<string, mixed> $credentials */
     public function credentialsComplete(string $type, array $credentials): bool
     {
-        $definition = self::DEFINITIONS[$type] ?? null;
+        $definition = $this->definitions()[$type] ?? null;
         if ($definition === null) {
             return false;
         }
@@ -141,8 +142,11 @@ final class DnsProviderFactory
             throw new \InvalidArgumentException(sprintf('Credentials für DNS-Provider "%s" sind unvollständig.', $type));
         }
 
+        if ($this->moduleRegistry?->has($type)) {
+            return $this->moduleRegistry->get($type)->buildProvider($credentials);
+        }
+
         return match ($type) {
-            DeSECProvider::ID      => new DeSECProvider(new DeSECApiClient((string) $credentials['token'])),
             CloudflareProvider::ID => new CloudflareProvider((string) $credentials['api_token']),
             InwxProvider::ID       => new InwxProvider((string) $credentials['username'], (string) $credentials['password']),
             NetcupProvider::ID     => new NetcupProvider(

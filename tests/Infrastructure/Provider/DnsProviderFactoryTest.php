@@ -9,8 +9,11 @@ namespace TowerDNS\Tests\Infrastructure\Provider;
 
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
+use TowerDNS\Application\Module\LocalModuleDiscovery;
+use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
+use TowerDNS\Module\DeSEC\DeSECProvider;
 
 final class DnsProviderFactoryTest extends TestCase
 {
@@ -41,5 +44,14 @@ final class DnsProviderFactoryTest extends TestCase
     {
         $this->expectException(ProviderNotFoundException::class);
         new DnsProviderFactory()->build('unknown', []);
+    }
+
+    public function testBuildsDeSecFromItsLocalModuleContribution(): void
+    {
+        $discovery = new LocalModuleDiscovery(dirname(__DIR__, 3) . '/modules');
+        $factory   = new DnsProviderFactory(new ProviderModuleRegistry($discovery->providerModules()));
+
+        self::assertInstanceOf(DeSECProvider::class, $factory->build('desec', ['token' => 'secret']));
+        self::assertSame('deSEC', $factory->definitions()['desec']['label']);
     }
 }

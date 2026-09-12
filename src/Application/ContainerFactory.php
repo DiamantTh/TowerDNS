@@ -53,6 +53,7 @@ use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
+use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Application\Provider\ProviderRegistry;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
@@ -135,7 +136,8 @@ final class ContainerFactory
         $debug           = (bool) ($appConf['app']['debug'] ?? false);
         $configuredTheme = (string) ($appConf['theme']['name'] ?? 'default');
         $themeManager    = new ThemeManager($projectRoot, $configuredTheme);
-        $providerFactory = new DnsProviderFactory();
+        $moduleDiscovery = new LocalModuleDiscovery($projectRoot . '/modules');
+        $providerFactory = new DnsProviderFactory(new ProviderModuleRegistry($moduleDiscovery->providerModules()));
 
         // ── Build DI container ────────────────────────────────────────────────
         $builder = new ContainerBuilder();
@@ -469,7 +471,7 @@ final class ContainerFactory
 
             // ── Console commands ─────────────────────────────────────────────
             InstallCommand::class => \DI\factory(
-                static fn(): InstallCommand => new InstallCommand($projectRoot)
+                static fn(): InstallCommand => new InstallCommand($projectRoot, $providerFactory)
             ),
             PasswordResetCommand::class => \DI\factory(
                 static fn(): PasswordResetCommand => new PasswordResetCommand($projectRoot)
@@ -478,7 +480,7 @@ final class ContainerFactory
             RecordListCommand::class    => \DI\autowire(),
             RrsetListCommand::class     => \DI\autowire(),
             ModuleListCommand::class    => \DI\autowire(),
-            LocalModuleDiscovery::class => \DI\factory(static fn() => new LocalModuleDiscovery($projectRoot . '/modules')),
+            LocalModuleDiscovery::class => $moduleDiscovery,
         ]);
 
         return $builder->build();

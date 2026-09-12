@@ -27,7 +27,7 @@ final class ModuleListCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         foreach ($this->discovery->discover() as $module) {
-            $output->writeln(sprintf('%s\t%s\t%s\t%s', $module->id, $module->type->value, $module->version, $module->displayName));
+            $output->writeln(sprintf("%s\t%s\t%s\t%s", $module->id, $module->type->value, $module->version, $module->displayName));
         }
         return self::SUCCESS;
     }

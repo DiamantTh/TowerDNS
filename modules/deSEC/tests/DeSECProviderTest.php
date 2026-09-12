@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Tests\Infrastructure\Provider\DeSEC;
+namespace TowerDNS\Module\DeSEC\Tests;
+
+require_once dirname(__DIR__) . '/module.php';
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
@@ -13,8 +15,8 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\Rrset;
-use TowerDNS\Infrastructure\Provider\DeSEC\DeSECApiClient;
-use TowerDNS\Infrastructure\Provider\DeSEC\DeSECProvider;
+use TowerDNS\Module\DeSEC\DeSECApiClient;
+use TowerDNS\Module\DeSEC\DeSECProvider;
 
 final class DeSECProviderTest extends TestCase
 {
@@ -39,7 +41,9 @@ final class DeSECProviderTest extends TestCase
     private function provider(array $responses): DeSECProvider
     {
         $stack = HandlerStack::create(new MockHandler($responses));
-        $stack->push(Middleware::tap(function (RequestInterface $request): void { $this->requests[] = $request; }));
+        $stack->push(Middleware::tap(function (RequestInterface $request): void {
+            $this->requests[] = $request;
+        }));
         return new DeSECProvider(new DeSECApiClient('token', new Client(['base_uri' => 'https://desec.test/', 'handler' => $stack])));
     }
 

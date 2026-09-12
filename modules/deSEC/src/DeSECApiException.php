@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\DeSEC;
+namespace TowerDNS\Module\DeSEC;
 
 use TowerDNS\Application\Exception\ProviderRequestException;
 
