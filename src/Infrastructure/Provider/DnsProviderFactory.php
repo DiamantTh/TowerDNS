@@ -14,7 +14,6 @@ use TowerDNS\Infrastructure\Provider\Cloudflare\CloudflareProvider;
 use TowerDNS\Infrastructure\Provider\INWX\InwxProvider;
 use TowerDNS\Infrastructure\Provider\netcup\NetcupApiClient;
 use TowerDNS\Infrastructure\Provider\netcup\NetcupProvider;
-use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
 
 /** Central catalogue and construction point for DNS-provider adapters. */
 final class DnsProviderFactory
@@ -51,15 +50,6 @@ final class DnsProviderFactory
                 'api_key'         => ['input' => 'netcup_api_key', 'label' => 'Legacy API-Key', 'required' => true, 'secret' => true],
                 'api_password'    => ['input' => 'netcup_api_password', 'label' => 'Legacy API-Passwort', 'required' => true, 'secret' => true],
                 'zones'           => ['input' => 'netcup_zones', 'label' => 'Zonen (kommagetrennt)', 'required' => true, 'secret' => false],
-            ],
-        ],
-        'powerdns' => [
-            'label'        => 'PowerDNS',
-            'user_managed' => false,
-            'credentials'  => [
-                'base_url'  => ['input' => 'powerdns_base_url', 'label' => 'API-Basis-URL', 'required' => true, 'secret' => false],
-                'api_key'   => ['input' => 'powerdns_api_key', 'label' => 'API-Key', 'required' => true, 'secret' => true],
-                'server_id' => ['input' => 'powerdns_server_id', 'label' => 'Server-ID', 'required' => false, 'secret' => false, 'default' => 'localhost'],
             ],
         ],
     ];
@@ -156,11 +146,6 @@ final class DnsProviderFactory
                     (string) $credentials['api_password'],
                 ),
                 $this->parseZones((string) $credentials['zones']),
-            ),
-            PowerDnsProvider::ID => new PowerDnsProvider(
-                (string) $credentials['base_url'],
-                (string) $credentials['api_key'],
-                (string) ($credentials['server_id'] ?? 'localhost'),
             ),
             default => throw ProviderNotFoundException::forId($type),
         };

@@ -5,7 +5,9 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Tests\Infrastructure\Provider\PowerDNS;
+namespace TowerDNS\Module\PowerDNS\Tests;
+
+require_once dirname(__DIR__) . '/module.php';
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
@@ -14,14 +16,14 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
-use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\DnsRecordType;
+use TowerDNS\Domain\DNS\DnssecState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
-use TowerDNS\Infrastructure\Provider\PowerDNS\PowerDnsProvider;
+use TowerDNS\Module\PowerDNS\PowerDNSProvider;
 
-final class PowerDnsProviderTest extends TestCase
+final class PowerDNSProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */
     private array $requests = [];
@@ -115,7 +117,7 @@ final class PowerDnsProviderTest extends TestCase
     {
         $provider = $this->provider([
             $this->jsonResponse(['rrsets' => [[
-                'name' => 'x.example.org.', 'type' => 'TYPE65400', 'ttl' => 300,
+                'name'    => 'x.example.org.', 'type' => 'TYPE65400', 'ttl' => 300,
                 'records' => [['content' => '\\# 2 AABB']],
             ]]]),
         ]);
@@ -130,13 +132,17 @@ final class PowerDnsProviderTest extends TestCase
         $provider = $this->provider([
             new Response(204),
             $this->jsonResponse(['rrsets' => [[
-                'name' => '_443._tcp.example.org.', 'type' => 'TLSA', 'ttl' => 600,
+                'name'    => '_443._tcp.example.org.', 'type' => 'TLSA', 'ttl' => 600,
                 'records' => [['content' => '3 1 1 aabb']],
             ]]]),
         ]);
 
         $result = $provider->replaceRrset(new Rrset(
-            'example.org.', '_443._tcp', DnsRecordType::parse('TLSA'), 600, ['3 1 1 aabb'],
+            'example.org.',
+            '_443._tcp',
+            DnsRecordType::parse('TLSA'),
+            600,
+            ['3 1 1 aabb'],
         ));
 
         self::assertSame(600, $result->ttl);
@@ -146,7 +152,7 @@ final class PowerDnsProviderTest extends TestCase
     /**
      * @param list<Response> $responses
      */
-    private function provider(array $responses): PowerDnsProvider
+    private function provider(array $responses): PowerDNSProvider
     {
         $this->requests = [];
         $stack          = HandlerStack::create(new MockHandler($responses));
@@ -154,7 +160,7 @@ final class PowerDnsProviderTest extends TestCase
             $this->requests[] = $request;
         }));
 
-        return new PowerDnsProvider(
+        return new PowerDNSProvider(
             'https://pdns.test',
             'test-api-key',
             'localhost',

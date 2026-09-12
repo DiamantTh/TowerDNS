@@ -5,16 +5,16 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\PowerDNS;
+namespace TowerDNS\Module\PowerDNS;
 
 use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\ProviderConstraintProfile;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
+use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\DnssecProfile;
 use TowerDNS\Domain\DNS\DnssecState;
-use TowerDNS\Domain\DNS\DnsRecordType;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
@@ -30,11 +30,11 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  *
  * @see https://doc.powerdns.com/authoritative/http-api/
  */
-final class PowerDnsProvider extends AbstractDnsProvider
+final class PowerDNSProvider extends AbstractDnsProvider
 {
     public const string ID = 'powerdns';
 
-    private readonly PowerDnsApiClient $client;
+    private readonly PowerDNSAPIClient $client;
 
     public function __construct(
         string $baseUrl,
@@ -42,7 +42,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
         string $serverId = 'localhost',
         ?ClientInterface $http = null,
     ) {
-        $this->client = new PowerDnsApiClient($baseUrl, $apiKey, $serverId, $http);
+        $this->client = new PowerDNSAPIClient($baseUrl, $apiKey, $serverId, $http);
         parent::__construct();
     }
 
@@ -151,7 +151,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
     /** @return list<Rrset> */
     public function listRrsets(string $zoneId): array
     {
-        $row = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
+        $row  = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
         $sets = [];
         foreach ((array) ($row['rrsets'] ?? []) as $raw) {
             $raw = (array) $raw;
@@ -162,7 +162,7 @@ final class PowerDnsProvider extends AbstractDnsProvider
             }
             $rdata = [];
             foreach ((array) ($raw['records'] ?? []) as $record) {
-                $record = (array) $record;
+                $record  = (array) $record;
                 $content = (string) ($record['content'] ?? '');
                 if ($content !== '') {
                     $rdata[] = $content;
@@ -177,8 +177,14 @@ final class PowerDnsProvider extends AbstractDnsProvider
 
     public function replaceRrset(Rrset $rrset): Rrset
     {
-        $this->patchRrset($rrset->zoneId, $rrset->ownerName, $rrset->type->presentation, $rrset->ttl,
-            array_map(static fn(string $rdata): array => ['content' => $rdata, 'disabled' => false], $rrset->rdata), 'REPLACE');
+        $this->patchRrset(
+            $rrset->zoneId,
+            $rrset->ownerName,
+            $rrset->type->presentation,
+            $rrset->ttl,
+            array_map(static fn(string $rdata): array => ['content' => $rdata, 'disabled' => false], $rrset->rdata),
+            'REPLACE'
+        );
         return $this->readRrset($rrset);
     }
 

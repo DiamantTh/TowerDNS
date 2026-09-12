@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\PowerDNS;
+namespace TowerDNS\Module\PowerDNS;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
@@ -16,7 +16,7 @@ use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /** Transport, authentication and server-feature detection for PowerDNS. */
-final class PowerDnsApiClient
+final class PowerDNSAPIClient
 {
     private readonly ClientInterface $http;
     private ?bool $supportsExtendFlag = null;
@@ -63,8 +63,8 @@ final class PowerDnsApiClient
         $parts                           = explode('.', $version . '.0.0');
         [$major, $minor, $patch]         = [(int) $parts[0], (int) $parts[1], (int) $parts[2]];
         return $this->supportsExtendFlag = match (true) {
-            $major                                 >= 6                                  => true,
-            $major === 5 && $minor                 >= 1                  => true,
+            $major                                 >= 6  => true,
+            $major === 5 && $minor                 >= 1  => true,
             $major === 5 && $minor === 0 && $patch >= 2  => true,
             $major === 4 && $minor === 9 && $patch >= 12 => true,
             default                                      => false,
@@ -87,7 +87,7 @@ final class PowerDnsApiClient
             $status = $e->getResponse()->getStatusCode();
             if ($status === 429) {
                 $retryAfter = (int) ($e->getResponse()->getHeaderLine('Retry-After') ?: 5);
-                throw new RateLimitExceededException(PowerDnsProvider::ID, $retryAfter, $e);
+                throw new RateLimitExceededException(PowerDNSProvider::ID, $retryAfter, $e);
             }
             $detail = '';
             try {
