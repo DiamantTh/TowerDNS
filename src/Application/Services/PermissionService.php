@@ -15,192 +15,175 @@ use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
 /**
- * Account- and zone-level permission checks.
+ * Resolves membership-derived scopes and delegates role permission checks to
+ * Laminas RBAC through {@see RbacPermissionChecker}.
  *
- * This is SEPARATE from {@see AuthorizationService}, which handles system-wide
- * panel permissions (IAM, system settings, etc.).
- *
- * PermissionService governs what a user may do within a specific Account or Zone:
- *   - Access is granted via account_memberships (account-wide role)
- *   - OR via zone_memberships (zone-specific role, without account-wide access)
- *   - System admins with Permission::USER_MANAGE bypass account checks entirely
- *     (this is the Admin-Switch path — must be audited separately)
+ * System roles, account memberships and zone memberships are deliberately
+ * separate grant sources. There are no deny rules or object overrides.
  */
 final readonly class PermissionService
 {
-    public function __construct(
-        private AccountRepositoryInterface       $accounts,
-        private ZoneMembershipRepositoryInterface $zoneMemberships,
-    ) {}
+    private AuthorizationService $authorization;
+    private RbacPermissionChecker $rbac;
 
-    // ── Account-level checks ──────────────────────────────────────────────────
+    public function __construct(
+        private AccountRepositoryInterface $accounts,
+        private ZoneMembershipRepositoryInterface $zoneMemberships,
+        ?AuthorizationService $authorization = null,
+        ?RbacPermissionChecker $rbac = null,
+    ) {
+        $this->rbac = $rbac ?? new RbacPermissionChecker();
+        $this->authorization = $authorization ?? new AuthorizationService($this->rbac);
+    }
+
+    public function authorizeSystem(User $user, Permission $permission): bool
+    {
+        return $this->authorization->isGranted($user, $permission);
+    }
+
+    public function authorizeAccount(User $user, Permission $permission, int $accountId): bool
+    {
+        $role = $this->accounts->getEffectiveRole($accountId, $user->id);
+
+        return $role instanceof TeamRole && $this->roleGrants($role, $permission);
+    }
+
+    public function authorizeZone(User $user, Permission $permission, int $accountId, string $zoneId): bool
+    {
+        $accountRole = $this->accounts->getEffectiveRole($accountId, $user->id);
+        if ($accountRole instanceof TeamRole && $this->roleGrants($accountRole, $permission)) {
+            return true;
+        }
+
+        $zoneMembership = $this->zoneMemberships->findMembership($zoneId, $user->id);
+        return $zoneMembership !== null && $this->roleGrants($zoneMembership->role, $permission);
+    }
 
     /**
-     * Returns the effective TeamRole for a user in an account.
-     * Returns null if the user has no membership.
+     * Returns the direct account role, if any. It intentionally does not turn
+     * a global system permission into an account role.
      */
     public function getAccountRole(int $accountId, User $user): ?TeamRole
     {
-        // System admin bypasses membership check
-        if ($user->hasPermission(Permission::USER_MANAGE)) {
-            return TeamRole::OWNER;
-        }
-
         return $this->accounts->getEffectiveRole($accountId, $user->id);
     }
 
-    public function canViewAccount(int $accountId, User $user): bool
-    {
-        return $this->getAccountRole($accountId, $user) instanceof TeamRole;
-    }
-
-    public function canManageAccount(int $accountId, User $user): bool
-    {
-        $role = $this->getAccountRole($accountId, $user);
-        return $role instanceof TeamRole && $role->canManageAccount();
-    }
-
-    public function canManageMembers(int $accountId, User $user): bool
-    {
-        $role = $this->getAccountRole($accountId, $user);
-        return $role instanceof TeamRole && $role->canManageMembers();
-    }
-
-    public function canManageProviderAccounts(int $accountId, User $user): bool
-    {
-        $role = $this->getAccountRole($accountId, $user);
-        return $role instanceof TeamRole && $role->canManageProviderAccounts();
-    }
-
-    public function canDeleteAccount(int $accountId, User $user): bool
-    {
-        if ($user->hasPermission(Permission::USER_MANAGE)) {
-            return true;
-        }
-        $role = $this->getAccountRole($accountId, $user);
-        return $role instanceof TeamRole && $role->canDeleteAccount();
-    }
-
-    public function canViewAuditLog(int $accountId, User $user): bool
-    {
-        if ($user->hasPermission(Permission::USER_MANAGE)) {
-            return true;
-        }
-        $role = $this->getAccountRole($accountId, $user);
-        return $role instanceof TeamRole && $role->canViewAuditLog();
-    }
-
-    // ── Zone-level checks ─────────────────────────────────────────────────────
-
     /**
-     * Returns the effective TeamRole for a user on a zone.
-     *
-     * Resolution order:
-     *   1. System admin → synthesised OWNER
-     *   2. Account-level role (account_memberships)
-     *   3. Zone-level role (zone_memberships)
-     *   4. null → no access
+     * Kept for read-only display code. Authorization must use authorizeZone(),
+     * because account and zone grants can positively complement each other.
      */
     public function getZoneRole(string $zoneId, int $accountId, User $user): ?TeamRole
     {
-        // System admin
-        if ($user->hasPermission(Permission::USER_MANAGE)) {
-            return TeamRole::OWNER;
-        }
-
-        // Account-level role supersedes zone-level role
-        $accountRole = $this->accounts->getEffectiveRole($accountId, $user->id);
+        $accountRole = $this->getAccountRole($accountId, $user);
         if ($accountRole instanceof TeamRole) {
             return $accountRole;
         }
 
-        // Zone-specific membership
-        $zm = $this->zoneMemberships->findMembership($zoneId, $user->id);
-        return $zm?->role;
+        return $this->zoneMemberships->findMembership($zoneId, $user->id)?->role;
+    }
+
+    // ── Temporary application conveniences ──────────────────────────────────
+
+    public function canViewAccount(int $accountId, User $user): bool
+    {
+        return $this->authorizeAccount($user, Permission::ACCOUNT_READ, $accountId);
+    }
+
+    public function canManageAccount(int $accountId, User $user): bool
+    {
+        return $this->authorizeAccount($user, Permission::ACCOUNT_UPDATE, $accountId);
+    }
+
+    public function canManageMembers(int $accountId, User $user): bool
+    {
+        return $this->authorizeAccount($user, Permission::ACCOUNT_MEMBERS_MANAGE, $accountId);
+    }
+
+    public function canManageProviderAccounts(int $accountId, User $user): bool
+    {
+        return $this->authorizeAccount($user, Permission::PROVIDER_CREDENTIALS_MANAGE, $accountId);
+    }
+
+    public function canDeleteAccount(int $accountId, User $user): bool
+    {
+        return $this->authorizeAccount($user, Permission::ACCOUNT_DELETE, $accountId);
+    }
+
+    public function canViewAuditLog(int $accountId, User $user): bool
+    {
+        return $this->authorizeAccount($user, Permission::AUDIT_READ, $accountId);
     }
 
     public function canViewZone(string $zoneId, int $accountId, User $user): bool
     {
-        $role = $this->getZoneRole($zoneId, $accountId, $user);
-        return $role instanceof TeamRole && $role->canViewZone();
+        return $this->authorizeZone($user, Permission::ZONE_READ, $accountId, $zoneId);
     }
 
     public function canManageZoneRecords(string $zoneId, int $accountId, User $user): bool
     {
-        $role = $this->getZoneRole($zoneId, $accountId, $user);
-        return $role instanceof TeamRole && $role->canManageZoneRecords();
+        return $this->authorizeZone($user, Permission::RECORD_UPDATE, $accountId, $zoneId);
     }
 
-    // ── Impersonation ─────────────────────────────────────────────────────────
-
-    /**
-     * Only users with USER_MANAGE (system admin) may initiate an Admin-Switch.
-     */
     public function canImpersonate(User $actor): bool
     {
-        return $actor->hasPermission(Permission::USER_MANAGE);
+        return $this->authorizeSystem($actor, Permission::USER_MANAGE);
     }
 
-    // ── Assertion helpers ─────────────────────────────────────────────────────
+    // ── Assertions ──────────────────────────────────────────────────────────
 
     public function assertCanManageZoneRecords(string $zoneId, int $accountId, User $user): void
     {
-        if (!$this->canManageZoneRecords($zoneId, $accountId, $user)) {
-            throw new AuthorizationException(
-                sprintf('Kein Recht für DNS-Verwaltung in Zone %s.', $zoneId)
-            );
-        }
+        $this->assertZone($user, Permission::RECORD_UPDATE, $accountId, $zoneId);
     }
 
     public function assertCanViewZone(string $zoneId, int $accountId, User $user): void
     {
-        if (!$this->canViewZone($zoneId, $accountId, $user)) {
-            throw new AuthorizationException(
-                sprintf('Kein Zugriff auf Zone %s.', $zoneId)
-            );
-        }
+        $this->assertZone($user, Permission::ZONE_READ, $accountId, $zoneId);
     }
 
     public function assertCanManageMembers(int $accountId, User $user): void
     {
-        if (!$this->canManageMembers($accountId, $user)) {
-            throw new AuthorizationException(
-                sprintf('Kein Recht zur Mitgliederverwaltung in Account %d.', $accountId)
-            );
-        }
+        $this->assertAccount($user, Permission::ACCOUNT_MEMBERS_MANAGE, $accountId);
     }
 
     public function assertCanManageAccount(int $accountId, User $user): void
     {
-        if (!$this->canManageAccount($accountId, $user)) {
-            throw new AuthorizationException(
-                sprintf('Kein Recht zur Verwaltung von Account %d.', $accountId)
-            );
-        }
+        $this->assertAccount($user, Permission::ACCOUNT_UPDATE, $accountId);
     }
 
     public function assertCanManageProviderAccounts(int $accountId, User $user): void
     {
-        if (!$this->canManageProviderAccounts($accountId, $user)) {
-            throw new AuthorizationException(
-                sprintf('Kein Recht für ProviderAccount-Verwaltung in Account %d.', $accountId)
-            );
-        }
+        $this->assertAccount($user, Permission::PROVIDER_CREDENTIALS_MANAGE, $accountId);
     }
 
     public function assertCanViewAccount(int $accountId, User $user): void
     {
-        if (!$this->canViewAccount($accountId, $user)) {
-            throw new AuthorizationException(
-                sprintf('Kein Zugriff auf Account %d.', $accountId)
-            );
-        }
+        $this->assertAccount($user, Permission::ACCOUNT_READ, $accountId);
     }
 
     public function assertCanImpersonate(User $actor): void
     {
         if (!$this->canImpersonate($actor)) {
-            throw new AuthorizationException('Nur Systemadmins dürfen den Admin-Switch verwenden.');
+            throw new AuthorizationException('Kein Recht für Admin-Switch.');
         }
+    }
+
+    public function assertAccount(User $user, Permission $permission, int $accountId): void
+    {
+        if (!$this->authorizeAccount($user, $permission, $accountId)) {
+            throw new AuthorizationException(sprintf('Kein Recht "%s" in Account %d.', $permission->value, $accountId));
+        }
+    }
+
+    public function assertZone(User $user, Permission $permission, int $accountId, string $zoneId): void
+    {
+        if (!$this->authorizeZone($user, $permission, $accountId, $zoneId)) {
+            throw new AuthorizationException(sprintf('Kein Recht "%s" in Zone %s.', $permission->value, $zoneId));
+        }
+    }
+
+    private function roleGrants(TeamRole $role, Permission $permission): bool
+    {
+        return $this->rbac->isGranted($role->asRole(), $permission->value);
     }
 }

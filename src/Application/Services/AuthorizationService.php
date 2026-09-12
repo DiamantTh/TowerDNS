@@ -11,8 +11,15 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
-final class AuthorizationService
+final readonly class AuthorizationService
 {
+    private RbacPermissionChecker $rbac;
+
+    public function __construct(?RbacPermissionChecker $rbac = null)
+    {
+        $this->rbac = $rbac ?? new RbacPermissionChecker();
+    }
+
     /**
      * Throws if the user does not hold the given permission.
      */
@@ -31,6 +38,9 @@ final class AuthorizationService
      */
     public function isGranted(User $user, Permission $permission): bool
     {
-        return $user->hasPermission($permission);
+        return array_any(
+            $user->roles,
+            fn($role): bool => $this->rbac->isGranted($role, $permission->value),
+        );
     }
 }

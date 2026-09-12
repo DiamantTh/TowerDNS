@@ -18,6 +18,12 @@ namespace TowerDNS\Domain\Auth;
  */
 enum Permission: string
 {
+    case ACCOUNT_READ               = 'account.read';
+    case ACCOUNT_UPDATE             = 'account.update';
+    case ACCOUNT_DELETE             = 'account.delete';
+    case ACCOUNT_OWNERSHIP_TRANSFER = 'account.ownership.transfer';
+    case ACCOUNT_MEMBERS_MANAGE     = 'account.members.manage';
+
     case ZONE_LIST   = 'zone.list';
     case ZONE_READ   = 'zone.read';
     case ZONE_CREATE = 'zone.create';
@@ -34,6 +40,8 @@ enum Permission: string
 
     case PROVIDER_CREDENTIALS_MANAGE = 'provider.credentials.manage';
     case PROVIDER_CONFIG_MANAGE      = 'provider.config.manage';
+
+    case AUDIT_READ = 'audit.read';
 
     case USER_MANAGE = 'user.manage';
     case ROLE_MANAGE = 'role.manage';
