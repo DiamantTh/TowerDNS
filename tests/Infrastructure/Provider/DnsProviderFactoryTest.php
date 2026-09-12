@@ -13,6 +13,7 @@ use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 use TowerDNS\Module\Cloudflare\CloudflareProvider;
+use TowerDNS\Module\ClouDNS\ClouDNSProvider;
 use TowerDNS\Module\DeSEC\DeSECProvider;
 use TowerDNS\Module\INWX\INWXProvider;
 use TowerDNS\Module\netcup\NetcupProvider;
@@ -100,6 +101,17 @@ final class DnsProviderFactoryTest extends TestCase
             'consumer_key'       => 'consumer-key',
         ]));
         self::assertSame('OVHcloud', $factory->definitions()['ovh']['label']);
+    }
+
+    public function testBuildsClouDNSFromItsLocalModuleContribution(): void
+    {
+        $factory = $this->moduleFactory();
+
+        self::assertInstanceOf(ClouDNSProvider::class, $factory->build('cloudns', [
+            'auth_id'       => '123',
+            'auth_password' => 'secret',
+        ]));
+        self::assertSame('ClouDNS', $factory->definitions()['cloudns']['label']);
     }
 
     private function moduleFactory(): DnsProviderFactory

@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\ClouDNS;
+namespace TowerDNS\Module\ClouDNS;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
@@ -21,22 +21,28 @@ final class ClouDNSProvider extends AbstractDnsProvider
 {
     public const string ID = 'cloudns';
 
-    public function __construct(private readonly ClouDNSApiClient $client)
+    public function __construct(private readonly ClouDNSAPIClient $client)
     {
         parent::__construct();
     }
 
-    public function id(): string { return self::ID; }
+    public function id(): string
+    {
+        return self::ID;
+    }
 
-    public function displayName(): string { return 'ClouDNS'; }
+    public function displayName(): string
+    {
+        return 'ClouDNS';
+    }
 
     protected function capabilityMap(): array
     {
         return [
-            Capability::ZONE_LIST => true, Capability::ZONE_READ => true,
-            Capability::ZONE_CREATE => true, Capability::ZONE_DELETE => true,
-            Capability::RECORD_LIST => true, Capability::RECORD_CREATE => true,
-            Capability::RECORD_UPDATE => true, Capability::RECORD_DELETE => true,
+            Capability::ZONE_LIST                   => true, Capability::ZONE_READ => true,
+            Capability::ZONE_CREATE                 => true, Capability::ZONE_DELETE => true,
+            Capability::RECORD_LIST                 => true, Capability::RECORD_CREATE => true,
+            Capability::RECORD_UPDATE               => true, Capability::RECORD_DELETE => true,
             Capability::PROVIDER_CREDENTIALS_MANAGE => true,
         ];
     }
@@ -67,14 +73,21 @@ final class ClouDNSProvider extends AbstractDnsProvider
                 continue;
             }
             $content = (string) ($row['record'] ?? '');
-            $fields = $this->structuredFields($type);
+            $fields  = $this->structuredFields($type);
             if ($type === RecordType::CAA) {
                 $content = (string) ($row['caa_flag'] ?? 0) . ' ' . (string) ($row['caa_type'] ?? 'issue') . ' "' . (string) ($row['caa_value'] ?? '') . '"';
             } elseif ($fields !== []) {
                 $content = implode(' ', array_map(static fn(string $field): string => (string) ($row[$field] ?? 0), $fields)) . ' ' . $content;
             }
-            $records[] = new Record((string) $row['id'], $zoneId, $this->relativeName((string) ($row['host'] ?? ''), $zoneId), $type, (int) ($row['ttl'] ?? 3600), $content,
-                isset($row['note']) ? (string) $row['note'] : null);
+            $records[] = new Record(
+                (string) $row['id'],
+                $zoneId,
+                $this->relativeName((string) ($row['host'] ?? ''), $zoneId),
+                $type,
+                (int) ($row['ttl'] ?? 3600),
+                $content,
+                isset($row['note']) ? (string) $row['note'] : null
+            );
         }
         return $records;
     }
@@ -82,7 +95,7 @@ final class ClouDNSProvider extends AbstractDnsProvider
     public function createRecord(Record $record): Record
     {
         $data = $this->client->request('add-record', ['domain-name' => $record->zoneId, 'record-type' => $record->type->value] + $this->payload($record));
-        $id = (string) ($data['data']['id'] ?? $data['id'] ?? '');
+        $id   = (string) ($data['data']['id'] ?? $data['id'] ?? '');
         if ($id === '') {
             throw new ProviderRequestException('ClouDNS did not return the new record ID.');
         }
@@ -91,7 +104,7 @@ final class ClouDNSProvider extends AbstractDnsProvider
 
     public function updateRecord(Record $record): Record
     {
-        $payload = $this->payload($record);
+        $payload  = $this->payload($record);
         $existing = $this->client->request('get-record', ['domain-name' => $record->zoneId, 'record-id' => $record->id]);
         if (($existing['type'] ?? '') !== $record->type->value) {
             throw new CapabilityException('ClouDNS cannot change a record type; create a new record instead.');
@@ -118,10 +131,14 @@ final class ClouDNSProvider extends AbstractDnsProvider
         if ($type === null) {
             throw new CapabilityException('ClouDNS-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
         }
-        $existing = array_values(array_filter($this->listRecords($rrset->zoneId),
-            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0));
+        $existing = array_values(array_filter(
+            $this->listRecords($rrset->zoneId),
+            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0
+        ));
         $byContent = [];
-        foreach ($existing as $record) { $byContent[$record->content] = $record; }
+        foreach ($existing as $record) {
+            $byContent[$record->content] = $record;
+        }
         $created = [];
         try {
             foreach (array_values(array_unique($rrset->rdata)) as $content) {
@@ -132,14 +149,23 @@ final class ClouDNSProvider extends AbstractDnsProvider
                 }
             }
             foreach ($existing as $record) {
-                if (!in_array($record->content, $rrset->rdata, true)) { $this->deleteRecord($rrset->zoneId, $record->id); }
+                if (!in_array($record->content, $rrset->rdata, true)) {
+                    $this->deleteRecord($rrset->zoneId, $record->id);
+                }
             }
         } catch (\Throwable $error) {
-            foreach ($created as $record) { try { $this->deleteRecord($rrset->zoneId, $record->id); } catch (\Throwable) {} }
+            foreach ($created as $record) {
+                try {
+                    $this->deleteRecord($rrset->zoneId, $record->id);
+                } catch (\Throwable) {
+                }
+            }
             throw new ProviderRequestException('ClouDNS-RRset-Änderung konnte nicht vollständig angewendet werden.', previous: $error);
         }
         foreach ($this->listRrsets($rrset->zoneId) as $observed) {
-            if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) { return $observed; }
+            if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) {
+                return $observed;
+            }
         }
         throw new ProviderRequestException('ClouDNS lieferte das geschriebene RRset nicht zurück.');
     }
@@ -147,7 +173,9 @@ final class ClouDNSProvider extends AbstractDnsProvider
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         foreach ($this->listRecords($zoneId) as $record) {
-            if ($record->type->value === $type && strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) === 0) { $this->deleteRecord($zoneId, $record->id); }
+            if ($record->type->value === $type && strcasecmp(rtrim($record->name, '.'), rtrim($ownerName, '.')) === 0) {
+                $this->deleteRecord($zoneId, $record->id);
+            }
         }
     }
 
@@ -182,11 +210,11 @@ final class ClouDNSProvider extends AbstractDnsProvider
     private function structuredFields(RecordType $type): array
     {
         return match ($type) {
-            RecordType::MX => ['priority'],
-            RecordType::SRV => ['priority', 'weight', 'port'],
+            RecordType::MX   => ['priority'],
+            RecordType::SRV  => ['priority', 'weight', 'port'],
             RecordType::TLSA => ['tlsa_usage', 'tlsa_selector', 'tlsa_matching_type'],
-            RecordType::DS => ['key_tag', 'algorithm', 'digest_type'],
-            default => [],
+            RecordType::DS   => ['key_tag', 'algorithm', 'digest_type'],
+            default          => [],
         };
     }
 
@@ -196,7 +224,7 @@ final class ClouDNSProvider extends AbstractDnsProvider
         if (in_array($record->type, [RecordType::SOA, RecordType::DNSKEY, RecordType::RRSIG, RecordType::NSEC], true)) {
             throw new CapabilityException('ClouDNS cannot edit this record type using the record API.');
         }
-        $data = ['host' => $this->relativeName($record->name, $record->zoneId), 'record' => $record->content, 'ttl' => $record->ttl];
+        $data   = ['host' => $this->relativeName($record->name, $record->zoneId), 'record' => $record->content, 'ttl' => $record->ttl];
         $fields = $this->structuredFields($record->type);
         if ($record->type === RecordType::CAA) {
             if (!preg_match('/^(\d+)\s+(\w+)\s+"(.*)"$/sD', trim($record->content), $parts)) {

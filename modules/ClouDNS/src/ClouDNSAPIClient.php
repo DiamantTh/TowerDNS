@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\ClouDNS;
+namespace TowerDNS\Module\ClouDNS;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
@@ -13,7 +13,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 
 /** DNS hosting API only; credentials always travel in the POST body. */
-final class ClouDNSApiClient
+final class ClouDNSAPIClient
 {
     private readonly ClientInterface $http;
 
@@ -36,11 +36,11 @@ final class ClouDNSApiClient
     {
         try {
             $response = $this->http->request('POST', 'https://api.cloudns.net/dns/' . $operation . '.json', [
-                'form_params' => [$this->authType => $this->authId, 'auth-password' => $this->authPassword] + $parameters,
-                'timeout' => 30,
-                'http_errors' => false,
+                'form_params'     => [$this->authType => $this->authId, 'auth-password' => $this->authPassword] + $parameters,
+                'timeout'         => 30,
+                'http_errors'     => false,
                 'allow_redirects' => false,
-                'verify' => true,
+                'verify'          => true,
             ]);
         } catch (GuzzleException) {
             // Transport exceptions can contain the request body and credentials.
@@ -84,7 +84,7 @@ final class ClouDNSApiClient
                     throw new ProviderRequestException('ClouDNS pagination repeated a result.');
                 }
                 $seen[$fingerprint] = true;
-                $rows[] = $row;
+                $rows[]             = $row;
             }
             if (count($batch) < 100) {
                 return $rows;

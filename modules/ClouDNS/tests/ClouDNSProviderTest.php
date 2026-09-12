@@ -5,7 +5,9 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Tests\Infrastructure\Provider\ClouDNS;
+namespace TowerDNS\Module\ClouDNS\Tests;
+
+require_once dirname(__DIR__) . '/module.php';
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
@@ -18,8 +20,8 @@ use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
-use TowerDNS\Infrastructure\Provider\ClouDNS\ClouDNSApiClient;
-use TowerDNS\Infrastructure\Provider\ClouDNS\ClouDNSProvider;
+use TowerDNS\Module\ClouDNS\ClouDNSAPIClient;
+use TowerDNS\Module\ClouDNS\ClouDNSProvider;
 
 final class ClouDNSProviderTest extends TestCase
 {
@@ -29,11 +31,11 @@ final class ClouDNSProviderTest extends TestCase
     /** @param list<array<int|string, mixed>> $responses */
     private function provider(array $responses): ClouDNSProvider
     {
-        $stack = HandlerStack::create(new MockHandler(array_map(static fn(array $body): Response => new Response(200, [], json_encode($body, JSON_THROW_ON_ERROR)), $responses)));
-        $history = [];
-        $this->history =& $history;
+        $stack         = HandlerStack::create(new MockHandler(array_map(static fn(array $body): Response => new Response(200, [], json_encode($body, JSON_THROW_ON_ERROR)), $responses)));
+        $history       = [];
+        $this->history = & $history;
         $stack->push(Middleware::history($history));
-        return new ClouDNSProvider(new ClouDNSApiClient('123', 'secret&=value', 'sub-auth-id', new Client(['handler' => $stack])));
+        return new ClouDNSProvider(new ClouDNSAPIClient('123', 'secret&=value', 'sub-auth-id', new Client(['handler' => $stack])));
     }
 
     /** @return array<int|string, mixed> */
@@ -54,10 +56,10 @@ final class ClouDNSProviderTest extends TestCase
     {
         $first = [];
         for ($i = 0; $i < 100; $i++) {
-            $first[] = ['name' => "zone$i.example", 'type' => 'master'];
+            $first[] = ['name' => "zone{$i}.example", 'type' => 'master'];
         }
         $provider = $this->provider([$first, [['name' => 'secondary.example', 'type' => 'slave']]]);
-        $zones = $provider->listZones();
+        $zones    = $provider->listZones();
         self::assertCount(101, $zones);
         self::assertSame('slave', $zones[100]->metadata['type']);
         self::assertSame('2', $this->body(1)['page']);
@@ -70,10 +72,10 @@ final class ClouDNSProviderTest extends TestCase
     {
         $first = [];
         for ($i = 1; $i <= 100; $i++) {
-            $first[$i] = ['type' => 'TXT', 'host' => '@', 'record' => "value$i", 'ttl' => 300];
+            $first[$i] = ['type' => 'TXT', 'host' => '@', 'record' => "value{$i}", 'ttl' => 300];
         }
         $provider = $this->provider([$first, [101 => ['type' => 'TLSA', 'host' => '_443._tcp.example.com.', 'record' => 'abcd', 'ttl' => 300, 'tlsa_usage' => '3', 'tlsa_selector' => '1', 'tlsa_matching_type' => '1'], 102 => ['type' => 'WR', 'record' => 'https://example.com']]]);
-        $records = $provider->listRecords('example.com');
+        $records  = $provider->listRecords('example.com');
         self::assertCount(101, $records);
         self::assertSame('', $records[0]->name);
         self::assertSame('101', $records[100]->id);
@@ -84,8 +86,8 @@ final class ClouDNSProviderTest extends TestCase
     public function testTlsaCreateAndUpdateUseOnlyTheSelectedRecordAndKeepDisabledState(): void
     {
         $provider = $this->provider([['status' => 'Success', 'data' => ['id' => '77']], ['type' => 'TLSA', 'status' => 0], ['status' => 'Success']]);
-        $record = new Record('', 'example.com', '_443._tcp.example.com.', RecordType::TLSA, 300, '3 1 1 abcd');
-        $created = $provider->createRecord($record);
+        $record   = new Record('', 'example.com', '_443._tcp.example.com.', RecordType::TLSA, 300, '3 1 1 abcd');
+        $created  = $provider->createRecord($record);
         self::assertSame('77', $created->id);
         self::assertSame('_443._tcp', $this->body(0)['host']);
         self::assertSame('TLSA', $this->body(0)['record-type']);
