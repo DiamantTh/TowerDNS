@@ -21,6 +21,24 @@ final readonly class LocalModuleDiscovery
     /** @return list<ModuleManifest> */
     public function discover(): array
     {
+        return array_map(
+            static fn(ModuleManifest|TowerDNSModuleInterface $module): ModuleManifest => $module instanceof ModuleManifest ? $module : $module->manifest(),
+            $this->load(),
+        );
+    }
+
+    /** @return list<ProviderModuleInterface> */
+    public function providerModules(): array
+    {
+        return array_values(array_filter(
+            $this->load(),
+            static fn(ModuleManifest|TowerDNSModuleInterface $module): bool => $module instanceof ProviderModuleInterface,
+        ));
+    }
+
+    /** @return list<ModuleManifest|TowerDNSModuleInterface> */
+    private function load(): array
+    {
         if (!is_dir($this->moduleDirectory)) {
             return [];
         }
@@ -40,20 +58,22 @@ final readonly class LocalModuleDiscovery
             }
             $directories[$directoryKey] = $directory;
 
-            $manifest = require $file;
-            if (!$manifest instanceof ModuleManifest) {
-                throw new \RuntimeException(sprintf('Modulmanifest %s muss ModuleManifest zurückgeben.', $file));
+            $module = require $file;
+            if (!$module instanceof ModuleManifest && !$module instanceof TowerDNSModuleInterface) {
+                throw new \RuntimeException(sprintf('Moduleinstieg %s muss ein TowerDNS-Modul oder ModuleManifest zurückgeben.', $file));
             }
-            $key = strtolower($manifest->id);
+            $manifest = $module instanceof ModuleManifest ? $module : $module->manifest();
+            $key      = strtolower($manifest->id);
             if (isset($modules[$key])) {
                 throw new \RuntimeException(sprintf('Case-kollidierende Modul-ID: %s', $manifest->id));
             }
             if (!version_compare($this->towerDnsVersion, ltrim($manifest->requiresTowerDns, '>='), '>=')) {
                 throw new \RuntimeException(sprintf('Modul %s benötigt TowerDNS %s.', $manifest->id, $manifest->requiresTowerDns));
             }
-            $modules[$key] = $manifest;
+            $modules[$key] = $module;
         }
-        foreach ($modules as $manifest) {
+        foreach ($modules as $module) {
+            $manifest = $module instanceof ModuleManifest ? $module : $module->manifest();
             foreach ($manifest->dependencies as $dependency) {
                 if (!isset($modules[$dependency])) {
                     throw new \RuntimeException(sprintf('Modul %s benötigt das fehlende Modul %s.', $manifest->id, $dependency));
