@@ -5,8 +5,8 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\INWX;
+namespace TowerDNS\Module\INWX;
 
 use TowerDNS\Application\Exception\ProviderRequestException;
 
-final class InwxApiException extends ProviderRequestException {}
+final class INWXAPIException extends ProviderRequestException {}

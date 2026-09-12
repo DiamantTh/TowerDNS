@@ -5,14 +5,13 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\INWX;
+namespace TowerDNS\Module\INWX;
 
-
-use INWX\Domrobot;
 use INWX\CallFailedException;
+use INWX\Domrobot;
 
 /** DNS-only facade over the maintained INWX Domrobot SDK. */
-final class InwxApiClient
+final class INWXAPIClient
 {
     private readonly Domrobot $sdk;
     private bool $loggedIn = false;
@@ -24,9 +23,9 @@ final class InwxApiClient
         private readonly ?string $sharedSecret = null,
     ) {
         if ($username === '' || $password === '') {
-            throw new InwxApiException('INWX-Benutzername und Passwort dürfen nicht leer sein.');
+            throw new INWXAPIException('INWX-Benutzername und Passwort dürfen nicht leer sein.');
         }
-        $this->sdk = $sdk ?? (new Domrobot())->useLive()->useJson()->setDebug(false);
+        $this->sdk = $sdk ?? new Domrobot()->useLive()->useJson()->setDebug(false);
     }
 
     // ── Zone operations ───────────────────────────────────────────────────────
@@ -109,7 +108,7 @@ final class InwxApiClient
         $this->ensureLoggedIn();
         try {
             return $this->call('nameserver.dnskeyInfo', ['domain' => $domainName]);
-        } catch (InwxApiException) {
+        } catch (INWXAPIException) {
             // Provider may not support DNSSEC key info for this domain.
             return [];
         }
@@ -138,15 +137,15 @@ final class InwxApiClient
         try {
             $response = $this->sdk->login($this->username, $this->password, $this->sharedSecret);
         } catch (CallFailedException $e) {
-            throw new InwxApiException('INWX-Login konnte nicht ausgeführt werden.', 0, $e);
+            throw new INWXAPIException('INWX-Login konnte nicht ausgeführt werden.', 0, $e);
         }
         if (!empty($response['resData']['tfa']) && empty($this->sharedSecret)) {
-            throw new InwxApiException('INWX erfordert einen konfigurierten zweiten Faktor.');
+            throw new INWXAPIException('INWX erfordert einen konfigurierten zweiten Faktor.');
         }
 
         $code = (int) ($response['code'] ?? 0);
         if ($code !== 1000) {
-            throw new InwxApiException(sprintf(
+            throw new INWXAPIException(sprintf(
                 'INWX-Login fehlgeschlagen (Code %d): %s',
                 $code,
                 (string) ($response['msg'] ?? 'Unbekannter Fehler'),
@@ -168,13 +167,13 @@ final class InwxApiClient
         try {
             $response = $this->sdk->call($object, $operation, $params);
         } catch (CallFailedException $e) {
-            throw new InwxApiException('INWX-DNS-Aufruf fehlgeschlagen: ' . $method, 0, $e);
+            throw new INWXAPIException('INWX-DNS-Aufruf fehlgeschlagen: ' . $method, 0, $e);
         }
 
         $code = (int) ($response['code'] ?? 0);
 
         if ($code < 1000 || $code >= 2000) {
-            throw new InwxApiException(sprintf(
+            throw new INWXAPIException(sprintf(
                 'INWX-API-Fehler bei "%s" (Code %d): %s',
                 $method,
                 $code,
@@ -184,5 +183,4 @@ final class InwxApiClient
 
         return (array) ($response['resData'] ?? []);
     }
-
 }

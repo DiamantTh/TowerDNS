@@ -10,7 +10,6 @@ namespace TowerDNS\Infrastructure\Provider;
 use TowerDNS\Application\Contracts\DnsProviderInterface;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
-use TowerDNS\Infrastructure\Provider\INWX\InwxProvider;
 use TowerDNS\Infrastructure\Provider\netcup\NetcupApiClient;
 use TowerDNS\Infrastructure\Provider\netcup\NetcupProvider;
 
@@ -26,14 +25,6 @@ final class DnsProviderFactory
      * }>
      */
     private const array DEFINITIONS = [
-        'inwx' => [
-            'label'        => 'INWX',
-            'user_managed' => true,
-            'credentials'  => [
-                'username' => ['input' => 'inwx_username', 'label' => 'Benutzername', 'required' => true, 'secret' => false],
-                'password' => ['input' => 'inwx_password', 'label' => 'Passwort', 'required' => true, 'secret' => true],
-            ],
-        ],
         'netcup' => [
             'label'        => 'Netcup CCP DNS',
             'user_managed' => true,
@@ -129,7 +120,6 @@ final class DnsProviderFactory
         }
 
         return match ($type) {
-            InwxProvider::ID   => new InwxProvider((string) $credentials['username'], (string) $credentials['password']),
             NetcupProvider::ID => new NetcupProvider(
                 new NetcupApiClient(
                     (string) $credentials['customer_number'],

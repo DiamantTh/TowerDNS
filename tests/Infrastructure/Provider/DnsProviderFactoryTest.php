@@ -14,6 +14,7 @@ use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 use TowerDNS\Module\Cloudflare\CloudflareProvider;
 use TowerDNS\Module\DeSEC\DeSECProvider;
+use TowerDNS\Module\INWX\INWXProvider;
 use TowerDNS\Module\PowerDNS\PowerDNSProvider;
 
 final class DnsProviderFactoryTest extends TestCase
@@ -61,6 +62,17 @@ final class DnsProviderFactoryTest extends TestCase
 
         self::assertInstanceOf(CloudflareProvider::class, $factory->build('cloudflare', ['api_token' => 'secret']));
         self::assertSame('Cloudflare', $factory->definitions()['cloudflare']['label']);
+    }
+
+    public function testBuildsINWXFromItsLocalModuleContribution(): void
+    {
+        $factory = $this->moduleFactory();
+
+        self::assertInstanceOf(INWXProvider::class, $factory->build('inwx', [
+            'username' => 'user',
+            'password' => 'secret',
+        ]));
+        self::assertSame('INWX', $factory->definitions()['inwx']['label']);
     }
 
     private function moduleFactory(): DnsProviderFactory

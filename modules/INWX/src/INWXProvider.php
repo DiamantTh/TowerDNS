@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Infrastructure\Provider\INWX;
+namespace TowerDNS\Module\INWX;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
@@ -27,15 +27,15 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  *
  * @see https://www.inwx.de/de/api-documentation
  */
-final class InwxProvider extends AbstractDnsProvider
+final class INWXProvider extends AbstractDnsProvider
 {
     public const string ID = 'inwx';
 
-    private readonly InwxApiClient $client;
+    private readonly INWXAPIClient $client;
 
     public function __construct(string $username, string $password)
     {
-        $this->client = new InwxApiClient($username, $password);
+        $this->client = new INWXAPIClient($username, $password);
         parent::__construct();
     }
 
@@ -146,7 +146,7 @@ final class InwxProvider extends AbstractDnsProvider
     {
         $inwxId = (int) $record->id;
         if ($inwxId <= 0) {
-            throw new InwxApiException('Ungültige INWX-Record-ID: ' . $record->id);
+            throw new INWXAPIException('Ungültige INWX-Record-ID: ' . $record->id);
         }
 
         $this->client->updateRecord([
@@ -171,7 +171,7 @@ final class InwxProvider extends AbstractDnsProvider
     {
         $inwxId = (int) $recordId;
         if ($inwxId <= 0) {
-            throw new InwxApiException('Ungültige INWX-Record-ID: ' . $recordId);
+            throw new INWXAPIException('Ungültige INWX-Record-ID: ' . $recordId);
         }
         $this->client->deleteRecord($inwxId);
     }
@@ -182,8 +182,10 @@ final class InwxProvider extends AbstractDnsProvider
         if ($type === null) {
             throw new CapabilityException('INWX-Schreiben unbekannter RFC-3597-Typen wird nicht unterstützt.');
         }
-        $existing = array_values(array_filter($this->listRecords($rrset->zoneId),
-            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0));
+        $existing = array_values(array_filter(
+            $this->listRecords($rrset->zoneId),
+            fn(Record $record): bool => $record->type === $type && strcasecmp(rtrim($record->name, '.'), rtrim($rrset->ownerName, '.')) === 0
+        ));
         $byContent = [];
         foreach ($existing as $record) {
             $byContent[$record->content] = $record;
@@ -204,16 +206,19 @@ final class InwxProvider extends AbstractDnsProvider
             }
         } catch (\Throwable $error) {
             foreach ($created as $record) {
-                try { $this->deleteRecord($rrset->zoneId, $record->id); } catch (\Throwable) {}
+                try {
+                    $this->deleteRecord($rrset->zoneId, $record->id);
+                } catch (\Throwable) {
+                }
             }
-            throw new InwxApiException('INWX-RRset-Änderung konnte nicht vollständig angewendet werden.', previous: $error);
+            throw new INWXAPIException('INWX-RRset-Änderung konnte nicht vollständig angewendet werden.', previous: $error);
         }
         foreach ($this->listRrsets($rrset->zoneId) as $observed) {
             if ($observed->type->equals($rrset->type) && strcasecmp(rtrim($observed->ownerName, '.'), rtrim($rrset->ownerName, '.')) === 0) {
                 return $observed;
             }
         }
-        throw new InwxApiException('INWX lieferte das geschriebene RRset nicht zurück.');
+        throw new INWXAPIException('INWX lieferte das geschriebene RRset nicht zurück.');
     }
 
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
