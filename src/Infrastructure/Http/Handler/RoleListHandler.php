@@ -18,6 +18,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Domain\Auth\Permission;
+use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\User;
 
 /**
@@ -29,6 +30,7 @@ final readonly class RoleListHandler implements RequestHandlerInterface
         private TemplateRendererInterface $renderer,
         private RoleRepositoryInterface   $roles,
         private AuthorizationService      $authz,
+        private PermissionRegistry        $permissions,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -50,7 +52,7 @@ final readonly class RoleListHandler implements RequestHandlerInterface
                 $this->renderer->render('app::iam/roles', [
                     'user'        => $currentUser,
                     'roles'       => [],
-                    'permissions' => Permission::cases(),
+                    'permissions' => $this->permissions->ids(),
                     'csrfToken'   => $csrfToken,
                     'error'       => $e->getMessage(),
                     'success'     => null,
@@ -65,7 +67,7 @@ final readonly class RoleListHandler implements RequestHandlerInterface
             $this->renderer->render('app::iam/roles', [
                 'user'        => $currentUser,
                 'roles'       => $allRoles,
-                'permissions' => Permission::cases(),
+                'permissions' => $this->permissions->ids(),
                 'csrfToken'   => $csrfToken,
                 'error'       => is_string($flashError) ? $flashError : null,
                 'success'     => is_string($flashSuccess) ? $flashSuccess : null,

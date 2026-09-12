@@ -18,6 +18,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Domain\Auth\Permission;
+use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 
@@ -32,6 +33,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         private TemplateRendererInterface $renderer,
         private RoleRepositoryInterface   $roles,
         private AuthorizationService      $authz,
+        private PermissionRegistry        $permissions,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -51,7 +53,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
                 $this->renderer->render('app::iam/role_edit', [
                     'user'        => $currentUser,
                     'role'        => null,
-                    'permissions' => Permission::cases(),
+                    'permissions' => $this->permissions->ids(),
                     'csrfToken'   => $guard->generateToken(),
                     'error'       => $e->getMessage(),
                     'success'     => null,
@@ -67,7 +69,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
                 $this->renderer->render('app::iam/role_edit', [
                     'user'        => $currentUser,
                     'role'        => null,
-                    'permissions' => Permission::cases(),
+                    'permissions' => $this->permissions->ids(),
                     'csrfToken'   => $guard->generateToken(),
                     'error'       => 'Rolle nicht gefunden.',
                     'success'     => null,
@@ -110,9 +112,10 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
 
         $permissions = [];
         foreach ($rawPerms as $pv) {
-            $perm = Permission::tryFrom((string) $pv);
-            if ($perm !== null) {
-                $permissions[] = $perm;
+            try {
+                $permissions[] = $this->permissions->assertKnown((string) $pv);
+            } catch (\InvalidArgumentException) {
+                return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Ungültige Permission.');
             }
         }
 
@@ -133,7 +136,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
             $this->renderer->render('app::iam/role_edit', [
                 'user'        => $currentUser,
                 'role'        => $role,
-                'permissions' => Permission::cases(),
+                'permissions' => $this->permissions->ids(),
                 'csrfToken'   => $csrfToken,
                 'error'       => $error,
                 'success'     => $success,

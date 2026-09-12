@@ -18,6 +18,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Domain\Auth\Permission;
+use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 
@@ -29,6 +30,7 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
     public function __construct(
         private RoleRepositoryInterface $roles,
         private AuthorizationService    $authz,
+        private PermissionRegistry      $permissions,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -66,9 +68,10 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
 
         $permissions = [];
         foreach ($rawPerms as $pv) {
-            $perm = Permission::tryFrom((string) $pv);
-            if ($perm !== null) {
-                $permissions[] = $perm;
+            try {
+                $permissions[] = $this->permissions->assertKnown((string) $pv);
+            } catch (\InvalidArgumentException) {
+                return new RedirectResponse('/roles?error=' . rawurlencode('Ungültige Permission.'));
             }
         }
 

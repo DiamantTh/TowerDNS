@@ -86,7 +86,7 @@ final class SvelteRenderer implements TemplateRendererInterface
                 'id'          => $value->id,
                 'name'        => $value->name,
                 'isSystem'    => $value->isSystem,
-                'permissions' => array_map(static fn(\BackedEnum $permission): string => (string) $permission->value, $value->getPermissions()),
+                'permissions' => $value->getPermissionIds(),
             ];
         }
         if ($value instanceof ProviderAccount) {

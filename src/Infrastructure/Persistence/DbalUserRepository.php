@@ -280,14 +280,11 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         );
 
         // Group permissions by role_id.
-        /** @var array<string, list<Permission>> $permsByRole */
+        /** @var array<string, list<string>> $permsByRole */
         $permsByRole = [];
         foreach ($permRows as $pr) {
-            $rid  = (string) ($pr['role_id'] ?? '');
-            $perm = Permission::tryFrom((string) ($pr['permission'] ?? ''));
-            if ($perm !== null) {
-                $permsByRole[$rid][] = $perm;
-            }
+            $rid                 = (string) ($pr['role_id'] ?? '');
+            $permsByRole[$rid][] = (string) ($pr['permission'] ?? '');
         }
 
         // Build Role objects, deduplicated.

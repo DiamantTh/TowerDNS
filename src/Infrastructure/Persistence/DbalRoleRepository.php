@@ -89,10 +89,10 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
             // Replace the full permission set.
             $this->connection->delete('role_permissions', ['role_id' => $role->id]);
 
-            foreach ($role->getPermissions() as $permission) {
+            foreach ($role->getPermissionIds() as $permission) {
                 $this->connection->insert('role_permissions', [
                     'role_id'    => $role->id,
-                    'permission' => $permission->value,
+                    'permission' => $permission,
                 ]);
             }
 
@@ -144,14 +144,11 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
             [ArrayParameterType::STRING],
         );
 
-        /** @var array<string, list<Permission>> $permsByRole */
+        /** @var array<string, list<string>> $permsByRole */
         $permsByRole = [];
         foreach ($permRows as $pr) {
-            $rid  = (string) ($pr['role_id'] ?? '');
-            $perm = Permission::tryFrom((string) ($pr['permission'] ?? ''));
-            if ($perm !== null) {
-                $permsByRole[$rid][] = $perm;
-            }
+            $rid                 = (string) ($pr['role_id'] ?? '');
+            $permsByRole[$rid][] = (string) ($pr['permission'] ?? '');
         }
 
         $roles = [];

@@ -20,7 +20,7 @@ final readonly class User
         public string $theme = 'system',
     ) {}
 
-    public function hasPermission(Permission $permission): bool
+    public function hasPermission(Permission|string $permission): bool
     {
         return array_any($this->roles, fn(Role $role): bool => $role->has($permission));
     }

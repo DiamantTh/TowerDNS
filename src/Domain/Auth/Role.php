@@ -21,7 +21,7 @@ final class Role implements RoleInterface
     private array $parents = [];
 
     /**
-     * @param list<Permission> $permissions
+     * @param list<Permission|string> $permissions
      */
     public function __construct(
         public readonly string $id,
@@ -30,7 +30,7 @@ final class Role implements RoleInterface
         public readonly bool $isSystem = false,
     ) {
         foreach ($permissions as $perm) {
-            $this->permissionMap[$perm->value] = true;
+            $this->permissionMap[PermissionRegistry::normalize($perm instanceof Permission ? $perm->value : $perm)] = true;
         }
     }
 
@@ -43,7 +43,7 @@ final class Role implements RoleInterface
 
     public function addPermission(string $name): void
     {
-        $this->permissionMap[$name] = true;
+        $this->permissionMap[PermissionRegistry::normalize($name)] = true;
     }
 
     public function hasPermission(string $name): bool
@@ -80,9 +80,15 @@ final class Role implements RoleInterface
 
     // ── Domain convenience ────────────────────────────────────────────────
 
-    public function has(Permission $permission): bool
+    public function has(Permission|string $permission): bool
     {
-        return $this->hasPermission($permission->value);
+        return $this->hasPermission(PermissionRegistry::normalize($permission instanceof Permission ? $permission->value : $permission));
+    }
+
+    /** @return list<string> */
+    public function getPermissionIds(): array
+    {
+        return array_keys($this->permissionMap);
     }
 
     /**
