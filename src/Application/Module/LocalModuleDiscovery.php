@@ -58,6 +58,23 @@ final readonly class LocalModuleDiscovery
         return $definitions;
     }
 
+    /** @return list<\TowerDNS\Application\Auth\ActionGroupDefinition> */
+    public function actionGroupDefinitions(): array
+    {
+        $definitions = [];
+
+        foreach ($this->load() as $module) {
+            if (!$module instanceof ActionGroupContributorInterface) {
+                continue;
+            }
+            foreach ($module->actionGroupDefinitions() as $definition) {
+                $definitions[] = $definition;
+            }
+        }
+
+        return $definitions;
+    }
+
     /** @return list<ModuleManifest|TowerDNSModuleInterface> */
     private function load(): array
     {

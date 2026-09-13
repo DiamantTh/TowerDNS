@@ -51,8 +51,10 @@ use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
+use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
+use TowerDNS\Application\Module\ModuleActionGroupRegistryFactory;
 use TowerDNS\Application\Module\ModulePermissionRegistryFactory;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Application\Provider\ProviderRegistry;
@@ -241,7 +243,10 @@ final class ContainerFactory
             }),
 
             // ── Application services (autowired) ──────────────────────────────
-            PermissionRegistry::class       => new ModulePermissionRegistryFactory($moduleDiscovery)->create(),
+            PermissionRegistry::class  => new ModulePermissionRegistryFactory($moduleDiscovery)->create(),
+            ActionGroupRegistry::class => \DI\factory(
+                static fn(PermissionRegistry $permissions): ActionGroupRegistry => new ModuleActionGroupRegistryFactory($moduleDiscovery, $permissions)->create()
+            ),
             AuthorizationService::class     => \DI\autowire(),
             DNSManagementService::class     => \DI\autowire(),
             TotpService::class              => \DI\autowire(),
