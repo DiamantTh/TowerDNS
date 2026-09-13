@@ -62,8 +62,8 @@ final readonly class RoleDeleteHandler implements RequestHandlerInterface
 
         try {
             $this->roles->delete($roleId);
-        } catch (\DomainException $e) {
-            return new RedirectResponse('/roles?error=' . rawurlencode($e->getMessage()));
+        } catch (\DomainException) {
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->translator->translate('roles.error.built-in-read-only')));
         }
 
         return new RedirectResponse('/roles?success=' . rawurlencode($this->translator->translate('roles.success.deleted')));

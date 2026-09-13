@@ -115,9 +115,7 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
         }
 
         if ((bool) ($row['is_system'] ?? false)) {
-            throw new \DomainException(
-                sprintf('Die eingebaute Rolle "%s" kann nicht gelöscht werden.', $roleId),
-            );
+            throw new \DomainException(sprintf('Built-in role cannot be deleted: %s', $roleId));
         }
 
         $this->connection->delete('roles', ['id' => $roleId]);
