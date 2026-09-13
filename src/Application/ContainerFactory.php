@@ -53,6 +53,7 @@ use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
+use TowerDNS\Application\Module\ModulePermissionRegistryFactory;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Application\Provider\ProviderRegistry;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
@@ -70,7 +71,7 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\BreachedPasswordCheckerInterface;
 use TowerDNS\Application\Services\CredentialService;
-use TowerDNS\Application\Services\DnsManagementService;
+use TowerDNS\Application\Services\DNSManagementService;
 use TowerDNS\Application\Services\MailService;
 use TowerDNS\Application\Services\NullBreachedPasswordChecker;
 use TowerDNS\Application\Services\PasswordGenerator;
@@ -79,6 +80,7 @@ use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Application\Theme\ThemeManager;
+use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Console\InstallCommand;
 use TowerDNS\Infrastructure\Console\ModuleListCommand;
@@ -102,7 +104,7 @@ use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\DbalZoneMembershipRepository;
-use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
+use TowerDNS\Infrastructure\Provider\DNSProviderFactory;
 use TowerDNS\Infrastructure\Provider\ProviderAccountAdapterFactory;
 use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
 use TowerDNS\Infrastructure\Ui\SvelteRenderer;
@@ -136,8 +138,11 @@ final class ContainerFactory
         $debug           = (bool) ($appConf['app']['debug'] ?? false);
         $configuredTheme = (string) ($appConf['theme']['name'] ?? 'default');
         $themeManager    = new ThemeManager($projectRoot, $configuredTheme);
-        $moduleDiscovery = new LocalModuleDiscovery($projectRoot . '/modules');
-        $providerFactory = new DnsProviderFactory(new ProviderModuleRegistry($moduleDiscovery->providerModules()));
+        $enabledModules  = isset($appConf['modules']['enabled'])
+            ? array_values(array_filter((array) $appConf['modules']['enabled'], is_string(...)))
+            : null;
+        $moduleDiscovery = new LocalModuleDiscovery($projectRoot . '/modules', enabledModuleIds: $enabledModules);
+        $providerFactory = new DNSProviderFactory(new ProviderModuleRegistry($moduleDiscovery->providerModules()));
 
         // ── Build DI container ────────────────────────────────────────────────
         $builder = new ContainerBuilder();
@@ -221,7 +226,7 @@ final class ContainerFactory
             AccountProviderFactoryInterface::class => \DI\autowire(ProviderAccountAdapterFactory::class),
 
             // ── Provider registry ─────────────────────────────────────────────
-            DnsProviderFactory::class => $providerFactory,
+            DNSProviderFactory::class => $providerFactory,
             ProviderRegistry::class   => \DI\factory(static function () use ($provConf, $providerFactory): ProviderRegistry {
                 $registry  = new ProviderRegistry();
                 $providers = (array) ($provConf['providers'] ?? []);
@@ -236,8 +241,9 @@ final class ContainerFactory
             }),
 
             // ── Application services (autowired) ──────────────────────────────
+            PermissionRegistry::class       => new ModulePermissionRegistryFactory($moduleDiscovery)->create(),
             AuthorizationService::class     => \DI\autowire(),
-            DnsManagementService::class     => \DI\autowire(),
+            DNSManagementService::class     => \DI\autowire(),
             TotpService::class              => \DI\autowire(),
             ThemeManager::class             => $themeManager,
             AuthenticationMiddleware::class => \DI\autowire(),
@@ -283,7 +289,7 @@ final class ContainerFactory
                 static fn(
                     TemplateRendererInterface $renderer,
                     AuthorizationService $authz,
-                    DnsProviderFactory $providerFactory,
+                    DNSProviderFactory $providerFactory,
                 ): ProviderCredentialsHandler => new ProviderCredentialsHandler(
                     $renderer,
                     $authz,

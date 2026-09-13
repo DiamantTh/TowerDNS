@@ -16,7 +16,12 @@ namespace TowerDNS\Application\Module;
  */
 final readonly class LocalModuleDiscovery
 {
-    public function __construct(private string $moduleDirectory, private string $towerDnsVersion = '1.0.0') {}
+    /** @param null|list<string> $enabledModuleIds Null enables every locally discovered module. */
+    public function __construct(
+        private string $moduleDirectory,
+        private string $towerDnsVersion = '1.0.0',
+        private ?array $enabledModuleIds = null,
+    ) {}
 
     /** @return list<ModuleManifest> */
     public function discover(): array
@@ -34,6 +39,23 @@ final readonly class LocalModuleDiscovery
             $this->load(),
             static fn(ModuleManifest|TowerDNSModuleInterface $module): bool => $module instanceof ProviderModuleInterface,
         ));
+    }
+
+    /** @return list<\TowerDNS\Domain\Auth\PermissionDefinition> */
+    public function permissionDefinitions(): array
+    {
+        $definitions = [];
+
+        foreach ($this->load() as $module) {
+            if (!$module instanceof PermissionContributorInterface) {
+                continue;
+            }
+            foreach ($module->permissionDefinitions() as $definition) {
+                $definitions[] = $definition;
+            }
+        }
+
+        return $definitions;
     }
 
     /** @return list<ModuleManifest|TowerDNSModuleInterface> */
@@ -72,14 +94,26 @@ final readonly class LocalModuleDiscovery
             }
             $modules[$key] = $module;
         }
-        foreach ($modules as $module) {
+        $enabled = $this->enabledModuleIds === null
+            ? $modules
+            : array_filter($modules, $this->isEnabled(...));
+
+        foreach ($enabled as $module) {
             $manifest = $module instanceof ModuleManifest ? $module : $module->manifest();
             foreach ($manifest->dependencies as $dependency) {
-                if (!isset($modules[$dependency])) {
-                    throw new \RuntimeException(sprintf('Modul %s benötigt das fehlende Modul %s.', $manifest->id, $dependency));
+                if (!isset($enabled[$dependency])) {
+                    throw new \RuntimeException(sprintf('Aktives Modul %s benötigt das nicht aktivierte Modul %s.', $manifest->id, $dependency));
                 }
             }
         }
-        return array_values($modules);
+
+        return array_values($enabled);
+    }
+
+    private function isEnabled(ModuleManifest|TowerDNSModuleInterface $module): bool
+    {
+        $manifest = $module instanceof ModuleManifest ? $module : $module->manifest();
+
+        return array_any($this->enabledModuleIds ?? [], fn($id): bool => strtolower($id) === $manifest->id);
     }
 }

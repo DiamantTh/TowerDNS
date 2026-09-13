@@ -9,7 +9,10 @@ namespace TowerDNS\Tests\Application\Module;
 
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
+use TowerDNS\Application\Module\ModuleManifest;
 use TowerDNS\Application\Module\ModuleType;
+use TowerDNS\Application\Module\PermissionContributorInterface;
+use TowerDNS\Domain\Auth\PermissionDefinition;
 
 final class LocalModuleDiscoveryTest extends TestCase
 {
@@ -59,6 +62,20 @@ final class LocalModuleDiscoveryTest extends TestCase
         new LocalModuleDiscovery($this->modulesDirectory)->discover();
     }
 
+    public function testOnlyEnabledModulesContributePermissions(): void
+    {
+        $this->writePermissionModule('TLSA', 'towerdns.tlsa', 'towerdns.tlsa.manage');
+        $this->writePermissionModule('Monitor', 'towerdns.monitor', 'towerdns.tlsa.manage');
+
+        $discovery = new LocalModuleDiscovery($this->modulesDirectory, enabledModuleIds: ['towerdns.tlsa']);
+
+        self::assertSame(['towerdns.tlsa'], array_column($discovery->discover(), 'id'));
+        self::assertSame(['towerdns.tlsa.manage'], array_map(
+            static fn(PermissionDefinition $definition): string => $definition->id,
+            $discovery->permissionDefinitions(),
+        ));
+    }
+
     private function writeManifest(string $directory, string $id, string $displayName, string $type): void
     {
         mkdir($this->modulesDirectory . '/' . $directory, 0o700);
@@ -69,5 +86,31 @@ final class LocalModuleDiscoveryTest extends TestCase
             strtoupper($type),
         );
         file_put_contents($this->modulesDirectory . '/' . $directory . '/module.php', $manifest);
+    }
+
+    private function writePermissionModule(string $directory, string $id, string $permission): void
+    {
+        mkdir($this->modulesDirectory . '/' . $directory, 0o700);
+        $module = sprintf(
+            "<?php\nreturn new \\TowerDNS\\Tests\\Application\\Module\\TestPermissionModule('%s', '%s');\n",
+            $id,
+            $permission,
+        );
+        file_put_contents($this->modulesDirectory . '/' . $directory . '/module.php', $module);
+    }
+}
+
+final readonly class TestPermissionModule implements PermissionContributorInterface
+{
+    public function __construct(private string $id, private string $permission) {}
+
+    public function manifest(): ModuleManifest
+    {
+        return new ModuleManifest($this->id, $this->id, '1.0.0', ModuleType::FEATURE);
+    }
+
+    public function permissionDefinitions(): iterable
+    {
+        yield new PermissionDefinition($this->permission, $this->permission);
     }
 }
