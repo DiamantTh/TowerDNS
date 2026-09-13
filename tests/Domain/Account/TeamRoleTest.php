@@ -20,4 +20,20 @@ final class TeamRoleTest extends TestCase
         self::assertFalse($role->isBuiltIn);
         self::assertTrue($role->has(Permission::RECORD_UPDATE));
     }
+
+    public function testMembershipRoleKeepsItsTechnicalPermissionIds(): void
+    {
+        $role = TeamRole::DNS_MANAGER->asRole();
+
+        self::assertSame([
+            'account.read',
+            'zone.list',
+            'zone.read',
+            'record.read',
+            'dnssec.status.read',
+            'record.create',
+            'record.update',
+            'record.delete',
+        ], $role->getPermissionIds());
+    }
 }

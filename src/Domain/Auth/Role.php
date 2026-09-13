@@ -95,20 +95,4 @@ final class Role implements RoleInterface
     {
         return array_keys($this->permissionMap);
     }
-
-    /**
-     * @return list<Permission>
-     */
-    public function getPermissions(): array
-    {
-        $result = [];
-        foreach (array_keys($this->permissionMap) as $value) {
-            $perm = Permission::tryFrom($value);
-            if ($perm !== null) {
-                $result[] = $perm;
-            }
-        }
-
-        return $result;
-    }
 }
