@@ -1,1 +1,1 @@
-<script lang="ts">let {title,text,href}:{title:string,text:string,href:string}=$props();</script><article class="setting-row"><div><strong>{title}</strong><p class="muted">{text}</p></div><a class="button" {href}>Verwalten</a></article>
+<script lang="ts">import { useI18n } from '../lib/i18n';let {title,text,href}:{title:string,text:string,href:string}=$props();const t=useI18n();</script><article class="setting-row"><div><strong>{title}</strong><p class="muted">{text}</p></div><a class="button" {href}>{t('common.manage')}</a></article>
