@@ -9,7 +9,9 @@ namespace TowerDNS\Infrastructure\Console;
 
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
 
 final class ModuleListCommand extends Command
@@ -21,14 +23,28 @@ final class ModuleListCommand extends Command
 
     protected function configure(): void
     {
-        $this->setDescription('List locally discovered TowerDNS modules.');
+        $this
+            ->setDescription('List locally discovered TowerDNS modules.')
+            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'Output format: table, json, or toml', 'table', ['table', 'json', 'toml']);
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        foreach ($this->discovery->discover() as $module) {
-            $output->writeln(sprintf("%s\t%s\t%s\t%s", $module->id, $module->type->value, $module->version, $module->displayName));
-        }
+        $rows = array_map(static fn(\TowerDNS\Application\Module\ModuleManifest $module): array => [
+            'id'           => $module->id,
+            'type'         => $module->type->value,
+            'version'      => $module->version,
+            'display_name' => $module->displayName,
+        ], $this->discovery->discover());
+
+        StructuredOutput::write(
+            new SymfonyStyle($input, $output),
+            (string) $input->getOption('format'),
+            ['ID' => 'id', 'Type' => 'type', 'Version' => 'version', 'Name' => 'display_name'],
+            $rows,
+            'modules',
+        );
+
         return self::SUCCESS;
     }
 }
