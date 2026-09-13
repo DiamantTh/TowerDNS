@@ -116,7 +116,7 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
 
         if ((bool) ($row['is_system'] ?? false)) {
             throw new \DomainException(
-                sprintf('Die Systemrolle "%s" kann nicht gelöscht werden.', $roleId),
+                sprintf('Die eingebaute Rolle "%s" kann nicht gelöscht werden.', $roleId),
             );
         }
 
@@ -158,7 +158,7 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
                 $rid,
                 (string) ($row['name'] ?? ''),
                 $permsByRole[$rid] ?? [],
-                (bool) ($row['is_system'] ?? false),
+                isBuiltIn: (bool) ($row['is_system'] ?? false),
             );
         }
 

@@ -13,8 +13,8 @@ use TowerDNS\Domain\Auth\Role;
 /**
  * Team roles for account- and zone-level membership.
  *
- * These are distinct from the system-level {@see Permission}
- * enum, which controls panel-wide admin functions (IAM, system settings, etc.).
+ * These are distinct from roles assigned directly to users for system-scoped
+ * administration (IAM, system settings, etc.).
  * TeamRole governs what a member may do within the context of a specific
  * Account or Zone.
  */
@@ -105,7 +105,7 @@ enum TeamRole: string
             id: 'team.' . $this->value,
             name: $this->value,
             permissions: $this->permissions(),
-            isSystem: true,
+            isBuiltIn: false,
         );
     }
 

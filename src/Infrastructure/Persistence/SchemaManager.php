@@ -55,9 +55,9 @@ final readonly class SchemaManager
     }
 
     /**
-     * Inserts built-in system roles when they are absent.
+     * Inserts built-in, system-scoped roles when they are absent.
      *
-     * System roles: viewer, editor, dnssec_op, provider_op, iam_admin, superadmin.
+     * Built-in roles: viewer, editor, dnssec_op, provider_op, iam_admin, superadmin.
      * Rows that already exist are left untouched.
      */
     public function seedSystemRoles(): void

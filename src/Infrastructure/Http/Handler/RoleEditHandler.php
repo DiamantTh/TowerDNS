@@ -25,7 +25,7 @@ use TowerDNS\Domain\Auth\User;
 /**
  * GET+POST /roles/{id} — Rolle bearbeiten.
  *
- * Systemrollen werden schreibgeschützt angezeigt (isSystem = true).
+ * Eingebaute Rollen werden schreibgeschützt angezeigt.
  */
 final readonly class RoleEditHandler implements RequestHandlerInterface
 {
@@ -97,8 +97,8 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
             return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Ungültiger CSRF-Token.');
         }
 
-        if ($role->isSystem) {
-            return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Systemrollen können nicht bearbeitet werden.');
+        if ($role->isBuiltIn) {
+            return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Eingebaute Rollen können nicht bearbeitet werden.');
         }
 
         $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');

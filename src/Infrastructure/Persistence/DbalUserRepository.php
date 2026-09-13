@@ -255,7 +255,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
 
         // 1. Fetch all (user_id, role_id, role_name) tuples.
         $urRows = $this->connection->fetchAllAssociative(
-            'SELECT ur.user_id, r.id AS role_id, r.name AS role_name
+            'SELECT ur.user_id, r.id AS role_id, r.name AS role_name, r.is_system AS role_is_builtin
                FROM user_roles ur
                JOIN roles r ON r.id = ur.role_id
               WHERE ur.user_id IN (?)',
@@ -296,6 +296,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
                 $rid,
                 (string) ($row['role_name'] ?? ''),
                 $permsByRole[$rid] ?? [],
+                isBuiltIn: (bool) ($row['role_is_builtin'] ?? false),
             );
         }
 

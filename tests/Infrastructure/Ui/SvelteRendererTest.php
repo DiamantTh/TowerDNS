@@ -9,6 +9,7 @@ namespace TowerDNS\Tests\Infrastructure\Ui;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Account\ProviderAccount;
+use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Infrastructure\Ui\SvelteRenderer;
 
 final class SvelteRendererTest extends TestCase
@@ -28,5 +29,16 @@ final class SvelteRendererTest extends TestCase
         self::assertStringContainsString('provider_accounts', $html);
         self::assertStringNotContainsString('secret-ciphertext', $html);
         self::assertStringNotContainsString('serialized-public-key', $html);
+    }
+
+    public function testRendererExposesBuiltInRoleMarkerWithoutCallingItSystemScope(): void
+    {
+        $renderer = new SvelteRenderer(new ThemeManager(dirname(__DIR__, 3)));
+        $html     = $renderer->render('app::iam/roles', [
+            'roles' => [new Role('superadmin', 'Super Administrator', isBuiltIn: true)],
+        ]);
+
+        self::assertStringContainsString('"isBuiltIn":true', $html);
+        self::assertStringNotContainsString('"isSystem"', $html);
     }
 }

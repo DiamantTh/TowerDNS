@@ -85,7 +85,7 @@ final class SvelteRenderer implements TemplateRendererInterface
             return [
                 'id'          => $value->id,
                 'name'        => $value->name,
-                'isSystem'    => $value->isSystem,
+                'isBuiltIn'   => $value->isBuiltIn,
                 'permissions' => $value->getPermissionIds(),
             ];
         }

@@ -34,17 +34,17 @@ interface RoleRepositoryInterface
     /**
      * Creates or fully updates a role (upsert).
      *
-     * When the role ID does not exist it is inserted with is_system = false.
-     * System roles (is_system = true) may be updated by this method since
-     * their permission set is managed programmatically; the is_system flag
+     * When the role ID does not exist it is inserted as a custom role.
+     * Built-in roles are maintained programmatically; their legacy database
+     * marker is never cleared.
      * itself is never cleared.
      */
     public function save(Role $role): void;
 
     /**
-     * Deletes a non-system role and all its permission assignments.
+     * Deletes a non-built-in role and all its permission assignments.
      *
-     * @throws \DomainException when the role is a system role
+     * @throws \DomainException when the role is built in
      */
     public function delete(string $roleId): void;
 }

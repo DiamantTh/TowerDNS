@@ -27,7 +27,12 @@ final class Role implements RoleInterface
         public readonly string $id,
         public readonly string $name,
         array $permissions = [],
-        public readonly bool $isSystem = false,
+        /**
+         * Built-in roles are maintained by TowerDNS and cannot be edited or
+         * removed in the role editor. This is unrelated to the scope in which
+         * a role is granted.
+         */
+        public readonly bool $isBuiltIn = false,
     ) {
         foreach ($permissions as $perm) {
             $this->permissionMap[PermissionRegistry::normalize($perm instanceof Permission ? $perm->value : $perm)] = true;
