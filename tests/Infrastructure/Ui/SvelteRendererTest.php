@@ -7,8 +7,10 @@ declare(strict_types=1);
 namespace TowerDNS\Tests\Infrastructure\Ui;
 
 use PHPUnit\Framework\TestCase;
+use TowerDNS\Application\Auth\ActionGroupDefinition;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Account\ProviderAccount;
+use TowerDNS\Domain\Auth\PermissionDefinition;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Infrastructure\Ui\SvelteRenderer;
 
@@ -40,5 +42,19 @@ final class SvelteRendererTest extends TestCase
 
         self::assertStringContainsString('"isBuiltIn":true', $html);
         self::assertStringNotContainsString('"isSystem"', $html);
+    }
+
+    public function testRendererProvidesRoleEditorMetadataForSvelte(): void
+    {
+        $renderer = new SvelteRenderer(new ThemeManager(dirname(__DIR__, 3)));
+        $html     = $renderer->render('app::iam/roles', [
+            'permissionDefinitions' => [new PermissionDefinition('towerdns.tlsa.manage', 'permission.tlsa.manage.label')],
+            'actionGroups'          => [new ActionGroupDefinition('dns.records.manage', 'action-group.dns.records.manage.label', null, ['towerdns.tlsa.manage'])],
+        ]);
+
+        self::assertStringContainsString('permissionDefinitions', $html);
+        self::assertStringContainsString('towerdns.tlsa.manage', $html);
+        self::assertStringContainsString('actionGroups', $html);
+        self::assertStringContainsString('dns.records.manage', $html);
     }
 }

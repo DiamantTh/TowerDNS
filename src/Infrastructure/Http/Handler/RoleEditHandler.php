@@ -14,6 +14,7 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
@@ -34,6 +35,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         private RoleRepositoryInterface   $roles,
         private AuthorizationService      $authz,
         private PermissionRegistry        $permissions,
+        private ActionGroupRegistry       $actionGroups,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -51,12 +53,12 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         } catch (AuthorizationException $e) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/role_edit', [
-                    'user'        => $currentUser,
-                    'role'        => null,
-                    'permissions' => $this->permissions->ids(),
-                    'csrfToken'   => $guard->generateToken(),
-                    'error'       => $e->getMessage(),
-                    'success'     => null,
+                    'user' => $currentUser,
+                    'role' => null,
+                    ...$this->editorData(),
+                    'csrfToken' => $guard->generateToken(),
+                    'error'     => $e->getMessage(),
+                    'success'   => null,
                 ]),
                 403,
             );
@@ -67,12 +69,12 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         if (!$role instanceof Role) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/role_edit', [
-                    'user'        => $currentUser,
-                    'role'        => null,
-                    'permissions' => $this->permissions->ids(),
-                    'csrfToken'   => $guard->generateToken(),
-                    'error'       => 'Rolle nicht gefunden.',
-                    'success'     => null,
+                    'user' => $currentUser,
+                    'role' => null,
+                    ...$this->editorData(),
+                    'csrfToken' => $guard->generateToken(),
+                    'error'     => 'Rolle nicht gefunden.',
+                    'success'   => null,
                 ]),
                 404,
             );
@@ -134,13 +136,22 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
     {
         return new HtmlResponse(
             $this->renderer->render('app::iam/role_edit', [
-                'user'        => $currentUser,
-                'role'        => $role,
-                'permissions' => $this->permissions->ids(),
-                'csrfToken'   => $csrfToken,
-                'error'       => $error,
-                'success'     => $success,
+                'user' => $currentUser,
+                'role' => $role,
+                ...$this->editorData(),
+                'csrfToken' => $csrfToken,
+                'error'     => $error,
+                'success'   => $success,
             ]),
         );
+    }
+
+    /** @return array{permissionDefinitions: list<\TowerDNS\Domain\Auth\PermissionDefinition>, actionGroups: list<\TowerDNS\Application\Auth\ActionGroupDefinition>} */
+    private function editorData(): array
+    {
+        return [
+            'permissionDefinitions' => $this->permissions->all(),
+            'actionGroups'          => $this->actionGroups->all(),
+        ];
     }
 }

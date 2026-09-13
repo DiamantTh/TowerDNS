@@ -14,6 +14,7 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
@@ -31,6 +32,7 @@ final readonly class RoleListHandler implements RequestHandlerInterface
         private RoleRepositoryInterface   $roles,
         private AuthorizationService      $authz,
         private PermissionRegistry        $permissions,
+        private ActionGroupRegistry       $actionGroups,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -50,12 +52,12 @@ final readonly class RoleListHandler implements RequestHandlerInterface
         } catch (AuthorizationException $e) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/roles', [
-                    'user'        => $currentUser,
-                    'roles'       => [],
-                    'permissions' => $this->permissions->ids(),
-                    'csrfToken'   => $csrfToken,
-                    'error'       => $e->getMessage(),
-                    'success'     => null,
+                    'user'  => $currentUser,
+                    'roles' => [],
+                    ...$this->editorData(),
+                    'csrfToken' => $csrfToken,
+                    'error'     => $e->getMessage(),
+                    'success'   => null,
                 ]),
                 403,
             );
@@ -65,13 +67,22 @@ final readonly class RoleListHandler implements RequestHandlerInterface
 
         return new HtmlResponse(
             $this->renderer->render('app::iam/roles', [
-                'user'        => $currentUser,
-                'roles'       => $allRoles,
-                'permissions' => $this->permissions->ids(),
-                'csrfToken'   => $csrfToken,
-                'error'       => is_string($flashError) ? $flashError : null,
-                'success'     => is_string($flashSuccess) ? $flashSuccess : null,
+                'user'  => $currentUser,
+                'roles' => $allRoles,
+                ...$this->editorData(),
+                'csrfToken' => $csrfToken,
+                'error'     => is_string($flashError) ? $flashError : null,
+                'success'   => is_string($flashSuccess) ? $flashSuccess : null,
             ]),
         );
+    }
+
+    /** @return array{permissionDefinitions: list<\TowerDNS\Domain\Auth\PermissionDefinition>, actionGroups: list<\TowerDNS\Application\Auth\ActionGroupDefinition>} */
+    private function editorData(): array
+    {
+        return [
+            'permissionDefinitions' => $this->permissions->all(),
+            'actionGroups'          => $this->actionGroups->all(),
+        ];
     }
 }
