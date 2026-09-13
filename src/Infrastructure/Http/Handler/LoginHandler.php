@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -43,6 +44,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private CacheInterface                        $cache,
         private WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
         private AuditLogService                       $audit,
+        private TranslatorInterface                   $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -78,7 +80,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         } catch (RateLimitExceededException) {
             return new HtmlResponse(
                 $this->renderer->render('app::login', [
-                    'error'     => 'Zu viele Anmeldeversuche. Bitte warte einige Minuten und versuche es erneut.',
+                    'error'     => $this->translator->translate('auth.error.rate-limited'),
                     'csrfToken' => $guard->generateToken(),
                 ]),
                 429,
@@ -92,7 +94,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
                 $this->renderer->render('app::login', [
-                    'error'     => 'Ungültige Anfrage. Bitte versuche es erneut.',
+                    'error'     => $this->translator->translate('auth.error.invalid-request'),
                     'csrfToken' => $guard->generateToken(),
                 ]),
                 400
@@ -148,7 +150,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         mixed  $session,
     ): ?string {
         if ($email === '' || $password === '') {
-            return 'E-Mail und Passwort sind erforderlich.';
+            return $this->translator->translate('auth.error.email-password-required');
         }
 
         // Fetch hash first.  If the address is unknown we still call
@@ -166,7 +168,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
 
         if ($hash === null || !$valid) {
             $this->audit->recordLoginFailed($request, $email);
-            return 'Ungültige Anmeldedaten.';
+            return $this->translator->translate('auth.error.invalid-credentials');
         }
 
         // Hash matched — now load the full user object (with roles).
@@ -175,11 +177,11 @@ final readonly class LoginHandler implements RequestHandlerInterface
             // Account disabled between hash-fetch and user-load (race), or
             // findByEmail's active=1 guard excluded it.
             $this->audit->recordLoginFailed($request, $email);
-            return 'Ungültige Anmeldedaten.';
+            return $this->translator->translate('auth.error.invalid-credentials');
         }
 
         if (!$session instanceof SessionInterface) {
-            return 'Session nicht verfügbar.';
+            return $this->translator->translate('auth.error.session-unavailable');
         }
 
         // Check whether TOTP is configured for this user.

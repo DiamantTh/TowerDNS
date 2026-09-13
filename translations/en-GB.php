@@ -246,4 +246,9 @@ return [
     'api-key.success.created-copy-now'        => 'API key created. Copy it now; it will not be shown again.',
     'profile.error.invalid-theme'             => 'The selected colour scheme is not installed or is invalid.',
     'profile.success.updated'                 => 'Profile settings updated.',
+    'auth.error.rate-limited'                 => 'Too many sign-in attempts. Wait a few minutes and try again.',
+    'auth.error.invalid-request'              => 'Invalid request. Please try again.',
+    'auth.error.email-password-required'      => 'Email and password are required.',
+    'auth.error.invalid-credentials'          => 'Invalid sign-in details.',
+    'auth.error.session-unavailable'          => 'Session is unavailable.',
 ];

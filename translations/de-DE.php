@@ -246,4 +246,9 @@ return [
     'api-key.success.created-copy-now'        => 'API-Schlüssel erstellt. Bitte jetzt kopieren – er wird nicht mehr angezeigt.',
     'profile.error.invalid-theme'             => 'Das ausgewählte Farbschema ist nicht installiert oder ungültig.',
     'profile.success.updated'                 => 'Profileinstellungen aktualisiert.',
+    'auth.error.rate-limited'                 => 'Zu viele Anmeldeversuche. Bitte warte einige Minuten und versuche es erneut.',
+    'auth.error.invalid-request'              => 'Ungültige Anfrage. Bitte versuche es erneut.',
+    'auth.error.email-password-required'      => 'E-Mail und Passwort sind erforderlich.',
+    'auth.error.invalid-credentials'          => 'Ungültige Anmeldedaten.',
+    'auth.error.session-unavailable'          => 'Sitzung nicht verfügbar.',
 ];
