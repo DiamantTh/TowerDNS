@@ -42,9 +42,6 @@ final readonly class AuthorizationService
     public function isGranted(User $user, Permission|string $permission): bool
     {
         $id = $this->permissions->assertKnown($permission);
-        return array_any(
-            $user->roles,
-            fn($role): bool => $this->rbac->isGranted($role, $id),
-        );
+        return $this->rbac->isGrantedByAny($user->roles, $id);
     }
 }

@@ -7,22 +7,35 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Services;
 
-use Laminas\Permissions\Rbac\Rbac;
 use Laminas\Permissions\Rbac\RoleInterface;
 
 /**
- * Thin adapter around Laminas RBAC.
+ * Thin, stateless adapter around Laminas RBAC roles.
  *
- * TowerDNS resolves account and zone scope itself. This service answers only
- * whether one already resolved role grants a technical permission.
+ * TowerDNS resolves a user's dynamic roles and their account/zone scope per
+ * request. Laminas' Rbac object is a mutable role registry without a removal
+ * API, so retaining one here would leak request-specific role objects in
+ * long-running workers. RoleInterface already supplies the same permission
+ * and child-role semantics needed after TowerDNS has resolved a role.
  */
 final class RbacPermissionChecker
 {
     public function isGranted(RoleInterface $role, string $permission): bool
     {
-        $rbac = new Rbac();
-        $rbac->addRole($role);
+        return $role->hasPermission($permission);
+    }
 
-        return $rbac->isGranted($role, $permission);
+    /**
+     * @param iterable<RoleInterface> $roles
+     */
+    public function isGrantedByAny(iterable $roles, string $permission): bool
+    {
+        foreach ($roles as $role) {
+            if ($this->isGranted($role, $permission)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
