@@ -240,4 +240,10 @@ return [
     'dnssec.success.enabled'                  => 'DNSSEC enabled.',
     'dnssec.success.disabled'                 => 'DNSSEC disabled.',
     'dnssec.success.action-executed'          => 'DNSSEC action completed.',
+    'api-key.success.revoked'                 => 'API key revoked.',
+    'api-key.error.name-required'             => 'Enter a name.',
+    'api-key.error.name-too-long'             => 'The name must not exceed 100 characters.',
+    'api-key.success.created-copy-now'        => 'API key created. Copy it now; it will not be shown again.',
+    'profile.error.invalid-theme'             => 'The selected colour scheme is not installed or is invalid.',
+    'profile.success.updated'                 => 'Profile settings updated.',
 ];

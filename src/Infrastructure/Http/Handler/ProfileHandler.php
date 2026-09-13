@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -34,6 +35,7 @@ final readonly class ProfileHandler implements RequestHandlerInterface
         private UserRepositoryInterface               $users,
         private WebAuthnCredentialRepositoryInterface $webauthn,
         private ThemeManager                          $themes,
+        private TranslatorInterface                   $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -52,20 +54,20 @@ final readonly class ProfileHandler implements RequestHandlerInterface
             $token = is_array($raw) ? (string) ($raw[0] ?? '') : (string) $raw;
 
             if (!$guard->validateToken($token)) {
-                return new RedirectResponse('/profile?error=' . rawurlencode('Ungültige Anfrage.'));
+                return new RedirectResponse('/profile?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
             }
 
             $displayName = trim((string) ($body['display_name'] ?? ''));
             $theme       = trim((string) ($body['theme'] ?? 'system'));
 
             if ($theme !== 'system' && !$this->themes->has($theme)) {
-                return new RedirectResponse('/profile?error=' . rawurlencode('Das ausgewählte Theme ist nicht installiert oder ungültig.'));
+                return new RedirectResponse('/profile?error=' . rawurlencode($this->translator->translate('profile.error.invalid-theme')));
             }
 
             $this->users->updateDisplayName($currentUser->id, $displayName);
             $this->users->updateTheme($currentUser->id, $theme);
 
-            return new RedirectResponse('/profile?success=' . rawurlencode('Profileinstellungen aktualisiert.'));
+            return new RedirectResponse('/profile?success=' . rawurlencode($this->translator->translate('profile.success.updated')));
         }
 
         // ── GET ───────────────────────────────────────────────────────────

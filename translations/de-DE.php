@@ -240,4 +240,10 @@ return [
     'dnssec.success.enabled'                  => 'DNSSEC wurde aktiviert.',
     'dnssec.success.disabled'                 => 'DNSSEC wurde deaktiviert.',
     'dnssec.success.action-executed'          => 'DNSSEC-Aktion wurde ausgeführt.',
+    'api-key.success.revoked'                 => 'API-Schlüssel widerrufen.',
+    'api-key.error.name-required'             => 'Bitte einen Namen angeben.',
+    'api-key.error.name-too-long'             => 'Name darf maximal 100 Zeichen lang sein.',
+    'api-key.success.created-copy-now'        => 'API-Schlüssel erstellt. Bitte jetzt kopieren – er wird nicht mehr angezeigt.',
+    'profile.error.invalid-theme'             => 'Das ausgewählte Farbschema ist nicht installiert oder ungültig.',
+    'profile.success.updated'                 => 'Profileinstellungen aktualisiert.',
 ];

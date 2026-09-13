@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -35,6 +36,7 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
         private TemplateRendererInterface $renderer,
         private ApiKeyRepositoryInterface $apiKeys,
         private ClockInterface            $clock,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -68,23 +70,23 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
         $csrfToken = is_array($rawToken) ? (string) ($rawToken[0] ?? '') : (string) $rawToken;
 
         if (!$guard->validateToken($csrfToken)) {
-            return new RedirectResponse('/profile/api-keys?error=' . rawurlencode('Ungültige Anfrage.'));
+            return new RedirectResponse('/profile/api-keys?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
         }
 
         // ── Revoke ────────────────────────────────────────────────────────────
         if ($keyId !== null) {
             $this->apiKeys->revoke($keyId, $currentUser->id);
 
-            return new RedirectResponse('/profile/api-keys?success=' . rawurlencode('API-Schlüssel widerrufen.'));
+            return new RedirectResponse('/profile/api-keys?success=' . rawurlencode($this->translator->translate('api-key.success.revoked')));
         }
 
         // ── Create ────────────────────────────────────────────────────────────
         $name = trim((string) ($body['name'] ?? ''));
         if ($name === '') {
-            return new RedirectResponse('/profile/api-keys?error=' . rawurlencode('Bitte einen Namen angeben.'));
+            return new RedirectResponse('/profile/api-keys?error=' . rawurlencode($this->translator->translate('api-key.error.name-required')));
         }
         if (mb_strlen($name) > 100) {
-            return new RedirectResponse('/profile/api-keys?error=' . rawurlencode('Name darf maximal 100 Zeichen lang sein.'));
+            return new RedirectResponse('/profile/api-keys?error=' . rawurlencode($this->translator->translate('api-key.error.name-too-long')));
         }
 
         $plainToken = 'tdns_' . bin2hex(random_bytes(32));
@@ -98,7 +100,7 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
         // grants no more access than any other session-bound action.
         return new RedirectResponse(
             '/profile/api-keys?new_token=' . rawurlencode($plainToken)
-            . '&success=' . rawurlencode('API-Schlüssel erstellt. Bitte jetzt kopieren – er wird nicht mehr angezeigt.')
+            . '&success=' . rawurlencode($this->translator->translate('api-key.success.created-copy-now'))
         );
     }
 
