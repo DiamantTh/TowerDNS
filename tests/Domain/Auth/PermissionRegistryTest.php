@@ -9,6 +9,7 @@ namespace TowerDNS\Tests\Domain\Auth;
 
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\PermissionDefinition;
 use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
@@ -47,5 +48,29 @@ final class PermissionRegistryTest extends TestCase
             new User('u1', 'u@example.test', [new Role('r1', 'Role', ['towerdns.unknown.read'])]),
             'towerdns.unknown.read',
         );
+    }
+
+    public function testCorePermissionsHaveTranslationKeysAndPermittedScopes(): void
+    {
+        $definitions = new PermissionRegistry()->all();
+
+        self::assertCount(count(Permission::cases()), $definitions);
+        foreach ($definitions as $definition) {
+            self::assertStringStartsWith('permission.', $definition->label);
+            self::assertStringStartsWith('permission.', (string) $definition->description);
+            self::assertNotEmpty($definition->scopeKinds);
+        }
+    }
+
+    public function testRejectsUnknownScopeKind(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new \ReflectionClass(PermissionDefinition::class)->newInstanceArgs([
+            'towerdns.tlsa.read',
+            'permission.tlsa.read.label',
+            null,
+            ['module'],
+        ]);
     }
 }
