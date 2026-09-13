@@ -160,4 +160,9 @@ return [
     'dashboard.accounts.text'       => 'Organise teams and providers.',
     'dashboard.security.title'      => 'Account security',
     'dashboard.security.text'       => 'Passkeys, TOTP, and API keys.',
+    'auth.error.login-failed'       => 'Sign-in failed.',
+    'passkey.error.no-authenticator-response' => 'No response from the authenticator.',
+    'passkey.error.name-required' => 'Enter a name first.',
+    'passkey.error.start-failed' => 'Could not start registration.',
+    'passkey.error.registration-failed' => 'Registration failed.',
 ];

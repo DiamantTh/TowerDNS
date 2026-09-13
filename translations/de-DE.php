@@ -160,4 +160,9 @@ return [
     'dashboard.accounts.text'       => 'Teams und Provider organisieren.',
     'dashboard.security.title'      => 'Kontosicherheit',
     'dashboard.security.text'       => 'Passkeys, TOTP und API-Schlüssel.',
+    'auth.error.login-failed'       => 'Anmeldung fehlgeschlagen.',
+    'passkey.error.no-authenticator-response' => 'Keine Antwort vom Authenticator.',
+    'passkey.error.name-required' => 'Bitte eine Bezeichnung eingeben.',
+    'passkey.error.start-failed' => 'Start fehlgeschlagen.',
+    'passkey.error.registration-failed' => 'Registrierung fehlgeschlagen.',
 ];
