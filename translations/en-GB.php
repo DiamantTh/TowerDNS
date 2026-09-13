@@ -165,4 +165,10 @@ return [
     'passkey.error.name-required' => 'Enter a name first.',
     'passkey.error.start-failed' => 'Could not start registration.',
     'passkey.error.registration-failed' => 'Registration failed.',
+    'zones.create' => 'Create zone',
+    'zones.confirm-delete' => 'Delete zone {name}?',
+    'zones.empty' => 'No zones.',
+    'status.inactive' => 'Inactive',
+    'common.delete' => 'Delete',
+    'providers.none-configured' => 'No provider configured.',
 ];

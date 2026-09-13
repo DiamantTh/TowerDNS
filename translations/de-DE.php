@@ -165,4 +165,10 @@ return [
     'passkey.error.name-required' => 'Bitte eine Bezeichnung eingeben.',
     'passkey.error.start-failed' => 'Start fehlgeschlagen.',
     'passkey.error.registration-failed' => 'Registrierung fehlgeschlagen.',
+    'zones.create' => 'Zone anlegen',
+    'zones.confirm-delete' => 'Zone {name} löschen?',
+    'zones.empty' => 'Keine Zonen.',
+    'status.inactive' => 'Inaktiv',
+    'common.delete' => 'Löschen',
+    'providers.none-configured' => 'Kein Provider konfiguriert.',
 ];
