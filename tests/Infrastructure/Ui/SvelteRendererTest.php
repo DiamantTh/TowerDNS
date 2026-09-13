@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Tests\Infrastructure\Ui;
 
+use Laminas\I18n\Translator\Translator;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Auth\ActionGroupDefinition;
 use TowerDNS\Application\Theme\ThemeManager;
@@ -28,6 +29,7 @@ final class SvelteRendererTest extends TestCase
         ]);
 
         self::assertStringContainsString('id="towerdns-app"', $html);
+        self::assertStringContainsString('<title>TowerDNS</title>', $html);
         self::assertStringContainsString('provider_accounts', $html);
         self::assertStringNotContainsString('secret-ciphertext', $html);
         self::assertStringNotContainsString('serialized-public-key', $html);
@@ -56,5 +58,34 @@ final class SvelteRendererTest extends TestCase
         self::assertStringContainsString('towerdns.tlsa.manage', $html);
         self::assertStringContainsString('actionGroups', $html);
         self::assertStringContainsString('dns.records.manage', $html);
+    }
+
+    public function testRendererExposesTheLaminasTranslationCatalogToSvelte(): void
+    {
+        $root       = dirname(__DIR__, 3);
+        $translator = new Translator();
+        $translator->setLocale('de-DE');
+        $translator->setFallbackLocale('en-GB');
+        $translator->addTranslationFilePattern('phpArray', $root . '/translations', '%s.php');
+        $renderer = new SvelteRenderer(new ThemeManager($root), translator: $translator);
+
+        $html = $renderer->render('app::iam/roles');
+
+        self::assertStringContainsString('"locale":"de-DE"', $html);
+        self::assertStringContainsString('DNS-Eintr\u00e4ge verwalten', $html);
+        self::assertSame('Rolle „DNS Manager“ wurde angelegt.', $this->interpolate($translator->translate('roles.success.created'), ['name' => 'DNS Manager']));
+        self::assertSame('2 Rollen', $this->interpolate($translator->translatePlural('roles.count', 'roles.count', 2), ['count' => '2']));
+        self::assertSame('Save', $translator->translate('common.save', 'default', 'fr-FR'));
+    }
+
+    /** @param array<string, string> $parameters */
+    private function interpolate(string $text, array $parameters): string
+    {
+        $replacements = [];
+        foreach ($parameters as $name => $value) {
+            $replacements['{' . $name . '}'] = $value;
+        }
+
+        return strtr($text, $replacements);
     }
 }

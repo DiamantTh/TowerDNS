@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -36,6 +37,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         private AuthorizationService      $authz,
         private PermissionRegistry        $permissions,
         private ActionGroupRegistry       $actionGroups,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -73,7 +75,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
                     'role' => null,
                     ...$this->editorData(),
                     'csrfToken' => $guard->generateToken(),
-                    'error'     => 'Rolle nicht gefunden.',
+                    'error'     => $this->t('roles.error.not-found'),
                     'success'   => null,
                 ]),
                 404,
@@ -96,17 +98,17 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         $token = is_array($raw) ? (string) ($raw[0] ?? '') : (string) $raw;
 
         if (!$guard->validateToken($token)) {
-            return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Ungültiger CSRF-Token.');
+            return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('roles.error.invalid-csrf'));
         }
 
         if ($role->isBuiltIn) {
-            return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Eingebaute Rollen können nicht bearbeitet werden.');
+            return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('roles.error.built-in-read-only'));
         }
 
         $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');
 
         if ($name === '') {
-            return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Name darf nicht leer sein.');
+            return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('roles.error.name-required'));
         }
 
         $rawPerms = $body['permissions'] ?? [];
@@ -117,7 +119,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
             try {
                 $permissions[] = $this->permissions->assertKnown((string) $pv);
             } catch (\InvalidArgumentException) {
-                return $this->renderForm($currentUser, $role, $guard->generateToken(), 'Ungültige Permission.');
+                return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('roles.error.invalid-permission'));
             }
         }
 
@@ -129,7 +131,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
 
         $this->roles->save($updated);
 
-        return $this->renderForm($currentUser, $updated, $guard->generateToken(), null, 'Rolle wurde gespeichert.');
+        return $this->renderForm($currentUser, $updated, $guard->generateToken(), null, $this->t('roles.success.saved'));
     }
 
     private function renderForm(User $currentUser, ?Role $role, string $csrfToken, ?string $error = null, ?string $success = null): ResponseInterface
@@ -153,5 +155,10 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
             'permissionDefinitions' => $this->permissions->all(),
             'actionGroups'          => $this->actionGroups->all(),
         ];
+    }
+
+    private function t(string $key): string
+    {
+        return $this->translator->translate($key);
     }
 }

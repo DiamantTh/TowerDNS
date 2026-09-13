@@ -459,9 +459,10 @@ final class ContainerFactory
             // ── Laminas I18n Translator ───────────────────────────────────────
             TranslatorInterface::class => \DI\factory(
                 static function () use ($appConf, $projectRoot): TranslatorInterface {
-                    $locale     = (string) ($appConf['app']['locale'] ?? 'de_DE');
+                    $locale     = str_replace('_', '-', (string) ($appConf['app']['locale'] ?? 'en-GB'));
                     $translator = new Translator();
                     $translator->setLocale($locale);
+                    $translator->setFallbackLocale('en-GB');
                     $translationsDir = $projectRoot . '/translations';
                     if (is_dir($translationsDir)) {
                         $translator->addTranslationFilePattern(
@@ -477,7 +478,11 @@ final class ContainerFactory
 
             // ── Twig ──────────────────────────────────────────────────────────
             TemplateRendererInterface::class => \DI\factory(
-                static fn(): SvelteRenderer => new SvelteRenderer($themeManager, $debug)
+                static fn(\Psr\Container\ContainerInterface $c): SvelteRenderer => new SvelteRenderer(
+                    $themeManager,
+                    $debug,
+                    $c->get(TranslatorInterface::class),
+                )
             ),
 
             // ── Console commands ─────────────────────────────────────────────

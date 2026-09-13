@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -31,6 +32,7 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
         private RoleRepositoryInterface $roles,
         private AuthorizationService    $authz,
         private PermissionRegistry      $permissions,
+        private TranslatorInterface     $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -48,7 +50,7 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
         $token = is_array($raw) ? (string) ($raw[0] ?? '') : (string) $raw;
 
         if (!$guard->validateToken($token)) {
-            return new RedirectResponse('/roles?error=' . rawurlencode('Ungültiger CSRF-Token.'));
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->t('roles.error.invalid-csrf')));
         }
 
         try {
@@ -60,7 +62,7 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
         $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');
 
         if ($name === '') {
-            return new RedirectResponse('/roles?error=' . rawurlencode('Name darf nicht leer sein.'));
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->t('roles.error.name-required')));
         }
 
         $rawPerms = $body['permissions'] ?? [];
@@ -71,7 +73,7 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
             try {
                 $permissions[] = $this->permissions->assertKnown((string) $pv);
             } catch (\InvalidArgumentException) {
-                return new RedirectResponse('/roles?error=' . rawurlencode('Ungültige Permission.'));
+                return new RedirectResponse('/roles?error=' . rawurlencode($this->t('roles.error.invalid-permission')));
             }
         }
 
@@ -83,6 +85,17 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
 
         $this->roles->save($role);
 
-        return new RedirectResponse('/roles?success=' . rawurlencode('Rolle "' . $name . '" wurde angelegt.'));
+        return new RedirectResponse('/roles?success=' . rawurlencode($this->t('roles.success.created', ['name' => $name])));
+    }
+
+    /** @param array<string, string> $parameters */
+    private function t(string $key, array $parameters = []): string
+    {
+        $replacements = [];
+        foreach ($parameters as $name => $value) {
+            $replacements['{' . $name . '}'] = $value;
+        }
+
+        return strtr($this->translator->translate($key), $replacements);
     }
 }

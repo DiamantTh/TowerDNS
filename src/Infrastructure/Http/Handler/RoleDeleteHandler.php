@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -30,6 +31,7 @@ final readonly class RoleDeleteHandler implements RequestHandlerInterface
     public function __construct(
         private RoleRepositoryInterface $roles,
         private AuthorizationService    $authz,
+        private TranslatorInterface     $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -47,7 +49,7 @@ final readonly class RoleDeleteHandler implements RequestHandlerInterface
         $token = is_array($raw) ? (string) ($raw[0] ?? '') : (string) $raw;
 
         if (!$guard->validateToken($token)) {
-            return new RedirectResponse('/roles?error=' . rawurlencode('Ungültiger CSRF-Token.'));
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->translator->translate('roles.error.invalid-csrf')));
         }
 
         try {
@@ -64,6 +66,6 @@ final readonly class RoleDeleteHandler implements RequestHandlerInterface
             return new RedirectResponse('/roles?error=' . rawurlencode($e->getMessage()));
         }
 
-        return new RedirectResponse('/roles?success=' . rawurlencode('Rolle wurde gelöscht.'));
+        return new RedirectResponse('/roles?success=' . rawurlencode($this->translator->translate('roles.success.deleted')));
     }
 }
