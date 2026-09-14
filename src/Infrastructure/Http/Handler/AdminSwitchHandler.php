@@ -15,7 +15,9 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
+use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Domain\Auth\User;
@@ -44,6 +46,8 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         private AdminImpersonationSessionRepositoryInterface $sessions,
         private PermissionService                            $permissions,
         private AuditLogService                              $audit,
+        private UserRepositoryInterface                      $users,
+        private AccountRepositoryInterface                   $accounts,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -67,7 +71,7 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
     private function handleGetForm(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $user */
-        $user = $request->getAttribute(User::class);
+        $user = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
 
         $this->permissions->assertCanImpersonate($user);
 
@@ -94,7 +98,7 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
     private function handleStart(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $user */
-        $user = $request->getAttribute(User::class);
+        $user = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
 
         $this->permissions->assertCanImpersonate($user);
 
@@ -116,6 +120,15 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
 
         if ($reason === '') {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode('Ein Begründungstext ist Pflichtfeld.'));
+        }
+        if ($effectiveUserId === $user->id) {
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode('Self-impersonation is not allowed.'));
+        }
+        if ($effectiveUserId !== null && !($target = $this->users->findById($effectiveUserId)) instanceof User) {
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode('The target user is not available.'));
+        }
+        if ($effectiveAccountId !== null && (!($account = $this->accounts->findById($effectiveAccountId)) instanceof \TowerDNS\Domain\Account\Account || !$account->isActive)) {
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode('The target account is not available.'));
         }
 
         $now       = new \DateTimeImmutable();
@@ -141,8 +154,8 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
                 $effectiveAccountId,
                 $reason,
             );
-        } catch (\Throwable $e) {
-            return new RedirectResponse('/admin/switch?error=' . rawurlencode($e->getMessage()));
+        } catch (\Throwable) {
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode('Could not start impersonation.'));
         }
 
         // Store session ID in PHP session
@@ -158,7 +171,7 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
     private function handleEnd(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $user */
-        $user = $request->getAttribute(User::class);
+        $user = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
 
         $this->permissions->assertCanImpersonate($user);
 
