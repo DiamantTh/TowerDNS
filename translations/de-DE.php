@@ -259,4 +259,8 @@ return [
     'auth.error.password-policy'              => 'Das Passwort erfüllt die konfigurierten Sicherheitsanforderungen nicht.',
     'auth.error.current-password-invalid'     => 'Das aktuelle Passwort ist nicht korrekt.',
     'auth.success.password-changed'           => 'Passwort wurde erfolgreich geändert.',
+    'totp.error.code-required'                => 'Bitte gib den Code ein.',
+    'totp.error.code-invalid'                 => 'Ungültiger Code. Bitte erneut versuchen.',
+    'totp.success.enabled'                    => 'Zwei-Faktor-Authentifizierung wurde aktiviert.',
+    'totp.success.disabled'                   => 'Zwei-Faktor-Authentifizierung wurde deaktiviert.',
 ];

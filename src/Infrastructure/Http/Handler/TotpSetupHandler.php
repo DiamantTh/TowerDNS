@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -40,6 +41,7 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         private TemplateRendererInterface $renderer,
         private UserRepositoryInterface   $users,
         private TotpService               $totp,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -102,7 +104,7 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
                     'provisioningUri' => null,
                     'secret'          => null,
                     'secretFormatted' => null,
-                    'error'           => 'Ungültige Anfrage. Bitte versuche es erneut.',
+                    'error'           => $this->translator->translate('auth.error.invalid-request'),
                     'success'         => null,
                     'csrfToken'       => $guard->generateToken(),
                 ]),
@@ -138,14 +140,14 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         $pendingSecret = (string) $session->get(self::SESSION_KEY);
 
         if ($code === '') {
-            return $this->renderSetupForm($user, $pendingSecret, 'Bitte gib den Code ein.', null, $guard);
+            return $this->renderSetupForm($user, $pendingSecret, $this->translator->translate('totp.error.code-required'), null, $guard);
         }
 
         if (!$this->totp->verify($code, $pendingSecret)) {
             return $this->renderSetupForm(
                 $user,
                 $pendingSecret,
-                'Ungültiger Code. Bitte erneut versuchen.',
+                $this->translator->translate('totp.error.code-invalid'),
                 null,
                 $guard,
                 400,
@@ -158,7 +160,7 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         return $this->renderDisableForm(
             $user,
             null,
-            'Zwei-Faktor-Authentifizierung wurde erfolgreich aktiviert.',
+            $this->translator->translate('totp.success.enabled'),
             $guard,
         );
     }
@@ -175,11 +177,11 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         }
 
         if ($code === '') {
-            return $this->renderDisableForm($user, 'Bitte gib den Code ein.', null, $guard);
+            return $this->renderDisableForm($user, $this->translator->translate('totp.error.code-required'), null, $guard);
         }
 
         if (!$this->totp->verify($code, $currentSecret)) {
-            return $this->renderDisableForm($user, 'Ungültiger Code.', null, $guard, 400);
+            return $this->renderDisableForm($user, $this->translator->translate('totp.error.code-invalid'), null, $guard, 400);
         }
 
         $this->users->saveTotpSecret($user->id, null);
@@ -188,7 +190,7 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
             $user,
             $this->generateFreshSecret(),
             null,
-            'Zwei-Faktor-Authentifizierung wurde deaktiviert.',
+            $this->translator->translate('totp.success.disabled'),
             $guard,
         );
     }

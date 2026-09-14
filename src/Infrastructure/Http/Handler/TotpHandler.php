@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -35,6 +36,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         private UserRepositoryInterface   $users,
         private TotpService               $totp,
         private AuditLogService           $audit,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -65,7 +67,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
                 $this->renderer->render('app::mfa_totp', [
-                    'error'     => 'Ungültige Anfrage. Bitte versuche es erneut.',
+                    'error'     => $this->translator->translate('auth.error.invalid-request'),
                     'csrfToken' => $guard->generateToken(),
                 ]),
                 400
@@ -76,13 +78,13 @@ final readonly class TotpHandler implements RequestHandlerInterface
         $userId = (string) $session->get('mfa_pending');
 
         if ($code === '') {
-            return $this->renderError('Bitte gib den Code ein.', $guard);
+            return $this->renderError($this->translator->translate('totp.error.code-required'), $guard);
         }
 
         $secret = $this->users->fetchTotpSecret($userId);
 
         if ($secret === null || !$this->totp->verify($code, $secret)) {
-            return $this->renderError('Ungültiger Code. Bitte versuche es erneut.', $guard);
+            return $this->renderError($this->translator->translate('totp.error.code-invalid'), $guard);
         }
 
         // Code correct — complete login.
