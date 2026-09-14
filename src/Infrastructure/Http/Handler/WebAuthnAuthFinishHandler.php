@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\JsonResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -34,6 +35,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
         private UserRepositoryInterface               $users,
         private AuditLogService                       $audit,
+        private TranslatorInterface                   $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -45,7 +47,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         $optionsJson = $session->get('webauthn_auth_options');
 
         if (!is_string($userId) || $userId === '' || !is_string($optionsJson) || $optionsJson === '') {
-            return new JsonResponse(['error' => 'Keine ausstehende Authentifizierung.'], 400);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-pending')], 400);
         }
 
         // Consume session state immediately (replay protection).
@@ -53,7 +55,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
 
         $body = (string) $request->getBody();
         if ($body === '') {
-            return new JsonResponse(['error' => 'Leerer Anfrage-Body.'], 400);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-request')], 400);
         }
 
         // Determine which credential was used.
@@ -61,26 +63,24 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         $parsed   = json_decode($body, true) ?? [];
         $rawIdB64 = (string) ($parsed['rawId'] ?? $parsed['id'] ?? '');
         if ($rawIdB64 === '') {
-            return new JsonResponse(['error' => 'Keine Credential-ID im Response.'], 422);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-response')], 422);
         }
 
         $credentialId = base64_decode(strtr($rawIdB64, '-_', '+/'), true);
         if ($credentialId === false) {
-            return new JsonResponse(['error' => 'Ungültige Credential-ID.'], 422);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-response')], 422);
         }
 
         $source = $this->credentialRepo->findByCredentialId($credentialId);
         if (!$source instanceof \Webauthn\PublicKeyCredentialSource) {
-            return new JsonResponse(['error' => 'Schlüssel nicht gefunden.'], 422);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }
 
         try {
             $requestOptions = $this->webAuthn->deserializeRequestOptions($optionsJson);
             $updatedSource  = $this->webAuthn->parseAndValidateAuthentication($body, $source, $requestOptions, $userId);
-        } catch (AuthenticatorResponseVerificationException $e) {
-            return new JsonResponse(['error' => 'Verifizierung fehlgeschlagen: ' . $e->getMessage()], 422);
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 422);
+        } catch (AuthenticatorResponseVerificationException|\InvalidArgumentException) {
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }
 
         // Persist updated counter + backup flags.

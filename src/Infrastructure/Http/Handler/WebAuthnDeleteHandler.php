@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -25,6 +26,7 @@ final readonly class WebAuthnDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
+        private TranslatorInterface                   $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -37,7 +39,7 @@ final readonly class WebAuthnDeleteHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new RedirectResponse('/profile/webauthn?error=' . rawurlencode('Ungültige Anfrage.'));
+            return new RedirectResponse('/profile/webauthn?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
         }
 
         // credentialId in the URL is base64url-encoded raw bytes.
@@ -46,12 +48,12 @@ final readonly class WebAuthnDeleteHandler implements RequestHandlerInterface
         $credIdUrl   = (string) ($routeParams['credentialId'] ?? '');
 
         if ($credIdUrl === '') {
-            return new RedirectResponse('/profile/webauthn?error=' . rawurlencode('Schlüssel nicht gefunden.'));
+            return new RedirectResponse('/profile/webauthn?error=' . rawurlencode($this->translator->translate('webauthn.error.key-not-found')));
         }
 
         $credentialId = base64_decode(strtr($credIdUrl, '-_', '+/'), true);
         if ($credentialId === false) {
-            return new RedirectResponse('/profile/webauthn?error=' . rawurlencode('Ungültige Schlüssel-ID.'));
+            return new RedirectResponse('/profile/webauthn?error=' . rawurlencode($this->translator->translate('webauthn.error.key-not-found')));
         }
 
         /** @var User $currentUser */
@@ -59,6 +61,6 @@ final readonly class WebAuthnDeleteHandler implements RequestHandlerInterface
 
         $this->credentialRepo->delete($credentialId, $currentUser->id);
 
-        return new RedirectResponse('/profile/webauthn?success=' . rawurlencode('Schlüssel wurde entfernt.'));
+        return new RedirectResponse('/profile/webauthn?success=' . rawurlencode($this->translator->translate('webauthn.success.key-removed')));
     }
 }

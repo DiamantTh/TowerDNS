@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\JsonResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -32,6 +33,7 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
     public function __construct(
         private WebAuthnService                       $webAuthn,
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
+        private TranslatorInterface                   $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -44,15 +46,15 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new JsonResponse(['error' => 'Ungültige Anfrage.'], 400);
+            return new JsonResponse(['error' => $this->translator->translate('http.error.invalid-request')], 400);
         }
 
         $name = trim((string) ($body['name'] ?? ''));
         if ($name === '') {
-            return new JsonResponse(['error' => 'Bitte gib einen Namen für den Schlüssel an.'], 422);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.name-required')], 422);
         }
         if (mb_strlen($name) > 100) {
-            return new JsonResponse(['error' => 'Der Name darf höchstens 100 Zeichen lang sein.'], 422);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.name-too-long')], 422);
         }
 
         /** @var User $currentUser */

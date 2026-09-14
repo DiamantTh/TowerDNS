@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\JsonResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -29,6 +30,7 @@ final readonly class WebAuthnRegisterFinishHandler implements RequestHandlerInte
     public function __construct(
         private WebAuthnService                       $webAuthn,
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
+        private TranslatorInterface                   $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -40,7 +42,7 @@ final readonly class WebAuthnRegisterFinishHandler implements RequestHandlerInte
         $keyName     = $session->get('webauthn_register_name');
 
         if (!is_string($optionsJson) || $optionsJson === '' || !is_string($keyName) || $keyName === '') {
-            return new JsonResponse(['error' => 'Keine ausstehende Registrierung gefunden.'], 400);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.registration-pending')], 400);
         }
 
         // Consume the session state immediately (replay protection).
@@ -49,7 +51,7 @@ final readonly class WebAuthnRegisterFinishHandler implements RequestHandlerInte
 
         $body = (string) $request->getBody();
         if ($body === '') {
-            return new JsonResponse(['error' => 'Leerer Anfrage-Body.'], 400);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-request')], 400);
         }
 
         /** @var User $currentUser */
@@ -58,10 +60,8 @@ final readonly class WebAuthnRegisterFinishHandler implements RequestHandlerInte
         try {
             $creationOptions = $this->webAuthn->deserializeCreationOptions($optionsJson);
             $source          = $this->webAuthn->parseAndValidateRegistration($body, $creationOptions);
-        } catch (AuthenticatorResponseVerificationException $e) {
-            return new JsonResponse(['error' => 'Schlüsselverifizierung fehlgeschlagen: ' . $e->getMessage()], 422);
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], 422);
+        } catch (AuthenticatorResponseVerificationException|\InvalidArgumentException) {
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.registration-failed')], 422);
         }
 
         $this->credentialRepo->save($currentUser->id, $keyName, $source);
