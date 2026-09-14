@@ -16,6 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -29,6 +30,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
     public function __construct(
         private UserRepositoryInterface $users,
         private AuthorizationService    $authz,
+        private IamAdministrationService $iam,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -64,9 +66,10 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
         }
 
         try {
+            $this->iam->assertCanDelete($targetId);
             $this->users->delete($targetId);
-        } catch (\Throwable $e) {
-            return new RedirectResponse('/users?error=' . rawurlencode('Fehler beim Löschen: ' . $e->getMessage()));
+        } catch (\Throwable) {
+            return new RedirectResponse('/users?error=' . rawurlencode('User could not be deleted.'));
         }
 
         return new RedirectResponse('/users?success=' . rawurlencode('Benutzer gelöscht: ' . $target->email));

@@ -218,6 +218,11 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $this->connection->delete('users', ['id' => $userId]);
     }
 
+    public function countActiveUsersWithRole(string $roleId): int
+    {
+        return (int) $this->connection->fetchOne('SELECT COUNT(*) FROM users u JOIN user_roles ur ON ur.user_id = u.id WHERE u.active = 1 AND ur.role_id = ?', [$roleId]);
+    }
+
     public function invalidateApiKeys(string $userId): int
     {
         return (int) $this->connection->executeStatement(

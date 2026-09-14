@@ -19,6 +19,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
@@ -35,6 +36,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         private RoleRepositoryInterface   $roles,
         private AuthorizationService      $authz,
         private PasswordPolicy            $passwordPolicy,
+        private IamAdministrationService  $iam,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -158,15 +160,16 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         }
 
         try {
+            $this->iam->assertCanSyncRoles($targetId, $selectedRoles);
             $this->users->syncRoles($targetId, $selectedRoles);
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/user_edit', [
                     'currentUser' => $currentUser,
                     'target'      => $target,
                     'allRoles'    => $allRoles,
                     'csrfToken'   => $guard->generateToken(),
-                    'error'       => 'Fehler beim Speichern der Rollen: ' . $e->getMessage(),
+                    'error'       => 'Role changes could not be saved.',
                     'success'     => null,
                 ]),
                 500,

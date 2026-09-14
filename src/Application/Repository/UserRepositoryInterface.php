@@ -89,6 +89,8 @@ interface UserRepositoryInterface
 
     public function delete(string $userId): void;
 
+    public function countActiveUsersWithRole(string $roleId): int;
+
     /**
      * Deactivates all API keys belonging to the given user.
      *
