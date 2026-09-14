@@ -251,4 +251,12 @@ return [
     'auth.error.email-password-required'      => 'Email and password are required.',
     'auth.error.invalid-credentials'          => 'Invalid sign-in details.',
     'auth.error.session-unavailable'          => 'Session is unavailable.',
+    'auth.reset-email.subject'                => 'Reset password — TowerDNS',
+    'auth.reset-email.html'                   => '<p>Use the following link to reset your password (valid for one hour):</p><p>{link}</p><p>If you did not request this email, you can ignore it.</p>',
+    'auth.reset-email.text'                   => "Use the following link to reset your password (valid for one hour):\n\n{link}\n\nIf you did not request this email, you can ignore it.",
+    'auth.error.reset-link-invalid'           => 'The reset link is invalid or has expired.',
+    'auth.error.passwords-do-not-match'       => 'The passwords do not match.',
+    'auth.error.password-policy'              => 'The password does not meet the configured security requirements.',
+    'auth.error.current-password-invalid'     => 'The current password is incorrect.',
+    'auth.success.password-changed'           => 'Password changed successfully.',
 ];

@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -34,6 +35,7 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         private PasswordResetTokenRepositoryInterface $tokens,
         private PasswordPolicy                        $policy,
         private AuditLogService                       $audit,
+        private TranslatorInterface                   $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -56,7 +58,7 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
                 $this->renderer->render('app::reset_password', [
                     'csrfToken' => $guard->generateToken(),
                     'token'     => '',
-                    'error'     => 'Der Reset-Link ist ungültig oder abgelaufen.',
+                    'error'     => $this->translator->translate('auth.error.reset-link-invalid'),
                 ]),
                 400
             );
@@ -86,7 +88,7 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
                 $this->renderer->render('app::reset_password', [
                     'csrfToken' => $guard->generateToken(),
                     'token'     => (string) ($body['reset_token'] ?? ''),
-                    'error'     => 'Ungültige Anfrage.',
+                    'error'     => $this->translator->translate('http.error.invalid-request'),
                 ]),
                 400
             );
@@ -106,25 +108,25 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         ));
 
         if ($password !== $confirm) {
-            return $renderError('Die Passwörter stimmen nicht überein.');
+            return $renderError($this->translator->translate('auth.error.passwords-do-not-match'));
         }
 
         try {
             $this->policy->assertValid($password);
-        } catch (\InvalidArgumentException $e) {
-            return $renderError($e->getMessage());
+        } catch (\InvalidArgumentException) {
+            return $renderError($this->translator->translate('auth.error.password-policy'));
         }
 
         $tokenHash = hash('sha256', $rawToken);
         $record    = $this->tokens->findByHash($tokenHash);
 
         if (!$record instanceof \TowerDNS\Domain\Auth\PasswordResetToken || !$record->isValid()) {
-            return $renderError('Der Reset-Link ist ungültig oder abgelaufen.');
+            return $renderError($this->translator->translate('auth.error.reset-link-invalid'));
         }
 
         $user = $this->users->findById($record->userId);
         if (!$user instanceof \TowerDNS\Domain\Auth\User) {
-            return $renderError('Benutzer nicht gefunden.');
+            return $renderError($this->translator->translate('auth.error.reset-link-invalid'));
         }
 
         $newHash = password_hash($password, PASSWORD_ARGON2ID);

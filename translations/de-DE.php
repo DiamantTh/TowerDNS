@@ -251,4 +251,12 @@ return [
     'auth.error.email-password-required'      => 'E-Mail und Passwort sind erforderlich.',
     'auth.error.invalid-credentials'          => 'Ungültige Anmeldedaten.',
     'auth.error.session-unavailable'          => 'Sitzung nicht verfügbar.',
+    'auth.reset-email.subject'                => 'Passwort zurücksetzen — TowerDNS',
+    'auth.reset-email.html'                   => '<p>Klicke auf den folgenden Link, um dein Passwort zurückzusetzen (gültig eine Stunde):</p><p>{link}</p><p>Falls du diese E-Mail nicht angefordert hast, kannst du sie ignorieren.</p>',
+    'auth.reset-email.text'                   => "Klicke auf den folgenden Link, um dein Passwort zurückzusetzen (gültig eine Stunde):\n\n{link}\n\nFalls du diese E-Mail nicht angefordert hast, kannst du sie ignorieren.",
+    'auth.error.reset-link-invalid'           => 'Der Reset-Link ist ungültig oder abgelaufen.',
+    'auth.error.passwords-do-not-match'       => 'Die Passwörter stimmen nicht überein.',
+    'auth.error.password-policy'              => 'Das Passwort erfüllt die konfigurierten Sicherheitsanforderungen nicht.',
+    'auth.error.current-password-invalid'     => 'Das aktuelle Passwort ist nicht korrekt.',
+    'auth.success.password-changed'           => 'Passwort wurde erfolgreich geändert.',
 ];

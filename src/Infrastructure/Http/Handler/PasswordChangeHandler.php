@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -28,6 +29,7 @@ final readonly class PasswordChangeHandler implements RequestHandlerInterface
         private TemplateRendererInterface $renderer,
         private UserRepositoryInterface   $users,
         private PasswordPolicy            $policy,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -40,7 +42,7 @@ final readonly class PasswordChangeHandler implements RequestHandlerInterface
 
         if ($request->getMethod() === 'GET') {
             $success = isset($request->getQueryParams()['success'])
-                ? 'Passwort wurde erfolgreich geändert.'
+                ? $this->translator->translate('auth.success.password-changed')
                 : null;
 
             return $this->renderForm($user, $guard->generateToken(), null, $success);
@@ -58,7 +60,7 @@ final readonly class PasswordChangeHandler implements RequestHandlerInterface
         $token = is_array($raw) ? (string) ($raw[0] ?? '') : (string) $raw;
 
         if (!$guard->validateToken($token)) {
-            return $this->renderForm($user, $guard->generateToken(), 'Ungültiger CSRF-Token.');
+            return $this->renderForm($user, $guard->generateToken(), $this->translator->translate('roles.error.invalid-csrf'));
         }
 
         $currentPassword = is_string($body['current_password'] ?? null) ? $body['current_password'] : '';
@@ -68,19 +70,19 @@ final readonly class PasswordChangeHandler implements RequestHandlerInterface
         // Verify current password
         $currentHash = $this->users->fetchPasswordHash($user->email);
         if ($currentHash === null || !password_verify($currentPassword, $currentHash)) {
-            return $this->renderForm($user, $guard->generateToken(), 'Das aktuelle Passwort ist nicht korrekt.');
+            return $this->renderForm($user, $guard->generateToken(), $this->translator->translate('auth.error.current-password-invalid'));
         }
 
         // Check confirmation match
         if ($newPassword !== $confirmPassword) {
-            return $this->renderForm($user, $guard->generateToken(), 'Das neue Passwort und die Bestätigung stimmen nicht überein.');
+            return $this->renderForm($user, $guard->generateToken(), $this->translator->translate('auth.error.passwords-do-not-match'));
         }
 
         // Password policy
         try {
             $this->policy->assertValid($newPassword);
-        } catch (\InvalidArgumentException $e) {
-            return $this->renderForm($user, $guard->generateToken(), $e->getMessage());
+        } catch (\InvalidArgumentException) {
+            return $this->renderForm($user, $guard->generateToken(), $this->translator->translate('auth.error.password-policy'));
         }
 
         $hash = password_hash(

@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -38,6 +39,7 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
         private PasswordResetTokenRepositoryInterface $tokens,
         private MailService                         $mail,
         private string                              $appBaseUrl,
+        private TranslatorInterface                 $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -64,7 +66,7 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
                 $this->renderer->render('app::forgot_password', [
                     'csrfToken' => $guard->generateToken(),
                     'sent'      => false,
-                    'error'     => 'Ungültige Anfrage.',
+                    'error'     => $this->translator->translate('http.error.invalid-request'),
                 ]),
                 400
             );
@@ -85,14 +87,12 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
                 $this->tokens->create($user->id, $tokenHash, $expiresAt);
 
                 $resetLink = rtrim($this->appBaseUrl, '/') . '/password/reset?token=' . rawurlencode($rawToken);
+                $htmlLink  = '<a href="' . htmlspecialchars($resetLink, ENT_QUOTES) . '">' . htmlspecialchars($resetLink, ENT_QUOTES) . '</a>';
                 $this->mail->send(
                     $user->email,
-                    'Passwort zurücksetzen — TowerDNS',
-                    '<p>Klicke auf den folgenden Link, um dein Passwort zurückzusetzen (gültig 1 Stunde):</p>'
-                    . '<p><a href="' . htmlspecialchars($resetLink, ENT_QUOTES) . '">' . htmlspecialchars($resetLink, ENT_QUOTES) . '</a></p>'
-                    . '<p>Falls du diese E-Mail nicht angefordert hast, kannst du sie ignorieren.</p>',
-                    "Klicke auf den folgenden Link, um dein Passwort zurückzusetzen (gültig 1 Stunde):\n\n"
-                    . $resetLink . "\n\nFalls du diese E-Mail nicht angefordert hast, kannst du sie ignorieren.",
+                    $this->translator->translate('auth.reset-email.subject'),
+                    strtr($this->translator->translate('auth.reset-email.html'), ['{link}' => $htmlLink]),
+                    strtr($this->translator->translate('auth.reset-email.text'), ['{link}' => $resetLink]),
                 );
             }
             // No else branch — identical response regardless of whether user exists.
