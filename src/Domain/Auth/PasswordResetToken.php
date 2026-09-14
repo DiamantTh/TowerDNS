@@ -16,6 +16,7 @@ final readonly class PasswordResetToken
         public string  $createdAt,
         public string  $expiresAt,
         public ?string $usedAt = null,
+        public PasswordResetMethod $method = PasswordResetMethod::EMAIL_LINK,
     ) {}
 
     public function isExpired(): bool

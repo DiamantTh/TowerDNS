@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Repository;
 
+use TowerDNS\Domain\Auth\PasswordResetMethod;
 use TowerDNS\Domain\Auth\PasswordResetToken;
 
 interface PasswordResetTokenRepositoryInterface
@@ -16,7 +17,12 @@ interface PasswordResetTokenRepositoryInterface
      * Only the hash is persisted — the raw token is kept by the caller and
      * sent to the user via email.
      */
-    public function create(string $userId, string $tokenHash, string $expiresAt): void;
+    public function create(
+        string $userId,
+        string $tokenHash,
+        string $expiresAt,
+        PasswordResetMethod $method = PasswordResetMethod::EMAIL_LINK,
+    ): void;
 
     /**
      * Looks up a token by its SHA-256 hash.
@@ -28,4 +34,10 @@ interface PasswordResetTokenRepositoryInterface
      * Marks the token with the given ID as used at the given timestamp.
      */
     public function markUsed(int $id, string $usedAt): void;
+
+    /**
+     * Atomically consumes a token that is still unused and unexpired.
+     * Returns false when another request already consumed it.
+     */
+    public function consumeIfValid(int $id, string $usedAt): bool;
 }

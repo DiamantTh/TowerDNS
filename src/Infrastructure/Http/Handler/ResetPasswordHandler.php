@@ -16,10 +16,10 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Exception\PasswordResetException;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
-use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
-use TowerDNS\Application\Services\PasswordPolicy;
+use TowerDNS\Application\Services\PasswordResetService;
 
 /**
  * Password-reset completion handler.
@@ -31,9 +31,8 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
 {
     public function __construct(
         private TemplateRendererInterface             $renderer,
-        private UserRepositoryInterface               $users,
         private PasswordResetTokenRepositoryInterface $tokens,
-        private PasswordPolicy                        $policy,
+        private PasswordResetService                  $resets,
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
     ) {}
@@ -112,28 +111,16 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         }
 
         try {
-            $this->policy->assertValid($password);
+            $userId = $this->resets->consumeEmailLink($rawToken, $password);
         } catch (\InvalidArgumentException) {
             return $renderError($this->translator->translate('auth.error.password-policy'));
-        }
-
-        $tokenHash = hash('sha256', $rawToken);
-        $record    = $this->tokens->findByHash($tokenHash);
-
-        if (!$record instanceof \TowerDNS\Domain\Auth\PasswordResetToken || !$record->isValid()) {
+        } catch (PasswordResetException) {
             return $renderError($this->translator->translate('auth.error.reset-link-invalid'));
+        } catch (\Throwable) {
+            return $renderError($this->translator->translate('auth.error.password-reset-failed'));
         }
 
-        $user = $this->users->findById($record->userId);
-        if (!$user instanceof \TowerDNS\Domain\Auth\User) {
-            return $renderError($this->translator->translate('auth.error.reset-link-invalid'));
-        }
-
-        $newHash = password_hash($password, PASSWORD_ARGON2ID);
-
-        $this->users->updatePasswordHash($record->userId, $newHash);
-        $this->tokens->markUsed($record->id, new \DateTimeImmutable()->format('Y-m-d H:i:s'));
-        $this->audit->recordPasswordReset($request, $record->userId);
+        $this->audit->recordPasswordReset($request, $userId);
 
         return new RedirectResponse('/login?reset=1');
     }

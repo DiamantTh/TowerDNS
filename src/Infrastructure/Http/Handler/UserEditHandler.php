@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -18,9 +19,10 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\IamAdministrationService;
-use TowerDNS\Application\Services\PasswordPolicy;
+use TowerDNS\Application\Services\PasswordAdministrationService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -35,8 +37,10 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         private UserRepositoryInterface   $users,
         private RoleRepositoryInterface   $roles,
         private AuthorizationService      $authz,
-        private PasswordPolicy            $passwordPolicy,
         private IamAdministrationService  $iam,
+        private PasswordAdministrationService $passwords,
+        private AuditLogService           $audit,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -52,14 +56,14 @@ final readonly class UserEditHandler implements RequestHandlerInterface
 
         try {
             $this->authz->assert($currentUser, Permission::USER_MANAGE);
-        } catch (AuthorizationException $e) {
+        } catch (AuthorizationException) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/user_edit', [
                     'currentUser' => $currentUser,
                     'target'      => null,
                     'allRoles'    => [],
                     'csrfToken'   => $csrfToken,
-                    'error'       => $e->getMessage(),
+                    'error'       => $this->translator->translate('http.error.forbidden'),
                     'success'     => null,
                 ]),
                 403,
@@ -74,7 +78,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
                     'target'      => null,
                     'allRoles'    => [],
                     'csrfToken'   => $csrfToken,
-                    'error'       => 'Benutzer nicht gefunden.',
+                    'error'       => $this->translator->translate('users.error.not-found'),
                     'success'     => null,
                 ]),
                 404,
@@ -106,7 +110,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         $token = is_array($raw) ? (string) ($raw[0] ?? '') : (string) $raw;
 
         if (!$guard->validateToken($token)) {
-            return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode('Ungültige Anfrage.'));
+            return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
         }
 
         $action = (string) ($body['action'] ?? 'roles');
@@ -116,10 +120,10 @@ final readonly class UserEditHandler implements RequestHandlerInterface
             $displayName = trim((string) ($body['display_name'] ?? ''));
             try {
                 $this->users->updateDisplayName($targetId, $displayName);
-            } catch (\Throwable $e) {
-                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode('Fehler beim Speichern: ' . $e->getMessage()));
+            } catch (\Throwable) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.save-failed')));
             }
-            return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode('Anzeigename aktualisiert.'));
+            return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode($this->translator->translate('users.success.display-name-updated')));
         }
 
         // ── Passwort zurücksetzen ─────────────────────────────────────────
@@ -128,23 +132,17 @@ final readonly class UserEditHandler implements RequestHandlerInterface
             $keepKeys    = isset($body['keep_api_keys']);
 
             try {
-                $this->passwordPolicy->assertValid($newPassword);
-            } catch (\InvalidArgumentException $e) {
-                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($e->getMessage()));
+                $revokedCount = $this->passwords->setByAdministrator($targetId, $newPassword, $keepKeys);
+            } catch (\InvalidArgumentException) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('auth.error.password-policy')));
+            } catch (\Throwable) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.password-reset-failed')));
             }
 
-            /** @var non-empty-string $hash */
-            $hash = password_hash($newPassword, PASSWORD_ARGON2ID);
-            try {
-                $this->users->updatePasswordHash($targetId, $hash);
-                $revokedCount = $keepKeys ? 0 : $this->users->invalidateApiKeys($targetId);
-            } catch (\Throwable $e) {
-                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode('Fehler beim Zurücksetzen: ' . $e->getMessage()));
-            }
-
-            $msg = 'Passwort wurde zurückgesetzt.';
+            $this->audit->recordPasswordSetByAdministrator($request, $currentUser->id, $targetId, $revokedCount);
+            $msg = $this->translator->translate('users.success.password-reset');
             if (!$keepKeys && $revokedCount > 0) {
-                $msg .= ' ' . $revokedCount . ' API-Schlüssel widerrufen.';
+                $msg .= ' ' . strtr($this->translator->translate('users.success.api-keys-revoked'), ['{count}' => (string) $revokedCount]);
             }
             return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode($msg));
         }
@@ -169,7 +167,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
                     'target'      => $target,
                     'allRoles'    => $allRoles,
                     'csrfToken'   => $guard->generateToken(),
-                    'error'       => 'Role changes could not be saved.',
+                    'error'       => $this->translator->translate('users.error.roles-save-failed'),
                     'success'     => null,
                 ]),
                 500,
@@ -186,7 +184,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
                 'allRoles'    => $allRoles,
                 'csrfToken'   => $guard->generateToken(),
                 'error'       => null,
-                'success'     => 'Rollen wurden gespeichert.',
+                'success'     => $this->translator->translate('users.success.roles-saved'),
             ]),
         );
     }

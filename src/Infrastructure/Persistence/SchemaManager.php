@@ -527,6 +527,7 @@ final readonly class SchemaManager
         $pwResetTokens->addColumn('created_at', Types::STRING, ['length' => 19]);
         $pwResetTokens->addColumn('expires_at', Types::STRING, ['length' => 19]);
         $pwResetTokens->addColumn('used_at', Types::STRING, ['length' => 19, 'notnull' => false]);
+        $pwResetTokens->addColumn('method', Types::STRING, ['length' => 32, 'default' => 'email_link']);
         $pwResetTokens->setPrimaryKey(['id']);
         $pwResetTokens->addUniqueIndex(['token_hash'], 'uq_prt_token_hash');
         $pwResetTokens->addIndex(['user_id'], 'idx_prt_user_id');

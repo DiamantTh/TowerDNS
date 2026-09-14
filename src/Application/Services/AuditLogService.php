@@ -81,7 +81,30 @@ final readonly class AuditLogService
 
     public function recordPasswordReset(ServerRequestInterface $request, string $userId): void
     {
-        $this->record($request, 'user.password.reset', 'user', $userId, $userId);
+        $this->record($request, 'user.password.reset', 'user', $userId, $userId, null, null, null, null, null, null, null, ['method' => 'email_link']);
+    }
+
+    public function recordPasswordSetByAdministrator(
+        ServerRequestInterface $request,
+        string $actorUserId,
+        string $targetUserId,
+        int $revokedApiKeyCount,
+    ): void {
+        $this->record(
+            $request,
+            'user.password.reset',
+            'user',
+            $targetUserId,
+            $actorUserId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ['method' => 'admin_set', 'revoked_api_keys' => $revokedApiKeyCount],
+        );
     }
 
     public function recordZoneCreate(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $zoneName): void

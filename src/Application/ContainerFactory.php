@@ -76,8 +76,10 @@ use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Services\DNSManagementService;
 use TowerDNS\Application\Services\MailService;
 use TowerDNS\Application\Services\NullBreachedPasswordChecker;
+use TowerDNS\Application\Services\PasswordAdministrationService;
 use TowerDNS\Application\Services\PasswordGenerator;
 use TowerDNS\Application\Services\PasswordPolicy;
+use TowerDNS\Application\Services\PasswordResetService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
@@ -225,6 +227,8 @@ final class ContainerFactory
             // ── Multi-Tenant services ─────────────────────────────────────────
             PermissionService::class               => \DI\autowire(),
             AuditLogService::class                 => \DI\autowire(),
+            PasswordResetService::class            => \DI\autowire(),
+            PasswordAdministrationService::class   => \DI\autowire(),
             AccountProviderFactoryInterface::class => \DI\autowire(ProviderAccountAdapterFactory::class),
 
             // ── Provider registry ─────────────────────────────────────────────
@@ -283,10 +287,11 @@ final class ContainerFactory
                     UserRepositoryInterface $users,
                     PasswordResetTokenRepositoryInterface $tokens,
                     MailService $mail,
+                    TranslatorInterface $translator,
                 ) use ($appConf): ForgotPasswordHandler {
                     $app     = (array) ($appConf['app'] ?? []);
                     $baseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
-                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl);
+                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator);
                 }
             ),
 

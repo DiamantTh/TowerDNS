@@ -35,8 +35,13 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
  */
 final readonly class LoginHandler implements RequestHandlerInterface
 {
-    private const int RATE_LIMIT       = 10;
-    private const int RATE_WINDOW_SECS = 300; // 5 minutes
+    private const int RATE_LIMIT         = 10;
+    private const int RATE_WINDOW_SECS   = 300; // 5 minutes
+    private const array ARGON2ID_OPTIONS = [
+        'memory_cost' => 131072,
+        'time_cost'   => 4,
+        'threads'     => 4,
+    ];
 
     public function __construct(
         private TemplateRendererInterface              $renderer,
@@ -164,9 +169,10 @@ final readonly class LoginHandler implements RequestHandlerInterface
         $hashToVerify = $hash
             ?? '$argon2id$v=19$m=131072,t=4,p=4$Y29waWxvdGR1bW15c2FsdA$ZHVtbXloYXNoZm9yY29waWxvdGNvcnJlY3R0aW1pbmc';
 
-        $valid = password_verify($password, $hashToVerify);
+        $hashInfo = password_get_info($hashToVerify);
+        $valid    = password_verify($password, $hashToVerify);
 
-        if ($hash === null || !$valid) {
+        if ($hash === null || $hashInfo['algo'] === null || !$valid) {
             $this->audit->recordLoginFailed($request, $email);
             return $this->translator->translate('auth.error.invalid-credentials');
         }
@@ -178,6 +184,13 @@ final readonly class LoginHandler implements RequestHandlerInterface
             // findByEmail's active=1 guard excluded it.
             $this->audit->recordLoginFailed($request, $email);
             return $this->translator->translate('auth.error.invalid-credentials');
+        }
+
+        // Valid legacy hashes remain supported, but are upgraded to the
+        // configured Argon2id parameters after a successful authentication.
+        if (password_needs_rehash($hash, PASSWORD_ARGON2ID, self::ARGON2ID_OPTIONS)) {
+            $rehash = password_hash($password, PASSWORD_ARGON2ID, self::ARGON2ID_OPTIONS);
+            $this->users->updatePasswordHash($user->id, $rehash);
         }
 
         if (!$session instanceof SessionInterface) {

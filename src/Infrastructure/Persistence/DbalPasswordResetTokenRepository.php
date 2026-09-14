@@ -9,20 +9,26 @@ namespace TowerDNS\Infrastructure\Persistence;
 
 use Doctrine\DBAL\Connection;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
+use TowerDNS\Domain\Auth\PasswordResetMethod;
 use TowerDNS\Domain\Auth\PasswordResetToken;
 
 final readonly class DbalPasswordResetTokenRepository implements PasswordResetTokenRepositoryInterface
 {
     public function __construct(private Connection $connection) {}
 
-    public function create(string $userId, string $tokenHash, string $expiresAt): void
-    {
+    public function create(
+        string $userId,
+        string $tokenHash,
+        string $expiresAt,
+        PasswordResetMethod $method = PasswordResetMethod::EMAIL_LINK,
+    ): void {
         $this->connection->insert('password_reset_tokens', [
             'user_id'    => $userId,
             'token_hash' => $tokenHash,
             'created_at' => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
             'expires_at' => $expiresAt,
             'used_at'    => null,
+            'method'     => $method->value,
         ]);
     }
 
@@ -45,6 +51,16 @@ final readonly class DbalPasswordResetTokenRepository implements PasswordResetTo
         );
     }
 
+    public function consumeIfValid(int $id, string $usedAt): bool
+    {
+        return $this->connection->executeStatement(
+            'UPDATE password_reset_tokens
+                SET used_at = ?
+              WHERE id = ? AND used_at IS NULL AND expires_at > ?',
+            [$usedAt, $id, $usedAt],
+        ) === 1;
+    }
+
     /** @param array<string, mixed> $row */
     private function hydrate(array $row): PasswordResetToken
     {
@@ -55,6 +71,7 @@ final readonly class DbalPasswordResetTokenRepository implements PasswordResetTo
             createdAt: (string) $row['created_at'],
             expiresAt: (string) $row['expires_at'],
             usedAt: isset($row['used_at']) ? (string) $row['used_at'] : null,
+            method: PasswordResetMethod::tryFrom((string) ($row['method'] ?? 'email_link')) ?? PasswordResetMethod::EMAIL_LINK,
         );
     }
 }
