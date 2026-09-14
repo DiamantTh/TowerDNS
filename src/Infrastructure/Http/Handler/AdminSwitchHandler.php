@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -48,6 +49,7 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         private AuditLogService                              $audit,
         private UserRepositoryInterface                      $users,
         private AccountRepositoryInterface                   $accounts,
+        private TranslatorInterface                          $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -109,7 +111,7 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('admin-switch.error.invalid-request'), 400);
         }
 
         $reason             = trim((string) ($body['reason'] ?? ''));
@@ -119,16 +121,16 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
             : null;
 
         if ($reason === '') {
-            return new RedirectResponse('/admin/switch?error=' . rawurlencode('Ein Begründungstext ist Pflichtfeld.'));
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.reason-required')));
         }
         if ($effectiveUserId === $user->id) {
-            return new RedirectResponse('/admin/switch?error=' . rawurlencode('Self-impersonation is not allowed.'));
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.self-not-allowed')));
         }
         if ($effectiveUserId !== null && !($target = $this->users->findById($effectiveUserId)) instanceof User) {
-            return new RedirectResponse('/admin/switch?error=' . rawurlencode('The target user is not available.'));
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.user-not-available')));
         }
         if ($effectiveAccountId !== null && (!($account = $this->accounts->findById($effectiveAccountId)) instanceof \TowerDNS\Domain\Account\Account || !$account->isActive)) {
-            return new RedirectResponse('/admin/switch?error=' . rawurlencode('The target account is not available.'));
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.account-not-available')));
         }
 
         $now       = new \DateTimeImmutable();
@@ -155,7 +157,7 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
                 $reason,
             );
         } catch (\Throwable) {
-            return new RedirectResponse('/admin/switch?error=' . rawurlencode('Could not start impersonation.'));
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.start-failed')));
         }
 
         // Store session ID in PHP session
@@ -182,13 +184,13 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('admin-switch.error.invalid-request'), 400);
         }
 
         $activeSession = $this->sessions->findActiveForActor($user->id);
 
         if (!$activeSession instanceof \TowerDNS\Domain\Account\AdminImpersonationSession) {
-            return new RedirectResponse('/admin/switch?error=' . rawurlencode('Keine aktive Sitzung gefunden.'));
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.no-active-session')));
         }
 
         $now = new \DateTimeImmutable();
