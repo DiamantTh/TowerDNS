@@ -9,260 +9,188 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\DTO\ProviderAccountListing;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Repository\AccountRepositoryInterface;
-use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
+use TowerDNS\Application\Exception\ProviderAccountException;
 use TowerDNS\Application\Services\AuditLogService;
-use TowerDNS\Application\Services\CredentialService;
-use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Application\Services\ProviderAccountManagementService;
 use TowerDNS\Domain\Auth\User;
-use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 
-/**
- * Provider-Account management for an account (tenant).
- *
- * Routes handled (all behind RequireAuthMiddleware):
- *   GET  /accounts/{id}/providers               → list provider accounts
- *   POST /accounts/{id}/providers               → add a new provider account
- *   POST /accounts/{id}/providers/{pid}/replace → replace credentials
- *   POST /accounts/{id}/providers/{pid}/deactivate → deactivate provider account
- */
+/** HTTP transport adapter for tenant provider-account operations. */
 final readonly class ProviderAccountHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private TemplateRendererInterface          $renderer,
-        private AccountRepositoryInterface         $accounts,
-        private ProviderAccountRepositoryInterface $providerAccounts,
-        private PermissionService                  $permissions,
-        private CredentialService                  $credentials,
-        private AuditLogService                    $audit,
-        private DnsProviderFactory                 $providerFactory,
+        private TemplateRendererInterface $renderer,
+        private ProviderAccountManagementService $providers,
+        private AuditLogService $audit,
+        private TranslatorInterface $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $path      = $request->getUri()->getPath();
-        $method    = $request->getMethod();
-        $accountId = (int) $request->getAttribute('id', 0);
-        $pid       = $request->getAttribute('pid');
+        $path              = $request->getUri()->getPath();
+        $accountId         = (int) $request->getAttribute('id', 0);
+        $providerAccountId = $request->getAttribute('pid');
 
-        if ($pid !== null) {
-            if (str_ends_with($path, '/deactivate')) {
-                return $this->handleDeactivate($request, $accountId, (int) $pid);
-            }
-            if (str_ends_with($path, '/replace')) {
-                return $this->handleReplace($request, $accountId, (int) $pid);
-            }
+        if ($providerAccountId !== null && str_ends_with($path, '/deactivate')) {
+            return $this->deactivate($request, $accountId, (int) $providerAccountId);
+        }
+        if ($providerAccountId !== null && str_ends_with($path, '/replace')) {
+            return $this->replace($request, $accountId, (int) $providerAccountId);
         }
 
-        return $method === 'POST'
-            ? $this->handleCreate($request, $accountId)
-            : $this->handleList($request, $accountId);
+        return $request->getMethod() === 'POST'
+            ? $this->create($request, $accountId)
+            : $this->list($request, $accountId);
     }
 
-    // ── GET /accounts/{id}/providers ─────────────────────────────────────────
-
-    private function handleList(ServerRequestInterface $request, int $accountId): ResponseInterface
-    {
-        /** @var User $user */
-        $user    = $request->getAttribute(User::class);
-        $account = $this->accounts->findById($accountId);
-
-        if (!$account instanceof \TowerDNS\Domain\Account\Account) {
-            return new HtmlResponse('Account nicht gefunden.', 404);
-        }
-
-        try {
-            $this->permissions->assertCanManageProviderAccounts($accountId, $user);
-        } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
-        }
-
-        /** @var CsrfGuardInterface $guard */
-        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $csrfToken = $guard->generateToken();
-
-        $providers  = $this->providerAccounts->findByAccountId($accountId);
-        $flashError = $request->getQueryParams()['error'] ?? null;
-
-        return new HtmlResponse(
-            $this->renderer->render('app::provider_accounts/list', [
-                'user'         => $user,
-                'account'      => $account,
-                'providers'    => $providers,
-                'allowedTypes' => $this->providerFactory->userManagedTypes(),
-                'csrfToken'    => $csrfToken,
-                'error'        => is_string($flashError) ? $flashError : null,
-            ]),
-        );
-    }
-
-    // ── POST /accounts/{id}/providers ────────────────────────────────────────
-
-    private function handleCreate(ServerRequestInterface $request, int $accountId): ResponseInterface
+    private function list(ServerRequestInterface $request, int $accountId): ResponseInterface
     {
         /** @var User $user */
         $user = $request->getAttribute(User::class);
 
         try {
-            $this->permissions->assertCanManageProviderAccounts($accountId, $user);
+            $listing = $this->providers->list($user, $accountId);
         } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        } catch (ProviderAccountException $exception) {
+            return new HtmlResponse($this->translator->translate($this->errorKey($exception)), 404);
         }
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
-
-        if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
-        }
-
-        $providerType = trim((string) ($body['provider_type'] ?? ''));
-        $name         = trim((string) ($body['name'] ?? ''));
-        $credJson     = $this->buildCredentialsJson($providerType, $body);
-        $base         = '/accounts/' . $accountId . '/providers';
-
-        if (!in_array($providerType, $this->providerFactory->userManagedTypes(), strict: true)) {
-            return new RedirectResponse($base . '?error=' . rawurlencode('Unbekannter Provider-Typ.'));
-        }
-
-        if ($name === '') {
-            return new RedirectResponse($base . '?error=' . rawurlencode('Name ist erforderlich.'));
-        }
-
-        if ($credJson === null) {
-            return new RedirectResponse($base . '?error=' . rawurlencode('Credentials unvollständig.'));
-        }
-
-        try {
-            $encrypted = $this->credentials->encrypt($credJson);
-            $this->credentials->wipe($credJson);
-
-            $paId = $this->providerAccounts->create(
-                accountId: $accountId,
-                providerType: $providerType,
-                name: $name,
-                credentialsEncrypted: $encrypted,
-                credentialsVersion: 3,
-                createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
-            );
-
-            $this->audit->recordProviderAccountCreated($request, $user->id, $accountId, $paId, $name, $providerType);
-        } catch (\Throwable $e) {
-            return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
-        }
-
-        return new RedirectResponse($base);
+        return $this->renderList($request, $user, $listing, $guard->generateToken());
     }
 
-    // ── POST /accounts/{id}/providers/{pid}/replace ───────────────────────────
-
-    private function handleReplace(ServerRequestInterface $request, int $accountId, int $paId): ResponseInterface
+    private function create(ServerRequestInterface $request, int $accountId): ResponseInterface
     {
+        if (!($guard = $this->csrfGuard($request)) instanceof CsrfGuardInterface || !$guard->validateToken($this->csrfToken($request))) {
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
+        }
+
+        /** @var User $user */
+        $user = $request->getAttribute(User::class);
+        /** @var array<string, mixed> $input */
+        $input = (array) ($request->getParsedBody() ?? []);
+        $base  = '/accounts/' . $accountId . '/providers';
+
+        try {
+            $result = $this->providers->create($user, $accountId, trim((string) ($input['provider_type'] ?? '')), trim((string) ($input['name'] ?? '')), $input);
+            $this->audit->recordProviderAccountCreated($request, $user->id, $result->accountId, $result->providerAccountId, $result->name ?? '', $result->providerType);
+        } catch (AuthorizationException) {
+            return $this->redirectError($base, 'http.error.forbidden');
+        } catch (ProviderAccountException $exception) {
+            return $this->redirectError($base, $this->errorKey($exception));
+        } catch (\Throwable) {
+            return $this->redirectError($base, 'providers.error.account-save-failed');
+        }
+
+        return $this->redirectSuccess($base, 'providers.success.account-created');
+    }
+
+    private function replace(ServerRequestInterface $request, int $accountId, int $providerAccountId): ResponseInterface
+    {
+        if (!($guard = $this->csrfGuard($request)) instanceof CsrfGuardInterface || !$guard->validateToken($this->csrfToken($request))) {
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
+        }
+
+        /** @var User $user */
+        $user = $request->getAttribute(User::class);
+        /** @var array<string, mixed> $input */
+        $input = (array) ($request->getParsedBody() ?? []);
+        $base  = '/accounts/' . $accountId . '/providers';
+
+        try {
+            $result = $this->providers->replaceCredentials($user, $accountId, $providerAccountId, $input);
+            $this->audit->recordProviderAccountCredentialsReplaced($request, $user->id, $result->accountId, $result->providerAccountId);
+        } catch (AuthorizationException) {
+            return $this->redirectError($base, 'http.error.forbidden');
+        } catch (ProviderAccountException $exception) {
+            return $this->redirectError($base, $this->errorKey($exception));
+        } catch (\Throwable) {
+            return $this->redirectError($base, 'providers.error.account-save-failed');
+        }
+
+        return $this->redirectSuccess($base, 'providers.success.credentials-replaced');
+    }
+
+    private function deactivate(ServerRequestInterface $request, int $accountId, int $providerAccountId): ResponseInterface
+    {
+        if (!($guard = $this->csrfGuard($request)) instanceof CsrfGuardInterface || !$guard->validateToken($this->csrfToken($request))) {
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
+        }
+
         /** @var User $user */
         $user = $request->getAttribute(User::class);
         $base = '/accounts/' . $accountId . '/providers';
 
         try {
-            $this->permissions->assertCanManageProviderAccounts($accountId, $user);
+            $result = $this->providers->deactivate($user, $accountId, $providerAccountId);
+            $this->audit->recordProviderAccountDeactivated($request, $user->id, $result->accountId, $result->providerAccountId);
         } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
+            return $this->redirectError($base, 'http.error.forbidden');
+        } catch (ProviderAccountException $exception) {
+            return $this->redirectError($base, $this->errorKey($exception));
+        } catch (\Throwable) {
+            return $this->redirectError($base, 'providers.error.account-save-failed');
         }
 
-        $pa = $this->providerAccounts->findById($paId);
-        if (!$pa instanceof \TowerDNS\Domain\Account\ProviderAccount || $pa->accountId !== $accountId) {
-            return new HtmlResponse('Provider-Account nicht gefunden.', 404);
-        }
-
-        /** @var CsrfGuardInterface $guard */
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
-
-        if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
-        }
-
-        $credJson = $this->buildCredentialsJson($pa->providerType, $body);
-
-        if ($credJson === null) {
-            return new RedirectResponse($base . '?error=' . rawurlencode('Credentials unvollständig.'));
-        }
-
-        try {
-            $encrypted = $this->credentials->encrypt($credJson);
-            $this->credentials->wipe($credJson);
-
-            $this->providerAccounts->replaceCredentials($paId, $accountId, $encrypted, 3);
-            $this->audit->recordProviderAccountCredentialsReplaced($request, $user->id, $accountId, $paId);
-        } catch (\Throwable $e) {
-            return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
-        }
-
-        return new RedirectResponse($base);
+        return $this->redirectSuccess($base, 'providers.success.account-deactivated');
     }
 
-    // ── POST /accounts/{id}/providers/{pid}/deactivate ────────────────────────
-
-    private function handleDeactivate(ServerRequestInterface $request, int $accountId, int $paId): ResponseInterface
+    private function csrfGuard(ServerRequestInterface $request): ?CsrfGuardInterface
     {
-        /** @var User $user */
-        $user = $request->getAttribute(User::class);
-        $base = '/accounts/' . $accountId . '/providers';
-
-        try {
-            $this->permissions->assertCanManageProviderAccounts($accountId, $user);
-        } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
-        }
-
-        $pa = $this->providerAccounts->findById($paId);
-        if (!$pa instanceof \TowerDNS\Domain\Account\ProviderAccount || $pa->accountId !== $accountId) {
-            return new HtmlResponse('Provider-Account nicht gefunden.', 404);
-        }
-
-        /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
-
-        if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
-        }
-
-        $this->providerAccounts->deactivate($paId, $accountId);
-        $this->audit->recordProviderAccountDeactivated($request, $user->id, $accountId, $paId);
-
-        return new RedirectResponse($base);
+        return $guard instanceof CsrfGuardInterface ? $guard : null;
     }
 
-    // ── Credential JSON builder ────────────────────────────────────────────────
-
-    /**
-     * Builds a JSON string for credentials based on provider type.
-     * Returns null if required fields are missing.
-     *
-     * @param array<string, string> $body
-     */
-    private function buildCredentialsJson(string $providerType, array $body): ?string
+    private function csrfToken(ServerRequestInterface $request): string
     {
-        $creds = $this->providerFactory->credentialsFromInput($providerType, $body);
+        $body = (array) ($request->getParsedBody() ?? []);
+        return is_string($body['csrf_token'] ?? null) ? $body['csrf_token'] : '';
+    }
 
-        if ($creds === null || !$this->providerFactory->credentialsComplete($providerType, $creds)) {
-            return null;
-        }
+    private function renderList(ServerRequestInterface $request, User $user, ProviderAccountListing $listing, string $csrfToken): ResponseInterface
+    {
+        $flashError   = $request->getQueryParams()['error']   ?? null;
+        $flashSuccess = $request->getQueryParams()['success'] ?? null;
 
-        return json_encode($creds, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+        return new HtmlResponse($this->renderer->render('app::provider_accounts/list', [
+            'user'         => $user,
+            'account'      => $listing->account,
+            'providers'    => $listing->providerAccounts,
+            'allowedTypes' => $listing->allowedTypes,
+            'csrfToken'    => $csrfToken,
+            'error'        => is_string($flashError) ? $flashError : null,
+            'success'      => is_string($flashSuccess) ? $flashSuccess : null,
+        ]));
+    }
+
+    private function redirectError(string $base, string $key): RedirectResponse
+    {
+        return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate($key)));
+    }
+
+    private function redirectSuccess(string $base, string $key): RedirectResponse
+    {
+        return new RedirectResponse($base . '?success=' . rawurlencode($this->translator->translate($key)));
+    }
+
+    private function errorKey(ProviderAccountException $exception): string
+    {
+        return match ($exception->reason) {
+            ProviderAccountException::ACCOUNT_NOT_FOUND         => 'accounts.error.not-found',
+            ProviderAccountException::PROVIDER_NOT_FOUND        => 'providers.error.account-not-found',
+            ProviderAccountException::PROVIDER_NOT_USER_MANAGED => 'providers.error.not-user-managed',
+            ProviderAccountException::NAME_REQUIRED             => 'providers.error.name-required',
+            default                                             => 'providers.error.credentials-incomplete',
+        };
     }
 }

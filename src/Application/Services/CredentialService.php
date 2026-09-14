@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Services;
 
+use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
+
 /**
  * Symmetric authenticated encryption for DNS provider credentials.
  *
@@ -32,7 +34,7 @@ namespace TowerDNS\Application\Services;
  *     the frontend, written to exceptions, or serialised anywhere.
  *   - Use {@see self::wipe()} to zero plaintext strings after use.
  */
-final readonly class CredentialService
+final readonly class CredentialService implements CredentialEncryptorInterface
 {
     private const string V3_AEGIS256  = "\x03";
     private const string V2_XCHACHA20 = "\x02";

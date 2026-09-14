@@ -53,6 +53,7 @@ use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
+use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
 use TowerDNS\Application\Contracts\ProviderCredentialSchemaInterface;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Application\Module\ModuleActionGroupRegistryFactory;
@@ -231,6 +232,7 @@ final class ContainerFactory
                 }
                 return new CredentialService($b64);
             }),
+            CredentialEncryptorInterface::class => \DI\get(CredentialService::class),
 
             // ── Multi-Tenant services ─────────────────────────────────────────
             PermissionService::class                  => \DI\autowire(),
