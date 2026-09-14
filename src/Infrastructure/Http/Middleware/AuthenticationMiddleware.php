@@ -12,8 +12,11 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\ImpersonationContext;
 
 /**
  * Resolves the authenticated user from the session and attaches it to the
@@ -33,6 +36,8 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
 {
     public function __construct(
         private UserRepositoryInterface $users,
+        private AdminImpersonationSessionRepositoryInterface $impersonationSessions,
+        private AccountRepositoryInterface $accounts,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -46,7 +51,23 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
                 $user = $this->users->findById($userId);
 
                 if ($user instanceof User) {
-                    $request = $request->withAttribute(User::class, $user);
+                    $request  = $request->withAttribute(User::class, $user)->withAttribute('actor_user', $user)->withAttribute(ImpersonationContext::class, new ImpersonationContext($user, $user));
+                    $switchId = $session->get('admin_switch_session_id');
+                    if (is_string($switchId) && $switchId !== '') {
+                        $switch = $this->impersonationSessions->findById($switchId);
+                        if (!$switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession || $switch->actorUserId !== $user->id || $switch->endedAt !== null || new \DateTimeImmutable($switch->expiresAt) <= new \DateTimeImmutable()) {
+                            $session->unset('admin_switch_session_id');
+                        } elseif ($switch->effectiveAccountId !== null && (!($account = $this->accounts->findById($switch->effectiveAccountId)) instanceof \TowerDNS\Domain\Account\Account || !$account->isActive)) {
+                            $session->unset('admin_switch_session_id');
+                        } elseif ($switch->effectiveUserId !== null) {
+                            $effective = $this->users->findById($switch->effectiveUserId);
+                            if ($effective instanceof User) {
+                                $request = $request->withAttribute(User::class, $effective)->withAttribute('effective_user', $effective)->withAttribute('impersonation_session', $switch)->withAttribute(ImpersonationContext::class, new ImpersonationContext($user, $effective, $switch->effectiveAccountId, $switch));
+                            } else {
+                                $session->unset('admin_switch_session_id');
+                            }
+                        }
+                    }
                 }
             }
         }
