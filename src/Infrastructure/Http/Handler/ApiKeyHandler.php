@@ -12,6 +12,7 @@ use Laminas\Diactoros\Response\RedirectResponse;
 use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
+use Mezzio\Session\SessionInterface;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -89,19 +90,20 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
             return new RedirectResponse('/profile/api-keys?error=' . rawurlencode($this->translator->translate('api-key.error.name-too-long')));
         }
 
+        $session = $request->getAttribute(SessionInterface::class);
+        if (!$session instanceof SessionInterface) {
+            return new RedirectResponse('/profile/api-keys?error=' . rawurlencode($this->translator->translate('auth.error.session-unavailable')));
+        }
+
         $plainToken = 'tdns_' . bin2hex(random_bytes(32));
         $keyHash    = hash('sha256', $plainToken);
         $now        = $this->clock->now()->format('Y-m-d H:i:s');
 
         $this->apiKeys->create($currentUser->id, $name, $keyHash, $now);
 
-        // Token is embedded in the redirect target so it can be displayed once.
-        // This is safe because the URL is not logged server-side and the token
-        // grants no more access than any other session-bound action.
-        return new RedirectResponse(
-            '/profile/api-keys?new_token=' . rawurlencode($plainToken)
-            . '&success=' . rawurlencode($this->translator->translate('api-key.success.created-copy-now'))
-        );
+        $session->set('api_key.one_time.' . $currentUser->id, $plainToken);
+
+        return new RedirectResponse('/profile/api-keys?success=' . rawurlencode($this->translator->translate('api-key.success.created-copy-now')));
     }
 
     private function renderList(
@@ -111,12 +113,13 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
     ): ResponseInterface {
         $params   = $request->getQueryParams();
         $keys     = $this->apiKeys->findByUserId($currentUser->id);
-        $newToken = isset($params['new_token']) ? (string) $params['new_token'] : null;
-
-        // Basic sanity-check: token must match expected format
-        if ($newToken !== null && !preg_match('/^tdns_[0-9a-f]{64}$/', $newToken)) {
-            $newToken = null;
+        $session  = $request->getAttribute(SessionInterface::class);
+        $flashKey = 'api_key.one_time.' . $currentUser->id;
+        $newToken = $session instanceof SessionInterface ? $session->get($flashKey) : null;
+        if ($session instanceof SessionInterface) {
+            $session->unset($flashKey);
         }
+        $newToken = is_string($newToken) && preg_match('/^tdns_[0-9a-f]{64}$/', $newToken) ? $newToken : null;
 
         return new HtmlResponse(
             $this->renderer->render('app::profile/api_keys', [
