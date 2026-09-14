@@ -152,6 +152,11 @@ final readonly class AuditLogService
         $this->record($request, 'provideraccount.credentials.replaced', 'provider_account', (string) $providerAccountId, $actorId, $accountId, null, $providerAccountId);
     }
 
+    public function recordSystemProviderConfigurationUpdated(ServerRequestInterface $request, string $actorId, string $providerType): void
+    {
+        $this->record($request, 'system.provider.configuration.update', 'provider', $providerType, $actorId, null, null, null, null, null, null, null, ['provider_type' => $providerType]);
+    }
+
     public function recordProviderAccountDeactivated(ServerRequestInterface $request, string $actorId, int $accountId, int $providerAccountId): void
     {
         $this->record($request, 'provideraccount.deactivate', 'provider_account', (string) $providerAccountId, $actorId, $accountId, null, $providerAccountId);

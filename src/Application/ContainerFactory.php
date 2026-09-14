@@ -53,6 +53,7 @@ use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
+use TowerDNS\Application\Contracts\ProviderCredentialSchemaInterface;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Application\Module\ModuleActionGroupRegistryFactory;
 use TowerDNS\Application\Module\ModulePermissionRegistryFactory;
@@ -65,6 +66,7 @@ use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
+use TowerDNS\Application\Repository\SystemProviderConfigurationStoreInterface;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
@@ -81,6 +83,7 @@ use TowerDNS\Application\Services\PasswordGenerator;
 use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\PasswordResetService;
 use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Application\Services\SystemProviderConfigurationService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Application\Theme\ThemeManager;
@@ -108,7 +111,9 @@ use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\DbalZoneMembershipRepository;
+use TowerDNS\Infrastructure\Persistence\TomlSystemProviderConfigurationStore;
 use TowerDNS\Infrastructure\Provider\DNSProviderFactory;
+use TowerDNS\Infrastructure\Provider\ModuleProviderCredentialSchemaCatalog;
 use TowerDNS\Infrastructure\Provider\ProviderAccountAdapterFactory;
 use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
 use TowerDNS\Infrastructure\Ui\SvelteRenderer;
@@ -146,7 +151,9 @@ final class ContainerFactory
             ? array_values(array_filter((array) $appConf['modules']['enabled'], is_string(...)))
             : null;
         $moduleDiscovery = new LocalModuleDiscovery($projectRoot . '/modules', enabledModuleIds: $enabledModules);
-        $providerFactory = new DNSProviderFactory(new ProviderModuleRegistry($moduleDiscovery->providerModules()));
+        $providerModules = new ProviderModuleRegistry($moduleDiscovery->providerModules());
+        $providerFactory = new DNSProviderFactory($providerModules);
+        $providerSchemas = new ModuleProviderCredentialSchemaCatalog($providerModules);
 
         // ── Build DI container ────────────────────────────────────────────────
         $builder = new ContainerBuilder();
@@ -214,6 +221,7 @@ final class ContainerFactory
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
             PasswordResetTokenRepositoryInterface::class        => \DI\autowire(DbalPasswordResetTokenRepository::class),
             SystemSettingsRepositoryInterface::class            => \DI\autowire(DbalSystemSettingsRepository::class),
+            SystemProviderConfigurationStoreInterface::class    => \DI\factory(static fn(): TomlSystemProviderConfigurationStore => new TomlSystemProviderConfigurationStore($projectRoot . '/configs/providers.toml')),
 
             // ── Credential service (app-key encryption) ───────────────────────
             CredentialService::class => \DI\factory(static function () use ($appConf): CredentialService {
@@ -225,15 +233,17 @@ final class ContainerFactory
             }),
 
             // ── Multi-Tenant services ─────────────────────────────────────────
-            PermissionService::class               => \DI\autowire(),
-            AuditLogService::class                 => \DI\autowire(),
-            PasswordResetService::class            => \DI\autowire(),
-            PasswordAdministrationService::class   => \DI\autowire(),
-            AccountProviderFactoryInterface::class => \DI\autowire(ProviderAccountAdapterFactory::class),
+            PermissionService::class                  => \DI\autowire(),
+            AuditLogService::class                    => \DI\autowire(),
+            PasswordResetService::class               => \DI\autowire(),
+            PasswordAdministrationService::class      => \DI\autowire(),
+            SystemProviderConfigurationService::class => \DI\autowire(),
+            AccountProviderFactoryInterface::class    => \DI\autowire(ProviderAccountAdapterFactory::class),
 
             // ── Provider registry ─────────────────────────────────────────────
-            DNSProviderFactory::class => $providerFactory,
-            ProviderRegistry::class   => \DI\factory(static function () use ($provConf, $providerFactory): ProviderRegistry {
+            DNSProviderFactory::class                => $providerFactory,
+            ProviderCredentialSchemaInterface::class => $providerSchemas,
+            ProviderRegistry::class                  => \DI\factory(static function () use ($provConf, $providerFactory): ProviderRegistry {
                 $registry  = new ProviderRegistry();
                 $providers = (array) ($provConf['providers'] ?? []);
 
@@ -298,13 +308,14 @@ final class ContainerFactory
             ProviderCredentialsHandler::class => \DI\factory(
                 static fn(
                     TemplateRendererInterface $renderer,
-                    AuthorizationService $authz,
-                    DNSProviderFactory $providerFactory,
+                    SystemProviderConfigurationService $providers,
+                    AuditLogService $audit,
+                    TranslatorInterface $translator,
                 ): ProviderCredentialsHandler => new ProviderCredentialsHandler(
                     $renderer,
-                    $authz,
-                    $projectRoot . '/configs/providers.toml',
-                    $providerFactory,
+                    $providers,
+                    $audit,
+                    $translator,
                 )
             ),            // ── PSR-16 cache (Symfony FilesystemAdapter) ──────────────────────
             CacheInterface::class => \DI\factory(

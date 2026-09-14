@@ -85,7 +85,7 @@ final class PermissionRegistry
             new PermissionDefinition(Permission::DNSSEC_STATUS_READ->value, 'permission.dnssec.status.read.label', 'permission.dnssec.status.read.description', ['account', 'zone']),
             new PermissionDefinition(Permission::DNSSEC_ACTION_EXECUTE->value, 'permission.dnssec.action.execute.label', 'permission.dnssec.action.execute.description', ['account', 'zone']),
             new PermissionDefinition(Permission::PROVIDER_CREDENTIALS_MANAGE->value, 'permission.provider.credentials.manage.label', 'permission.provider.credentials.manage.description', ['account']),
-            new PermissionDefinition(Permission::PROVIDER_CONFIG_MANAGE->value, 'permission.provider.config.manage.label', 'permission.provider.config.manage.description', ['account']),
+            new PermissionDefinition(Permission::PROVIDER_CONFIG_MANAGE->value, 'permission.provider.config.manage.label', 'permission.provider.config.manage.description', ['system']),
             new PermissionDefinition(Permission::AUDIT_READ->value, 'permission.audit.read.label', 'permission.audit.read.description', ['account']),
             new PermissionDefinition(Permission::USER_MANAGE->value, 'permission.user.manage.label', 'permission.user.manage.description', ['system']),
             new PermissionDefinition(Permission::ROLE_MANAGE->value, 'permission.role.manage.label', 'permission.role.manage.description', ['system']),
