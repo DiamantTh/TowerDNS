@@ -15,13 +15,15 @@ use Psr\Http\Server\RequestHandlerInterface;
 /**
  * Adds security-relevant HTTP response headers on every response.
  */
-final class SecurityHeaderMiddleware implements MiddlewareInterface
+final readonly class SecurityHeaderMiddleware implements MiddlewareInterface
 {
+    public function __construct(private bool $hstsEnabled = false) {}
+
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $response = $handler->handle($request);
 
-        return $response
+        $response = $response
             ->withHeader('X-Frame-Options', 'DENY')
             ->withHeader('X-Content-Type-Options', 'nosniff')
             ->withHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
@@ -35,5 +37,13 @@ final class SecurityHeaderMiddleware implements MiddlewareInterface
                 "connect-src 'self'",
                 "frame-ancestors 'none'",
             ]));
+
+        // HSTS is deliberately configuration-gated: enabling it on an HTTP
+        // development host would make the browser cache an unusable policy.
+        if ($this->hstsEnabled) {
+            return $response->withHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        }
+
+        return $response;
     }
 }

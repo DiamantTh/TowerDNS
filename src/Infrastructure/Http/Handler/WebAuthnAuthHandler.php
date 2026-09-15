@@ -16,6 +16,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\WebAuthnService;
+use TowerDNS\Infrastructure\Http\SessionSecurity;
 
 /**
  * GET /login/webauthn
@@ -30,6 +31,7 @@ final readonly class WebAuthnAuthHandler implements RequestHandlerInterface
         private TemplateRendererInterface              $renderer,
         private WebAuthnService                       $webAuthn,
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
+        private SessionSecurity                        $sessionSecurity,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -37,8 +39,8 @@ final readonly class WebAuthnAuthHandler implements RequestHandlerInterface
         $session = $request->getAttribute(SessionInterface::class);
         assert($session instanceof SessionInterface);
 
-        $userId = $session->get('mfa_pending');
-        if (!is_string($userId) || $userId === '') {
+        $userId = $this->sessionSecurity->pendingMfaUserId($session);
+        if ($userId === null) {
             return new RedirectResponse('/login');
         }
 

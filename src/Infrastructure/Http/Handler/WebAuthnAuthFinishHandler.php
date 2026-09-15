@@ -17,6 +17,7 @@ use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\WebAuthnService;
+use TowerDNS\Infrastructure\Http\SessionSecurity;
 use Webauthn\Exception\AuthenticatorResponseVerificationException;
 
 /**
@@ -36,6 +37,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         private UserRepositoryInterface               $users,
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
+        private SessionSecurity                       $sessionSecurity,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -43,10 +45,10 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         $session = $request->getAttribute(SessionInterface::class);
         assert($session instanceof SessionInterface);
 
-        $userId      = $session->get('mfa_pending');
+        $userId      = $this->sessionSecurity->pendingMfaUserId($session);
         $optionsJson = $session->get('webauthn_auth_options');
 
-        if (!is_string($userId) || $userId === '' || !is_string($optionsJson) || $optionsJson === '') {
+        if ($userId === null || !is_string($optionsJson) || $optionsJson === '') {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-pending')], 400);
         }
 
@@ -87,10 +89,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         $this->credentialRepo->updateAfterAuthentication($credentialId, $updatedSource->counter);
 
         // Complete login.
-        $session->unset('mfa_pending');
-        $session->unset('mfa_type');
-        $session->regenerate();
-        $session->set('user_id', $userId);
+        $this->sessionSecurity->completeLogin($session, $userId);
         $this->users->updateLastLoginAt($userId);
         $this->audit->recordLogin($request, $userId);
 

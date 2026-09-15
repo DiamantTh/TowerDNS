@@ -102,6 +102,7 @@ use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAdminImpersonationSessionRepository;
 use TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository;
@@ -147,6 +148,8 @@ final class ContainerFactory
         $provConf = $loadToml('providers.toml');
 
         $debug           = (bool) ($appConf['app']['debug'] ?? false);
+        $forceHttps      = (bool) ($appConf['app']['force_https'] ?? false);
+        $sessionConf     = (array) ($appConf['session'] ?? []);
         $configuredTheme = (string) ($appConf['theme']['name'] ?? 'default');
         $themeManager    = new ThemeManager($projectRoot, $configuredTheme);
         $enabledModules  = isset($appConf['modules']['enabled'])
@@ -167,10 +170,17 @@ final class ContainerFactory
                 'debug'   => $debug,
                 'mezzio'  => [],
                 'session' => [
-                    'persistence' => [
+                    'name'            => 'towerdns_session',
+                    'cookie_lifetime' => 0,
+                    'cookie_path'     => '/',
+                    'cookie_domain'   => (string) ($appConf['app']['domain'] ?? ''),
+                    'cookie_secure'   => (bool) ($sessionConf['cookie_secure'] ?? $forceHttps),
+                    'cookie_httponly' => true,
+                    'cookie_samesite' => 'Lax',
+                    'persistence'     => [
                         'ext' => [
                             'non_locking'                    => true,
-                            'delete_cookie_on_empty_session' => false,
+                            'delete_cookie_on_empty_session' => true,
                         ],
                     ],
                 ],
@@ -463,6 +473,9 @@ final class ContainerFactory
             ),
             SessionMiddleware::class => \DI\factory(
                 static fn(\Psr\Container\ContainerInterface $c): SessionMiddleware => (new SessionMiddlewareFactory())($c)
+            ),
+            SecurityHeaderMiddleware::class => \DI\factory(
+                static fn(): SecurityHeaderMiddleware => new SecurityHeaderMiddleware($forceHttps)
             ),
 
             // ── Symfony Mailer ────────────────────────────────────────────────

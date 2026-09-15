@@ -15,12 +15,15 @@ use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Infrastructure\Http\SessionSecurity;
 
 /**
  * POST /logout — destroys the session and redirects to /login.
  */
-final class LogoutHandler implements RequestHandlerInterface
+final readonly class LogoutHandler implements RequestHandlerInterface
 {
+    public function __construct(private SessionSecurity $sessionSecurity) {}
+
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         /** @var CsrfGuardInterface $guard */
@@ -34,7 +37,7 @@ final class LogoutHandler implements RequestHandlerInterface
 
         $session = $request->getAttribute(SessionInterface::class);
         if ($session instanceof SessionInterface) {
-            $session->clear();
+            $this->sessionSecurity->invalidate($session);
         }
 
         return new RedirectResponse('/login');

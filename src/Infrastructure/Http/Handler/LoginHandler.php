@@ -23,6 +23,7 @@ use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Validation\LoginInputFilter;
+use TowerDNS\Infrastructure\Http\SessionSecurity;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
@@ -52,6 +53,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private TotpSecretService                     $totpSecrets,
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
+        private SessionSecurity                       $sessionSecurity,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -135,10 +137,6 @@ final readonly class LoginHandler implements RequestHandlerInterface
         }
 
         // authenticate() sets session or mfa_pending — determine redirect
-        if (!$session instanceof SessionInterface) {
-            return new RedirectResponse('/login');
-        }
-
         if ($session->has('mfa_pending')) {
             $mfaType = $session->get('mfa_type');
             if ($mfaType === 'webauthn') {
@@ -154,7 +152,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         ServerRequestInterface $request,
         string $email,
         string $password,
-        mixed  $session,
+        SessionInterface &$session,
     ): ?string {
         if ($email === '' || $password === '') {
             return $this->translator->translate('auth.error.email-password-required');
@@ -195,31 +193,22 @@ final readonly class LoginHandler implements RequestHandlerInterface
             $this->users->updatePasswordHash($user->id, $rehash);
         }
 
-        if (!$session instanceof SessionInterface) {
-            return $this->translator->translate('auth.error.session-unavailable');
-        }
-
         // Check whether TOTP is configured for this user.
         if ($this->totpSecrets->isEnabled($user->id)) {
             // TOTP required — store pending state without completing the login.
-            $session->regenerate();
-            $session->set('mfa_pending', $user->id);
-            $session->set('mfa_type', 'totp');
+            $session = $this->sessionSecurity->beginMfa($session, $user->id, 'totp');
             return null;
         }
 
         // Check whether WebAuthn credentials are registered.
         $webAuthnKeys = $this->webAuthnCredentials->findByUserId($user->id);
         if ($webAuthnKeys !== []) {
-            $session->regenerate();
-            $session->set('mfa_pending', $user->id);
-            $session->set('mfa_type', 'webauthn');
+            $session = $this->sessionSecurity->beginMfa($session, $user->id, 'webauthn');
             return null;
         }
 
         // No MFA → complete login immediately.
-        $session->regenerate();
-        $session->set('user_id', $user->id);
+        $session = $this->sessionSecurity->completeLogin($session, $user->id);
         $this->users->updateLastLoginAt($user->id);
         $this->audit->recordLogin($request, $user->id);
 

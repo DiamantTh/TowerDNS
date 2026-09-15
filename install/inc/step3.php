@@ -118,6 +118,10 @@ function processStep3(): array
             force_https = {$forceHttps}
             debug       = false
 
+            [session]
+            # Keep this true for every HTTPS deployment, including TLS-terminating proxies.
+            cookie_secure = {$forceHttps}
+
             [application]
             name = "{$escapedAppName}"
 

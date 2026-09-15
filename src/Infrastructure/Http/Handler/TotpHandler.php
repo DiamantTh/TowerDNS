@@ -20,6 +20,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\TotpSecretService;
+use TowerDNS\Infrastructure\Http\SessionSecurity;
 
 /**
  * GET  /login/totp — show TOTP input form.
@@ -37,13 +38,19 @@ final readonly class TotpHandler implements RequestHandlerInterface
         private TotpSecretService         $secrets,
         private AuditLogService           $audit,
         private TranslatorInterface       $translator,
+        private SessionSecurity           $sessionSecurity,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $session = $request->getAttribute(SessionInterface::class);
 
-        if (!$session instanceof SessionInterface || !$session->has('mfa_pending')) {
+        if (!$session instanceof SessionInterface) {
+            return new RedirectResponse('/login');
+        }
+
+        $pendingUserId = $this->sessionSecurity->pendingMfaUserId($session);
+        if ($pendingUserId === null) {
             return new RedirectResponse('/login');
         }
 
@@ -75,7 +82,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         }
 
         $code   = trim((string) ($body['code'] ?? ''));
-        $userId = (string) $session->get('mfa_pending');
+        $userId = $pendingUserId;
 
         if ($code === '') {
             return $this->renderError($this->translator->translate('totp.error.code-required'), $guard);
@@ -86,9 +93,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         }
 
         // Code correct — complete login.
-        $session->unset('mfa_pending');
-        $session->regenerate();
-        $session->set('user_id', $userId);
+        $this->sessionSecurity->completeLogin($session, $userId);
         $this->users->updateLastLoginAt($userId);
         $this->audit->recordLogin($request, $userId);
 

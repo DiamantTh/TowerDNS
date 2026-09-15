@@ -17,6 +17,7 @@ use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\ImpersonationContext;
+use TowerDNS\Infrastructure\Http\SessionSecurity;
 
 /**
  * Resolves the authenticated user from the session and attaches it to the
@@ -38,6 +39,7 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
         private UserRepositoryInterface $users,
         private AdminImpersonationSessionRepositoryInterface $impersonationSessions,
         private AccountRepositoryInterface $accounts,
+        private SessionSecurity $sessionSecurity,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -45,7 +47,7 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
         $session = $request->getAttribute(SessionInterface::class);
 
         if ($session instanceof SessionInterface) {
-            $userId = $session->get('user_id');
+            $userId = $this->sessionSecurity->authenticatedUserId($session);
 
             if (is_string($userId) && $userId !== '') {
                 $user = $this->users->findById($userId);
