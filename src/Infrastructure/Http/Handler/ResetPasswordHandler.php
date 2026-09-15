@@ -13,6 +13,7 @@ use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
+use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -35,6 +36,7 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         private PasswordResetService                  $resets,
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
+        private ClockInterface                        $clock,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -130,6 +132,6 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
     private function tokenIsValid(string $rawToken): bool
     {
         $record = $this->tokens->findByHash(hash('sha256', $rawToken));
-        return $record instanceof \TowerDNS\Domain\Auth\PasswordResetToken && $record->isValid();
+        return $record instanceof \TowerDNS\Domain\Auth\PasswordResetToken && $record->isValidAt($this->clock->now());
     }
 }

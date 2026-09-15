@@ -19,9 +19,9 @@ final readonly class PasswordResetToken
         public PasswordResetMethod $method = PasswordResetMethod::EMAIL_LINK,
     ) {}
 
-    public function isExpired(): bool
+    public function isExpiredAt(\DateTimeInterface $now): bool
     {
-        return $this->expiresAt < new \DateTimeImmutable()->format('Y-m-d H:i:s');
+        return $this->expiresAt < $now->format('Y-m-d H:i:s');
     }
 
     public function isUsed(): bool
@@ -29,8 +29,8 @@ final readonly class PasswordResetToken
         return $this->usedAt !== null;
     }
 
-    public function isValid(): bool
+    public function isValidAt(\DateTimeInterface $now): bool
     {
-        return !$this->isExpired() && !$this->isUsed();
+        return !$this->isExpiredAt($now) && !$this->isUsed();
     }
 }

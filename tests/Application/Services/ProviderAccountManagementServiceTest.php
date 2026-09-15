@@ -130,6 +130,11 @@ final class TestCredentialEncryptor implements CredentialEncryptorInterface
     {
         $plaintext = '';
     }
+
+    public function decrypt(string $ciphertext): string
+    {
+        throw new \RuntimeException('Not used by this test double.');
+    }
 }
 
 final class ExampleAccountProviderCredentialSchema implements ProviderCredentialSchemaInterface

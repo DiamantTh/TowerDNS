@@ -19,7 +19,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
-use TowerDNS\Application\Services\TotpService;
+use TowerDNS\Application\Services\TotpSecretService;
 
 /**
  * GET  /login/totp — show TOTP input form.
@@ -34,7 +34,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
     public function __construct(
         private TemplateRendererInterface $renderer,
         private UserRepositoryInterface   $users,
-        private TotpService               $totp,
+        private TotpSecretService         $secrets,
         private AuditLogService           $audit,
         private TranslatorInterface       $translator,
     ) {}
@@ -81,9 +81,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
             return $this->renderError($this->translator->translate('totp.error.code-required'), $guard);
         }
 
-        $secret = $this->users->fetchTotpSecret($userId);
-
-        if ($secret === null || !$this->totp->verify($code, $secret)) {
+        if (!$this->secrets->verify($userId, $code)) {
             return $this->renderError($this->translator->translate('totp.error.code-invalid'), $guard);
         }
 

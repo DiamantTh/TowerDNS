@@ -17,7 +17,8 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
+use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Domain\Auth\User;
 
@@ -39,8 +40,9 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
 
     public function __construct(
         private TemplateRendererInterface $renderer,
-        private UserRepositoryInterface   $users,
+        private TotpSecretService         $secrets,
         private TotpService               $totp,
+        private AuditLogService           $audit,
         private TranslatorInterface       $translator,
     ) {}
 
@@ -63,9 +65,7 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
 
     private function handleGet(User $user, mixed $session, CsrfGuardInterface $guard): ResponseInterface
     {
-        $currentSecret = $this->users->fetchTotpSecret($user->id);
-
-        if ($currentSecret !== null) {
+        if ($this->secrets->isEnabled($user->id)) {
             return $this->renderDisableForm($user, null, null, $guard);
         }
 
@@ -116,11 +116,11 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         $code   = trim((string) ($body['code'] ?? ''));
 
         if ($action === 'enable') {
-            return $this->enable($user, $session, $guard, $code);
+            return $this->enable($user, $session, $guard, $code, $request);
         }
 
         if ($action === 'disable') {
-            return $this->disable($user, $guard, $code);
+            return $this->disable($user, $guard, $code, $request);
         }
 
         return new RedirectResponse('/profile/totp');
@@ -131,6 +131,7 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         mixed $session,
         CsrfGuardInterface $guard,
         string $code,
+        ServerRequestInterface $request,
     ): ResponseInterface {
         if (!$session instanceof SessionInterface || !$session->has(self::SESSION_KEY)) {
             // Session expired or missing — restart
@@ -154,8 +155,9 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
             );
         }
 
-        $this->users->saveTotpSecret($user->id, $pendingSecret);
+        $this->secrets->enable($user->id, $pendingSecret);
         $session->unset(self::SESSION_KEY);
+        $this->audit->recordTotpEnabled($request, $user->id);
 
         return $this->renderDisableForm(
             $user,
@@ -169,10 +171,9 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         User $user,
         CsrfGuardInterface $guard,
         string $code,
+        ServerRequestInterface $request,
     ): ResponseInterface {
-        $currentSecret = $this->users->fetchTotpSecret($user->id);
-
-        if ($currentSecret === null) {
+        if (!$this->secrets->isEnabled($user->id)) {
             return new RedirectResponse('/profile/totp');
         }
 
@@ -180,11 +181,12 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
             return $this->renderDisableForm($user, $this->translator->translate('totp.error.code-required'), null, $guard);
         }
 
-        if (!$this->totp->verify($code, $currentSecret)) {
+        if (!$this->secrets->verify($user->id, $code)) {
             return $this->renderDisableForm($user, $this->translator->translate('totp.error.code-invalid'), null, $guard, 400);
         }
 
-        $this->users->saveTotpSecret($user->id, null);
+        $this->secrets->disable($user->id);
+        $this->audit->recordTotpDisabled($request, $user->id);
 
         return $this->renderSetupForm(
             $user,

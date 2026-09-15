@@ -85,6 +85,7 @@ use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\PasswordResetService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\SystemProviderConfigurationService;
+use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Application\Theme\ThemeManager;
@@ -266,6 +267,7 @@ final class ContainerFactory
             AuthorizationService::class     => \DI\autowire(),
             DNSManagementService::class     => \DI\autowire(),
             TotpService::class              => \DI\autowire(),
+            TotpSecretService::class        => \DI\autowire(),
             ThemeManager::class             => $themeManager,
             AuthenticationMiddleware::class => \DI\autowire(),
             RequireAuthMiddleware::class    => \DI\autowire(),

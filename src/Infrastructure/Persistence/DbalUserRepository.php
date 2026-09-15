@@ -80,21 +80,21 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return is_string($hash) && $hash !== '' ? $hash : null;
     }
 
-    public function fetchTotpSecret(string $userId): ?string
+    public function fetchEncryptedTotpSecret(string $userId): ?string
     {
         $secret = $this->connection->fetchOne(
-            'SELECT totp_secret FROM users WHERE id = ?',
+            'SELECT totp_secret_encrypted FROM users WHERE id = ?',
             [$userId],
         );
 
         return is_string($secret) && $secret !== '' ? $secret : null;
     }
 
-    public function saveTotpSecret(string $userId, ?string $secret): void
+    public function saveEncryptedTotpSecret(string $userId, ?string $ciphertext): void
     {
         $this->connection->update(
             'users',
-            ['totp_secret' => $secret, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')],
+            ['totp_secret_encrypted' => $ciphertext, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')],
             ['id' => $userId],
         );
     }
@@ -113,14 +113,14 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $now = $this->clock->now()->format('Y-m-d H:i:s');
 
         $this->connection->insert('users', [
-            'id'            => $id,
-            'email'         => $email,
-            'password_hash' => $passwordHash,
-            'totp_secret'   => null,
-            'active'        => true,
-            'theme'         => 'system',
-            'created_at'    => $now,
-            'updated_at'    => $now,
+            'id'                    => $id,
+            'email'                 => $email,
+            'password_hash'         => $passwordHash,
+            'totp_secret_encrypted' => null,
+            'active'                => true,
+            'theme'                 => 'system',
+            'created_at'            => $now,
+            'updated_at'            => $now,
         ]);
     }
 

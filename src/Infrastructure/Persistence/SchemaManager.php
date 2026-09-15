@@ -182,17 +182,17 @@ final readonly class SchemaManager
         $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
 
         $this->connection->insert('users', [
-            'id'            => $id,
-            'email'         => $email,
-            'display_name'  => $displayName !== '' ? $displayName : null,
-            'password_hash' => $passwordHash,
-            'totp_secret'   => null,
-            'active'        => true,
-            'theme'         => 'system',
-            'locale'        => 'en',
-            'last_login_at' => null,
-            'created_at'    => $now,
-            'updated_at'    => $now,
+            'id'                    => $id,
+            'email'                 => $email,
+            'display_name'          => $displayName !== '' ? $displayName : null,
+            'password_hash'         => $passwordHash,
+            'totp_secret_encrypted' => null,
+            'active'                => true,
+            'theme'                 => 'system',
+            'locale'                => 'en',
+            'last_login_at'         => null,
+            'created_at'            => $now,
+            'updated_at'            => $now,
         ]);
 
         $this->connection->insert('user_roles', [
@@ -315,7 +315,7 @@ final readonly class SchemaManager
         $users->addColumn('email', Types::STRING, ['length' => 254]);
         $users->addColumn('display_name', Types::STRING, ['length' => 64, 'notnull' => false]);
         $users->addColumn('password_hash', Types::STRING, ['length' => 255]);
-        $users->addColumn('totp_secret', Types::STRING, ['length' => 255, 'notnull' => false]);
+        $users->addColumn('totp_secret_encrypted', Types::STRING, ['length' => 255, 'notnull' => false]);
         $users->addColumn('active', Types::BOOLEAN, ['default' => true]);
         $users->addColumn('theme', Types::STRING, ['length' => 64, 'default' => 'system']);
         $users->addColumn('locale', Types::STRING, ['length' => 16, 'default' => 'en']);

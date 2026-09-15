@@ -21,6 +21,7 @@ use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
+use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Validation\LoginInputFilter;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
@@ -48,6 +49,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private UserRepositoryInterface               $users,
         private CacheInterface                        $cache,
         private WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
+        private TotpSecretService                     $totpSecrets,
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
     ) {}
@@ -198,9 +200,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         }
 
         // Check whether TOTP is configured for this user.
-        $totpSecret = $this->users->fetchTotpSecret($user->id);
-
-        if ($totpSecret !== null) {
+        if ($this->totpSecrets->isEnabled($user->id)) {
             // TOTP required — store pending state without completing the login.
             $session->regenerate();
             $session->set('mfa_pending', $user->id);

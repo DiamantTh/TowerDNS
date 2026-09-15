@@ -12,6 +12,9 @@ interface CredentialEncryptorInterface
 {
     public function encrypt(string $plaintext): string;
 
+    /** @throws \RuntimeException when the ciphertext is invalid or unauthenticated */
+    public function decrypt(string $ciphertext): string;
+
     /** @param string $plaintext plaintext is cleared before this method returns */
     public function wipe(string &$plaintext): void;
 }

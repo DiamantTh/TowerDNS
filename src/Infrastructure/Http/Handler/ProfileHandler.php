@@ -18,6 +18,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Auth\User;
 
@@ -34,6 +35,7 @@ final readonly class ProfileHandler implements RequestHandlerInterface
         private TemplateRendererInterface              $renderer,
         private UserRepositoryInterface               $users,
         private WebAuthnCredentialRepositoryInterface $webauthn,
+        private TotpSecretService                     $totpSecrets,
         private ThemeManager                          $themes,
         private TranslatorInterface                   $translator,
     ) {}
@@ -74,7 +76,7 @@ final readonly class ProfileHandler implements RequestHandlerInterface
         $error   = $request->getQueryParams()['error']   ?? null;
         $success = $request->getQueryParams()['success'] ?? null;
 
-        $totpEnabled  = $this->users->fetchTotpSecret($currentUser->id) !== null;
+        $totpEnabled  = $this->totpSecrets->isEnabled($currentUser->id);
         $webAuthnKeys = $this->webauthn->findByUserId($currentUser->id);
 
         return new HtmlResponse(

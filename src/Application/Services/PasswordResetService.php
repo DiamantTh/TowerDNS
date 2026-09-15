@@ -41,7 +41,7 @@ final readonly class PasswordResetService
         try {
             return $this->connection->transactional(function () use ($tokenHash, $password, $now): string {
                 $token = $this->tokens->findByHash($tokenHash);
-                if (!$token instanceof \TowerDNS\Domain\Auth\PasswordResetToken || !$token->isValid() || $token->method !== PasswordResetMethod::EMAIL_LINK) {
+                if (!$token instanceof \TowerDNS\Domain\Auth\PasswordResetToken || !$token->isValidAt($this->clock->now()) || $token->method !== PasswordResetMethod::EMAIL_LINK) {
                     throw new PasswordResetException('Password reset token is invalid, expired, or already consumed.');
                 }
 

@@ -33,16 +33,16 @@ interface UserRepositoryInterface
     public function fetchPasswordHash(string $email): ?string;
 
     /**
-     * Returns the base32-encoded TOTP secret for the given user, or null
-     * when TOTP is not configured.
+     * Returns the encrypted TOTP secret for the given user, or null when TOTP
+     * is not configured. Callers must never interpret this value as plaintext.
      */
-    public function fetchTotpSecret(string $userId): ?string;
+    public function fetchEncryptedTotpSecret(string $userId): ?string;
 
     /**
-     * Persists (or clears) the TOTP secret for a user.
+     * Persists (or clears) an encrypted TOTP secret for a user.
      * Pass null to disable TOTP.
      */
-    public function saveTotpSecret(string $userId, ?string $secret): void;
+    public function saveEncryptedTotpSecret(string $userId, ?string $ciphertext): void;
 
     /**
      * Records the current timestamp as the user's last successful login.

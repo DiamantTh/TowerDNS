@@ -182,6 +182,16 @@ final readonly class AuditLogService
         $this->record($request, 'account.member.remove', 'user', $targetUserId, $actorId, $accountId);
     }
 
+    public function recordTotpEnabled(ServerRequestInterface $request, string $userId): void
+    {
+        $this->record($request, 'user.mfa.totp.enable', 'user', $userId, $userId);
+    }
+
+    public function recordTotpDisabled(ServerRequestInterface $request, string $userId): void
+    {
+        $this->record($request, 'user.mfa.totp.disable', 'user', $userId, $userId);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private function resolveIp(ServerRequestInterface $request): ?string
