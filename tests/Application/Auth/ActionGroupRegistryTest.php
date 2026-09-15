@@ -28,6 +28,15 @@ final class ActionGroupRegistryTest extends TestCase
         ], $groups['dns.records.manage']->permissionIds);
     }
 
+    public function testProviderActionGroupsDoNotMixAccountAndSystemScopes(): void
+    {
+        $groups = array_column(new ActionGroupRegistry(new PermissionRegistry())->all(), null, 'id');
+
+        self::assertSame([Permission::PROVIDER_CREDENTIALS_MANAGE->value], $groups['providers.accounts.manage']->permissionIds);
+        self::assertSame([Permission::PROVIDER_CONFIG_MANAGE->value], $groups['providers.system.manage']->permissionIds);
+        self::assertArrayNotHasKey('providers.manage', $groups);
+    }
+
     public function testRejectsUnknownPermissionAndCaseCollidingGroupId(): void
     {
         $registry = new ActionGroupRegistry(new PermissionRegistry());

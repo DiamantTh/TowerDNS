@@ -72,7 +72,8 @@ final class ActionGroupRegistry
             new ActionGroupDefinition('dns.records.manage', 'action-group.dns.records.manage.label', 'action-group.dns.records.manage.description', [Permission::RECORD_READ->value, Permission::RECORD_CREATE->value, Permission::RECORD_UPDATE->value, Permission::RECORD_DELETE->value]),
             new ActionGroupDefinition('dns.dnssec.view', 'action-group.dns.dnssec.view.label', 'action-group.dns.dnssec.view.description', [Permission::DNSSEC_STATUS_READ->value]),
             new ActionGroupDefinition('dns.dnssec.manage', 'action-group.dns.dnssec.manage.label', 'action-group.dns.dnssec.manage.description', [Permission::DNSSEC_STATUS_READ->value, Permission::DNSSEC_ACTION_EXECUTE->value]),
-            new ActionGroupDefinition('providers.manage', 'action-group.providers.manage.label', 'action-group.providers.manage.description', [Permission::PROVIDER_CREDENTIALS_MANAGE->value, Permission::PROVIDER_CONFIG_MANAGE->value]),
+            new ActionGroupDefinition('providers.accounts.manage', 'action-group.providers.accounts.manage.label', 'action-group.providers.accounts.manage.description', [Permission::PROVIDER_CREDENTIALS_MANAGE->value]),
+            new ActionGroupDefinition('providers.system.manage', 'action-group.providers.system.manage.label', 'action-group.providers.system.manage.description', [Permission::PROVIDER_CONFIG_MANAGE->value]),
             new ActionGroupDefinition('audit.view', 'action-group.audit.view.label', 'action-group.audit.view.description', [Permission::AUDIT_READ->value]),
         ];
     }

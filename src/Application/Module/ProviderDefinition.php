@@ -18,9 +18,10 @@ final readonly class ProviderDefinition
         public string $displayName,
         public bool $userManaged,
         public array $credentials,
+        public bool $systemConfigurable = true,
     ) {
         if (preg_match('/^[a-z][a-z0-9-]*$/D', $id) !== 1) {
-            throw new \InvalidArgumentException('Provider-ID muss klein geschrieben sein.');
+            throw new \InvalidArgumentException('Provider IDs must be lowercase.');
         }
     }
 }

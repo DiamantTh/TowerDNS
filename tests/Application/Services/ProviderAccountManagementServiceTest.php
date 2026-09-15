@@ -142,9 +142,9 @@ final class ExampleAccountProviderCredentialSchema implements ProviderCredential
     public function definitions(): array
     {
         return [
-            'example'        => ['label' => 'Example', 'user_managed' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
-            'second-example' => ['label' => 'Second example', 'user_managed' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
-            'system-only'    => ['label' => 'System only', 'user_managed' => false, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
+            'example'        => ['label' => 'Example', 'user_managed' => true, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
+            'second-example' => ['label' => 'Second example', 'user_managed' => true, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
+            'system-only'    => ['label' => 'System only', 'user_managed' => false, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
         ];
     }
 

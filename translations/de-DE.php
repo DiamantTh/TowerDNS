@@ -110,8 +110,10 @@ return [
     'action-group.dns.dnssec.view.description'    => 'DNSSEC-Status ansehen.',
     'action-group.dns.dnssec.manage.label'        => 'DNSSEC verwalten',
     'action-group.dns.dnssec.manage.description'  => 'Unterstützte DNSSEC-Aktionen ausführen.',
-    'action-group.providers.manage.label'         => 'Provider verwalten',
-    'action-group.providers.manage.description'   => 'Provider-Verbindungen und Konfiguration verwalten.',
+    'action-group.providers.accounts.manage.label'       => 'Account-Provider verwalten',
+    'action-group.providers.accounts.manage.description' => 'Provider-Verbindungen eines Accounts verwalten.',
+    'action-group.providers.system.manage.label'         => 'System-Provider verwalten',
+    'action-group.providers.system.manage.description'   => 'Ausdrücklich systemweite Provider-Konfiguration verwalten.',
     'action-group.audit.view.label'               => 'Audit-Protokoll ansehen',
     'action-group.audit.view.description'         => 'Audit-Ereignisse des Accounts ansehen.',
 

@@ -40,6 +40,9 @@ final readonly class SystemProviderConfigurationService
         if ($definition === null) {
             throw new ProviderConfigurationException(ProviderConfigurationException::UNKNOWN_PROVIDER);
         }
+        if (!($definition['system_configurable'] ?? false)) {
+            throw new ProviderConfigurationException(ProviderConfigurationException::UNKNOWN_PROVIDER);
+        }
 
         $this->store->update(function (array $configuration) use ($providerType, $input, $definition): array {
             $providers   = (array) ($configuration['providers'] ?? []);
@@ -77,6 +80,7 @@ final readonly class SystemProviderConfigurationService
      * @return array<string, array{
      *   label: string,
      *   user_managed: bool,
+     *   system_configurable: bool,
      *   credentials: array<string, array{input: string, label: string, required: bool, secret: bool, default?: string}>
      * }>
      */

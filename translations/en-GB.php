@@ -110,8 +110,10 @@ return [
     'action-group.dns.dnssec.view.description'    => 'View DNSSEC status.',
     'action-group.dns.dnssec.manage.label'        => 'Manage DNSSEC',
     'action-group.dns.dnssec.manage.description'  => 'Run supported DNSSEC actions.',
-    'action-group.providers.manage.label'         => 'Manage providers',
-    'action-group.providers.manage.description'   => 'Manage provider connections and configuration.',
+    'action-group.providers.accounts.manage.label'       => 'Manage account providers',
+    'action-group.providers.accounts.manage.description' => 'Manage provider connections owned by an account.',
+    'action-group.providers.system.manage.label'         => 'Manage system providers',
+    'action-group.providers.system.manage.description'   => 'Manage explicitly system-wide provider configuration.',
     'action-group.audit.view.label'               => 'View audit log',
     'action-group.audit.view.description'         => 'View account audit events.',
 

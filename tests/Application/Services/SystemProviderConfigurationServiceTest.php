@@ -48,6 +48,19 @@ final class SystemProviderConfigurationServiceTest extends TestCase
         $service->update($user, 'example', ['token_input' => 'token', 'endpoint_input' => 'https://example.test']);
     }
 
+    public function testItRejectsAProviderTypeThatDoesNotAllowSystemConfiguration(): void
+    {
+        $service = new SystemProviderConfigurationService(
+            new AuthorizationService(new RbacPermissionChecker()),
+            new InMemorySystemProviderConfigurationStore(),
+            new ExampleProviderCredentialSchema(false),
+        );
+
+        $this->expectException(ProviderConfigurationException::class);
+        $this->expectExceptionMessage(ProviderConfigurationException::UNKNOWN_PROVIDER);
+        $service->update($this->operator(), 'example', ['token_input' => 'token', 'endpoint_input' => 'https://example.test']);
+    }
+
     private function service(SystemProviderConfigurationStoreInterface $store): SystemProviderConfigurationService
     {
         return new SystemProviderConfigurationService(
@@ -86,14 +99,17 @@ final class InMemorySystemProviderConfigurationStore implements SystemProviderCo
     }
 }
 
-final class ExampleProviderCredentialSchema implements ProviderCredentialSchemaInterface
+final readonly class ExampleProviderCredentialSchema implements ProviderCredentialSchemaInterface
 {
+    public function __construct(private bool $systemConfigurable = true) {}
+
     public function definitions(): array
     {
         return ['example' => [
-            'label'        => 'Example',
-            'user_managed' => true,
-            'credentials'  => [
+            'label'               => 'Example',
+            'user_managed'        => true,
+            'system_configurable' => $this->systemConfigurable,
+            'credentials'         => [
                 'token'    => ['input' => 'token_input', 'label' => 'Token', 'required' => true, 'secret' => true],
                 'endpoint' => ['input' => 'endpoint_input', 'label' => 'Endpoint', 'required' => true, 'secret' => false],
             ],

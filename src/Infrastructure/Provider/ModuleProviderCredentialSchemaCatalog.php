@@ -20,9 +20,10 @@ final readonly class ModuleProviderCredentialSchemaCatalog implements ProviderCr
         $definitions = [];
         foreach ($this->modules->definitions() as $id => $definition) {
             $definitions[$id] = [
-                'label'        => $definition->displayName,
-                'user_managed' => $definition->userManaged,
-                'credentials'  => $definition->credentials,
+                'label'               => $definition->displayName,
+                'user_managed'        => $definition->userManaged,
+                'system_configurable' => $definition->systemConfigurable,
+                'credentials'         => $definition->credentials,
             ];
         }
         return $definitions;
