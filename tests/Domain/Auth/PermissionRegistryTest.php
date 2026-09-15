@@ -73,4 +73,38 @@ final class PermissionRegistryTest extends TestCase
             ['module'],
         ]);
     }
+
+    public function testBuiltInSuperadminReceivesOnlyCurrentlyRegisteredModulePermissions(): void
+    {
+        $superadmin = new User('root', 'root@example.test', [
+            new Role('superadmin', 'Super Administrator', isBuiltIn: true),
+        ]);
+        $normalRole = new User('manager', 'manager@example.test', [
+            new Role('tlsa-manager', 'TLSA Manager', ['towerdns.tlsa.manage']),
+        ]);
+
+        $active = new PermissionRegistry();
+        $active->register(new PermissionDefinition('towerdns.tlsa.manage', 'permission.tlsa.manage.label', null, ['account', 'zone']));
+        $authorization = new AuthorizationService(permissions: $active);
+
+        self::assertTrue($authorization->isGranted($superadmin, 'towerdns.tlsa.manage'));
+        self::assertTrue($authorization->isGranted($normalRole, 'towerdns.tlsa.manage'));
+
+        $inactive = new AuthorizationService(permissions: new PermissionRegistry());
+        self::expectException(\InvalidArgumentException::class);
+        $inactive->isGranted($superadmin, 'towerdns.tlsa.manage');
+    }
+
+    public function testReactivatingAModuleRestoresItsPersistedGrantWithoutGrantingItToOtherRoles(): void
+    {
+        $registry = new PermissionRegistry();
+        $registry->register(new PermissionDefinition('towerdns.tlsa.read', 'permission.tlsa.read.label', null, ['zone']));
+        $authorization = new AuthorizationService(permissions: $registry);
+
+        $granted    = new User('u1', 'u1@example.test', [new Role('r1', 'TLSA reader', ['towerdns.tlsa.read'])]);
+        $notGranted = new User('u2', 'u2@example.test', [new Role('r2', 'Viewer')]);
+
+        self::assertTrue($authorization->isGranted($granted, 'towerdns.tlsa.read'));
+        self::assertFalse($authorization->isGranted($notGranted, 'towerdns.tlsa.read'));
+    }
 }

@@ -114,7 +114,10 @@ final readonly class SchemaManager
                 ],
             ],
             'superadmin' => [
-                'name'        => 'Super Administrator',
+                'name' => 'Super Administrator',
+                // Dynamic module permissions are derived at authorization time
+                // from PermissionRegistry. Persist only the Core baseline so
+                // seed runs never erase explicit, stale module grants.
                 'permissions' => Permission::cases(),
             ],
         ];

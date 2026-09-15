@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Application\Services;
 
 use Laminas\Permissions\Rbac\RoleInterface;
+use TowerDNS\Domain\Auth\PermissionRegistry;
+use TowerDNS\Domain\Auth\Role;
 
 /**
  * Thin, stateless adapter around Laminas RBAC roles.
@@ -20,18 +22,22 @@ use Laminas\Permissions\Rbac\RoleInterface;
  */
 final class RbacPermissionChecker
 {
-    public function isGranted(RoleInterface $role, string $permission): bool
+    public function isGranted(RoleInterface $role, string $permission, ?PermissionRegistry $permissions = null): bool
     {
+        if ($role instanceof Role && $role->isBuiltInSuperadmin() && $permissions?->has($permission)) {
+            return true;
+        }
+
         return $role->hasPermission($permission);
     }
 
     /**
      * @param iterable<RoleInterface> $roles
      */
-    public function isGrantedByAny(iterable $roles, string $permission): bool
+    public function isGrantedByAny(iterable $roles, string $permission, ?PermissionRegistry $permissions = null): bool
     {
         foreach ($roles as $role) {
-            if ($this->isGranted($role, $permission)) {
+            if ($this->isGranted($role, $permission, $permissions)) {
                 return true;
             }
         }

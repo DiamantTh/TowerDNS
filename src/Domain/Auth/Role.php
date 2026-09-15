@@ -90,6 +90,17 @@ final class Role implements RoleInterface
         return $this->hasPermission(PermissionRegistry::normalize($permission instanceof Permission ? $permission->value : $permission));
     }
 
+    /**
+     * The built-in superadmin role is deliberately the only role whose
+     * effective permissions are derived from the active registry.  It is not
+     * a general administrator bypass: callers must still ask the registry for
+     * a known, currently active permission first.
+     */
+    public function isBuiltInSuperadmin(): bool
+    {
+        return $this->isBuiltIn && $this->id === 'superadmin';
+    }
+
     /** @return list<string> */
     public function getPermissionIds(): array
     {
