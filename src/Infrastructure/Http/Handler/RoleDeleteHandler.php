@@ -54,8 +54,8 @@ final readonly class RoleDeleteHandler implements RequestHandlerInterface
 
         try {
             $this->authz->assert($currentUser, Permission::ROLE_MANAGE);
-        } catch (AuthorizationException $e) {
-            return new RedirectResponse('/roles?error=' . rawurlencode($e->getMessage()));
+        } catch (AuthorizationException) {
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
         }
 
         $roleId = (string) $request->getAttribute('id', '');

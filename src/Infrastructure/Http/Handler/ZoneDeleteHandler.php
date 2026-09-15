@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -30,6 +31,7 @@ final readonly class ZoneDeleteHandler implements RequestHandlerInterface
     public function __construct(
         private DnsManagementService $dns,
         private AuditLogService      $audit,
+        private TranslatorInterface  $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -40,7 +42,7 @@ final readonly class ZoneDeleteHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
         /** @var User $user */
@@ -52,9 +54,13 @@ final readonly class ZoneDeleteHandler implements RequestHandlerInterface
             $this->dns->deleteZone($user, $providerId, $zoneId);
             $this->audit->recordZoneDelete($request, $user->id, null, $zoneId, $zoneId);
         } catch (AuthorizationException) {
-            return new RedirectResponse('/zones?error=' . rawurlencode('Keine Berechtigung zum Löschen von Zonen.'));
-        } catch (\Throwable $e) {
-            return new RedirectResponse('/zones?error=' . rawurlencode($e->getMessage()));
+            return new RedirectResponse('/zones?error=' . rawurlencode(
+                $this->translator->translate('zones.error.delete-denied'),
+            ));
+        } catch (\Throwable) {
+            return new RedirectResponse('/zones?error=' . rawurlencode(
+                $this->translator->translate('zones.error.delete-failed'),
+            ));
         }
 
         return new RedirectResponse('/zones');

@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -27,6 +28,7 @@ final readonly class ZoneCreateHandler implements RequestHandlerInterface
     public function __construct(
         private DnsManagementService $dns,
         private AuditLogService      $audit,
+        private TranslatorInterface  $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -42,22 +44,28 @@ final readonly class ZoneCreateHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
         $zoneName = trim((string) ($body['zone_name'] ?? ''));
 
         if ($zoneName === '') {
-            return new RedirectResponse('/zones?error=' . rawurlencode('Zonenname darf nicht leer sein.'));
+            return new RedirectResponse('/zones?error=' . rawurlencode(
+                $this->translator->translate('zones.error.name-required'),
+            ));
         }
 
         try {
             $zone = $this->dns->createZone($user, $providerId, $zoneName);
             $this->audit->recordZoneCreate($request, $user->id, null, $zone->id, $zone->name);
         } catch (AuthorizationException) {
-            return new RedirectResponse('/zones?error=' . rawurlencode('Keine Berechtigung zum Anlegen von Zonen.'));
-        } catch (\Throwable $e) {
-            return new RedirectResponse('/zones?error=' . rawurlencode($e->getMessage()));
+            return new RedirectResponse('/zones?error=' . rawurlencode(
+                $this->translator->translate('zones.error.create-denied'),
+            ));
+        } catch (\Throwable) {
+            return new RedirectResponse('/zones?error=' . rawurlencode(
+                $this->translator->translate('zones.error.create-failed'),
+            ));
         }
 
         return new RedirectResponse('/zones');

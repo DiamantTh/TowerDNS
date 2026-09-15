@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -29,6 +30,7 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
     public function __construct(
         private DnsManagementService $dns,
         private AuditLogService      $audit,
+        private TranslatorInterface  $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -48,7 +50,9 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new RedirectResponse($back . '?error=' . rawurlencode('Ungültige Anfrage.'));
+            return new RedirectResponse($back . '?error=' . rawurlencode(
+                $this->translator->translate('http.error.invalid-request'),
+            ));
         }
 
         $name    = trim((string) ($body['name'] ?? ''));
@@ -59,7 +63,7 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
 
         if ($typeRaw === '') {
             $existing = $this->dns->findRecordForUpdate($user, $providerId, $zoneId, $recordId);
-            $typeRaw = $existing?->type->value ?? '';
+            $typeRaw  = $existing?->type->value ?? '';
         }
 
         $recordFilter = new RecordInputFilter();
@@ -70,13 +74,11 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
             'content' => $content,
         ]);
         if (!$recordFilter->isValid()) {
-            $messages = array_values($recordFilter->getMessages());
-            $first    = reset($messages);
-            $inner    = is_array($first) ? reset($first) : null;
-            $msg      = is_string($inner) ? $inner : 'Ungültige Eingabe.';
-            $editUrl  = '/zones/' . rawurlencode($providerId) . '/' . rawurlencode($zoneId)
+            $editUrl = '/zones/' . rawurlencode($providerId) . '/' . rawurlencode($zoneId)
                 . '/records/' . rawurlencode($recordId) . '/edit';
-            return new RedirectResponse($editUrl . '?error=' . rawurlencode($msg));
+            return new RedirectResponse($editUrl . '?error=' . rawurlencode(
+                $this->translator->translate('records.error.invalid-input'),
+            ));
         }
         $fv      = $recordFilter->getValues();
         $name    = trim((string) ($fv['name'] ?? ''));
@@ -86,7 +88,9 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
 
         $type = RecordType::tryFrom($typeRaw);
         if ($type === null) {
-            return new RedirectResponse($back . '?error=' . rawurlencode('Unbekannter Record-Typ: ' . $typeRaw));
+            return new RedirectResponse($back . '?error=' . rawurlencode(
+                $this->translator->translate('records.error.unsupported-type'),
+            ));
         }
 
         $record = new Record(
@@ -103,11 +107,17 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
             $this->dns->updateRecord($user, $providerId, $record);
             $this->audit->recordRecordUpdate($request, $user->id, null, $zoneId, $record->name, $record->type->value);
         } catch (AuthorizationException) {
-            return new RedirectResponse($back . '?error=' . rawurlencode('Keine Berechtigung zum Bearbeiten von Einträgen.'));
-        } catch (\Throwable $e) {
-            return new RedirectResponse($back . '?error=' . rawurlencode($e->getMessage()));
+            return new RedirectResponse($back . '?error=' . rawurlencode(
+                $this->translator->translate('records.error.update-denied'),
+            ));
+        } catch (\Throwable) {
+            return new RedirectResponse($back . '?error=' . rawurlencode(
+                $this->translator->translate('records.error.update-failed'),
+            ));
         }
 
-        return new RedirectResponse($back . '?success=' . rawurlencode('Eintrag aktualisiert.'));
+        return new RedirectResponse($back . '?success=' . rawurlencode(
+            $this->translator->translate('records.success.updated'),
+        ));
     }
 }

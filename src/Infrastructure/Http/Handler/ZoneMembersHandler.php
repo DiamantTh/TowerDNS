@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -41,6 +42,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         private UserRepositoryInterface            $users,
         private PermissionService                  $permissions,
         private AuditLogService                    $audit,
+        private TranslatorInterface                $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -62,7 +64,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         try {
             $this->permissions->assertCanManageMembers($accountId, $user);
         } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
         /** @var CsrfGuardInterface $guard */
@@ -99,7 +101,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         try {
             $this->permissions->assertCanManageMembers($accountId, $user);
         } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
         /** @var CsrfGuardInterface $guard */
@@ -109,7 +111,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
         $action       = (string) ($body['action'] ?? '');
@@ -119,7 +121,9 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
 
         if ($action === 'revoke') {
             if ($targetUserId === '') {
-                return new RedirectResponse($base . '?error=' . rawurlencode('Benutzer-ID fehlt.'));
+                return new RedirectResponse($base . '?error=' . rawurlencode(
+                    $this->translator->translate('zone-members.error.user-required'),
+                ));
             }
 
             $this->zoneMemberships->revoke($zoneId, $targetUserId);
@@ -133,7 +137,9 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
             $role    = TeamRole::tryFrom($roleVal);
 
             if ($targetUserId === '' || $role === null) {
-                return new RedirectResponse($base . '?error=' . rawurlencode('Benutzer-ID und Rolle sind erforderlich.'));
+                return new RedirectResponse($base . '?error=' . rawurlencode(
+                    $this->translator->translate('zone-members.error.user-and-role-required'),
+                ));
             }
 
             try {
@@ -146,13 +152,17 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
                     grantedBy: $user->id,
                 );
                 $this->audit->recordZoneMemberGranted($request, $user->id, $accountId, $zoneId, $targetUserId, $role->value);
-            } catch (\Throwable $e) {
-                return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
+            } catch (\Throwable) {
+                return new RedirectResponse($base . '?error=' . rawurlencode(
+                    $this->translator->translate('zone-members.error.grant-failed'),
+                ));
             }
 
             return new RedirectResponse($base);
         }
 
-        return new RedirectResponse($base . '?error=' . rawurlencode('Unbekannte Aktion.'));
+        return new RedirectResponse($base . '?error=' . rawurlencode(
+            $this->translator->translate('zone-members.error.unknown-action'),
+        ));
     }
 }

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -31,6 +32,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
         private UserRepositoryInterface $users,
         private AuthorizationService    $authz,
         private IamAdministrationService $iam,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -45,33 +47,44 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new RedirectResponse('/users?error=' . rawurlencode('Ungültige Anfrage.'));
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.invalid-request')));
         }
 
         try {
             $this->authz->assert($currentUser, Permission::USER_MANAGE);
-        } catch (AuthorizationException $e) {
-            return new RedirectResponse('/users?error=' . rawurlencode($e->getMessage()));
+        } catch (AuthorizationException) {
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.forbidden')));
         }
 
         $targetId = (string) $request->getAttribute('id', '');
 
         if ($targetId === '' || $targetId === $currentUser->id) {
-            return new RedirectResponse('/users?error=' . rawurlencode('Eigenen Account kann man nicht löschen.'));
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.self-delete-not-allowed')));
         }
 
         $target = $this->users->findById($targetId);
         if (!$target instanceof User) {
-            return new RedirectResponse('/users?error=' . rawurlencode('Benutzer nicht gefunden.'));
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.not-found')));
         }
 
         try {
             $this->iam->assertCanDelete($targetId);
             $this->users->delete($targetId);
         } catch (\Throwable) {
-            return new RedirectResponse('/users?error=' . rawurlencode('User could not be deleted.'));
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.delete-failed')));
         }
 
-        return new RedirectResponse('/users?success=' . rawurlencode('Benutzer gelöscht: ' . $target->email));
+        return new RedirectResponse('/users?success=' . rawurlencode($this->t('users.success.deleted', ['email' => $target->email])));
+    }
+
+    /** @param array<string, string> $parameters */
+    private function t(string $key, array $parameters = []): string
+    {
+        $replacements = [];
+        foreach ($parameters as $name => $value) {
+            $replacements['{' . $name . '}'] = $value;
+        }
+
+        return strtr($this->translator->translate($key), $replacements);
     }
 }

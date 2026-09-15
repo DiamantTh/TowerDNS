@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -31,6 +32,7 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
         private UserRepositoryInterface $users,
         private AuthorizationService    $authz,
         private PasswordPolicy          $passwordPolicy,
+        private TranslatorInterface     $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -45,13 +47,13 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new RedirectResponse('/users?error=' . rawurlencode('Ungültige Anfrage.'));
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.invalid-request')));
         }
 
         try {
             $this->authz->assert($currentUser, Permission::USER_MANAGE);
-        } catch (AuthorizationException $e) {
-            return new RedirectResponse('/users?error=' . rawurlencode($e->getMessage()));
+        } catch (AuthorizationException) {
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.forbidden')));
         }
 
         $email    = trim(strtolower((string) ($body['email'] ?? '')));
@@ -61,9 +63,7 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
         $filter->setData(['email' => $email, 'password' => $password]);
 
         if (!$filter->isValid()) {
-            $messages = array_merge(...array_values($filter->getMessages()));
-            $first    = reset($messages);
-            return new RedirectResponse('/users?error=' . rawurlencode(is_string($first) ? $first : 'Ungültige Eingabe.'));
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.invalid-input')));
         }
 
         /** @var array{email: string, password: string} $values */
@@ -73,8 +73,8 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
 
         try {
             $this->passwordPolicy->assertValid($password);
-        } catch (\InvalidArgumentException $e) {
-            return new RedirectResponse('/users?error=' . rawurlencode($e->getMessage()));
+        } catch (\InvalidArgumentException) {
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('auth.error.password-policy')));
         }
 
         $hash = password_hash($password, PASSWORD_ARGON2ID, [
@@ -85,10 +85,21 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
 
         try {
             $this->users->create(Uuid::v4()->toRfc4122(), $email, $hash);
-        } catch (\Throwable $e) {
-            return new RedirectResponse('/users?error=' . rawurlencode('Fehler beim Anlegen: ' . $e->getMessage()));
+        } catch (\Throwable) {
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.create-failed')));
         }
 
-        return new RedirectResponse('/users?success=' . rawurlencode('Benutzer angelegt: ' . $email));
+        return new RedirectResponse('/users?success=' . rawurlencode($this->t('users.success.created', ['email' => $email])));
+    }
+
+    /** @param array<string, string> $parameters */
+    private function t(string $key, array $parameters = []): string
+    {
+        $replacements = [];
+        foreach ($parameters as $name => $value) {
+            $replacements['{' . $name . '}'] = $value;
+        }
+
+        return strtr($this->translator->translate($key), $replacements);
     }
 }

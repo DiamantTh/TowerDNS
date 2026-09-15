@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -30,6 +31,7 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
     public function __construct(
         private DnsManagementService $dns,
         private AuditLogService      $audit,
+        private TranslatorInterface  $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -48,7 +50,7 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
         $name    = trim((string) ($body['name'] ?? ''));
@@ -65,11 +67,9 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
             'content' => $content,
         ]);
         if (!$recordFilter->isValid()) {
-            $messages = array_values($recordFilter->getMessages());
-            $first    = reset($messages);
-            $inner    = is_array($first) ? reset($first) : null;
-            $msg      = is_string($inner) ? $inner : 'Ungültige Eingabe.';
-            return new RedirectResponse($back . '?error=' . rawurlencode($msg));
+            return new RedirectResponse($back . '?error=' . rawurlencode(
+                $this->translator->translate('records.error.invalid-input'),
+            ));
         }
         $fv      = $recordFilter->getValues();
         $name    = trim((string) ($fv['name'] ?? ''));
@@ -79,7 +79,9 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
 
         $type = RecordType::tryFrom($typeRaw);
         if ($type === null) {
-            return new RedirectResponse($back . '?error=' . rawurlencode('Unbekannter Record-Typ: ' . $typeRaw));
+            return new RedirectResponse($back . '?error=' . rawurlencode(
+                $this->translator->translate('records.error.unsupported-type'),
+            ));
         }
 
         $record = new Record(
@@ -96,9 +98,13 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
             $created = $this->dns->createRecord($user, $providerId, $record);
             $this->audit->recordRecordCreate($request, $user->id, null, $zoneId, $created->name, $created->type->value);
         } catch (AuthorizationException) {
-            return new RedirectResponse($back . '?error=' . rawurlencode('Keine Berechtigung zum Anlegen von Einträgen.'));
-        } catch (\Throwable $e) {
-            return new RedirectResponse($back . '?error=' . rawurlencode($e->getMessage()));
+            return new RedirectResponse($back . '?error=' . rawurlencode(
+                $this->translator->translate('records.error.create-denied'),
+            ));
+        } catch (\Throwable) {
+            return new RedirectResponse($back . '?error=' . rawurlencode(
+                $this->translator->translate('records.error.create-failed'),
+            ));
         }
 
         return new RedirectResponse($back);

@@ -55,8 +55,8 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
 
         try {
             $this->authz->assert($currentUser, Permission::ROLE_MANAGE);
-        } catch (AuthorizationException $e) {
-            return new RedirectResponse('/roles?error=' . rawurlencode($e->getMessage()));
+        } catch (AuthorizationException) {
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->t('http.error.forbidden')));
         }
 
         $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');

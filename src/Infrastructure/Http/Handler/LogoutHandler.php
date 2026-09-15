@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
@@ -22,7 +23,10 @@ use TowerDNS\Infrastructure\Http\SessionSecurity;
  */
 final readonly class LogoutHandler implements RequestHandlerInterface
 {
-    public function __construct(private SessionSecurity $sessionSecurity) {}
+    public function __construct(
+        private SessionSecurity $sessionSecurity,
+        private TranslatorInterface $translator,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -32,7 +36,7 @@ final readonly class LogoutHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
         $session = $request->getAttribute(SessionInterface::class);
