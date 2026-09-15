@@ -90,7 +90,7 @@ final readonly class LocalModuleDiscovery
             $directoryKey = strtolower($directory);
             if (isset($directories[$directoryKey])) {
                 throw new \RuntimeException(sprintf(
-                    'Case-kollidierende Modulordner: %s und %s.',
+                    'Case-colliding module directories: %s and %s.',
                     $directories[$directoryKey],
                     $directory,
                 ));
@@ -99,15 +99,15 @@ final readonly class LocalModuleDiscovery
 
             $module = require $file;
             if (!$module instanceof ModuleManifest && !$module instanceof TowerDNSModuleInterface) {
-                throw new \RuntimeException(sprintf('Moduleinstieg %s muss ein TowerDNS-Modul oder ModuleManifest zurückgeben.', $file));
+                throw new \RuntimeException(sprintf('Module entry point %s must return a TowerDNS module or ModuleManifest.', $file));
             }
             $manifest = $module instanceof ModuleManifest ? $module : $module->manifest();
             $key      = strtolower($manifest->id);
             if (isset($modules[$key])) {
-                throw new \RuntimeException(sprintf('Case-kollidierende Modul-ID: %s', $manifest->id));
+                throw new \RuntimeException(sprintf('Case-colliding module ID: %s', $manifest->id));
             }
             if (!version_compare($this->towerDnsVersion, ltrim($manifest->requiresTowerDns, '>='), '>=')) {
-                throw new \RuntimeException(sprintf('Modul %s benötigt TowerDNS %s.', $manifest->id, $manifest->requiresTowerDns));
+                throw new \RuntimeException(sprintf('Module %s requires TowerDNS %s.', $manifest->id, $manifest->requiresTowerDns));
             }
             $modules[$key] = $module;
         }
@@ -118,19 +118,75 @@ final readonly class LocalModuleDiscovery
         foreach ($enabled as $module) {
             $manifest = $module instanceof ModuleManifest ? $module : $module->manifest();
             foreach ($manifest->dependencies as $dependency) {
+                if (!isset($modules[$dependency])) {
+                    throw new \RuntimeException(sprintf('Active module %s requires missing module %s.', $manifest->id, $dependency));
+                }
                 if (!isset($enabled[$dependency])) {
-                    throw new \RuntimeException(sprintf('Aktives Modul %s benötigt das nicht aktivierte Modul %s.', $manifest->id, $dependency));
+                    throw new \RuntimeException(sprintf('Active module %s requires disabled module %s.', $manifest->id, $dependency));
                 }
             }
         }
 
-        return array_values($enabled);
+        return $this->sortByDependencies($enabled);
     }
 
     private function isEnabled(ModuleManifest|TowerDNSModuleInterface $module): bool
     {
         $manifest = $module instanceof ModuleManifest ? $module : $module->manifest();
 
-        return array_any($this->enabledModuleIds ?? [], fn($id): bool => strtolower($id) === $manifest->id);
+        return array_any($this->enabledModuleIds ?? [], static function (mixed $id) use ($manifest): bool {
+            if (!is_string($id)) {
+                throw new \InvalidArgumentException('Enabled module IDs must be strings.');
+            }
+
+            return $id === $manifest->id;
+        });
+    }
+
+    /**
+     * Deterministic lexical topological ordering. Dependencies always precede
+     * their dependants; unrelated modules are ordered by technical ID.
+     *
+     * @param array<string, ModuleManifest|TowerDNSModuleInterface> $modules
+     * @return list<ModuleManifest|TowerDNSModuleInterface>
+     */
+    private function sortByDependencies(array $modules): array
+    {
+        ksort($modules, SORT_STRING);
+        /** @var array<string, 'visiting'|'visited'> $states */
+        $states = [];
+        /** @var list<ModuleManifest|TowerDNSModuleInterface> $ordered */
+        $ordered = [];
+        /** @var list<string> $path */
+        $path = [];
+
+        $visit = function (string $id) use (&$visit, &$states, &$ordered, &$path, $modules): void {
+            if (($states[$id] ?? null) === 'visited') {
+                return;
+            }
+            if (($states[$id] ?? null) === 'visiting') {
+                $cycleStart = array_search($id, $path, true);
+                $cycle      = [...array_slice($path, $cycleStart === false ? 0 : $cycleStart), $id];
+                throw new \RuntimeException('Module dependency cycle: ' . implode(' -> ', $cycle));
+            }
+
+            $states[$id]  = 'visiting';
+            $path[]       = $id;
+            $manifest     = $modules[$id] instanceof ModuleManifest ? $modules[$id] : $modules[$id]->manifest();
+            $dependencies = $manifest->dependencies;
+            sort($dependencies, SORT_STRING);
+            foreach ($dependencies as $dependency) {
+                $visit($dependency);
+            }
+            array_pop($path);
+            $states[$id] = 'visited';
+            $ordered[]   = $modules[$id];
+        };
+
+        foreach (array_keys($modules) as $id) {
+            $visit($id);
+        }
+
+        return $ordered;
     }
 }

@@ -20,14 +20,17 @@ final readonly class ModuleManifest
         public array $dependencies = [],
     ) {
         if (preg_match('/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/D', $id) !== 1) {
-            throw new \InvalidArgumentException('Modul-ID muss klein geschrieben und punkt-namespaced sein.');
+            throw new \InvalidArgumentException('Module IDs must be lowercase and dot-namespaced.');
         }
         if ($displayName === '' || !preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/D', $version)) {
-            throw new \InvalidArgumentException('Modulname oder Modulversion ist ungültig.');
+            throw new \InvalidArgumentException('Module display name or version is invalid.');
+        }
+        if (preg_match('/^>=\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/D', $requiresTowerDns) !== 1) {
+            throw new \InvalidArgumentException('requiresTowerDns must use the supported >=x.y.z constraint syntax.');
         }
         foreach ($dependencies as $dependency) {
             if (!is_string($dependency) || preg_match('/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/D', $dependency) !== 1) {
-                throw new \InvalidArgumentException('Modulabhängigkeiten müssen normalisierte Modul-IDs sein.');
+                throw new \InvalidArgumentException('Module dependencies must be normalized module IDs.');
             }
         }
     }

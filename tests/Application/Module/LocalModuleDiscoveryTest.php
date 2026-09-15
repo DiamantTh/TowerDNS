@@ -40,8 +40,8 @@ final class LocalModuleDiscoveryTest extends TestCase
 
         $modules = new LocalModuleDiscovery($this->modulesDirectory)->discover();
 
-        self::assertSame(['towerdns.tlsa', 'towerdns.desec'], array_column($modules, 'id'));
-        self::assertSame([ModuleType::FEATURE, ModuleType::PROVIDER], array_column($modules, 'type'));
+        self::assertSame(['towerdns.desec', 'towerdns.tlsa'], array_column($modules, 'id'));
+        self::assertSame([ModuleType::PROVIDER, ModuleType::FEATURE], array_column($modules, 'type'));
     }
 
     public function testRejectsCaseCollidingModuleFolders(): void
@@ -50,7 +50,7 @@ final class LocalModuleDiscoveryTest extends TestCase
         $this->writeManifest('tlsa', 'towerdns.tlsa-alt', 'tlsa', 'feature');
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Case-kollidierende Modulordner');
+        $this->expectExceptionMessage('Case-colliding module directories');
         new LocalModuleDiscovery($this->modulesDirectory)->discover();
     }
 
@@ -76,14 +76,57 @@ final class LocalModuleDiscoveryTest extends TestCase
         ));
     }
 
-    private function writeManifest(string $directory, string $id, string $displayName, string $type): void
+    public function testOrdersDependenciesBeforeDependantsRegardlessOfFolderOrder(): void
+    {
+        $this->writeManifest('ZFeature', 'towerdns.feature', 'Feature', 'feature', ['towerdns.base']);
+        $this->writeManifest('ABase', 'towerdns.base', 'Base', 'integration');
+        $this->writeManifest('Monitor', 'towerdns.monitor', 'Monitor', 'feature');
+
+        self::assertSame(
+            ['towerdns.base', 'towerdns.feature', 'towerdns.monitor'],
+            array_column(new LocalModuleDiscovery($this->modulesDirectory)->discover(), 'id'),
+        );
+    }
+
+    public function testRejectsDependencyCyclesAndMissingOrDisabledDependencies(): void
+    {
+        $this->writeManifest('One', 'towerdns.one', 'One', 'feature', ['towerdns.two']);
+        $this->writeManifest('Two', 'towerdns.two', 'Two', 'feature', ['towerdns.one']);
+
+        try {
+            new LocalModuleDiscovery($this->modulesDirectory)->discover();
+            self::fail('Expected module dependency cycle to be rejected.');
+        } catch (\RuntimeException $exception) {
+            self::assertStringContainsString('Module dependency cycle', $exception->getMessage());
+        }
+
+        foreach (glob($this->modulesDirectory . '/*/module.php') ?: [] as $file) {
+            unlink($file);
+            rmdir(dirname($file));
+        }
+
+        $this->writeManifest('Feature', 'towerdns.feature', 'Feature', 'feature', ['towerdns.missing']);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('requires missing module');
+        new LocalModuleDiscovery($this->modulesDirectory)->discover();
+    }
+
+    public function testRejectsUnsupportedTowerDnsConstraintSyntax(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new ModuleManifest('towerdns.test', 'Test', '1.0.0', ModuleType::FEATURE, '^1.0');
+    }
+
+    /** @param list<string> $dependencies */
+    private function writeManifest(string $directory, string $id, string $displayName, string $type, array $dependencies = []): void
     {
         mkdir($this->modulesDirectory . '/' . $directory, 0o700);
         $manifest = sprintf(
-            "<?php\nreturn new \\TowerDNS\\Application\\Module\\ModuleManifest('%s', '%s', '1.0.0', \\TowerDNS\\Application\\Module\\ModuleType::%s);\n",
+            "<?php\nreturn new \\TowerDNS\\Application\\Module\\ModuleManifest('%s', '%s', '1.0.0', \\TowerDNS\\Application\\Module\\ModuleType::%s, '>=1.0.0', %s);\n",
             $id,
             $displayName,
             strtoupper($type),
+            var_export($dependencies, true),
         );
         file_put_contents($this->modulesDirectory . '/' . $directory . '/module.php', $manifest);
     }
