@@ -56,33 +56,20 @@ final readonly class PermissionService
 
     public function authorizeZone(User $user, Permission $permission, int $accountId, string $zoneId): bool
     {
-        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)) {
-            return true;
-        }
-
-        $accountRole = $this->accounts->getEffectiveRole($accountId, $user->id);
-        if ($accountRole instanceof TeamRole && $this->roleGrants($accountRole, $permission)) {
-            return true;
-        }
-
-        if (!ctype_digit($zoneId)) {
-            return false;
-        }
-
-        $zoneMembership = $this->zoneMemberships->findMembership((int) $zoneId, $user->id);
-        return $zoneMembership !== null && $this->roleGrants($zoneMembership->role, $permission);
+        return ctype_digit($zoneId)
+            && $this->authorizeManagedZone($user, $permission, $accountId, (int) $zoneId);
     }
 
     /** Authorize against TowerDNS's internal ManagedZone identity. */
     public function authorizeManagedZone(User $user, Permission $permission, int $accountId, int $managedZoneId): bool
     {
-        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)) {
-            return true;
+        $managedZone = $this->managedZones?->findByIdForAccount($managedZoneId, $accountId);
+        if (!$managedZone instanceof \TowerDNS\Domain\Account\ManagedZone) {
+            return false;
         }
 
-        $managedZone = $this->managedZones?->findByIdForAccount($managedZoneId, $accountId);
-        if ($managedZone === null) {
-            return false;
+        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)) {
+            return true;
         }
 
         $accountRole = $this->accounts->getEffectiveRole($accountId, $user->id);
@@ -91,7 +78,7 @@ final readonly class PermissionService
         }
 
         $membership = $this->zoneMemberships->findMembership($managedZone->id, $user->id);
-        return $membership !== null && $this->roleGrants($membership->role, $permission);
+        return $membership instanceof \TowerDNS\Domain\Account\ZoneMembership && $this->roleGrants($membership->role, $permission);
     }
 
     /**
@@ -104,19 +91,21 @@ final readonly class PermissionService
     }
 
     /**
-     * Kept for read-only display code. Authorization must use authorizeZone(),
+     * Kept for read-only display code. Authorization must use authorizeManagedZone(),
      * because account and zone grants can positively complement each other.
      */
     public function getZoneRole(string $zoneId, int $accountId, User $user): ?TeamRole
     {
+        if (!ctype_digit($zoneId) || !$this->managedZones?->findByIdForAccount((int) $zoneId, $accountId) instanceof \TowerDNS\Domain\Account\ManagedZone) {
+            return null;
+        }
+
         $accountRole = $this->getAccountRole($accountId, $user);
         if ($accountRole instanceof TeamRole) {
             return $accountRole;
         }
 
-        return ctype_digit($zoneId)
-            ? $this->zoneMemberships->findMembership((int) $zoneId, $user->id)?->role
-            : null;
+        return $this->zoneMemberships->findMembership((int) $zoneId, $user->id)?->role;
     }
 
     // ── Temporary application conveniences ──────────────────────────────────

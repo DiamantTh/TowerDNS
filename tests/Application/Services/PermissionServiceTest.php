@@ -66,6 +66,16 @@ final class PermissionServiceTest extends TestCase
         self::assertFalse($service->authorizeAccount($user, Permission::RECORD_UPDATE, 42));
     }
 
+    public function testLegacyZoneAuthorizationStillRequiresManagedZoneAccountIsolation(): void
+    {
+        $zoneMembership = new ZoneMembership(1, 1, 'user-1', TeamRole::DNS_MANAGER, '2026-09-13 12:00:00');
+        $service        = $this->serviceFor(null, $zoneMembership);
+        $user           = new User('user-1', 'user@example.test');
+
+        self::assertTrue($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, '1'));
+        self::assertFalse($service->authorizeZone($user, Permission::RECORD_UPDATE, 43, '1'));
+    }
+
     public function testAccountAndZoneGrantsCanComplementEachOtherWithoutOverrides(): void
     {
         $zoneMembership = new ZoneMembership(
@@ -104,6 +114,7 @@ final class PermissionServiceTest extends TestCase
 
         self::assertTrue($service->authorizeAccount($user, Permission::ACCOUNT_READ, 42));
         self::assertTrue($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
+        self::assertFalse($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 999));
     }
 
     public function testImpersonationRequiresItsOwnSystemPermission(): void
@@ -136,7 +147,7 @@ final class PermissionServiceTest extends TestCase
 
         $managedZones = $this->createMock(ManagedZoneRepositoryInterface::class);
         $managedZones->method('findByIdForAccount')->willReturnCallback(
-            static fn(int $id, int $accountId): ?\TowerDNS\Domain\Account\ManagedZone => $accountId === 42 && in_array($id, [1], true)
+            static fn(int $id, int $accountId): ?\TowerDNS\Domain\Account\ManagedZone => $accountId === 42 && $id === 1
                 ? new \TowerDNS\Domain\Account\ManagedZone($id, 42, 7, 'external-' . $id, 'example.test', '2026-09-13 12:00:00')
                 : null,
         );
