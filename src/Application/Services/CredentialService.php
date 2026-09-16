@@ -55,7 +55,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
 
         $raw = base64_decode($b64AppKey, strict: true);
 
-        if ($raw === false || strlen($raw) !== SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
+        if ($raw === false || strlen($raw) !== \SODIUM_CRYPTO_SECRETBOX_KEYBYTES) {
             throw new \RuntimeException(
                 'CredentialService: encryption_key must be exactly 32 bytes (base64-encoded). '
                 . 'Use CredentialService::generateKey() to generate one.'
@@ -78,7 +78,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
     {
         if (defined('SODIUM_CRYPTO_AEAD_AEGIS256_KEYBYTES')) {
             /** @var positive-int $npub */
-            $npub  = SODIUM_CRYPTO_AEAD_AEGIS256_NPUBBYTES;
+            $npub  = \SODIUM_CRYPTO_AEAD_AEGIS256_NPUBBYTES;
             $nonce = random_bytes($npub);
             $blob  = sodium_crypto_aead_aegis256_encrypt($plaintext, '', $nonce, $this->rawKey);
             sodium_memzero($plaintext);
@@ -87,7 +87,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
 
         if (defined('SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_KEYBYTES')) {
             /** @var positive-int $npub */
-            $npub  = SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
+            $npub  = \SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
             $nonce = random_bytes($npub);
             $blob  = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($plaintext, '', $nonce, $this->rawKey);
             sodium_memzero($plaintext);
@@ -95,7 +95,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
         }
 
         // fallback: XSalsa20-Poly1305 secretbox
-        $nonce = random_bytes(SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        $nonce = random_bytes(\SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
         $blob  = sodium_crypto_secretbox($plaintext, $nonce, $this->rawKey);
         sodium_memzero($plaintext);
         return base64_encode(self::V1_SECRETBOX . $nonce . $blob);
@@ -155,7 +155,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
      */
     public static function generateKey(): string
     {
-        return base64_encode(random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES));
+        return base64_encode(random_bytes(\SODIUM_CRYPTO_SECRETBOX_KEYBYTES));
     }
 
     // ── Credentials version ───────────────────────────────────────────────────
@@ -183,7 +183,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
             throw new \RuntimeException('CredentialService: AEGIS-256 not available on this system.');
         }
         /** @var int $npub */
-        $npub  = SODIUM_CRYPTO_AEAD_AEGIS256_NPUBBYTES;
+        $npub  = \SODIUM_CRYPTO_AEAD_AEGIS256_NPUBBYTES;
         $nonce = substr($payload, 0, $npub);
         $blob  = substr($payload, $npub);
         $plain = sodium_crypto_aead_aegis256_decrypt($blob, '', $nonce, $this->rawKey);
@@ -199,7 +199,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
             throw new \RuntimeException('CredentialService: XChaCha20-Poly1305 not available on this system.');
         }
         /** @var int $npub */
-        $npub  = SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
+        $npub  = \SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
         $nonce = substr($payload, 0, $npub);
         $blob  = substr($payload, $npub);
         $plain = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt($blob, '', $nonce, $this->rawKey);
@@ -211,8 +211,8 @@ final readonly class CredentialService implements CredentialEncryptorInterface
 
     private function decryptSecretbox(string $payload): string
     {
-        $nonce = substr($payload, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
-        $blob  = substr($payload, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        $nonce = substr($payload, 0, \SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
+        $blob  = substr($payload, \SODIUM_CRYPTO_SECRETBOX_NONCEBYTES);
         $plain = sodium_crypto_secretbox_open($blob, $nonce, $this->rawKey);
         if ($plain === false) {
             throw new \RuntimeException('CredentialService: secretbox decryption failed (wrong key or tampered data).');

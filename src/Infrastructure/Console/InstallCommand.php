@@ -16,7 +16,9 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Application\Theme\ThemeManager;
+use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
+use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
 use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 
 /**
@@ -253,7 +255,7 @@ final class InstallCommand extends Command
 
         // ── Write config files ────────────────────────────────────────────
         $io->writeln('  Writing config files …');
-        $encKey = base64_encode(random_bytes(32));
+        $encKey = $this->resolveEncryptionKey($cfgDir . '/config.local.toml');
 
         $this->writeLocalToml(
             $cfgDir,
@@ -401,7 +403,7 @@ final class InstallCommand extends Command
         if (file_exists($file)) {
             copy($file, $file . '.bak.' . date('Y-m-d-H-i-s'));
         }
-        file_put_contents($file, $toml);
+        $this->writeSecureFile($file, $toml);
         chmod($file, 0o600);
     }
 
@@ -444,7 +446,7 @@ final class InstallCommand extends Command
         if (file_exists($file)) {
             copy($file, $file . '.bak.' . date('Y-m-d-H-i-s'));
         }
-        file_put_contents($file, $toml);
+        $this->writeSecureFile($file, $toml);
         chmod($file, 0o600);
     }
 
@@ -461,7 +463,23 @@ final class InstallCommand extends Command
         if (file_exists($file)) {
             copy($file, $file . '.bak.' . date('Y-m-d-H-i-s'));
         }
-        file_put_contents($file, $toml);
+        $this->writeSecureFile($file, $toml);
         chmod($file, 0o600);
+    }
+
+    private function writeSecureFile(string $file, string $contents): void
+    {
+        (new AtomicConfigurationWriter())->write($file, $contents);
+    }
+
+    private function resolveEncryptionKey(string $configFile): string
+    {
+        if (!is_file($configFile)) {
+            return CredentialService::generateKey();
+        }
+        $config = (array) Toml::decode((string) file_get_contents($configFile), asArray: true);
+        $key = (string) ($config['security']['encryption_key'] ?? '');
+        new CredentialService($key);
+        return $key;
     }
 }

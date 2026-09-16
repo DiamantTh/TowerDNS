@@ -245,7 +245,7 @@ final class ContainerFactory
             CredentialService::class => \DI\factory(static function () use ($appConf): CredentialService {
                 $b64 = (string) ($appConf['security']['encryption_key'] ?? '');
                 if ($b64 === '') {
-                    throw new \RuntimeException('security.encryption_key ist nicht konfiguriert.');
+                    throw new \RuntimeException('security.encryption_key is not configured.');
                 }
                 return new CredentialService($b64);
             }),
