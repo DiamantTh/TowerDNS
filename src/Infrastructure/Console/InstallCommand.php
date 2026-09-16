@@ -59,13 +59,15 @@ final class InstallCommand extends Command
         }
 
         // ── configs/ directory ────────────────────────────────────────────
-        if (!is_dir($cfgDir) && !mkdir($cfgDir, 0o750, true)) {
-            $io->error('Cannot create directory: ' . $cfgDir);
-            return Command::FAILURE;
-        }
-        if (!is_writable($cfgDir)) {
-            $io->error('configs/ directory is not writable: ' . $cfgDir);
-            return Command::FAILURE;
+        foreach ([$cfgDir, $this->projectRoot . '/cache/ratelimit', $this->projectRoot . '/data', $this->projectRoot . '/logs'] as $directory) {
+            if (!is_dir($directory) && !mkdir($directory, 0o750, true)) {
+                $io->error('Cannot create directory: ' . $directory);
+                return Command::FAILURE;
+            }
+            if (!is_writable($directory)) {
+                $io->error('Directory is not writable: ' . $directory);
+                return Command::FAILURE;
+            }
         }
 
         $io->title('TowerDNS CLI Installer');
@@ -365,6 +367,9 @@ final class InstallCommand extends Command
             domain      = "{$esc($appDomain)}"
             force_https = {$forceHttps}
             debug       = false
+
+            [session]
+            cookie_secure = {$forceHttps}
 
             [application]
             name = "{$esc($appName)}"

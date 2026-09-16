@@ -240,6 +240,13 @@ final readonly class SchemaManager
             'invited_by' => null,
             'created_at' => $now,
         ]);
+
+        $this->connection->insert('account_resource_limits', [
+            'account_id'            => $accountId,
+            'max_zones'             => null,
+            'max_members'           => null,
+            'max_provider_accounts' => null,
+        ]);
     }
 
     /**
