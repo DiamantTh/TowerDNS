@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Tests\Application\Module;
 
+use Laminas\I18n\Translator\Translator;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Application\Module\ModuleManifest;
@@ -28,6 +29,12 @@ final class LocalModuleDiscoveryTest extends TestCase
     {
         foreach (glob($this->modulesDirectory . '/*/module.php') ?: [] as $file) {
             unlink($file);
+            foreach (glob(dirname($file) . '/translations/*') ?: [] as $translation) {
+                unlink($translation);
+            }
+            if (is_dir(dirname($file) . '/translations')) {
+                rmdir(dirname($file) . '/translations');
+            }
             rmdir(dirname($file));
         }
         rmdir($this->modulesDirectory);
@@ -117,6 +124,48 @@ final class LocalModuleDiscoveryTest extends TestCase
         new ModuleManifest('towerdns.test', 'Test', '1.0.0', ModuleType::FEATURE, '^1.0');
     }
 
+    public function testOnlyActiveModuleTranslationDirectoriesAreExposed(): void
+    {
+        $this->writeManifest('TLSA', 'towerdns.tlsa', 'TLSA', 'feature');
+        $this->writeManifest('Monitor', 'towerdns.monitor', 'Monitor', 'feature');
+        mkdir($this->modulesDirectory . '/TLSA/translations', 0o700);
+        mkdir($this->modulesDirectory . '/Monitor/translations', 0o700);
+
+        self::assertSame(
+            [$this->modulesDirectory . '/TLSA/translations'],
+            new LocalModuleDiscovery($this->modulesDirectory, enabledModuleIds: ['towerdns.tlsa'])->translationDirectories(),
+        );
+    }
+
+    public function testActiveModuleTranslationsAreLoadableAndInactiveCataloguesAreExcluded(): void
+    {
+        $this->writeManifest('TLSA', 'towerdns.tlsa', 'TLSA', 'feature');
+        $this->writeManifest('Monitor', 'towerdns.monitor', 'Monitor', 'feature');
+        $this->writeTranslation('TLSA', 'en-GB', ['module.tlsa.label' => 'TLSA tools']);
+        $this->writeTranslation('Monitor', 'en-GB', ['module.monitor.label' => 'Monitor tools']);
+
+        $translator = new Translator();
+        $translator->setLocale('en-GB');
+        foreach (new LocalModuleDiscovery($this->modulesDirectory, enabledModuleIds: ['towerdns.tlsa'])->translationDirectories() as $directory) {
+            $translator->addTranslationFilePattern('phpArray', $directory, '%s.php', 'default');
+        }
+
+        self::assertSame('TLSA tools', $translator->translate('module.tlsa.label'));
+        self::assertSame('module.monitor.label', $translator->translate('module.monitor.label'));
+    }
+
+    public function testRejectsCollidingActiveModuleTranslationKeys(): void
+    {
+        $this->writeManifest('TLSA', 'towerdns.tlsa', 'TLSA', 'feature');
+        $this->writeManifest('Monitor', 'towerdns.monitor', 'Monitor', 'feature');
+        $this->writeTranslation('TLSA', 'en-GB', ['module.shared.label' => 'TLSA']);
+        $this->writeTranslation('Monitor', 'en-GB', ['module.shared.label' => 'Monitor']);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Module translation key collision');
+        new LocalModuleDiscovery($this->modulesDirectory)->translationDirectories();
+    }
+
     /** @param list<string> $dependencies */
     private function writeManifest(string $directory, string $id, string $displayName, string $type, array $dependencies = []): void
     {
@@ -140,6 +189,14 @@ final class LocalModuleDiscoveryTest extends TestCase
             $permission,
         );
         file_put_contents($this->modulesDirectory . '/' . $directory . '/module.php', $module);
+    }
+
+    /** @param array<string, string> $messages */
+    private function writeTranslation(string $directory, string $locale, array $messages): void
+    {
+        $translationDirectory = $this->modulesDirectory . '/' . $directory . '/translations';
+        mkdir($translationDirectory, 0o700);
+        file_put_contents($translationDirectory . '/' . $locale . '.php', "<?php\nreturn " . var_export($messages, true) . ";\n");
     }
 }
 

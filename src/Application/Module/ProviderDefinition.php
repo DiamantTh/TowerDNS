@@ -12,6 +12,7 @@ final readonly class ProviderDefinition
 {
     /**
      * @param array<string, array{input: string, label: string, required: bool, secret: bool, default?: string}> $credentials
+     *        Credential labels are translator keys owned by the contributing module.
      */
     public function __construct(
         public string $id,

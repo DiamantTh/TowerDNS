@@ -103,17 +103,21 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
         $providers = (array) ($configuration['providers'] ?? []);
 
         // Expose only non-sensitive metadata (no plain-text secrets in template)
-        $configured = [];
-        $values     = [];
-        foreach ($this->providers->definitions() as $id => $definition) {
+        $configured  = [];
+        $values      = [];
+        $definitions = $this->providers->definitions();
+        foreach ($definitions as $id => &$definition) {
             $stored          = (array) ($providers[$id] ?? []);
             $configured[$id] = $this->providers->credentialsComplete($id, $stored);
-            foreach ($definition['credentials'] as $key => $field) {
+            foreach ($definition['credentials'] as $key => &$field) {
                 $values[$field['input']] = $field['secret']
                     ? ''
                     : (string) ($stored[$key] ?? $field['default'] ?? '');
+                $field['label'] = $this->translator->translate($field['label']);
             }
+            unset($field);
         }
+        unset($definition);
 
         return new HtmlResponse($this->renderer->render('app::credentials', [
             'user'                => $user,
@@ -121,7 +125,7 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
             'csrfToken'           => $csrfToken,
             'configured'          => $configured,
             'values'              => $values,
-            'providerDefinitions' => $this->providers->definitions(),
+            'providerDefinitions' => $definitions,
             'error'               => $error,
             'success'             => $success,
         ]));

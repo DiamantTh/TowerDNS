@@ -24,10 +24,10 @@ final readonly class OVHcloudModule implements ProviderModuleInterface
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(OVHcloudProvider::ID, 'OVHcloud', true, [
-            'application_key'    => ['input' => 'ovh_application_key', 'label' => 'Application key', 'required' => true, 'secret' => true],
-            'application_secret' => ['input' => 'ovh_application_secret', 'label' => 'Application secret', 'required' => true, 'secret' => true],
-            'consumer_key'       => ['input' => 'ovh_consumer_key', 'label' => 'Consumer key', 'required' => true, 'secret' => true],
-            'endpoint'           => ['input' => 'ovh_endpoint', 'label' => 'API endpoint', 'required' => false, 'secret' => false, 'default' => 'ovh-eu'],
+            'application_key'    => ['input' => 'ovh_application_key', 'label' => 'module.ovhcloud.credentials.application-key.label', 'required' => true, 'secret' => true],
+            'application_secret' => ['input' => 'ovh_application_secret', 'label' => 'module.ovhcloud.credentials.application-secret.label', 'required' => true, 'secret' => true],
+            'consumer_key'       => ['input' => 'ovh_consumer_key', 'label' => 'module.ovhcloud.credentials.consumer-key.label', 'required' => true, 'secret' => true],
+            'endpoint'           => ['input' => 'ovh_endpoint', 'label' => 'module.ovhcloud.credentials.endpoint.label', 'required' => false, 'secret' => false, 'default' => 'ovh-eu'],
         ]);
     }
 

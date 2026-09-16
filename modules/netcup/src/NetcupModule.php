@@ -23,10 +23,10 @@ final readonly class NetcupModule implements ProviderModuleInterface
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(NetcupProvider::ID, 'netcup', true, [
-            'customer_number' => ['input' => 'netcup_customer_number', 'label' => 'Kundennummer', 'required' => true, 'secret' => false],
-            'api_key'         => ['input' => 'netcup_api_key', 'label' => 'Legacy API-Key', 'required' => true, 'secret' => true],
-            'api_password'    => ['input' => 'netcup_api_password', 'label' => 'Legacy API-Passwort', 'required' => true, 'secret' => true],
-            'zones'           => ['input' => 'netcup_zones', 'label' => 'Zonen (kommagetrennt)', 'required' => true, 'secret' => false],
+            'customer_number' => ['input' => 'netcup_customer_number', 'label' => 'module.netcup.credentials.customer-number.label', 'required' => true, 'secret' => false],
+            'api_key'         => ['input' => 'netcup_api_key', 'label' => 'module.netcup.credentials.api-key.label', 'required' => true, 'secret' => true],
+            'api_password'    => ['input' => 'netcup_api_password', 'label' => 'module.netcup.credentials.api-password.label', 'required' => true, 'secret' => true],
+            'zones'           => ['input' => 'netcup_zones', 'label' => 'module.netcup.credentials.zones.label', 'required' => true, 'secret' => false],
         ]);
     }
 

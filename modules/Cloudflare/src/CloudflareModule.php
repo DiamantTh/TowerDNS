@@ -23,7 +23,7 @@ final readonly class CloudflareModule implements ProviderModuleInterface
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition('cloudflare', 'Cloudflare', true, [
-            'api_token' => ['input' => 'cloudflare_api_token', 'label' => 'API-Token', 'required' => true, 'secret' => true],
+            'api_token' => ['input' => 'cloudflare_api_token', 'label' => 'module.cloudflare.credentials.api-token.label', 'required' => true, 'secret' => true],
         ]);
     }
 

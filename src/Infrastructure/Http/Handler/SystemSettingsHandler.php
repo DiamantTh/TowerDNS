@@ -220,7 +220,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         try {
             $toml = Toml::encode($conf);
             if (file_put_contents($this->configPath, $toml) === false) {
-                throw new \RuntimeException('Konfigurationsdatei konnte nicht geschrieben werden.');
+                throw new \RuntimeException('Configuration file could not be written.');
             }
 
             // Runtime-Werte (DB)

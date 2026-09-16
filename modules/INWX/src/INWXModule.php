@@ -23,8 +23,8 @@ final readonly class INWXModule implements ProviderModuleInterface
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(INWXProvider::ID, 'INWX', true, [
-            'username' => ['input' => 'inwx_username', 'label' => 'Benutzername', 'required' => true, 'secret' => false],
-            'password' => ['input' => 'inwx_password', 'label' => 'Passwort', 'required' => true, 'secret' => true],
+            'username' => ['input' => 'inwx_username', 'label' => 'module.inwx.credentials.username.label', 'required' => true, 'secret' => false],
+            'password' => ['input' => 'inwx_password', 'label' => 'module.inwx.credentials.password.label', 'required' => true, 'secret' => true],
         ]);
     }
 

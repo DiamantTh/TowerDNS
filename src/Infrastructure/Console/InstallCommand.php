@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Console;
 
 use Devium\Toml\Toml;
 use Doctrine\DBAL\DriverManager;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -29,6 +30,7 @@ final class InstallCommand extends Command
     public function __construct(
         private readonly string $projectRoot,
         private readonly ?DnsProviderFactory $providerFactory = null,
+        private readonly ?TranslatorInterface $translator = null,
     ) {
         parent::__construct();
     }
@@ -163,16 +165,17 @@ final class InstallCommand extends Command
             }
             $credentials = [];
             foreach ($definition['credentials'] as $key => $field) {
-                $validator = static function (?string $value) use ($field): string {
+                $label     = $this->translate($field['label']);
+                $validator = static function (?string $value) use ($field, $label): string {
                     $value = trim($value ?? '');
                     if ($field['required'] && $value === '') {
-                        throw new \RuntimeException($field['label'] . ' is required.');
+                        throw new \RuntimeException($label . ' is required.');
                     }
                     return $value;
                 };
                 $credentials[$key] = $field['secret']
-                    ? ($io->askHidden($field['label'], $validator) ?? '')
-                    : ($io->ask($field['label'], $field['default'] ?? null, $validator) ?? '');
+                    ? ($io->askHidden($label, $validator) ?? '')
+                    : ($io->ask($label, $field['default'] ?? null, $validator) ?? '');
             }
             $providers[$id] = $credentials;
         }
@@ -280,6 +283,11 @@ final class InstallCommand extends Command
         ]);
 
         return Command::SUCCESS;
+    }
+
+    private function translate(string $message): string
+    {
+        return $this->translator?->translate($message) ?? $message;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────

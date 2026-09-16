@@ -75,6 +75,61 @@ final readonly class LocalModuleDiscovery
         return $definitions;
     }
 
+    /** @return list<string> Translation directories of currently active modules. */
+    public function translationDirectories(): array
+    {
+        $active = [];
+        foreach ($this->load() as $module) {
+            $manifest              = $module instanceof ModuleManifest ? $module : $module->manifest();
+            $active[$manifest->id] = true;
+        }
+        $directories = [];
+        foreach (glob($this->moduleDirectory . '/*/module.php') ?: [] as $file) {
+            $module = require $file;
+            if (!$module instanceof ModuleManifest && !$module instanceof TowerDNSModuleInterface) {
+                continue;
+            }
+            $manifest  = $module instanceof ModuleManifest ? $module : $module->manifest();
+            $directory = dirname($file) . '/translations';
+            if (isset($active[$manifest->id]) && is_dir($directory)) {
+                $directories[] = $directory;
+            }
+        }
+        sort($directories, SORT_STRING);
+        $this->assertTranslationKeysAreUnique($directories);
+        return $directories;
+    }
+
+    /** @param list<string> $directories */
+    private function assertTranslationKeysAreUnique(array $directories): void
+    {
+        /** @var array<string, string> $owners */
+        $owners = [];
+        foreach ($directories as $directory) {
+            foreach (glob($directory . '/*.php') ?: [] as $catalogue) {
+                $messages = require $catalogue;
+                if (!is_array($messages)) {
+                    throw new \RuntimeException(sprintf('Module translation catalogue "%s" must return an array.', $catalogue));
+                }
+                foreach (array_keys($messages) as $key) {
+                    if ($key === '') {
+                        continue;
+                    }
+                    $localeKey = basename($catalogue) . ':' . $key;
+                    if (isset($owners[$localeKey])) {
+                        throw new \RuntimeException(sprintf(
+                            'Module translation key collision for "%s" between "%s" and "%s".',
+                            $key,
+                            $owners[$localeKey],
+                            $catalogue,
+                        ));
+                    }
+                    $owners[$localeKey] = $catalogue;
+                }
+            }
+        }
+    }
+
     /** @return list<ModuleManifest|TowerDNSModuleInterface> */
     private function load(): array
     {

@@ -497,7 +497,7 @@ final class ContainerFactory
 
             // ── Laminas I18n Translator ───────────────────────────────────────
             TranslatorInterface::class => \DI\factory(
-                static function () use ($appConf, $projectRoot): TranslatorInterface {
+                static function () use ($appConf, $projectRoot, $moduleDiscovery): TranslatorInterface {
                     $locale     = str_replace('_', '-', (string) ($appConf['app']['locale'] ?? 'en-GB'));
                     $translator = new Translator();
                     $translator->setLocale($locale);
@@ -510,6 +510,9 @@ final class ContainerFactory
                             '%s.php',
                             'default',
                         );
+                    }
+                    foreach ($moduleDiscovery->translationDirectories() as $directory) {
+                        $translator->addTranslationFilePattern('phpArray', $directory, '%s.php', 'default');
                     }
                     return $translator;
                 }
@@ -526,7 +529,11 @@ final class ContainerFactory
 
             // ── Console commands ─────────────────────────────────────────────
             InstallCommand::class => \DI\factory(
-                static fn(): InstallCommand => new InstallCommand($projectRoot, $providerFactory)
+                static fn(\Psr\Container\ContainerInterface $c): InstallCommand => new InstallCommand(
+                    $projectRoot,
+                    $providerFactory,
+                    $c->get(TranslatorInterface::class),
+                )
             ),
             PasswordResetCommand::class => \DI\factory(
                 static fn(): PasswordResetCommand => new PasswordResetCommand($projectRoot)

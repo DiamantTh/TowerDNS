@@ -23,9 +23,9 @@ final readonly class ClouDNSModule implements ProviderModuleInterface
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(ClouDNSProvider::ID, 'ClouDNS', true, [
-            'auth_id'       => ['input' => 'cloudns_auth_id', 'label' => 'Authentication ID', 'required' => true, 'secret' => false],
-            'auth_password' => ['input' => 'cloudns_auth_password', 'label' => 'Authentication password', 'required' => true, 'secret' => true],
-            'auth_type'     => ['input' => 'cloudns_auth_type', 'label' => 'Authentication type', 'required' => false, 'secret' => false, 'default' => 'auth-id'],
+            'auth_id'       => ['input' => 'cloudns_auth_id', 'label' => 'module.cloudns.credentials.auth-id.label', 'required' => true, 'secret' => false],
+            'auth_password' => ['input' => 'cloudns_auth_password', 'label' => 'module.cloudns.credentials.auth-password.label', 'required' => true, 'secret' => true],
+            'auth_type'     => ['input' => 'cloudns_auth_type', 'label' => 'module.cloudns.credentials.auth-type.label', 'required' => false, 'secret' => false, 'default' => 'auth-id'],
         ]);
     }
 

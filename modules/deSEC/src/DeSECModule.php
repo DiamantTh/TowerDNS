@@ -23,7 +23,7 @@ final readonly class DeSECModule implements ProviderModuleInterface
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition('desec', 'deSEC', true, [
-            'token' => ['input' => 'desec_token', 'label' => 'API-Token', 'required' => true, 'secret' => true],
+            'token' => ['input' => 'desec_token', 'label' => 'module.desec.credentials.token.label', 'required' => true, 'secret' => true],
         ]);
     }
 
