@@ -18,7 +18,7 @@ final readonly class ZoneMembership
 {
     public function __construct(
         public int      $id,
-        public string   $zoneId,
+        public int      $managedZoneId,
         public string   $userId,
         public TeamRole $role,
         public string   $createdAt,

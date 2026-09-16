@@ -18,6 +18,12 @@ final readonly class DbalManagedZoneRepository implements ManagedZoneRepositoryI
         return $row === false ? null : $this->hydrate($row);
     }
 
+    public function findByIdForAccount(int $id, int $accountId): ?ManagedZone
+    {
+        $row = $this->connection->fetchAssociative('SELECT * FROM managed_zones WHERE id = ? AND account_id = ?', [$id, $accountId]);
+        return $row === false ? null : $this->hydrate($row);
+    }
+
     public function findByProviderZone(int $providerAccountId, string $providerZoneId): ?ManagedZone
     {
         $row = $this->connection->fetchAssociative(

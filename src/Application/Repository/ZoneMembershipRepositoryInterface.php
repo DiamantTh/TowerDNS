@@ -16,7 +16,7 @@ interface ZoneMembershipRepositoryInterface
      * Returns all zone-level memberships for a given zone.
      * @return list<ZoneMembership>
      */
-    public function findByZoneId(string $zoneId): array;
+    public function findByManagedZoneId(int $managedZoneId): array;
 
     /**
      * Returns all zone-level memberships for a given user across all zones.
@@ -25,11 +25,11 @@ interface ZoneMembershipRepositoryInterface
      */
     public function findByUserId(string $userId): array;
 
-    public function findMembership(string $zoneId, string $userId): ?ZoneMembership;
+    public function findMembership(int $managedZoneId, string $userId): ?ZoneMembership;
 
-    public function grant(string $zoneId, string $userId, TeamRole $role, string $createdAt, int $accountId = 0, ?string $grantedBy = null): void;
+    public function grant(int $managedZoneId, string $userId, TeamRole $role, string $createdAt, ?string $grantedBy = null): void;
 
-    public function updateRole(string $zoneId, string $userId, TeamRole $role): void;
+    public function updateRole(int $managedZoneId, string $userId, TeamRole $role): void;
 
-    public function revoke(string $zoneId, string $userId): void;
+    public function revoke(int $managedZoneId, string $userId): void;
 }

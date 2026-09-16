@@ -9,6 +9,7 @@ namespace TowerDNS\Tests\Application\Services;
 
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\PermissionService;
@@ -43,7 +44,7 @@ final class PermissionServiceTest extends TestCase
         $user    = new User('user-1', 'user@example.test');
 
         self::assertTrue($service->authorizeAccount($user, Permission::RECORD_UPDATE, 42));
-        self::assertTrue($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-a'));
+        self::assertTrue($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
         self::assertFalse($service->authorizeAccount($user, Permission::ACCOUNT_MEMBERS_MANAGE, 42));
         self::assertFalse($service->authorizeAccount($user, Permission::RECORD_UPDATE, 43));
     }
@@ -52,7 +53,7 @@ final class PermissionServiceTest extends TestCase
     {
         $zoneMembership = new ZoneMembership(
             id: 1,
-            zoneId: 'zone-a',
+            managedZoneId: 1,
             userId: 'user-1',
             role: TeamRole::DNS_MANAGER,
             createdAt: '2026-09-13 12:00:00',
@@ -60,8 +61,8 @@ final class PermissionServiceTest extends TestCase
         $service = $this->serviceFor(null, $zoneMembership);
         $user    = new User('user-1', 'user@example.test');
 
-        self::assertTrue($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-a'));
-        self::assertFalse($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-b'));
+        self::assertTrue($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
+        self::assertFalse($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 2));
         self::assertFalse($service->authorizeAccount($user, Permission::RECORD_UPDATE, 42));
     }
 
@@ -69,7 +70,7 @@ final class PermissionServiceTest extends TestCase
     {
         $zoneMembership = new ZoneMembership(
             id: 1,
-            zoneId: 'zone-a',
+            managedZoneId: 1,
             userId: 'user-1',
             role: TeamRole::DNS_MANAGER,
             createdAt: '2026-09-13 12:00:00',
@@ -77,9 +78,9 @@ final class PermissionServiceTest extends TestCase
         $service = $this->serviceFor(TeamRole::VIEWER, $zoneMembership);
         $user    = new User('user-1', 'user@example.test');
 
-        self::assertTrue($service->authorizeZone($user, Permission::RECORD_READ, 42, 'zone-a'));
-        self::assertTrue($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-a'));
-        self::assertFalse($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-b'));
+        self::assertTrue($service->authorizeManagedZone($user, Permission::RECORD_READ, 42, 1));
+        self::assertTrue($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
+        self::assertFalse($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 2));
     }
 
     public function testSystemUserManagementDoesNotGrantAccountAccess(): void
@@ -91,7 +92,7 @@ final class PermissionServiceTest extends TestCase
 
         self::assertTrue($service->authorizeSystem($user, Permission::USER_MANAGE));
         self::assertFalse($service->authorizeAccount($user, Permission::ACCOUNT_READ, 42));
-        self::assertFalse($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-a'));
+        self::assertFalse($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
     }
 
     public function testExplicitSystemAccountAccessGrantsGlobalAccountAndZoneAccess(): void
@@ -102,7 +103,7 @@ final class PermissionServiceTest extends TestCase
         ]);
 
         self::assertTrue($service->authorizeAccount($user, Permission::ACCOUNT_READ, 42));
-        self::assertTrue($service->authorizeZone($user, Permission::RECORD_UPDATE, 42, 'zone-a'));
+        self::assertTrue($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
     }
 
     public function testImpersonationRequiresItsOwnSystemPermission(): void
@@ -128,13 +129,20 @@ final class PermissionServiceTest extends TestCase
 
         $zones = $this->createMock(ZoneMembershipRepositoryInterface::class);
         $zones->method('findMembership')->willReturnCallback(
-            static fn(string $zoneId, string $userId): ?ZoneMembership => $zoneId === 'zone-a' && $userId === 'user-1'
+            static fn(int $managedZoneId, string $userId): ?ZoneMembership => $managedZoneId === 1 && $userId === 'user-1'
                 ? $zoneMembership
+                : null,
+        );
+
+        $managedZones = $this->createMock(ManagedZoneRepositoryInterface::class);
+        $managedZones->method('findByIdForAccount')->willReturnCallback(
+            static fn(int $id, int $accountId): ?\TowerDNS\Domain\Account\ManagedZone => $accountId === 42 && in_array($id, [1], true)
+                ? new \TowerDNS\Domain\Account\ManagedZone($id, 42, 7, 'external-' . $id, 'example.test', '2026-09-13 12:00:00')
                 : null,
         );
 
         $rbac = new RbacPermissionChecker();
 
-        return new PermissionService($accounts, $zones, new AuthorizationService($rbac), $rbac);
+        return new PermissionService($accounts, $zones, new AuthorizationService($rbac), $rbac, $managedZones);
     }
 }

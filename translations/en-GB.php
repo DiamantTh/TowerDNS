@@ -240,6 +240,7 @@ return [
     'settings.sender'                          => 'Sender',
     'http.error.invalid-request'               => 'Invalid request.',
     'http.error.forbidden'                     => 'You are not allowed to perform this action.',
+    'http.error.not-found'                     => 'The requested resource was not found.',
     'zones.error.name-required'                => 'Enter a zone name.',
     'zones.error.create-denied'                => 'You do not have permission to create zones.',
     'zones.error.create-failed'                => 'Could not create the zone.',

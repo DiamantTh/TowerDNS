@@ -10,6 +10,8 @@ interface ManagedZoneRepositoryInterface
 {
     public function findById(int $id): ?ManagedZone;
 
+    public function findByIdForAccount(int $id, int $accountId): ?ManagedZone;
+
     public function findByProviderZone(int $providerAccountId, string $providerZoneId): ?ManagedZone;
 
     /** @return list<ManagedZone> */

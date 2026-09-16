@@ -17,6 +17,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
@@ -39,6 +40,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
     public function __construct(
         private TemplateRendererInterface          $renderer,
         private ZoneMembershipRepositoryInterface  $zoneMemberships,
+        private ManagedZoneRepositoryInterface      $managedZones,
         private UserRepositoryInterface            $users,
         private PermissionService                  $permissions,
         private AuditLogService                    $audit,
@@ -57,21 +59,24 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
     private function handleGet(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $user */
-        $user      = $request->getAttribute(User::class);
-        $accountId = (int) $request->getAttribute('id', 0);
-        $zoneId    = (string) $request->getAttribute('zone', '');
+        $user          = $request->getAttribute(User::class);
+        $accountId     = (int) $request->getAttribute('id', 0);
+        $managedZoneId = (int) $request->getAttribute('zone', 0);
 
         try {
             $this->permissions->assertCanManageMembers($accountId, $user);
         } catch (AuthorizationException) {
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
+        if ($this->managedZones->findByIdForAccount($managedZoneId, $accountId) === null) {
+            return new HtmlResponse($this->translator->translate('http.error.not-found'), 404);
+        }
 
         /** @var CsrfGuardInterface $guard */
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $members    = $this->zoneMemberships->findByZoneId($zoneId);
+        $members    = $this->zoneMemberships->findByManagedZoneId($managedZoneId);
         $allUsers   = $this->users->findAll();
         $flashError = $request->getQueryParams()['error'] ?? null;
 
@@ -79,7 +84,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
             $this->renderer->render('app::zones/members', [
                 'user'      => $user,
                 'accountId' => $accountId,
-                'zoneId'    => $zoneId,
+                'zoneId'    => (string) $managedZoneId,
                 'members'   => $members,
                 'allUsers'  => $allUsers,
                 'roles'     => TeamRole::cases(),
@@ -94,14 +99,17 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
     private function handlePost(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $user */
-        $user      = $request->getAttribute(User::class);
-        $accountId = (int) $request->getAttribute('id', 0);
-        $zoneId    = (string) $request->getAttribute('zone', '');
+        $user          = $request->getAttribute(User::class);
+        $accountId     = (int) $request->getAttribute('id', 0);
+        $managedZoneId = (int) $request->getAttribute('zone', 0);
 
         try {
             $this->permissions->assertCanManageMembers($accountId, $user);
         } catch (AuthorizationException) {
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        }
+        if ($this->managedZones->findByIdForAccount($managedZoneId, $accountId) === null) {
+            return new HtmlResponse($this->translator->translate('http.error.not-found'), 404);
         }
 
         /** @var CsrfGuardInterface $guard */
@@ -117,7 +125,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         $action       = (string) ($body['action'] ?? '');
         $targetUserId = trim((string) ($body['user_id'] ?? ''));
         $base         = '/accounts/' . $accountId . '/providers/' . rawurlencode((string) $request->getAttribute('pid', ''))
-            . '/zones/' . rawurlencode($zoneId) . '/members';
+            . '/zones/' . rawurlencode((string) $managedZoneId) . '/members';
 
         if ($action === 'revoke') {
             if ($targetUserId === '') {
@@ -126,8 +134,8 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
                 ));
             }
 
-            $this->zoneMemberships->revoke($zoneId, $targetUserId);
-            $this->audit->recordZoneMemberRevoked($request, $user->id, $accountId, $zoneId, $targetUserId);
+            $this->zoneMemberships->revoke($managedZoneId, $targetUserId);
+            $this->audit->recordZoneMemberRevoked($request, $user->id, $accountId, $managedZoneId, $targetUserId);
 
             return new RedirectResponse($base);
         }
@@ -144,14 +152,13 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
 
             try {
                 $this->zoneMemberships->grant(
-                    zoneId: $zoneId,
+                    managedZoneId: $managedZoneId,
                     userId: $targetUserId,
                     role: $role,
                     createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
-                    accountId: $accountId,
                     grantedBy: $user->id,
                 );
-                $this->audit->recordZoneMemberGranted($request, $user->id, $accountId, $zoneId, $targetUserId, $role->value);
+                $this->audit->recordZoneMemberGranted($request, $user->id, $accountId, $managedZoneId, $targetUserId, $role->value);
             } catch (\Throwable) {
                 return new RedirectResponse($base . '?error=' . rawurlencode(
                     $this->translator->translate('zone-members.error.grant-failed'),

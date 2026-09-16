@@ -16,11 +16,11 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
 {
     public function __construct(private Connection $connection) {}
 
-    public function findByZoneId(string $zoneId): array
+    public function findByManagedZoneId(int $managedZoneId): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT * FROM zone_memberships WHERE zone_id = ? ORDER BY created_at ASC',
-            [$zoneId]
+            'SELECT * FROM zone_memberships WHERE managed_zone_id = ? ORDER BY created_at ASC',
+            [$managedZoneId]
         );
         return array_map($this->hydrate(...), $rows);
     }
@@ -34,41 +34,40 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
         return array_map($this->hydrate(...), $rows);
     }
 
-    public function findMembership(string $zoneId, string $userId): ?ZoneMembership
+    public function findMembership(int $managedZoneId, string $userId): ?ZoneMembership
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT * FROM zone_memberships WHERE zone_id = ? AND user_id = ?',
-            [$zoneId, $userId]
+            'SELECT * FROM zone_memberships WHERE managed_zone_id = ? AND user_id = ?',
+            [$managedZoneId, $userId]
         );
         return $row !== false ? $this->hydrate($row) : null;
     }
 
-    public function grant(string $zoneId, string $userId, TeamRole $role, string $createdAt, int $accountId = 0, ?string $grantedBy = null): void
+    public function grant(int $managedZoneId, string $userId, TeamRole $role, string $createdAt, ?string $grantedBy = null): void
     {
         $this->connection->insert('zone_memberships', [
-            'account_id' => $accountId,
-            'zone_id'    => $zoneId,
-            'user_id'    => $userId,
-            'role'       => $role->value,
-            'granted_by' => $grantedBy,
-            'created_at' => $createdAt,
+            'managed_zone_id' => $managedZoneId,
+            'user_id'         => $userId,
+            'role'            => $role->value,
+            'granted_by'      => $grantedBy,
+            'created_at'      => $createdAt,
         ]);
     }
 
-    public function updateRole(string $zoneId, string $userId, TeamRole $role): void
+    public function updateRole(int $managedZoneId, string $userId, TeamRole $role): void
     {
         $this->connection->update(
             'zone_memberships',
             ['role' => $role->value],
-            ['zone_id' => $zoneId, 'user_id' => $userId]
+            ['managed_zone_id' => $managedZoneId, 'user_id' => $userId]
         );
     }
 
-    public function revoke(string $zoneId, string $userId): void
+    public function revoke(int $managedZoneId, string $userId): void
     {
         $this->connection->delete(
             'zone_memberships',
-            ['zone_id' => $zoneId, 'user_id' => $userId]
+            ['managed_zone_id' => $managedZoneId, 'user_id' => $userId]
         );
     }
 
@@ -77,7 +76,7 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
     {
         return new ZoneMembership(
             id: (int) $row['id'],
-            zoneId: (string) $row['zone_id'],
+            managedZoneId: (int) $row['managed_zone_id'],
             userId: (string) $row['user_id'],
             role: TeamRole::from((string) $row['role']),
             createdAt: (string) ($row['created_at'] ?? ''),

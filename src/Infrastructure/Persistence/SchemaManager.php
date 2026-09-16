@@ -470,20 +470,19 @@ final readonly class SchemaManager
         // zone_memberships ---------------------------------------------------
         $zoneMembers = new Table('zone_memberships');
         $zoneMembers->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
-        $zoneMembers->addColumn('account_id', Types::INTEGER);
-        $zoneMembers->addColumn('zone_id', Types::STRING, ['length' => 253]);
+        $zoneMembers->addColumn('managed_zone_id', Types::INTEGER);
         $zoneMembers->addColumn('user_id', Types::GUID);
         $zoneMembers->addColumn('role', Types::STRING, ['length' => 32]);
         $zoneMembers->addColumn('granted_by', Types::GUID, ['notnull' => false]);
         $zoneMembers->addColumn('created_at', Types::DATETIME_MUTABLE);
         $zoneMembers->setPrimaryKey(['id']);
-        $zoneMembers->addUniqueIndex(['account_id', 'zone_id', 'user_id'], 'uq_zm_account_zone_user');
+        $zoneMembers->addUniqueIndex(['managed_zone_id', 'user_id'], 'uq_zm_zone_user');
         $zoneMembers->addForeignKeyConstraint(
-            'accounts',
-            ['account_id'],
+            'managed_zones',
+            ['managed_zone_id'],
             ['id'],
             ['onDelete' => 'CASCADE'],
-            'fk_zm_account_id',
+            'fk_zm_managed_zone_id',
         );
         $zoneMembers->addForeignKeyConstraint(
             'users',

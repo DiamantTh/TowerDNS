@@ -132,14 +132,14 @@ final readonly class AuditLogService
         $this->record($request, 'zone.record.delete', 'record', null, $actorId, $accountId, $zoneId, null, null, null, null, null, ['record' => $recordName, 'type' => $type]);
     }
 
-    public function recordZoneMemberGranted(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $targetUserId, string $role): void
+    public function recordZoneMemberGranted(ServerRequestInterface $request, string $actorId, ?int $accountId, int $managedZoneId, string $targetUserId, string $role): void
     {
-        $this->record($request, 'zone.member.grant', 'user', $targetUserId, $actorId, $accountId, $zoneId, null, null, null, null, null, ['role' => $role]);
+        $this->record($request, 'zone.member.grant', 'user', $targetUserId, $actorId, $accountId, (string) $managedZoneId, null, null, null, null, null, ['managed_zone_id' => $managedZoneId, 'role' => $role]);
     }
 
-    public function recordZoneMemberRevoked(ServerRequestInterface $request, string $actorId, ?int $accountId, string $zoneId, string $targetUserId): void
+    public function recordZoneMemberRevoked(ServerRequestInterface $request, string $actorId, ?int $accountId, int $managedZoneId, string $targetUserId): void
     {
-        $this->record($request, 'zone.member.revoke', 'user', $targetUserId, $actorId, $accountId, $zoneId);
+        $this->record($request, 'zone.member.revoke', 'user', $targetUserId, $actorId, $accountId, (string) $managedZoneId, null, null, null, null, null, ['managed_zone_id' => $managedZoneId]);
     }
 
     public function recordProviderAccountCreated(ServerRequestInterface $request, string $actorId, int $accountId, int $providerAccountId, string $name, string $providerType): void
