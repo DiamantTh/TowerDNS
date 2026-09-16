@@ -15,7 +15,9 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Services\ActiveAccountService;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\ActiveAccountContext;
 use TowerDNS\Infrastructure\Http\ImpersonationContext;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
 
@@ -40,6 +42,7 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
         private AdminImpersonationSessionRepositoryInterface $impersonationSessions,
         private AccountRepositoryInterface $accounts,
         private SessionSecurity $sessionSecurity,
+        private ActiveAccountService $activeAccounts,
     ) {}
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -70,6 +73,16 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
                             }
                         }
                     }
+                    /** @var User $effectiveUser */
+                    $effectiveUser = $request->getAttribute(User::class);
+                    $activeId      = $session->get('active_account_id');
+                    $active        = is_int($activeId) || (is_string($activeId) && ctype_digit($activeId))
+                        ? $this->activeAccounts->resolve($effectiveUser, (int) $activeId)
+                        : null;
+                    if ($active === null && $activeId !== null) {
+                        $session->unset('active_account_id');
+                    }
+                    $request = $request->withAttribute(ActiveAccountContext::class, new ActiveAccountContext($active));
                 }
             }
         }

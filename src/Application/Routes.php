@@ -9,6 +9,7 @@ namespace TowerDNS\Application;
 
 use Mezzio\Application;
 use TowerDNS\Infrastructure\Http\Handler\AccountHandler;
+use TowerDNS\Infrastructure\Http\Handler\ActiveAccountHandler;
 use TowerDNS\Infrastructure\Http\Handler\AdminSwitchHandler;
 use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
@@ -127,6 +128,7 @@ final class Routes
         // ── Accounts (multi-tenant) ───────────────────────────────────────────
         $app->get('/accounts', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.list');
         $app->post('/accounts', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.create');
+        $app->post('/accounts/active', [RequireAuthMiddleware::class, ActiveAccountHandler::class], 'accounts.active');
         $app->get('/accounts/{id}', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.edit.form');
         $app->post('/accounts/{id}', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.edit.submit');
         $app->get('/accounts/{id}/members', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.members');
