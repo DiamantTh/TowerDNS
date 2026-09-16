@@ -7,12 +7,12 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Provider;
 
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Contracts\ProviderCapabilitySet;
 use TowerDNS\Application\Contracts\ProviderConstraintProfile;
 use TowerDNS\Application\Contracts\ProviderConstraintProviderInterface;
 use TowerDNS\Application\Contracts\RrsetProviderInterface;
-use TowerDNS\Domain\DNS\DnsRecordType;
+use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
 
 /**
@@ -21,7 +21,7 @@ use TowerDNS\Domain\DNS\Rrset;
  * Concrete adapters declare a capability map; this base class wraps it in an
  * immutable {@see ProviderCapabilitySet}.
  */
-abstract class AbstractDnsProvider implements DnsProviderInterface, RrsetProviderInterface, ProviderConstraintProviderInterface
+abstract class AbstractDNSProvider implements DNSProviderInterface, RrsetProviderInterface, ProviderConstraintProviderInterface
 {
     private readonly ProviderCapabilitySet $capabilitySet;
 
@@ -48,10 +48,10 @@ abstract class AbstractDnsProvider implements DnsProviderInterface, RrsetProvide
     /** @return list<Rrset> */
     public function listRrsets(string $zoneId): array
     {
-        /** @var array<string, array{owner: string, type: DnsRecordType, ttl: int, rdata: list<string>, ids: list<string>}> $sets */
+        /** @var array<string, array{owner: string, type: DNSRecordType, ttl: int, rdata: list<string>, ids: list<string>}> $sets */
         $sets = [];
         foreach ($this->listRecords($zoneId) as $record) {
-            $type = DnsRecordType::parse($record->type->value);
+            $type = DNSRecordType::parse($record->type->value);
             $key = strtolower(rtrim($record->name, '.')) . "\0" . $type->code;
             if (!isset($sets[$key])) {
                 $sets[$key] = ['owner' => $record->name, 'type' => $type, 'ttl' => $record->ttl, 'rdata' => [], 'ids' => []];

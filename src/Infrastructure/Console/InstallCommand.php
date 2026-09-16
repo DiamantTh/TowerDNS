@@ -18,9 +18,9 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
-use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
-use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
+use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
+use TowerDNS\Infrastructure\Provider\DNSProviderFactory;
 
 /**
  * Interactive CLI installer for TowerDNS.
@@ -35,7 +35,7 @@ final class InstallCommand extends Command
 
     public function __construct(
         private readonly string $projectRoot,
-        private readonly ?DnsProviderFactory $providerFactory = null,
+        private readonly ?DNSProviderFactory $providerFactory = null,
         private readonly ?TranslatorInterface $translator = null,
     ) {
         parent::__construct();
@@ -164,7 +164,7 @@ final class InstallCommand extends Command
 
         $providers = [];
 
-        $factory = $this->providerFactory ?? new DnsProviderFactory();
+        $factory = $this->providerFactory ?? new DNSProviderFactory();
         foreach ($factory->definitions() as $id => $definition) {
             if (!$io->confirm('Enable ' . $definition['label'] . ' provider', false)) {
                 continue;
@@ -494,7 +494,7 @@ final class InstallCommand extends Command
             return CredentialService::generateKey();
         }
         $config = (array) Toml::decode((string) file_get_contents($configFile), asArray: true);
-        $key = (string) ($config['security']['encryption_key'] ?? '');
+        $key    = (string) ($config['security']['encryption_key'] ?? '');
         new CredentialService($key);
         return $key;
     }

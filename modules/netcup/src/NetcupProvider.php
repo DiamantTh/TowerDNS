@@ -9,13 +9,13 @@ namespace TowerDNS\Module\netcup;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
-use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
-use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
+use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /**
  * Netcup legacy CCP DNS adapter.
@@ -24,7 +24,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  * list-zones endpoint for ordinary customer accounts. The explicit zone allow
  * list is therefore a safety boundary as well as an API limitation.
  */
-final class NetcupProvider extends AbstractDnsProvider
+final class NetcupProvider extends AbstractDNSProvider
 {
     public const string ID = 'netcup';
 
@@ -182,13 +182,13 @@ final class NetcupProvider extends AbstractDnsProvider
         $this->client->replaceDnsRecords($zoneId, $remaining);
     }
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $this->assertAllowedZone($zoneId);
-        return new DnssecProfile($zoneId, DnssecState::UNKNOWN, ['auto_managed' => false, 'ds_available' => false]);
+        return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN, ['auto_managed' => false, 'ds_available' => false]);
     }
 
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('Netcup CCP DNS stellt keine DNSSEC-Key-Verwaltung über diese Schnittstelle bereit.');
     }

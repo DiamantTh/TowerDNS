@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
-use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
+use TowerDNS\Infrastructure\Provider\DNSProviderFactory;
 use TowerDNS\Module\Cloudflare\CloudflareProvider;
 use TowerDNS\Module\ClouDNS\ClouDNSProvider;
 use TowerDNS\Module\DeSEC\DeSECProvider;
@@ -49,7 +49,7 @@ final class DnsProviderFactoryTest extends TestCase
     public function testUnknownProviderUsesDomainSpecificException(): void
     {
         $this->expectException(ProviderNotFoundException::class);
-        new DnsProviderFactory()->build('unknown', []);
+        new DNSProviderFactory()->build('unknown', []);
     }
 
     public function testBuildsDeSecFromItsLocalModuleContribution(): void
@@ -133,9 +133,9 @@ final class DnsProviderFactoryTest extends TestCase
         self::assertSame('Google Cloud DNS', $factory->definitions()['google-cloud-dns']['label']);
     }
 
-    private function moduleFactory(): DnsProviderFactory
+    private function moduleFactory(): DNSProviderFactory
     {
         $discovery = new LocalModuleDiscovery(dirname(__DIR__, 3) . '/modules');
-        return new DnsProviderFactory(new ProviderModuleRegistry($discovery->providerModules()));
+        return new DNSProviderFactory(new ProviderModuleRegistry($discovery->providerModules()));
     }
 }

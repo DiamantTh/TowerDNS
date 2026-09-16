@@ -16,8 +16,8 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
-use TowerDNS\Domain\DNS\DnsRecordType;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSRecordType;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
@@ -92,7 +92,7 @@ final class PowerDNSProviderTest extends TestCase
 
         $profile = $provider->getDnssecProfile('example.org.');
 
-        self::assertSame(DnssecState::SIGNED, $profile->state);
+        self::assertSame(DNSSECState::SIGNED, $profile->state);
         self::assertSame(1, $profile->metadata['key_count']);
         self::assertSame(2026091001, $profile->metadata['serial']);
     }
@@ -140,7 +140,7 @@ final class PowerDNSProviderTest extends TestCase
         $result = $provider->replaceRrset(new Rrset(
             'example.org.',
             '_443._tcp',
-            DnsRecordType::parse('TLSA'),
+            DNSRecordType::parse('TLSA'),
             600,
             ['3 1 1 aabb'],
         ));

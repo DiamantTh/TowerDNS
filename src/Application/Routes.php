@@ -13,7 +13,7 @@ use TowerDNS\Infrastructure\Http\Handler\ActiveAccountHandler;
 use TowerDNS\Infrastructure\Http\Handler\AdminSwitchHandler;
 use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
-use TowerDNS\Infrastructure\Http\Handler\DnssecHandler;
+use TowerDNS\Infrastructure\Http\Handler\DNSSECHandler;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
@@ -115,8 +115,8 @@ final class Routes
         $app->post('/zones/{provider}/{zone}/rrsets/{owner}/{type}/delete', [RequireAuthMiddleware::class, RrsetDeleteHandler::class], 'rrsets.delete');
 
         // ── DNSSEC ────────────────────────────────────────────────────────────
-        $app->get('/zones/{provider}/{zone}/dnssec', [RequireAuthMiddleware::class, DnssecHandler::class], 'dnssec.status');
-        $app->post('/zones/{provider}/{zone}/dnssec', [RequireAuthMiddleware::class, DnssecHandler::class], 'dnssec.action');
+        $app->get('/zones/{provider}/{zone}/dnssec', [RequireAuthMiddleware::class, DNSSECHandler::class], 'dnssec.status');
+        $app->post('/zones/{provider}/{zone}/dnssec', [RequireAuthMiddleware::class, DNSSECHandler::class], 'dnssec.action');
 
         // ── System settings ───────────────────────────────────────────────
         $app->get('/settings', [RequireAuthMiddleware::class, SystemSettingsHandler::class], 'settings.form');
@@ -133,6 +133,7 @@ final class Routes
         $app->post('/accounts/{id}', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.edit.submit');
         $app->get('/accounts/{id}/members', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.members');
         $app->post('/accounts/{id}/members', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.members.submit');
+        $app->post('/accounts/{id}/ownership', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.ownership.transfer');
 
         // ── Provider Accounts ─────────────────────────────────────────────────
         $app->get('/accounts/{id}/providers', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.list');

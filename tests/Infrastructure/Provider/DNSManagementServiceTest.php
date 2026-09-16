@@ -10,7 +10,7 @@ namespace TowerDNS\Tests\Infrastructure\Provider;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\Capability;
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Contracts\ProviderCapabilitySet;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\CapabilityException;
@@ -19,13 +19,14 @@ use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
-use TowerDNS\Application\Services\DnsManagementService;
+use TowerDNS\Application\Services\DNSManagementService;
 use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Application\Services\RbacPermissionChecker;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
-use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\Zone;
 
@@ -68,7 +69,7 @@ final class DnsManagementServiceTest extends TestCase
     {
         $role     = new Role('r', 'editor', [Permission::RECORD_DELETE]);
         $user     = new User('u1', 'u@example.com', [$role]);
-        $provider = new class implements DnsProviderInterface, \TowerDNS\Application\Contracts\RrsetProviderInterface {
+        $provider = new class implements DNSProviderInterface, \TowerDNS\Application\Contracts\RrsetProviderInterface {
             public bool $deleted = false;
             public function id(): string
             {
@@ -104,13 +105,13 @@ final class DnsManagementServiceTest extends TestCase
                 return $record;
             }
             public function deleteRecord(string $zoneId, string $recordId): void {}
-            public function getDnssecProfile(string $zoneId): DnssecProfile
+            public function getDnssecProfile(string $zoneId): DNSSECProfile
             {
-                return new DnssecProfile($zoneId, DnssecState::UNKNOWN);
+                return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
             }
-            public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+            public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
             {
-                return new DnssecProfile($zoneId, DnssecState::UNKNOWN);
+                return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
             }
             public function listRrsets(string $zoneId): array
             {
@@ -131,17 +132,22 @@ final class DnsManagementServiceTest extends TestCase
         self::assertTrue($provider->deleted);
     }
 
-    /** @param list<DnsProviderInterface> $providers */
-    private function makeService(array $providers): DnsManagementService
+    /** @param list<DNSProviderInterface> $providers */
+    private function makeService(array $providers): DNSManagementService
     {
-        return new DnsManagementService(
-            new AuthorizationService(),
+        $rbac          = new RbacPermissionChecker();
+        $authorization = new AuthorizationService($rbac);
+
+        return new DNSManagementService(
+            $authorization,
             new ProviderRegistry($providers),
             $this->createMock(ProviderAccountRepositoryInterface::class),
             $this->createMock(AccountProviderFactoryInterface::class),
             new PermissionService(
                 $this->createMock(AccountRepositoryInterface::class),
                 $this->createMock(ZoneMembershipRepositoryInterface::class),
+                $authorization,
+                $rbac,
             ),
         );
     }
@@ -149,7 +155,7 @@ final class DnsManagementServiceTest extends TestCase
     /**
      * @param array<string, bool> $capabilities
      */
-    private function makeProvider(array $capabilities = []): DnsProviderInterface
+    private function makeProvider(array $capabilities = []): DNSProviderInterface
     {
         $defaultCaps = [
             Capability::ZONE_LIST   => true,
@@ -159,7 +165,7 @@ final class DnsManagementServiceTest extends TestCase
         ];
         $caps = $capabilities + $defaultCaps;
 
-        return new readonly class ($caps) implements DnsProviderInterface {
+        return new readonly class ($caps) implements DNSProviderInterface {
             /** @param array<string, bool> $caps */
             public function __construct(private array $caps) {}
             public function id(): string
@@ -196,13 +202,13 @@ final class DnsManagementServiceTest extends TestCase
                 return $record;
             }
             public function deleteRecord(string $zoneId, string $recordId): void {}
-            public function getDnssecProfile(string $zoneId): DnssecProfile
+            public function getDnssecProfile(string $zoneId): DNSSECProfile
             {
-                return new DnssecProfile($zoneId, DnssecState::UNKNOWN);
+                return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
             }
-            public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+            public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
             {
-                return new DnssecProfile($zoneId, DnssecState::UNKNOWN);
+                return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
             }
         };
     }

@@ -9,7 +9,7 @@ namespace TowerDNS\Module\GoogleCloudDNS;
 
 use Google\Client as GoogleClient;
 use Google\Service\Dns;
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Module\ModuleManifest;
 use TowerDNS\Application\Module\ModuleType;
 use TowerDNS\Application\Module\ProviderDefinition;
@@ -30,7 +30,7 @@ final readonly class GoogleCloudDNSModule implements ProviderModuleInterface
         ]);
     }
 
-    public function buildProvider(array $credentials): DnsProviderInterface
+    public function buildProvider(array $credentials): DNSProviderInterface
     {
         try {
             $serviceAccount = json_decode((string) $credentials['service_account_json'], true, 512, JSON_THROW_ON_ERROR);

@@ -22,7 +22,7 @@ final readonly class ProviderAccount
     public function __construct(
         public int     $id,
         public int     $accountId,
-        /** Provider type identifier matching DnsProviderInterface::id(). e.g. 'desec', 'cloudflare', 'inwx' */
+        /** Provider type identifier matching DNSProviderInterface::id(). e.g. 'desec', 'cloudflare', 'inwx' */
         public string  $providerType,
         public string  $name,
         public string  $credentialsEncrypted,

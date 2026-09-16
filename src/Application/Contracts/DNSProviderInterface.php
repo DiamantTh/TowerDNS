@@ -7,11 +7,11 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Contracts;
 
-use TowerDNS\Domain\DNS\DnssecProfile;
+use TowerDNS\Domain\DNS\DNSSECProfile;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\Zone;
 
-interface DnsProviderInterface
+interface DNSProviderInterface
 {
     public function id(): string;
 
@@ -39,10 +39,10 @@ interface DnsProviderInterface
 
     public function deleteRecord(string $zoneId, string $recordId): void;
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile;
+    public function getDnssecProfile(string $zoneId): DNSSECProfile;
 
     /**
      * @param array<string, scalar|array<array-key, scalar>|null> $payload
      */
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile;
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile;
 }

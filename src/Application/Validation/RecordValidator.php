@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Validation;
 
-use TowerDNS\Application\Dns\RdataCanonicalizer;
-use TowerDNS\Domain\DNS\DnsRecordType;
+use TowerDNS\Application\DNS\RdataCanonicalizer;
+use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\RecordType;
 
 /**
@@ -41,6 +41,6 @@ final class RecordValidator
             throw new \InvalidArgumentException('Record-Content darf nicht leer sein.');
         }
 
-        RdataCanonicalizer::canonicalize(DnsRecordType::parse($type->value), $content);
+        RdataCanonicalizer::canonicalize(DNSRecordType::parse($type->value), $content);
     }
 }

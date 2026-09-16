@@ -16,17 +16,17 @@ use GuzzleHttp\Exception\GuzzleException;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
-use TowerDNS\Domain\DNS\DnsRecordType;
-use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSRecordType;
+use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
-use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
+use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /** Google Cloud DNS managed zones. This adapter does not access Cloud Domains. */
-final class GoogleCloudDNSProvider extends AbstractDnsProvider
+final class GoogleCloudDNSProvider extends AbstractDNSProvider
 {
     public const string ID = 'google-cloud-dns';
 
@@ -186,7 +186,7 @@ final class GoogleCloudDNSProvider extends AbstractDnsProvider
                     continue;
                 }
                 try {
-                    $type = DnsRecordType::parse((string) $native->getType());
+                    $type = DNSRecordType::parse((string) $native->getType());
                 } catch (\InvalidArgumentException) {
                     continue;
                 }
@@ -225,18 +225,18 @@ final class GoogleCloudDNSProvider extends AbstractDnsProvider
         }
     }
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $state = $this->getZone($zoneId)->getDnssecConfig()?->getState();
-        return new DnssecProfile($zoneId, match ($state) {
-            'on'           => DnssecState::SIGNED,
-            'off'          => DnssecState::UNSIGNED,
-            'transfer'     => DnssecState::PARTIAL,
-            default        => DnssecState::UNKNOWN,
+        return new DNSSECProfile($zoneId, match ($state) {
+            'on'           => DNSSECState::SIGNED,
+            'off'          => DNSSECState::UNSIGNED,
+            'transfer'     => DNSSECState::PARTIAL,
+            default        => DNSSECState::UNKNOWN,
         }, ['auto_managed' => $state === 'on'], ['provider_state' => $state]);
     }
 
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('Google Cloud DNS DNSSEC actions are not supported by this adapter.');
     }

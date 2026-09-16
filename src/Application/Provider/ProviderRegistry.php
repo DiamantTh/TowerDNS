@@ -7,13 +7,13 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Provider;
 
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Contracts\ProviderConstraintProviderInterface;
 use TowerDNS\Application\DTO\ProviderSummaryDTO;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
 
 /**
- * Registry of provider adapters, keyed by their stable {@see DnsProviderInterface::id()}.
+ * Registry of provider adapters, keyed by their stable {@see DNSProviderInterface::id()}.
  *
  * The registry is the single point through which the Application layer obtains
  * provider instances. Adapters are never injected into services directly so
@@ -21,11 +21,11 @@ use TowerDNS\Application\Exception\ProviderNotFoundException;
  */
 final class ProviderRegistry
 {
-    /** @var array<string, DnsProviderInterface> */
+    /** @var array<string, DNSProviderInterface> */
     private array $providers = [];
 
     /**
-     * @param iterable<DnsProviderInterface> $providers
+     * @param iterable<DNSProviderInterface> $providers
      */
     public function __construct(iterable $providers = [])
     {
@@ -34,12 +34,12 @@ final class ProviderRegistry
         }
     }
 
-    public function register(DnsProviderInterface $provider): void
+    public function register(DNSProviderInterface $provider): void
     {
         $this->providers[$provider->id()] = $provider;
     }
 
-    public function get(string $providerId): DnsProviderInterface
+    public function get(string $providerId): DNSProviderInterface
     {
         if (!isset($this->providers[$providerId])) {
             throw ProviderNotFoundException::forId($providerId);
@@ -54,7 +54,7 @@ final class ProviderRegistry
     }
 
     /**
-     * @return list<DnsProviderInterface>
+     * @return list<DNSProviderInterface>
      */
     public function all(): array
     {

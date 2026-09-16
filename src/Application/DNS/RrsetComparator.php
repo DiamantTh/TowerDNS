@@ -5,7 +5,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Application\Dns;
+namespace TowerDNS\Application\DNS;
 
 use TowerDNS\Domain\DNS\Rrset;
 

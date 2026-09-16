@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Tests\Application\Module;
 
 use PHPUnit\Framework\TestCase;
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Module\ModuleManifest;
 use TowerDNS\Application\Module\ModuleType;
 use TowerDNS\Application\Module\ProviderDefinition;
@@ -43,7 +43,7 @@ final class ProviderModuleRegistryTest extends TestCase
             {
                 return new ProviderDefinition($this->id, $this->displayName, true, []);
             }
-            public function buildProvider(array $credentials): DnsProviderInterface
+            public function buildProvider(array $credentials): DNSProviderInterface
             {
                 throw new \LogicException('Not needed by this registry test.');
             }

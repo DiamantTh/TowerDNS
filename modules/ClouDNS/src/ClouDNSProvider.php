@@ -10,14 +10,14 @@ namespace TowerDNS\Module\ClouDNS;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
-use TowerDNS\Domain\DNS\DnssecProfile;
+use TowerDNS\Domain\DNS\DNSSECProfile;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
-use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
+use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
-final class ClouDNSProvider extends AbstractDnsProvider
+final class ClouDNSProvider extends AbstractDNSProvider
 {
     public const string ID = 'cloudns';
 
@@ -179,12 +179,12 @@ final class ClouDNSProvider extends AbstractDnsProvider
         }
     }
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         throw new CapabilityException('ClouDNS DNSSEC management is not implemented.');
     }
 
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('ClouDNS DNSSEC management is not implemented.');
     }

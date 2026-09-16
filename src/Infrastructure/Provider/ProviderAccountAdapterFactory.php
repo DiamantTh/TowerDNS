@@ -8,12 +8,12 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Provider;
 
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Domain\Account\ProviderAccount;
 
 /**
- * Builds a {@see DnsProviderInterface} instance from a {@see ProviderAccount}.
+ * Builds a {@see DNSProviderInterface} instance from a {@see ProviderAccount}.
  *
  * Credentials are stored as encrypted JSON blobs. The format per provider type:
  *   desec:      {"token":"<api-token>"}
@@ -30,21 +30,18 @@ final readonly class ProviderAccountAdapterFactory implements AccountProviderFac
 {
     public function __construct(
         private CredentialService $credentialService,
-        private DnsProviderFactory $providerFactory,
+        private DNSProviderFactory $providerFactory,
     ) {}
 
-    public function buildProvider(ProviderAccount $account): DnsProviderInterface
+    public function buildProvider(ProviderAccount $account): DNSProviderInterface
     {
         $json = $this->credentialService->decrypt($account->credentialsEncrypted);
-
-        /** @var array<string, string> $creds */
-        $creds = json_decode($json, associative: true, flags: JSON_THROW_ON_ERROR);
-
-        $provider = $this->providerFactory->build($account->providerType, $creds);
-
-        // Wipe plaintext JSON from memory
-        $this->credentialService->wipe($json);
-
-        return $provider;
+        try {
+            /** @var array<string, string> $creds */
+            $creds = json_decode($json, associative: true, flags: JSON_THROW_ON_ERROR);
+            return $this->providerFactory->build($account->providerType, $creds);
+        } finally {
+            $this->credentialService->wipe($json);
+        }
     }
 }

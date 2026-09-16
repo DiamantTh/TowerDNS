@@ -15,7 +15,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Services\DnsManagementService;
+use TowerDNS\Application\Services\DNSManagementService;
 use TowerDNS\Domain\Auth\User;
 
 /**
@@ -25,7 +25,7 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
 {
     public function __construct(
         private TemplateRendererInterface $renderer,
-        private DnsManagementService      $dns,
+        private DNSManagementService      $dns,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface

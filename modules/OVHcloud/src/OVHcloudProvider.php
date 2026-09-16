@@ -12,13 +12,13 @@ use Ovh\Api;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
-use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
-use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
+use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /**
  * DNS-only adapter using the official OVH SDK for signing and transport.
@@ -26,7 +26,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  * @see https://api.ovh.com/1.0/domain.json
  * @see https://github.com/ovh/php-ovh
  */
-final class OVHcloudProvider extends AbstractDnsProvider
+final class OVHcloudProvider extends AbstractDNSProvider
 {
     public const string ID = 'ovh';
 
@@ -167,19 +167,19 @@ final class OVHcloudProvider extends AbstractDnsProvider
         }
     }
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $row    = (array) $this->request('GET', $this->zonePath($zoneId) . '/dnssec');
         $status = (string) ($row['status'] ?? '');
-        return new DnssecProfile($zoneId, match ($status) {
-            'enabled'                               => DnssecState::SIGNED,
-            'disabled'                              => DnssecState::UNSIGNED,
-            'enableInProgress', 'disableInProgress' => DnssecState::PARTIAL,
-            default                                 => DnssecState::UNKNOWN,
+        return new DNSSECProfile($zoneId, match ($status) {
+            'enabled'                               => DNSSECState::SIGNED,
+            'disabled'                              => DNSSECState::UNSIGNED,
+            'enableInProgress', 'disableInProgress' => DNSSECState::PARTIAL,
+            default                                 => DNSSECState::UNKNOWN,
         }, metadata: ['status'                      => $status]);
     }
 
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('OVH DNSSEC kann in TowerDNS nur gelesen werden.');
     }

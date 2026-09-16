@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Module\PowerDNS;
 
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Module\ModuleManifest;
 use TowerDNS\Application\Module\ModuleType;
 use TowerDNS\Application\Module\ProviderDefinition;
@@ -29,7 +29,7 @@ final readonly class PowerDNSModule implements ProviderModuleInterface
         ]);
     }
 
-    public function buildProvider(array $credentials): DnsProviderInterface
+    public function buildProvider(array $credentials): DNSProviderInterface
     {
         return new PowerDNSProvider(
             (string) $credentials['base_url'],

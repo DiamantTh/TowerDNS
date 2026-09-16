@@ -5,9 +5,9 @@
 
 declare(strict_types=1);
 
-namespace TowerDNS\Application\Dns;
+namespace TowerDNS\Application\DNS;
 
-use TowerDNS\Domain\DNS\DnsRecordType;
+use TowerDNS\Domain\DNS\DNSRecordType;
 
 /**
  * Validates the common DNS presentation formats and produces comparison keys.
@@ -15,7 +15,7 @@ use TowerDNS\Domain\DNS\DnsRecordType;
  */
 final class RdataCanonicalizer
 {
-    public static function canonicalize(DnsRecordType $type, string $rdata): string
+    public static function canonicalize(DNSRecordType $type, string $rdata): string
     {
         $rdata = trim($rdata);
         if ($rdata === '') {

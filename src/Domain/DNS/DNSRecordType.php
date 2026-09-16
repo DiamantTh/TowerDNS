@@ -14,7 +14,7 @@ namespace TowerDNS\Domain\DNS;
  * deliberately a value object rather than an enum: DNS type allocation is not
  * closed and a control panel must not make unknown records disappear.
  */
-final readonly class DnsRecordType
+final readonly class DNSRecordType
 {
     /** @var array<string, int> */
     private const array KNOWN = [

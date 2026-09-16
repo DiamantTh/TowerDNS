@@ -9,13 +9,13 @@ namespace TowerDNS\Module\INWX;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
-use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
-use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
+use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /**
  * INWX provider adapter (INWX nameserver JSON-RPC API).
@@ -27,7 +27,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  *
  * @see https://www.inwx.de/de/api-documentation
  */
-final class INWXProvider extends AbstractDnsProvider
+final class INWXProvider extends AbstractDNSProvider
 {
     public const string ID = 'inwx';
 
@@ -232,16 +232,16 @@ final class INWXProvider extends AbstractDnsProvider
 
     // ── DNSSEC operations ─────────────────────────────────────────────────────
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $keyInfo = $this->client->getDnsKeyInfo($zoneId);
         $keys    = (array) ($keyInfo['dnskey'] ?? $keyInfo['keys'] ?? []);
         $signed  = $keys !== [];
-        $state   = $signed ? DnssecState::SIGNED : DnssecState::UNSIGNED;
+        $state   = $signed ? DNSSECState::SIGNED : DNSSECState::UNSIGNED;
 
         $metadata = ['key_count' => count($keys)];
 
-        return new DnssecProfile(
+        return new DNSSECProfile(
             zoneId: $zoneId,
             state: $state,
             features: [
@@ -252,7 +252,7 @@ final class INWXProvider extends AbstractDnsProvider
         );
     }
 
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         match ($action) {
             'enable'  => $this->client->activateDnssec($zoneId),

@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Module\OVHcloud\OVHcloudProvider;
@@ -148,7 +148,7 @@ final class OVHcloudProviderTest extends TestCase
         $api->expects(self::once())->method('get')->with('/domain/zone/example.org/dnssec')
             ->willReturn(['status' => 'enableInProgress']);
         $provider = new OVHcloudProvider($api);
-        self::assertSame(DnssecState::PARTIAL, $provider->getDnssecProfile('example.org')->state);
+        self::assertSame(DNSSECState::PARTIAL, $provider->getDnssecProfile('example.org')->state);
         self::assertFalse($provider->capabilities()->supports(Capability::ZONE_CREATE));
         self::assertFalse($provider->capabilities()->supports(Capability::ZONE_DELETE));
         self::assertFalse($provider->capabilities()->supports(Capability::DNSSEC_ACTION_EXECUTE));

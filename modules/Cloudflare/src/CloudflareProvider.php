@@ -11,13 +11,13 @@ use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
-use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
-use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
+use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /**
  * Cloudflare provider adapter (Cloudflare v4 REST API).
@@ -34,7 +34,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  *
  * @see https://developers.cloudflare.com/api/
  */
-final class CloudflareProvider extends AbstractDnsProvider
+final class CloudflareProvider extends AbstractDNSProvider
 {
     public const string ID = 'cloudflare';
 
@@ -225,19 +225,19 @@ final class CloudflareProvider extends AbstractDnsProvider
 
     // ── DNSSEC operations ─────────────────────────────────────────────────────
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $row    = $this->client->getDnssec($zoneId);
         $status = strtolower((string) ($row['status'] ?? 'inactive'));
 
         $state = match ($status) {
-            'active'  => DnssecState::SIGNED,
-            'pending' => DnssecState::PARTIAL,
+            'active'  => DNSSECState::SIGNED,
+            'pending' => DNSSECState::PARTIAL,
             'disabled',
             'inactive',
             'pending-disabled',
-            'pending-inactive' => DnssecState::UNSIGNED,
-            default            => DnssecState::UNKNOWN,
+            'pending-inactive' => DNSSECState::UNSIGNED,
+            default            => DNSSECState::UNKNOWN,
         };
 
         $metadata = [];
@@ -247,7 +247,7 @@ final class CloudflareProvider extends AbstractDnsProvider
             }
         }
 
-        return new DnssecProfile(
+        return new DNSSECProfile(
             zoneId: $zoneId,
             state: $state,
             features: ['auto_managed' => true, 'ds_available' => isset($row['ds'])],
@@ -255,7 +255,7 @@ final class CloudflareProvider extends AbstractDnsProvider
         );
     }
 
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         $cfStatus = match ($action) {
             'enable'  => 'active',

@@ -9,21 +9,21 @@ namespace TowerDNS\Application\Services;
 
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\Capability;
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Contracts\RrsetProviderInterface;
-use TowerDNS\Application\Dns\RdataCanonicalizer;
-use TowerDNS\Application\Dns\RrsetComparator;
+use TowerDNS\Application\DNS\RdataCanonicalizer;
+use TowerDNS\Application\DNS\RrsetComparator;
 use TowerDNS\Application\DTO\ProviderSummaryDTO;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Provider\ProviderRegistry;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
-use TowerDNS\Application\Validation\DnsNameValidator;
+use TowerDNS\Application\Validation\DNSNameValidator;
 use TowerDNS\Application\Validation\RecordValidator;
 use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
-use TowerDNS\Domain\DNS\DnsRecordType;
-use TowerDNS\Domain\DNS\DnssecProfile;
+use TowerDNS\Domain\DNS\DNSRecordType;
+use TowerDNS\Domain\DNS\DNSSECProfile;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
@@ -38,7 +38,7 @@ use TowerDNS\Domain\DNS\Zone;
  *  4. normalises user-supplied input where applicable, and
  *  5. delegates to the provider adapter.
  */
-final readonly class DnsManagementService
+final readonly class DNSManagementService
 {
     public function __construct(
         private AuthorizationService $authorizationService,
@@ -74,7 +74,7 @@ final readonly class DnsManagementService
         $this->authorizationService->assert($user, Permission::ZONE_CREATE);
         $provider = $this->resolve($providerId, Capability::ZONE_CREATE);
 
-        return $provider->createZone(DnsNameValidator::normalise($zoneName));
+        return $provider->createZone(DNSNameValidator::normalise($zoneName));
     }
 
     public function deleteZone(User $user, string $providerId, string $zoneId): void
@@ -125,7 +125,7 @@ final readonly class DnsManagementService
     {
         $this->authorizationService->assert($user, Permission::RECORD_DELETE);
         $provider   = $this->resolve($providerId, Capability::RECORD_DELETE);
-        $recordType = DnsRecordType::parse($type);
+        $recordType = DNSRecordType::parse($type);
 
         $rrsets = $this->rrsetProvider($provider);
         $rrsets->deleteRrset($zoneId, $ownerName, $recordType->presentation);
@@ -184,7 +184,7 @@ final readonly class DnsManagementService
         $provider->deleteRecord($zoneId, $recordId);
     }
 
-    public function getDnssecProfile(User $user, string $providerId, string $zoneId): DnssecProfile
+    public function getDnssecProfile(User $user, string $providerId, string $zoneId): DNSSECProfile
     {
         $this->authorizationService->assert($user, Permission::DNSSEC_STATUS_READ);
         $provider = $this->resolve($providerId, Capability::DNSSEC_STATUS_READ);
@@ -201,7 +201,7 @@ final readonly class DnsManagementService
         string $zoneId,
         string $action,
         array $payload = [],
-    ): DnssecProfile {
+    ): DNSSECProfile {
         $this->authorizationService->assert($user, Permission::DNSSEC_ACTION_EXECUTE);
         $provider = $this->resolve($providerId, Capability::DNSSEC_ACTION_EXECUTE);
 
@@ -215,21 +215,23 @@ final readonly class DnsManagementService
      */
     public function listZonesByProviderAccount(User $user, int $accountId, int $providerAccountId): array
     {
-        $provider = $this->resolveFromAccount($accountId, $providerAccountId, $user, Capability::ZONE_LIST);
+        $this->permissions->assertAccount($user, Permission::ZONE_LIST, $accountId);
+        $provider = $this->resolveFromAccount($accountId, $providerAccountId, Capability::ZONE_LIST);
         return $provider->listZones();
     }
 
     public function createZoneInAccount(User $user, int $accountId, int $providerAccountId, string $zoneName): Zone
     {
-        $this->permissions->assertCanManageAccount($accountId, $user);
-        $provider = $this->resolveFromAccount($accountId, $providerAccountId, $user, Capability::ZONE_CREATE);
-        return $provider->createZone(DnsNameValidator::normalise($zoneName));
+        $this->permissions->assertAccount($user, Permission::ZONE_CREATE, $accountId);
+        $provider = $this->resolveFromAccount($accountId, $providerAccountId, Capability::ZONE_CREATE);
+        return $provider->createZone(DNSNameValidator::normalise($zoneName));
     }
+
 
     public function deleteZoneInAccount(User $user, int $accountId, int $providerAccountId, string $zoneId): void
     {
-        $this->permissions->assertCanManageAccount($accountId, $user);
-        $provider = $this->resolveFromAccount($accountId, $providerAccountId, $user, Capability::ZONE_DELETE);
+        $this->permissions->assertAccount($user, Permission::ZONE_DELETE, $accountId);
+        $provider = $this->resolveFromAccount($accountId, $providerAccountId, Capability::ZONE_DELETE);
         $provider->deleteZone($zoneId);
     }
 
@@ -238,15 +240,15 @@ final readonly class DnsManagementService
      */
     public function listRecordsInAccount(User $user, int $accountId, int $providerAccountId, string $zoneId): array
     {
-        $this->permissions->assertCanViewZone($zoneId, $accountId, $user);
-        $provider = $this->resolveFromAccount($accountId, $providerAccountId, $user, Capability::RECORD_LIST);
+        $this->permissions->assertZone($user, Permission::RECORD_READ, $accountId, $zoneId);
+        $provider = $this->resolveFromAccount($accountId, $providerAccountId, Capability::RECORD_LIST);
         return $provider->listRecords($zoneId);
     }
 
     public function createRecordInAccount(User $user, int $accountId, int $providerAccountId, Record $record): Record
     {
-        $this->permissions->assertCanManageZoneRecords($record->zoneId, $accountId, $user);
-        $provider = $this->resolveFromAccount($accountId, $providerAccountId, $user, Capability::RECORD_CREATE);
+        $this->permissions->assertZone($user, Permission::RECORD_CREATE, $accountId, $record->zoneId);
+        $provider = $this->resolveFromAccount($accountId, $providerAccountId, Capability::RECORD_CREATE);
         RecordValidator::assertTtl($record->ttl);
         RecordValidator::assertContent($record->type, $record->content);
         return $provider->createRecord($record);
@@ -254,8 +256,8 @@ final readonly class DnsManagementService
 
     public function updateRecordInAccount(User $user, int $accountId, int $providerAccountId, Record $record): Record
     {
-        $this->permissions->assertCanManageZoneRecords($record->zoneId, $accountId, $user);
-        $provider = $this->resolveFromAccount($accountId, $providerAccountId, $user, Capability::RECORD_UPDATE);
+        $this->permissions->assertZone($user, Permission::RECORD_UPDATE, $accountId, $record->zoneId);
+        $provider = $this->resolveFromAccount($accountId, $providerAccountId, Capability::RECORD_UPDATE);
         RecordValidator::assertTtl($record->ttl);
         RecordValidator::assertContent($record->type, $record->content);
         return $provider->updateRecord($record);
@@ -268,19 +270,17 @@ final readonly class DnsManagementService
         string $zoneId,
         string $recordId,
     ): void {
-        $this->permissions->assertCanManageZoneRecords($zoneId, $accountId, $user);
-        $provider = $this->resolveFromAccount($accountId, $providerAccountId, $user, Capability::RECORD_DELETE);
+        $this->permissions->assertZone($user, Permission::RECORD_DELETE, $accountId, $zoneId);
+        $provider = $this->resolveFromAccount($accountId, $providerAccountId, Capability::RECORD_DELETE);
         $provider->deleteRecord($zoneId, $recordId);
     }
+
 
     private function resolveFromAccount(
         int $accountId,
         int $providerAccountId,
-        User $user,
         string $capability,
-    ): DnsProviderInterface {
-        $this->permissions->assertCanViewAccount($accountId, $user);
-
+    ): DNSProviderInterface {
         $pa = $this->providerAccounts->findById($providerAccountId);
         if (!$pa instanceof ProviderAccount || $pa->accountId !== $accountId || !$pa->isActive) {
             throw new \DomainException(sprintf(
@@ -303,7 +303,7 @@ final readonly class DnsManagementService
         return $provider;
     }
 
-    private function resolve(string $providerId, string $capability): DnsProviderInterface
+    private function resolve(string $providerId, string $capability): DNSProviderInterface
     {
         $provider = $this->providers->get($providerId);
 
@@ -318,7 +318,7 @@ final readonly class DnsManagementService
         return $provider;
     }
 
-    private function rrsetProvider(DnsProviderInterface $provider): RrsetProviderInterface
+    private function rrsetProvider(DNSProviderInterface $provider): RrsetProviderInterface
     {
         if (!$provider instanceof RrsetProviderInterface) {
             throw new CapabilityException(sprintf('Provider "%s" unterstützt keine RRset-Operationen.', $provider->id()));

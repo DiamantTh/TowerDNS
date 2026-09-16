@@ -9,14 +9,14 @@ namespace TowerDNS\Module\DeSEC;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Exception\CapabilityException;
-use TowerDNS\Domain\DNS\DnsRecordType;
-use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSRecordType;
+use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
-use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
+use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /**
  * deSEC provider adapter.
@@ -26,7 +26,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  * adapter therefore advertises {@see Capability::DNSSEC_AUTO_MANAGED} and
  * exposes status reads, but does not expose imperative DNSSEC actions.
  */
-final class DeSECProvider extends AbstractDnsProvider
+final class DeSECProvider extends AbstractDNSProvider
 {
     public const string ID = 'desec';
 
@@ -124,7 +124,7 @@ final class DeSECProvider extends AbstractDnsProvider
         $sets = [];
         foreach ($this->client->getRRSets($zoneId) as $raw) {
             try {
-                $type = DnsRecordType::parse((string) ($raw['type'] ?? ''));
+                $type = DNSRecordType::parse((string) ($raw['type'] ?? ''));
             } catch (\InvalidArgumentException) {
                 continue;
             }
@@ -251,7 +251,7 @@ final class DeSECProvider extends AbstractDnsProvider
         }
     }
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $row = $this->client->getDomain($zoneId);
 
@@ -268,15 +268,15 @@ final class DeSECProvider extends AbstractDnsProvider
             $metadata['minimum_ttl'] = (int) $row['minimum_ttl'];
         }
 
-        return new DnssecProfile(
+        return new DNSSECProfile(
             zoneId: $zoneId,
-            state: DnssecState::SIGNED,
+            state: DNSSECState::SIGNED,
             features: $features,
             metadata: $metadata,
         );
     }
 
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('deSEC verwaltet DNSSEC vollautomatisch; manuelle Aktionen sind nicht moeglich.');
     }

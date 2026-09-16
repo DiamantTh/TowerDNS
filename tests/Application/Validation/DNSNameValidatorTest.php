@@ -8,23 +8,23 @@ declare(strict_types=1);
 namespace TowerDNS\Tests\Application\Validation;
 
 use PHPUnit\Framework\TestCase;
-use TowerDNS\Application\Validation\DnsNameValidator;
+use TowerDNS\Application\Validation\DNSNameValidator;
 
 final class DnsNameValidatorTest extends TestCase
 {
     public function testIdnGetsConverted(): void
     {
-        self::assertSame('xn--mller-kva.eu', DnsNameValidator::normalise('Müller.eu'));
+        self::assertSame('xn--mller-kva.eu', DNSNameValidator::normalise('Müller.eu'));
     }
 
     public function testTrailingDotIsStripped(): void
     {
-        self::assertSame('example.com', DnsNameValidator::normalise('example.com.'));
+        self::assertSame('example.com', DNSNameValidator::normalise('example.com.'));
     }
 
     public function testEmptyIsRejected(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        DnsNameValidator::normalise('');
+        DNSNameValidator::normalise('');
     }
 }

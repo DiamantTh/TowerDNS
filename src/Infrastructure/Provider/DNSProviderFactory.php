@@ -7,14 +7,14 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Provider;
 
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
 
 /** Central catalogue and construction point for DNS-provider adapters. */
-final class DnsProviderFactory
+final class DNSProviderFactory
 {
-    public function __construct(private readonly ?ProviderModuleRegistry $moduleRegistry = null) {}
+    public function __construct(private ?ProviderModuleRegistry $moduleRegistry = null) {}
     /**
      * @var array<string, array{
      *   label: string,
@@ -94,7 +94,7 @@ final class DnsProviderFactory
     }
 
     /** @param array<string, mixed> $credentials */
-    public function build(string $type, array $credentials): DnsProviderInterface
+    public function build(string $type, array $credentials): DNSProviderInterface
     {
         if (!$this->supports($type)) {
             throw ProviderNotFoundException::forId($type);

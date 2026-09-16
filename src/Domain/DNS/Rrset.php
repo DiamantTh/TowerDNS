@@ -17,7 +17,7 @@ final readonly class Rrset
     public function __construct(
         public string $zoneId,
         public string $ownerName,
-        public DnsRecordType $type,
+        public DNSRecordType $type,
         public int $ttl,
         public array $rdata,
         public ?string $providerIdentity = null,

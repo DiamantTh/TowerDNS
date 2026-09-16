@@ -13,7 +13,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
-use TowerDNS\Domain\DNS\DnsRecordType;
+use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Module\DeSEC\DeSECApiClient;
 use TowerDNS\Module\DeSEC\DeSECProvider;
@@ -30,7 +30,7 @@ final class DeSECProviderTest extends TestCase
             $this->json([['subname' => '_443._tcp', 'type' => 'TLSA', 'ttl' => 600, 'records' => ['3 1 1 aabb']]]),
         ]);
 
-        $result = $provider->replaceRrset(new Rrset('example.org', '_443._tcp', DnsRecordType::parse('TLSA'), 600, ['3 1 1 aabb']));
+        $result = $provider->replaceRrset(new Rrset('example.org', '_443._tcp', DNSRecordType::parse('TLSA'), 600, ['3 1 1 aabb']));
 
         self::assertSame(['3 1 1 aabb'], $result->rdata);
         self::assertSame('PATCH', $this->requests[0]->getMethod());

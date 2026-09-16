@@ -13,7 +13,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
-use TowerDNS\Domain\DNS\DnsRecordType;
+use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Module\Cloudflare\CloudflareProvider;
 
@@ -31,7 +31,7 @@ final class CloudflareProviderTest extends TestCase
             $this->json(['result' => [$this->record(600)], 'result_info' => ['total_pages' => 1]]),
         ]);
 
-        $rrset    = new Rrset('example.org', '_443._tcp', DnsRecordType::parse('TLSA'), 600, ['3 1 1 aabb']);
+        $rrset    = new Rrset('example.org', '_443._tcp', DNSRecordType::parse('TLSA'), 600, ['3 1 1 aabb']);
         $observed = $provider->replaceRrset($rrset);
 
         self::assertSame(600, $observed->ttl);

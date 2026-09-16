@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Domain\DNS;
 
-final readonly class DnssecProfile
+final readonly class DNSSECProfile
 {
     /**
      * @param array<string, bool> $features
@@ -15,7 +15,7 @@ final readonly class DnssecProfile
      */
     public function __construct(
         public string $zoneId,
-        public DnssecState $state,
+        public DNSSECState $state,
         public array $features = [],
         public array $metadata = [],
     ) {}

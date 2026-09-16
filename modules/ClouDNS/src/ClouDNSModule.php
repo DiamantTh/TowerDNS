@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Module\ClouDNS;
 
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Module\ModuleManifest;
 use TowerDNS\Application\Module\ModuleType;
 use TowerDNS\Application\Module\ProviderDefinition;
@@ -29,7 +29,7 @@ final readonly class ClouDNSModule implements ProviderModuleInterface
         ]);
     }
 
-    public function buildProvider(array $credentials): DnsProviderInterface
+    public function buildProvider(array $credentials): DNSProviderInterface
     {
         return new ClouDNSProvider(new ClouDNSAPIClient(
             (string) $credentials['auth_id'],

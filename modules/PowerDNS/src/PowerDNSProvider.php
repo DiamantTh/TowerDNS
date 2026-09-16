@@ -12,14 +12,14 @@ use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\ProviderConstraintProfile;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
-use TowerDNS\Domain\DNS\DnsRecordType;
-use TowerDNS\Domain\DNS\DnssecProfile;
-use TowerDNS\Domain\DNS\DnssecState;
+use TowerDNS\Domain\DNS\DNSRecordType;
+use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
-use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
+use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /**
  * Adapter for the PowerDNS Authoritative Server HTTP API.
@@ -30,7 +30,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDnsProvider;
  *
  * @see https://doc.powerdns.com/authoritative/http-api/
  */
-final class PowerDNSProvider extends AbstractDnsProvider
+final class PowerDNSProvider extends AbstractDNSProvider
 {
     public const string ID = 'powerdns';
 
@@ -156,7 +156,7 @@ final class PowerDNSProvider extends AbstractDnsProvider
         foreach ((array) ($row['rrsets'] ?? []) as $raw) {
             $raw = (array) $raw;
             try {
-                $type = DnsRecordType::parse((string) ($raw['type'] ?? ''));
+                $type = DNSRecordType::parse((string) ($raw['type'] ?? ''));
             } catch (\InvalidArgumentException) {
                 continue;
             }
@@ -327,15 +327,15 @@ final class PowerDNSProvider extends AbstractDnsProvider
         }
     }
 
-    public function getDnssecProfile(string $zoneId): DnssecProfile
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $zone = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
         $keys = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId) . '/cryptokeys'));
 
         $signed = (bool) ($zone['dnssec'] ?? false);
-        $state  = $signed ? DnssecState::SIGNED : DnssecState::UNSIGNED;
+        $state  = $signed ? DNSSECState::SIGNED : DNSSECState::UNSIGNED;
 
-        return new DnssecProfile(
+        return new DNSSECProfile(
             zoneId: $zoneId,
             state: $state,
             features: [
@@ -350,7 +350,7 @@ final class PowerDNSProvider extends AbstractDnsProvider
         );
     }
 
-    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DnssecProfile
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         $base = $this->client->serverPath('zones/' . rawurlencode($zoneId));
         switch ($action) {

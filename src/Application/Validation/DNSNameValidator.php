@@ -13,7 +13,7 @@ namespace TowerDNS\Application\Validation;
  * IDN names are converted to A-label (Punycode, RFC 3492) form so the
  * canonical TowerDNS representation is always ASCII.
  */
-final class DnsNameValidator
+final class DNSNameValidator
 {
     /**
      * @return string normalised lowercase A-label representation, without trailing dot

@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Domain\DNS;
 
-enum DnssecState: string
+enum DNSSECState: string
 {
     case UNSIGNED = 'unsigned';
     case SIGNED   = 'signed';

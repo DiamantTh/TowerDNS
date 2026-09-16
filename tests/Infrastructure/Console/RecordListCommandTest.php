@@ -10,7 +10,7 @@ namespace TowerDNS\Tests\Infrastructure\Console;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
-use TowerDNS\Application\Contracts\DnsProviderInterface;
+use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Provider\ProviderRegistry;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
@@ -21,7 +21,7 @@ final class RecordListCommandTest extends TestCase
 {
     public function testResolvesZoneNameBeforeListingRecords(): void
     {
-        $provider = $this->createMock(DnsProviderInterface::class);
+        $provider = $this->createMock(DNSProviderInterface::class);
         $provider->method('id')->willReturn('fake');
         $provider->method('listZones')->willReturn([
             new Zone('provider-zone-42', 'example.org', 'fake', true),
@@ -44,7 +44,7 @@ final class RecordListCommandTest extends TestCase
 
     public function testReportsMissingZoneName(): void
     {
-        $provider = $this->createMock(DnsProviderInterface::class);
+        $provider = $this->createMock(DNSProviderInterface::class);
         $provider->method('id')->willReturn('fake');
         $provider->method('listZones')->willReturn([]);
         $provider->expects(self::never())->method('listRecords');
