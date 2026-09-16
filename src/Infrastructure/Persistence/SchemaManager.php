@@ -445,6 +445,14 @@ final readonly class SchemaManager
             ['onDelete' => 'CASCADE'],
             'fk_accm_user_id',
         );
+        $accMembers->addIndex(['user_id'], 'idx_accm_user_id');
+        $accMembers->addForeignKeyConstraint(
+            'users',
+            ['invited_by'],
+            ['id'],
+            ['onDelete' => 'SET NULL'],
+            'fk_accm_invited_by',
+        );
 
         // provider_accounts --------------------------------------------------
         $provAccounts = new Table('provider_accounts');
@@ -507,6 +515,14 @@ final readonly class SchemaManager
             ['onDelete' => 'CASCADE'],
             'fk_zm_user_id',
         );
+        $zoneMembers->addIndex(['user_id'], 'idx_zm_user_id');
+        $zoneMembers->addForeignKeyConstraint(
+            'users',
+            ['granted_by'],
+            ['id'],
+            ['onDelete' => 'SET NULL'],
+            'fk_zm_granted_by',
+        );
 
         // admin_impersonation_sessions ---------------------------------------
         $impSessions = new Table('admin_impersonation_sessions');
@@ -527,6 +543,22 @@ final readonly class SchemaManager
             ['onDelete' => 'CASCADE'],
             'fk_ais_actor_user_id',
         );
+        $impSessions->addForeignKeyConstraint(
+            'users',
+            ['effective_user_id'],
+            ['id'],
+            ['onDelete' => 'SET NULL'],
+            'fk_ais_effective_user_id',
+        );
+        $impSessions->addForeignKeyConstraint(
+            'accounts',
+            ['effective_account_id'],
+            ['id'],
+            ['onDelete' => 'SET NULL'],
+            'fk_ais_effective_account_id',
+        );
+        $impSessions->addIndex(['effective_user_id'], 'idx_ais_effective_user');
+        $impSessions->addIndex(['effective_account_id'], 'idx_ais_effective_account');
 
         // audit_logs ---------------------------------------------------------
         $auditLogs = new Table('audit_logs');
@@ -564,6 +596,7 @@ final readonly class SchemaManager
         $pwResetTokens->setPrimaryKey(['id']);
         $pwResetTokens->addUniqueIndex(['token_hash'], 'uq_prt_token_hash');
         $pwResetTokens->addIndex(['user_id'], 'idx_prt_user_id');
+        $pwResetTokens->addIndex(['expires_at'], 'idx_prt_expires_at');
         $pwResetTokens->addForeignKeyConstraint(
             'users',
             ['user_id'],
