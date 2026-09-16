@@ -17,11 +17,10 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
+use TowerDNS\Application\Exception\ZoneMembershipException;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
-use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
-use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Application\Services\ZoneMembershipManagementService;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
@@ -38,13 +37,10 @@ use TowerDNS\Domain\Auth\User;
 final readonly class ZoneMembersHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private TemplateRendererInterface          $renderer,
-        private ZoneMembershipRepositoryInterface  $zoneMemberships,
-        private ManagedZoneRepositoryInterface      $managedZones,
-        private UserRepositoryInterface            $users,
-        private PermissionService                  $permissions,
-        private AuditLogService                    $audit,
-        private TranslatorInterface                $translator,
+        private TemplateRendererInterface $renderer,
+        private ZoneMembershipManagementService $memberships,
+        private UserRepositoryInterface $users,
+        private TranslatorInterface $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -64,11 +60,10 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         $managedZoneId = (int) $request->getAttribute('zone', 0);
 
         try {
-            $this->permissions->assertCanManageMembers($accountId, $user);
+            $members = $this->memberships->list($user, $accountId, $managedZoneId);
         } catch (AuthorizationException) {
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
-        }
-        if ($this->managedZones->findByIdForAccount($managedZoneId, $accountId) === null) {
+        } catch (ZoneMembershipException) {
             return new HtmlResponse($this->translator->translate('http.error.not-found'), 404);
         }
 
@@ -76,7 +71,6 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $members    = $this->zoneMemberships->findByManagedZoneId($managedZoneId);
         $allUsers   = $this->users->findAll();
         $flashError = $request->getQueryParams()['error'] ?? null;
 
@@ -104,11 +98,10 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         $managedZoneId = (int) $request->getAttribute('zone', 0);
 
         try {
-            $this->permissions->assertCanManageMembers($accountId, $user);
+            $this->memberships->list($user, $accountId, $managedZoneId);
         } catch (AuthorizationException) {
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
-        }
-        if ($this->managedZones->findByIdForAccount($managedZoneId, $accountId) === null) {
+        } catch (ZoneMembershipException) {
             return new HtmlResponse($this->translator->translate('http.error.not-found'), 404);
         }
 
@@ -134,8 +127,19 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
                 ));
             }
 
-            $this->zoneMemberships->revoke($managedZoneId, $targetUserId);
-            $this->audit->recordZoneMemberRevoked($request, $user->id, $accountId, $managedZoneId, $targetUserId);
+            try {
+                $this->memberships->revoke(
+                    $user,
+                    $accountId,
+                    $managedZoneId,
+                    $targetUserId,
+                    $this->auditContext($request, $user, $accountId, $managedZoneId),
+                );
+            } catch (ZoneMembershipException) {
+                return new RedirectResponse($base . '?error=' . rawurlencode(
+                    $this->translator->translate('zone-members.error.grant-failed'),
+                ));
+            }
 
             return new RedirectResponse($base);
         }
@@ -151,14 +155,14 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
             }
 
             try {
-                $this->zoneMemberships->grant(
-                    managedZoneId: $managedZoneId,
-                    userId: $targetUserId,
-                    role: $role,
-                    createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
-                    grantedBy: $user->id,
+                $this->memberships->grant(
+                    $user,
+                    $accountId,
+                    $managedZoneId,
+                    $targetUserId,
+                    $role,
+                    $this->auditContext($request, $user, $accountId, $managedZoneId),
                 );
-                $this->audit->recordZoneMemberGranted($request, $user->id, $accountId, $managedZoneId, $targetUserId, $role->value);
             } catch (\Throwable) {
                 return new RedirectResponse($base . '?error=' . rawurlencode(
                     $this->translator->translate('zone-members.error.grant-failed'),
@@ -171,5 +175,23 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         return new RedirectResponse($base . '?error=' . rawurlencode(
             $this->translator->translate('zone-members.error.unknown-action'),
         ));
+    }
+
+    private function auditContext(
+        ServerRequestInterface $request,
+        User $effectiveUser,
+        int $accountId,
+        int $managedZoneId,
+    ): \TowerDNS\Application\DTO\AuditContext {
+        $actor   = $request->getAttribute('actor_user');
+        $actorId = $actor instanceof User ? $actor->id : $effectiveUser->id;
+
+        return AuditLogService::fromHttpRequest(
+            $request,
+            $actorId,
+            $effectiveUser->id,
+            $accountId,
+            (string) $managedZoneId,
+        );
     }
 }

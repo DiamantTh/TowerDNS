@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application\Services;
 
 use Psr\Http\Message\ServerRequestInterface;
+use TowerDNS\Application\DTO\AuditContext;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
 use TowerDNS\Domain\Account\AuditLogEntry;
 
@@ -44,26 +45,58 @@ final readonly class AuditLogService
         ?array                 $after = null,
         ?array                 $metadata = null,
     ): void {
-        $ip        = $this->resolveIp($request);
-        $userAgent = $request->getHeaderLine('User-Agent') ?: null;
+        $this->recordWithContext(
+            self::fromHttpRequest(
+                $request,
+                $actorUserId,
+                $effectiveUserId,
+                $accountId,
+                $zoneId,
+                $providerAccountId,
+                $impersonationSessionId,
+            ),
+            $action,
+            $targetType,
+            $targetId,
+            $before,
+            $after,
+            $metadata,
+        );
+    }
 
+    /**
+     * Transport-neutral audit entry point for application services, CLI, and
+     * future API adapters. Metadata must already be scrubbed of secrets.
+     *
+     * @param array<string, mixed>|null $before
+     * @param array<string, mixed>|null $after
+     * @param array<string, mixed>|null $metadata
+     */
+    public function recordWithContext(
+        AuditContext $context,
+        string $action,
+        string $targetType,
+        ?string $targetId = null,
+        ?array $before = null,
+        ?array $after = null,
+        ?array $metadata = null,
+    ): void {
         $entry = new AuditLogEntry(
-            actorUserId: $actorUserId,
+            actorUserId: $context->actorUserId,
             action: $action,
             targetType: $targetType,
             targetId: $targetId,
-            effectiveUserId: $effectiveUserId,
-            accountId: $accountId,
-            zoneId: $zoneId,
-            providerAccountId: $providerAccountId,
-            impersonationSessionId: $impersonationSessionId,
+            effectiveUserId: $context->effectiveUserId,
+            accountId: $context->accountId,
+            zoneId: $context->zoneId,
+            providerAccountId: $context->providerAccountId,
+            impersonationSessionId: $context->impersonationSessionId,
             beforeJson: $before,
             afterJson: $after,
             metadataJson: $metadata,
-            ipAddress: $ip,
-            userAgent: $userAgent,
+            ipAddress: $context->ipAddress,
+            userAgent: $context->userAgent,
         );
-
         $this->repository->append($entry, new \DateTimeImmutable()->format('Y-m-d H:i:s'));
     }
 
@@ -194,12 +227,30 @@ final readonly class AuditLogService
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private function resolveIp(ServerRequestInterface $request): ?string
+    public static function fromHttpRequest(
+        ServerRequestInterface $request,
+        ?string $actorUserId,
+        ?string $effectiveUserId = null,
+        ?int $accountId = null,
+        ?string $zoneId = null,
+        ?int $providerAccountId = null,
+        ?string $impersonationSessionId = null,
+    ): AuditContext
     {
         // Trust X-Forwarded-For only if you control the proxy tier.
         // For now: use REMOTE_ADDR only.
         $params = $request->getServerParams();
         $ip     = $params['REMOTE_ADDR'] ?? null;
-        return is_string($ip) ? $ip : null;
+
+        return new AuditContext(
+            $actorUserId,
+            $effectiveUserId,
+            $accountId,
+            $zoneId,
+            $providerAccountId,
+            $impersonationSessionId,
+            is_string($ip) ? $ip : null,
+            $request->getHeaderLine('User-Agent') ?: null,
+        );
     }
 }
