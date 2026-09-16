@@ -31,6 +31,7 @@ final readonly class ProviderAccountManagementService
         private PermissionService $permissions,
         private ProviderCredentialSchemaInterface $schemas,
         private CredentialEncryptorInterface $credentials,
+        private ?ResourceLimitService $resourceLimits = null,
     ) {}
 
     /** @throws AuthorizationException|ProviderAccountException */
@@ -58,6 +59,7 @@ final readonly class ProviderAccountManagementService
     {
         $account = $this->account($accountId);
         $this->permissions->assertCanManageProviderAccounts($account->id, $actor);
+        $this->resourceLimits?->assertCanCreateProviderAccount($accountId);
         $this->assertUserManagedType($providerType);
 
         $name = trim($name);

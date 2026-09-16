@@ -405,6 +405,15 @@ final readonly class SchemaManager
             'fk_acc_owner_user_id',
         );
 
+        // account_resource_limits -------------------------------------------
+        $resourceLimits = new Table('account_resource_limits');
+        $resourceLimits->addColumn('account_id', Types::INTEGER);
+        $resourceLimits->addColumn('max_zones', Types::INTEGER, ['notnull' => false]);
+        $resourceLimits->addColumn('max_members', Types::INTEGER, ['notnull' => false]);
+        $resourceLimits->addColumn('max_provider_accounts', Types::INTEGER, ['notnull' => false]);
+        $resourceLimits->setPrimaryKey(['account_id']);
+        $resourceLimits->addForeignKeyConstraint('accounts', ['account_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_arl_account_id');
+
         // account_memberships ------------------------------------------------
         $accMembers = new Table('account_memberships');
         $accMembers->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
@@ -575,7 +584,7 @@ final readonly class SchemaManager
 
         return [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $apiKeys,
-            $accounts, $accMembers, $provAccounts, $zoneMembers, $impSessions, $auditLogs,
+            $accounts, $resourceLimits, $accMembers, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
             $pwResetTokens, $systemSettings,
         ];
     }

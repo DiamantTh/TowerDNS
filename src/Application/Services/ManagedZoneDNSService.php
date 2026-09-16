@@ -25,11 +25,13 @@ final readonly class ManagedZoneDNSService
         private ManagedZoneRepositoryInterface $managedZones,
         private ProviderAccountRepositoryInterface $providerAccounts,
         private AccountProviderFactoryInterface $providerFactory,
+        private ?ResourceLimitService $resourceLimits = null,
     ) {}
 
     public function create(User $user, int $accountId, int $providerAccountId, string $name): ManagedZone
     {
         $this->permissions->assertAccount($user, Permission::ZONE_CREATE, $accountId);
+        $this->resourceLimits?->assertCanCreateZone($accountId);
         $provider = $this->provider($accountId, $providerAccountId, Capability::ZONE_CREATE);
         $zone     = $provider->createZone(DNSNameValidator::normalise($name));
         if (!$zone->active || $zone->id === '') {
