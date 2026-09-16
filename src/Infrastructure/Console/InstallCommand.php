@@ -15,10 +15,11 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Application\Services\CredentialService;
-use TowerDNS\Infrastructure\Persistence\SchemaManager;
+use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
+use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
+use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
 use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 
 /**
@@ -29,6 +30,9 @@ use TowerDNS\Infrastructure\Provider\DnsProviderFactory;
 #[AsCommand(name: 'towerdns:install', description: 'Install TowerDNS interactively')]
 final class InstallCommand extends Command
 {
+    /** @var list<string> */
+    private const array REQUIRED_EXTENSIONS = ['pdo', 'openssl', 'sodium', 'intl', 'mbstring'];
+
     public function __construct(
         private readonly string $projectRoot,
         private readonly ?DnsProviderFactory $providerFactory = null,
@@ -55,7 +59,7 @@ final class InstallCommand extends Command
         }
 
         // ── PHP extensions ────────────────────────────────────────────────
-        foreach (['pdo', 'openssl', 'sodium', 'intl', 'mbstring'] as $ext) {
+        foreach (self::missingRequiredExtensions() as $ext) {
             if (!extension_loaded($ext)) {
                 $io->error('Missing required PHP extension: ' . $ext);
                 return Command::FAILURE;
@@ -216,18 +220,10 @@ final class InstallCommand extends Command
         $now = new \DateTime()->format('Y-m-d H:i:s');
 
         try {
-            $conn          = $this->buildConnection($db);
-            $schemaManager = new SchemaManager($conn);
+            $conn         = $this->buildConnection($db);
+            $bootstrapper = new FreshInstallBootstrapper($conn);
 
             $io->writeln('  Creating database tables …');
-            $schemaManager->createTablesIfNotExist();
-
-            $io->writeln('  Seeding system roles …');
-            $schemaManager->seedSystemRoles();
-
-            $io->writeln('  Seeding default system settings …');
-            $schemaManager->seedSystemSettingsDefaults();
-
             $io->writeln('  Creating admin user …');
             $hash = password_hash($adminPass, PASSWORD_ARGON2ID, [
                 'memory_cost' => 131072,
@@ -242,35 +238,46 @@ final class InstallCommand extends Command
                 bin2hex(chr((ord(random_bytes(1)[0]) & 0x3f) | 0x80)) . bin2hex(random_bytes(1)),
                 bin2hex(random_bytes(6)),
             );
-            $schemaManager->seedFirstUser($adminId, $adminEmail, $hash, $adminUsername);
-
             $io->writeln('  Creating default account …');
             $defaultSlug = substr(strtolower(preg_replace('/[^a-z0-9]+/i', '-', $appName) ?? 'default'), 0, 64);
             $defaultSlug = trim($defaultSlug, '-') ?: 'default';
-            $schemaManager->seedDefaultAccount($adminId, $appName, $defaultSlug, $now);
-        } catch (\Throwable $e) {
-            $io->error('Database error: ' . $e->getMessage());
+            $bootstrapper->bootstrap(new FreshInstallBootstrapRequest(
+                $adminId,
+                $adminEmail,
+                $hash,
+                $adminUsername,
+                $appName,
+                $defaultSlug,
+                $now,
+            ));
+        } catch (\Throwable) {
+            $io->error('Database setup failed. Check the database configuration and installation state.');
             return Command::FAILURE;
         }
 
         // ── Write config files ────────────────────────────────────────────
         $io->writeln('  Writing config files …');
-        $encKey = $this->resolveEncryptionKey($cfgDir . '/config.local.toml');
+        try {
+            $encKey = $this->resolveEncryptionKey($cfgDir . '/config.local.toml');
 
-        $this->writeLocalToml(
-            $cfgDir,
-            $now,
-            $encKey,
-            $appDomain,
-            $appName,
-            $appTheme,
-            $appHttps,
-            $sentryDsn,
-            $mailerDsn,
-            $mailerFrom,
-        );
-        $this->writeDatabaseToml($cfgDir, $now, $db);
-        $this->writeProvidersToml($cfgDir, $now, $providers);
+            $this->writeLocalToml(
+                $cfgDir,
+                $now,
+                $encKey,
+                $appDomain,
+                $appName,
+                $appTheme,
+                $appHttps,
+                $sentryDsn,
+                $mailerDsn,
+                $mailerFrom,
+            );
+            $this->writeDatabaseToml($cfgDir, $now, $db);
+            $this->writeProvidersToml($cfgDir, $now, $providers);
+        } catch (\Throwable) {
+            $io->error('Configuration could not be written. The database was not marked as installed.');
+            return Command::FAILURE;
+        }
 
         // ── Lock file ─────────────────────────────────────────────────────
         file_put_contents($lockFile, $now);
@@ -290,6 +297,15 @@ final class InstallCommand extends Command
     private function translate(string $message): string
     {
         return $this->translator?->translate($message) ?? $message;
+    }
+
+    /** @return list<string> */
+    public static function missingRequiredExtensions(): array
+    {
+        return array_values(array_filter(
+            self::REQUIRED_EXTENSIONS,
+            static fn(string $extension): bool => !extension_loaded($extension),
+        ));
     }
 
     // ── Private helpers ───────────────────────────────────────────────────
@@ -469,7 +485,7 @@ final class InstallCommand extends Command
 
     private function writeSecureFile(string $file, string $contents): void
     {
-        (new AtomicConfigurationWriter())->write($file, $contents);
+        new AtomicConfigurationWriter()->write($file, $contents);
     }
 
     private function resolveEncryptionKey(string $configFile): string
