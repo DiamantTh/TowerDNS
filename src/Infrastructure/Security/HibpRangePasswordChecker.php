@@ -55,8 +55,10 @@ final readonly class HibpRangePasswordChecker implements BreachedPasswordChecker
                 ->withHeader('User-Agent', 'TowerDNS-HIBP-Check');
 
             $response = $this->http->sendRequest($request);
-        } catch (ClientExceptionInterface $e) {
-            $this->logger->warning('HIBP range lookup failed', ['error' => $e->getMessage()]);
+        } catch (ClientExceptionInterface) {
+            // Client exceptions can include request URLs or upstream response details.
+            // The password checker only needs to record that the lookup was unavailable.
+            $this->logger->warning('HIBP range lookup failed');
             if ($this->failOpen) {
                 return 0;
             }
