@@ -16,7 +16,7 @@ final class SessionSecurityTest extends TestCase
 {
     public function testCompletingLoginRegeneratesTheSessionAndRecordsItsLifetime(): void
     {
-        $session  = new Session([]);
+        $session  = new Session(['active_account_id' => 42, 'admin_switch_session_id' => 'old-switch']);
         $security = new SessionSecurity($this->clock(1000));
 
         $session = $security->completeLogin($session, 'user-1');
@@ -25,6 +25,8 @@ final class SessionSecurityTest extends TestCase
         self::assertSame('user-1', $security->authenticatedUserId($session));
         self::assertSame(1000, $session->get('authenticated_at'));
         self::assertSame(1000, $session->get('last_activity_at'));
+        self::assertFalse($session->has('active_account_id'));
+        self::assertFalse($session->has('admin_switch_session_id'));
     }
 
     public function testIdleOrAbsoluteSessionExpiryInvalidatesAllState(): void

@@ -56,30 +56,39 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
                 $user = $this->users->findById($userId);
 
                 if ($user instanceof User) {
-                    $request  = $request->withAttribute(User::class, $user)->withAttribute('actor_user', $user)->withAttribute(ImpersonationContext::class, new ImpersonationContext($user, $user));
-                    $switchId = $session->get('admin_switch_session_id');
+                    $request       = $request->withAttribute(User::class, $user)->withAttribute('actor_user', $user)->withAttribute(ImpersonationContext::class, new ImpersonationContext($user, $user));
+                    $switchId      = $session->get('admin_switch_session_id');
+                    $impersonation = null;
                     if (is_string($switchId) && $switchId !== '') {
                         $switch = $this->impersonationSessions->findById($switchId);
                         if (!$switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession || $switch->actorUserId !== $user->id || $switch->endedAt !== null || new \DateTimeImmutable($switch->expiresAt) <= new \DateTimeImmutable()) {
                             $session->unset('admin_switch_session_id');
-                        } elseif ($switch->effectiveAccountId !== null && (!($account = $this->accounts->findById($switch->effectiveAccountId)) instanceof \TowerDNS\Domain\Account\Account || !$account->isActive)) {
-                            $session->unset('admin_switch_session_id');
-                        } elseif ($switch->effectiveUserId !== null) {
-                            $effective = $this->users->findById($switch->effectiveUserId);
-                            if ($effective instanceof User) {
-                                $request = $request->withAttribute(User::class, $effective)->withAttribute('effective_user', $effective)->withAttribute('impersonation_session', $switch)->withAttribute(ImpersonationContext::class, new ImpersonationContext($user, $effective, $switch->effectiveAccountId, $switch));
-                            } else {
+                        } else {
+                            $effective = $switch->effectiveUserId    === null ? $user : $this->users->findById($switch->effectiveUserId);
+                            $account   = $switch->effectiveAccountId === null ? null : $this->accounts->findById($switch->effectiveAccountId);
+
+                            // A switched account narrows the effective user's existing scope. It
+                            // never grants membership merely because an administrator selected it.
+                            if (!$effective instanceof User || ($switch->effectiveAccountId !== null && (!$account instanceof \TowerDNS\Domain\Account\Account || !$account->isActive || !$this->activeAccounts->resolve($effective, $switch->effectiveAccountId) instanceof \TowerDNS\Domain\Account\Account))) {
                                 $session->unset('admin_switch_session_id');
+                            } else {
+                                $request       = $request->withAttribute(User::class, $effective)->withAttribute('effective_user', $effective)->withAttribute('impersonation_session', $switch)->withAttribute(ImpersonationContext::class, new ImpersonationContext($user, $effective, $switch->effectiveAccountId, $switch));
+                                $impersonation = $switch;
                             }
                         }
                     }
                     /** @var User $effectiveUser */
                     $effectiveUser = $request->getAttribute(User::class);
                     $activeId      = $session->get('active_account_id');
-                    $active        = is_int($activeId) || (is_string($activeId) && ctype_digit($activeId))
-                        ? $this->activeAccounts->resolve($effectiveUser, (int) $activeId)
-                        : null;
-                    if ($active === null && $activeId !== null) {
+                    $active        = $impersonation?->effectiveAccountId !== null
+                        ? $this->activeAccounts->resolve($effectiveUser, $impersonation->effectiveAccountId)
+                        : (is_int($activeId) || (is_string($activeId) && ctype_digit($activeId))
+                            ? $this->activeAccounts->resolve($effectiveUser, (int) $activeId)
+                            : null);
+                    if ($impersonation?->effectiveAccountId !== null && (int) $activeId !== $impersonation->effectiveAccountId) {
+                        $session->unset('active_account_id');
+                    }
+                    if (!$active instanceof \TowerDNS\Domain\Account\Account && $activeId !== null) {
                         $session->unset('active_account_id');
                     }
                     $request = $request->withAttribute(ActiveAccountContext::class, new ActiveAccountContext($active));

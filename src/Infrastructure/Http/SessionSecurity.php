@@ -52,6 +52,7 @@ final readonly class SessionSecurity
     public function completeLogin(SessionInterface $session, string $userId): SessionInterface
     {
         $session = $session->regenerate();
+        $this->clearAuthenticatedState($session);
         $this->clearPendingMfa($session);
         $now = $this->now();
         $session->set('user_id', $userId);
@@ -69,7 +70,7 @@ final readonly class SessionSecurity
 
         if (!is_string($userId) || $userId === '' || !is_int($authenticated) || !is_int($lastActivity)
                                 || $authenticated < $now - self::AUTH_ABSOLUTE_TIMEOUT_SECONDS
-                                || $lastActivity  < $now  - self::AUTH_IDLE_TIMEOUT_SECONDS) {
+                                || $lastActivity  < $now - self::AUTH_IDLE_TIMEOUT_SECONDS) {
             $this->invalidate($session);
             return null;
         }
@@ -97,6 +98,7 @@ final readonly class SessionSecurity
         $session->unset('authenticated_at');
         $session->unset('last_activity_at');
         $session->unset('admin_switch_session_id');
+        $session->unset('active_account_id');
     }
 
     private function now(): int
