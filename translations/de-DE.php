@@ -241,6 +241,7 @@ return [
     'http.error.invalid-request'               => 'Ungültige Anfrage.',
     'http.error.forbidden'                     => 'Du darfst diese Aktion nicht ausführen.',
     'http.error.not-found'                     => 'Die angeforderte Ressource wurde nicht gefunden.',
+    'http.error.operation-failed'              => 'Die angeforderte Aktion konnte nicht abgeschlossen werden.',
     'zones.error.name-required'                => 'Bitte einen Zonennamen angeben.',
     'zones.error.create-denied'                => 'Keine Berechtigung zum Anlegen von Zonen.',
     'zones.error.create-failed'                => 'Zone konnte nicht angelegt werden.',

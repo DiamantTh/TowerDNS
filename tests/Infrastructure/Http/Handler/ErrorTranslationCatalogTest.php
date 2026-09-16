@@ -20,6 +20,7 @@ final class ErrorTranslationCatalogTest extends TestCase
         foreach ([
             'http.error.invalid-request',
             'http.error.forbidden',
+            'http.error.operation-failed',
             'zones.error.name-required',
             'zones.error.create-failed',
             'zones.error.delete-failed',

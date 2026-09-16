@@ -52,14 +52,14 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
 
         try {
             $this->authz->assert($currentUser, Permission::ROLE_MANAGE);
-        } catch (AuthorizationException $e) {
+        } catch (AuthorizationException) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/role_edit', [
                     'user' => $currentUser,
                     'role' => null,
                     ...$this->editorData(),
                     'csrfToken' => $guard->generateToken(),
-                    'error'     => $e->getMessage(),
+                    'error'     => $this->t('http.error.forbidden'),
                     'success'   => null,
                 ]),
                 403,

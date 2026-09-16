@@ -10,6 +10,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 use Devium\Toml\Toml;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -37,6 +38,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         private SystemSettingsRepositoryInterface $settings,
         private ThemeManager                      $themes,
         private string                            $configPath,
+        private TranslatorInterface               $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -46,12 +48,12 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
 
         try {
             $this->authz->assert($user, Permission::SYSTEM_SETTINGS_MANAGE);
-        } catch (AuthorizationException $e) {
+        } catch (AuthorizationException) {
             return new HtmlResponse(
                 $this->renderer->render('app::settings', [
                     'user'      => $user,
                     'fields'    => [],
-                    'error'     => $e->getMessage(),
+                    'error'     => $this->translator->translate('http.error.forbidden'),
                     'success'   => null,
                     'csrfToken' => '',
                 ]),
@@ -228,12 +230,12 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
                 'security.password.min_length' => $pwdMinLen,
                 'security.password.min_score'  => $pwdMinScore,
             ], $user->id);
-        } catch (\Throwable $e) {
+        } catch (\Throwable) {
             return new HtmlResponse(
                 $this->renderer->render('app::settings', [
                     'user'      => $user,
                     'fields'    => $this->readFields(),
-                    'error'     => $e->getMessage(),
+                    'error'     => $this->translator->translate('http.error.operation-failed'),
                     'success'   => null,
                     'csrfToken' => $csrfToken,
                 ]),

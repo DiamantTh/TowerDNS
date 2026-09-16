@@ -302,12 +302,14 @@ final class ContainerFactory
                     AuthorizationService               $authz,
                     SystemSettingsRepositoryInterface  $settings,
                     ThemeManager                       $themes,
+                    TranslatorInterface                $translator,
                 ): SystemSettingsHandler => new SystemSettingsHandler(
                     $renderer,
                     $authz,
                     $settings,
                     $themes,
                     $projectRoot . '/configs/config.local.toml',
+                    $translator,
                 )
             ),
 

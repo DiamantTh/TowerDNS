@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -33,6 +34,7 @@ final readonly class RoleListHandler implements RequestHandlerInterface
         private AuthorizationService      $authz,
         private PermissionRegistry        $permissions,
         private ActionGroupRegistry       $actionGroups,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -49,14 +51,14 @@ final readonly class RoleListHandler implements RequestHandlerInterface
 
         try {
             $this->authz->assert($currentUser, Permission::ROLE_MANAGE);
-        } catch (AuthorizationException $e) {
+        } catch (AuthorizationException) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/roles', [
                     'user'  => $currentUser,
                     'roles' => [],
                     ...$this->editorData(),
                     'csrfToken' => $csrfToken,
-                    'error'     => $e->getMessage(),
+                    'error'     => $this->translator->translate('http.error.forbidden'),
                     'success'   => null,
                 ]),
                 403,
