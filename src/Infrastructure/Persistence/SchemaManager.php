@@ -183,25 +183,26 @@ final readonly class SchemaManager
         }
 
         $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
+        $this->connection->transactional(function () use ($id, $email, $passwordHash, $displayName, $now): void {
+            $this->connection->insert('users', [
+                'id'                    => $id,
+                'email'                 => $email,
+                'display_name'          => $displayName !== '' ? $displayName : null,
+                'password_hash'         => $passwordHash,
+                'totp_secret_encrypted' => null,
+                'active'                => true,
+                'theme'                 => 'system',
+                'locale'                => 'en',
+                'last_login_at'         => null,
+                'created_at'            => $now,
+                'updated_at'            => $now,
+            ]);
 
-        $this->connection->insert('users', [
-            'id'                    => $id,
-            'email'                 => $email,
-            'display_name'          => $displayName !== '' ? $displayName : null,
-            'password_hash'         => $passwordHash,
-            'totp_secret_encrypted' => null,
-            'active'                => true,
-            'theme'                 => 'system',
-            'locale'                => 'en',
-            'last_login_at'         => null,
-            'created_at'            => $now,
-            'updated_at'            => $now,
-        ]);
-
-        $this->connection->insert('user_roles', [
-            'user_id' => $id,
-            'role_id' => 'superadmin',
-        ]);
+            $this->connection->insert('user_roles', [
+                'user_id' => $id,
+                'role_id' => 'superadmin',
+            ]);
+        });
     }
 
     /**
@@ -223,30 +224,30 @@ final readonly class SchemaManager
             return;
         }
 
-        $this->connection->insert('accounts', [
-            'name'          => $accountName,
-            'slug'          => $slug,
-            'owner_user_id' => $ownerUserId,
-            'is_active'     => true,
-            'created_at'    => $now,
-        ]);
+        $this->connection->transactional(function () use ($ownerUserId, $accountName, $slug, $now): void {
+            $this->connection->insert('accounts', [
+                'name'          => $accountName,
+                'slug'          => $slug,
+                'owner_user_id' => $ownerUserId,
+                'is_active'     => true,
+                'created_at'    => $now,
+            ]);
 
-        $accountId = (int) $this->connection->lastInsertId();
-
-        $this->connection->insert('account_memberships', [
-            'account_id' => $accountId,
-            'user_id'    => $ownerUserId,
-            'role'       => 'owner',
-            'invited_by' => null,
-            'created_at' => $now,
-        ]);
-
-        $this->connection->insert('account_resource_limits', [
-            'account_id'            => $accountId,
-            'max_zones'             => null,
-            'max_members'           => null,
-            'max_provider_accounts' => null,
-        ]);
+            $accountId = (int) $this->connection->lastInsertId();
+            $this->connection->insert('account_memberships', [
+                'account_id' => $accountId,
+                'user_id'    => $ownerUserId,
+                'role'       => 'owner',
+                'invited_by' => null,
+                'created_at' => $now,
+            ]);
+            $this->connection->insert('account_resource_limits', [
+                'account_id'            => $accountId,
+                'max_zones'             => null,
+                'max_members'           => null,
+                'max_provider_accounts' => null,
+            ]);
+        });
     }
 
     /**

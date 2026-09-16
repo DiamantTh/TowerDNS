@@ -36,5 +36,13 @@ final class SchemaManagerFreshInstallTest extends TestCase
         self::assertSame('owner', $connection->fetchOne('SELECT role FROM account_memberships WHERE user_id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));
         self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM account_resource_limits'));
         self::assertNull($connection->fetchOne('SELECT max_zones FROM account_resource_limits'));
+        self::assertSame('6c74d6ca-2d12-41df-a913-f146bc4785ea', $connection->fetchOne('SELECT owner_user_id FROM accounts'));
+        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM account_memberships WHERE role = ?', ['owner']));
+
+        $schema->seedFirstUser('a5e0ffbd-f299-443d-a0ec-dd44cb85173e', 'second@example.test', password_hash('other-password', PASSWORD_ARGON2ID));
+        $schema->seedDefaultAccount('a5e0ffbd-f299-443d-a0ec-dd44cb85173e', 'Second', 'second', '2026-09-16 00:00:01');
+
+        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM users'));
+        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts'));
     }
 }
