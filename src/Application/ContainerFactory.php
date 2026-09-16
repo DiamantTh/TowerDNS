@@ -66,6 +66,7 @@ use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
+use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\SystemProviderConfigurationStoreInterface;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
@@ -109,6 +110,7 @@ use TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAuditLogRepository;
 use TowerDNS\Infrastructure\Persistence\DbalPasswordResetTokenRepository;
 use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
+use TowerDNS\Infrastructure\Persistence\DbalManagedZoneRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
@@ -228,6 +230,7 @@ final class ContainerFactory
             // ── Multi-Tenant repositories ─────────────────────────────────────
             AccountRepositoryInterface::class                   => \DI\autowire(DbalAccountRepository::class),
             ProviderAccountRepositoryInterface::class           => \DI\autowire(DbalProviderAccountRepository::class),
+            ManagedZoneRepositoryInterface::class                => \DI\autowire(DbalManagedZoneRepository::class),
             AuditLogRepositoryInterface::class                  => \DI\autowire(DbalAuditLogRepository::class),
             ZoneMembershipRepositoryInterface::class            => \DI\autowire(DbalZoneMembershipRepository::class),
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),

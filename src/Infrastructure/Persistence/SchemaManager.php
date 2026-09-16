@@ -451,6 +451,21 @@ final readonly class SchemaManager
             ['onDelete' => 'CASCADE'],
             'fk_pa_account_id',
         );
+        $provAccounts->addUniqueIndex(['id', 'account_id'], 'uq_provider_accounts_id_account');
+
+        // managed_zones ------------------------------------------------------
+        $managedZones = new Table('managed_zones');
+        $managedZones->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $managedZones->addColumn('account_id', Types::INTEGER);
+        $managedZones->addColumn('provider_account_id', Types::INTEGER);
+        $managedZones->addColumn('provider_zone_id', Types::STRING, ['length' => 255]);
+        $managedZones->addColumn('canonical_name', Types::STRING, ['length' => 253]);
+        $managedZones->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $managedZones->setPrimaryKey(['id']);
+        $managedZones->addUniqueIndex(['provider_account_id', 'provider_zone_id'], 'uq_managed_zone_provider_zone');
+        $managedZones->addIndex(['account_id'], 'idx_managed_zones_account');
+        $managedZones->addForeignKeyConstraint('accounts', ['account_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_mz_account_id');
+        $managedZones->addForeignKeyConstraint('provider_accounts', ['provider_account_id', 'account_id'], ['id', 'account_id'], ['onDelete' => 'CASCADE'], 'fk_mz_provider_account');
 
         // zone_memberships ---------------------------------------------------
         $zoneMembers = new Table('zone_memberships');
