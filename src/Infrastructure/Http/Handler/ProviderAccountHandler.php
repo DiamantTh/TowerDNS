@@ -190,6 +190,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
             ProviderAccountException::PROVIDER_NOT_FOUND        => 'providers.error.account-not-found',
             ProviderAccountException::PROVIDER_NOT_USER_MANAGED => 'providers.error.not-user-managed',
             ProviderAccountException::NAME_REQUIRED             => 'providers.error.name-required',
+            ProviderAccountException::INSECURE_ENDPOINT         => 'providers.error.insecure-endpoint',
             default                                             => 'providers.error.credentials-incomplete',
         };
     }

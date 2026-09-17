@@ -36,6 +36,9 @@ final readonly class SecurityHeaderMiddleware implements MiddlewareInterface
                 "img-src 'self' data:",
                 "connect-src 'self'",
                 "frame-ancestors 'none'",
+                "base-uri 'self'",
+                "object-src 'none'",
+                "form-action 'self'",
             ]));
 
         // HSTS is deliberately configuration-gated: enabling it on an HTTP

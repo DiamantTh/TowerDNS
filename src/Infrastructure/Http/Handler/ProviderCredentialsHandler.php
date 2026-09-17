@@ -80,9 +80,11 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
             $this->providers->update($user, $provider, $body);
             $this->audit->recordSystemProviderConfigurationUpdated($request, $user->id, $provider);
         } catch (ProviderConfigurationException $exception) {
-            $key = $exception->reason === ProviderConfigurationException::UNKNOWN_PROVIDER
-                ? 'providers.error.unknown-type'
-                : 'providers.error.credentials-incomplete';
+            $key = match ($exception->reason) {
+                ProviderConfigurationException::UNKNOWN_PROVIDER  => 'providers.error.unknown-type',
+                ProviderConfigurationException::INSECURE_ENDPOINT => 'providers.error.insecure-endpoint',
+                default                                           => 'providers.error.credentials-incomplete',
+            };
             return new RedirectResponse('/credentials?error=' . rawurlencode($this->translator->translate($key)));
         } catch (AuthorizationException) {
             return new RedirectResponse('/credentials?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));

@@ -10,6 +10,7 @@ namespace TowerDNS\Application\Services;
 use TowerDNS\Application\Contracts\ProviderCredentialSchemaInterface;
 use TowerDNS\Application\Exception\ProviderConfigurationException;
 use TowerDNS\Application\Repository\SystemProviderConfigurationStoreInterface;
+use TowerDNS\Application\Validation\ProviderEndpointPolicy;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -61,6 +62,12 @@ final readonly class SystemProviderConfigurationService
 
             if (!$this->schemas->credentialsComplete($providerType, $credentials)) {
                 throw new ProviderConfigurationException(ProviderConfigurationException::INCOMPLETE_CREDENTIALS);
+            }
+
+            try {
+                ProviderEndpointPolicy::assertCredentialsSafe($credentials);
+            } catch (\InvalidArgumentException) {
+                throw new ProviderConfigurationException(ProviderConfigurationException::INSECURE_ENDPOINT);
             }
 
             $providers[$providerType]   = $credentials;

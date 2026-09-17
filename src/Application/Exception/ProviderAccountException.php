@@ -15,6 +15,7 @@ final class ProviderAccountException extends \RuntimeException
     public const string PROVIDER_NOT_USER_MANAGED = 'provider_not_user_managed';
     public const string NAME_REQUIRED             = 'name_required';
     public const string CREDENTIALS_INCOMPLETE    = 'credentials_incomplete';
+    public const string INSECURE_ENDPOINT         = 'insecure_endpoint';
 
     public function __construct(public readonly string $reason)
     {

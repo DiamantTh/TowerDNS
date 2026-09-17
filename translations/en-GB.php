@@ -76,6 +76,7 @@ return [
     'permission.provider.config.manage.description'       => 'Manage provider-specific configuration.',
     'providers.error.unknown-type'                        => 'Unknown provider type.',
     'providers.error.credentials-incomplete'              => 'Provider credentials are incomplete.',
+    'providers.error.insecure-endpoint'                   => 'The provider endpoint is not allowed: it must use HTTPS and a public network address, unless private-network access is explicitly enabled.',
     'providers.error.system-config-save-failed'           => 'The system provider configuration could not be saved.',
     'providers.success.system-config-saved'               => 'System provider credentials saved.',
     'providers.error.account-not-found'                   => 'Provider connection not found.',

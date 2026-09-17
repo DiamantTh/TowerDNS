@@ -12,6 +12,7 @@ final class ProviderConfigurationException extends \RuntimeException
 {
     public const string UNKNOWN_PROVIDER       = 'unknown_provider';
     public const string INCOMPLETE_CREDENTIALS = 'incomplete_credentials';
+    public const string INSECURE_ENDPOINT      = 'insecure_endpoint';
 
     public function __construct(public readonly string $reason)
     {

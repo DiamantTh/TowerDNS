@@ -23,9 +23,10 @@ final readonly class PowerDNSModule implements ProviderModuleInterface
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition('powerdns', 'PowerDNS', false, [
-            'base_url'  => ['input' => 'powerdns_base_url', 'label' => 'module.powerdns.credentials.base-url.label', 'required' => true, 'secret' => false],
-            'api_key'   => ['input' => 'powerdns_api_key', 'label' => 'module.powerdns.credentials.api-key.label', 'required' => true, 'secret' => true],
-            'server_id' => ['input' => 'powerdns_server_id', 'label' => 'module.powerdns.credentials.server-id.label', 'required' => false, 'secret' => false, 'default' => 'localhost'],
+            'base_url'              => ['input' => 'powerdns_base_url', 'label' => 'module.powerdns.credentials.base-url.label', 'required' => true, 'secret' => false],
+            'api_key'               => ['input' => 'powerdns_api_key', 'label' => 'module.powerdns.credentials.api-key.label', 'required' => true, 'secret' => true],
+            'server_id'             => ['input' => 'powerdns_server_id', 'label' => 'module.powerdns.credentials.server-id.label', 'required' => false, 'secret' => false, 'default' => 'localhost'],
+            'allow_private_network' => ['input' => 'powerdns_allow_private_network', 'label' => 'module.powerdns.credentials.allow-private-network.label', 'required' => false, 'secret' => false, 'type' => 'checkbox'],
         ]);
     }
 

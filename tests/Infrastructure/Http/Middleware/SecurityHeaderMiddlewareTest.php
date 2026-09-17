@@ -24,6 +24,9 @@ final class SecurityHeaderMiddlewareTest extends TestCase
         self::assertSame('nosniff', $response->getHeaderLine('X-Content-Type-Options'));
         self::assertSame('strict-origin-when-cross-origin', $response->getHeaderLine('Referrer-Policy'));
         self::assertStringContainsString("frame-ancestors 'none'", $response->getHeaderLine('Content-Security-Policy'));
+        self::assertStringContainsString("base-uri 'self'", $response->getHeaderLine('Content-Security-Policy'));
+        self::assertStringContainsString("object-src 'none'", $response->getHeaderLine('Content-Security-Policy'));
+        self::assertStringContainsString("form-action 'self'", $response->getHeaderLine('Content-Security-Policy'));
         self::assertStringContainsString("style-src 'self' 'unsafe-inline'", $response->getHeaderLine('Content-Security-Policy'));
         self::assertSame('max-age=31536000; includeSubDomains', $response->getHeaderLine('Strict-Transport-Security'));
     }

@@ -15,6 +15,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\ProviderAccountException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
+use TowerDNS\Application\Validation\ProviderEndpointPolicy;
 use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Auth\User;
@@ -142,6 +143,12 @@ final readonly class ProviderAccountManagementService
         $credentials = $this->schemas->credentialsFromInput($providerType, $input);
         if ($credentials === null || !$this->schemas->credentialsComplete($providerType, $credentials)) {
             throw new ProviderAccountException(ProviderAccountException::CREDENTIALS_INCOMPLETE);
+        }
+
+        try {
+            ProviderEndpointPolicy::assertCredentialsSafe($credentials);
+        } catch (\InvalidArgumentException) {
+            throw new ProviderAccountException(ProviderAccountException::INSECURE_ENDPOINT);
         }
 
         $json = json_encode($credentials, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);

@@ -76,6 +76,7 @@ return [
     'permission.provider.config.manage.description'       => 'Provider-spezifische Konfiguration verwalten.',
     'providers.error.unknown-type'                        => 'Unbekannter Provider-Typ.',
     'providers.error.credentials-incomplete'              => 'Die Provider-Zugangsdaten sind unvollständig.',
+    'providers.error.insecure-endpoint'                   => 'Der Provider-Endpunkt ist nicht zulässig: Er muss HTTPS und eine öffentliche Netzwerkadresse verwenden, sofern der Zugriff auf private Netzwerke nicht ausdrücklich aktiviert wurde.',
     'providers.error.system-config-save-failed'           => 'Die System-Provider-Konfiguration konnte nicht gespeichert werden.',
     'providers.success.system-config-saved'               => 'System-Provider-Zugangsdaten gespeichert.',
     'providers.error.account-not-found'                   => 'Provider-Verbindung nicht gefunden.',
