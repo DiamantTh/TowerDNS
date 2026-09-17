@@ -18,7 +18,10 @@ function processStep3(): array
     $app       = $_SESSION['install_app']       ?? null;
     $providers = $_SESSION['install_providers'] ?? null;
 
-    if (!$db || !$admin || !$app || !$providers) {
+    // install_providers is legitimately an empty array when the operator
+    // configures zero DNS providers up front; only null (missing session
+    // data) means the wizard state was actually lost.
+    if (!$db || !$admin || !$app || $providers === null) {
         $_SESSION['install_step'] = 1;
         return [t('step3.session_lost')];
     }
@@ -49,15 +52,9 @@ function processStep3(): array
             ],
         };
 
-        $conn          = Doctrine\DBAL\DriverManager::getConnection($params);
-        $schemaManager = new TowerDNS\Infrastructure\Persistence\SchemaManager($conn);
+        $conn = Doctrine\DBAL\DriverManager::getConnection($params);
 
-        // ── Schema + System-Rollen anlegen ────────────────────────────────
-        $schemaManager->createTablesIfNotExist();
-        $schemaManager->seedSystemRoles();
-        $schemaManager->seedSystemSettingsDefaults();
-
-        // ── Admin-Benutzer anlegen ────────────────────────────────────────
+        // ── Admin-Benutzer-ID vorbereiten ─────────────────────────────────
         $now  = new DateTime()->format('Y-m-d H:i:s');
         $hash = password_hash(
             $admin['password'],
@@ -72,12 +69,25 @@ function processStep3(): array
             bin2hex(chr((ord(random_bytes(1)[0]) & 0x3f) | 0x80)) . bin2hex(random_bytes(1)),
             bin2hex(random_bytes(6))
         );
-        $schemaManager->seedFirstUser($adminId, $admin['email'], $hash, $admin['username']);
 
-        // ── Standard-Account anlegen ──────────────────────────────────────
+        // ── Schema, System-Rollen, Admin-Benutzer, Standard-Account ───────
+        // Über denselben zentralen Bootstrapper wie der CLI-Installer, damit
+        // ein abgebrochener/wiederholter Lauf nie einen mehrdeutigen
+        // Zwischenzustand (z. B. Account ohne Owner) still übernimmt.
         $defaultSlug = substr(strtolower(preg_replace('/[^a-z0-9]+/i', '-', $app['name'] ?? 'default') ?? 'default'), 0, 64);
         $defaultSlug = trim($defaultSlug, '-') ?: 'default';
-        $schemaManager->seedDefaultAccount($adminId, $app['name'] ?? 'TowerDNS', $defaultSlug, $now);
+
+        new TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper($conn)->bootstrap(
+            new TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest(
+                $adminId,
+                $admin['email'],
+                $hash,
+                $admin['username'],
+                $app['name'] ?? 'TowerDNS',
+                $defaultSlug,
+                $now,
+            )
+        );
 
         // ── Runtime-Verzeichnisse anlegen ─────────────────────────────────────
         foreach ([
@@ -91,9 +101,10 @@ function processStep3(): array
             }
         }
         $cfgDir = PROJECT_ROOT . '/configs';
+        $writer = new TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter();
 
         // ── configs/config.local.toml ──────────────────────────────────
-        $encKey          = base64_encode(random_bytes(32));
+        $encKey          = TowerDNS\Application\Services\CredentialService::generateKey();
         $escapedEncKey   = addcslashes($encKey, '"\\');
         $escapedDomain   = addcslashes($app['domain'], '"\\');
         $escapedAppName  = addcslashes($app['name'], '"\\');
@@ -117,6 +128,12 @@ function processStep3(): array
             domain      = "{$escapedDomain}"
             force_https = {$forceHttps}
             debug       = false
+            # Steht TowerDNS hinter einem Reverse Proxy (nginx, traefik, ...),
+            # hier dessen IP(s)/CIDR(s) eintragen, damit der X-Forwarded-For-
+            # Header fuer Rate-Limiting und Audit-Log vertraut wird. Leer
+            # (Standard) heisst: nur die direkte Verbindung (REMOTE_ADDR)
+            # wird vertraut.
+            trusted_proxies = []
 
             [session]
             # Keep this true for every HTTPS deployment, including TLS-terminating proxies.
@@ -133,8 +150,7 @@ function processStep3(): array
         if (file_exists($localTomlFile)) {
             copy($localTomlFile, $localTomlFile . '.bak.' . date('Y-m-d-H-i-s'));
         }
-        file_put_contents($localTomlFile, $localToml);
-        chmod($localTomlFile, 0o600);
+        $writer->write($localTomlFile, $localToml);
 
         // ── configs/database.toml ──────────────────────────────────────────────
         if ($db['driver'] === 'pdo_sqlite') {
@@ -178,8 +194,7 @@ function processStep3(): array
         if (file_exists($dbTomlFile)) {
             copy($dbTomlFile, $dbTomlFile . '.bak.' . date('Y-m-d-H-i-s'));
         }
-        file_put_contents($dbTomlFile, $dbToml);
-        chmod($dbTomlFile, 0o600);
+        $writer->write($dbTomlFile, $dbToml);
 
         // ── configs/providers.toml ────────────────────────────────────────
         $providersToml = "# TowerDNS — Provider-Konfiguration (auto-generiert am {$now})\n";
@@ -212,11 +227,10 @@ function processStep3(): array
         if (file_exists($providersTomlFile)) {
             copy($providersTomlFile, $providersTomlFile . '.bak.' . date('Y-m-d-H-i-s'));
         }
-        file_put_contents($providersTomlFile, rtrim($providersToml) . "\n");
-        chmod($providersTomlFile, 0o600);
+        $writer->write($providersTomlFile, rtrim($providersToml) . "\n");
 
         // ── Lock-Datei ────────────────────────────────────────────────────
-        file_put_contents(LOCK_FILE, $now . "\n");
+        $writer->write(LOCK_FILE, $now . "\n");
 
         // ── Session abschliessen ──────────────────────────────────────────
         $_SESSION['install_result'] = [
