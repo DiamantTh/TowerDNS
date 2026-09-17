@@ -17,7 +17,9 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Services\AccountMembershipManagementService;
 use TowerDNS\Application\Services\AuditLogService;
+use TowerDNS\Application\Services\AccountOwnershipService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
@@ -36,15 +38,21 @@ use TowerDNS\Domain\Auth\User;
 final readonly class AccountHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private TemplateRendererInterface  $renderer,
-        private AccountRepositoryInterface $accounts,
-        private PermissionService          $permissions,
-        private AuditLogService            $audit,
+        private TemplateRendererInterface            $renderer,
+        private AccountRepositoryInterface           $accounts,
+        private PermissionService                    $permissions,
+        private AuditLogService                      $audit,
+        private AccountMembershipManagementService   $memberships,
+        private AccountOwnershipService              $ownership,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $path = $request->getUri()->getPath();
+
+        if (str_ends_with($path, '/ownership')) {
+            return $this->handleOwnershipPost($request);
+        }
 
         // /accounts/{id}/members
         if (str_ends_with($path, '/members')) {
@@ -249,12 +257,16 @@ final readonly class AccountHandler implements RequestHandlerInterface
 
     private function handleMembersPost(ServerRequestInterface $request): ResponseInterface
     {
-        /** @var User $user */
-        $user      = $request->getAttribute(User::class);
+        /** @var User $actor */
+        $actor    = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('id', 0);
 
+        if (!$actor instanceof User) {
+            return new HtmlResponse('Kein Zugriff.', 403);
+        }
+
         try {
-            $this->permissions->assertCanManageMembers($accountId, $user);
+            $this->permissions->assertCanManageMembers($accountId, $actor);
         } catch (AuthorizationException) {
             return new HtmlResponse('Kein Zugriff.', 403);
         }
@@ -277,8 +289,12 @@ final readonly class AccountHandler implements RequestHandlerInterface
             if ($targetUserId === '') {
                 return new RedirectResponse($base . '?error=' . rawurlencode('Benutzer-ID fehlt.'));
             }
-            $this->accounts->removeMembership($accountId, $targetUserId);
-            $this->audit->recordMemberRemoved($request, $user->id, $accountId, $targetUserId);
+            try {
+                $this->memberships->revoke($actor, $accountId, $targetUserId);
+                $this->audit->recordMemberRemoved($request, $actor->id, $accountId, $targetUserId);
+            } catch (\Throwable $e) {
+                return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
+            }
             return new RedirectResponse($base);
         }
 
@@ -291,14 +307,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
             }
 
             try {
-                $this->accounts->addMembership(
-                    accountId: $accountId,
-                    userId: $targetUserId,
-                    role: $role,
-                    createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
-                    invitedBy: $user->id,
-                );
-                $this->audit->recordMemberInvited($request, $user->id, $accountId, $targetUserId, $role->value);
+                $this->memberships->invite($actor, $accountId, $targetUserId, $role);
+                $this->audit->recordMemberInvited($request, $actor->id, $accountId, $targetUserId, $role->value);
             } catch (\Throwable $e) {
                 return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
             }
@@ -307,5 +317,31 @@ final readonly class AccountHandler implements RequestHandlerInterface
         }
 
         return new RedirectResponse($base . '?error=' . rawurlencode('Unbekannte Aktion.'));
+    }
+
+    private function handleOwnershipPost(ServerRequestInterface $request): ResponseInterface
+    {
+        /** @var User $actor */
+        $actor = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
+        $accountId = (int) $request->getAttribute('id', 0);
+        if (!$actor instanceof User) {
+            return new RedirectResponse('/accounts?error=' . rawurlencode('Invalid request.'));
+        }
+        /** @var CsrfGuardInterface $guard */
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        /** @var array<string, string> $body */
+        $body = (array) ($request->getParsedBody() ?? []);
+        $base = '/accounts/' . $accountId . '/members';
+        if (!$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
+            return new RedirectResponse($base . '?error=' . rawurlencode('Invalid request.'));
+        }
+        $target = trim((string) ($body['user_id'] ?? ''));
+        try {
+            $this->ownership->transfer($actor, $accountId, $target);
+            $this->audit->recordAccountOwnershipTransferred($request, $actor->id, $accountId, $target);
+        } catch (\Throwable $e) {
+            return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
+        }
+        return new RedirectResponse($base);
     }
 }

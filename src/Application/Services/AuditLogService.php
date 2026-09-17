@@ -225,6 +225,11 @@ final readonly class AuditLogService
         $this->record($request, 'user.mfa.totp.disable', 'user', $userId, $userId);
     }
 
+    public function recordAccountOwnershipTransferred(ServerRequestInterface $request, string $actorId, int $accountId, string $targetUserId): void
+    {
+        $this->record($request, 'account.ownership.transfer', 'account', (string) $accountId, $actorId, $accountId, null, null, null, null, ['owner_user_id' => $targetUserId]);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     public static function fromHttpRequest(
@@ -235,8 +240,7 @@ final readonly class AuditLogService
         ?string $zoneId = null,
         ?int $providerAccountId = null,
         ?string $impersonationSessionId = null,
-    ): AuditContext
-    {
+    ): AuditContext {
         // Trust X-Forwarded-For only if you control the proxy tier.
         // For now: use REMOTE_ADDR only.
         $params = $request->getServerParams();

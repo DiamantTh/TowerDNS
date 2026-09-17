@@ -58,17 +58,18 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
 
     public function create(string $name, string $slug, string $ownerUserId, string $createdAt): int
     {
-        $this->connection->insert('accounts', [
+        return $this->connection->transactional(function () use ($name, $slug, $ownerUserId, $createdAt): int {
+            $this->connection->insert('accounts', [
             'name'          => $name,
             'slug'          => $slug,
             'owner_user_id' => $ownerUserId,
             'is_active'     => 1,
             'created_at'    => $createdAt,
         ]);
-        $id = (int) $this->connection->lastInsertId();
+            $id = (int) $this->connection->lastInsertId();
 
         // Automatically add the owner as a member with owner role
-        $this->connection->insert('account_memberships', [
+            $this->connection->insert('account_memberships', [
             'account_id' => $id,
             'user_id'    => $ownerUserId,
             'role'       => TeamRole::OWNER->value,
@@ -76,7 +77,8 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
             'created_at' => $createdAt,
         ]);
 
-        return $id;
+            return $id;
+        });
     }
 
     public function updateName(int $id, string $name): void
@@ -136,10 +138,44 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
 
     public function removeMembership(int $accountId, string $userId): void
     {
+        $membership = $this->findMembership($accountId, $userId);
+        if ($membership?->role === TeamRole::OWNER) {
+            throw new \DomainException('Account owners must be transferred before removal.');
+        }
         $this->connection->delete(
             'account_memberships',
             ['account_id' => $accountId, 'user_id' => $userId]
         );
+    }
+
+    public function transferOwnership(int $accountId, string $newOwnerUserId): void
+    {
+        $this->connection->transactional(function () use ($accountId, $newOwnerUserId): void {
+            $account = $this->findById($accountId);
+            if (!$account instanceof Account) {
+                throw new \DomainException('Account not found.');
+            }
+
+            $target = $this->findMembership($accountId, $newOwnerUserId);
+            if (!$target instanceof AccountMembership) {
+                throw new \DomainException('New owner must already be an account member.');
+            }
+
+            if ($account->ownerUserId !== $newOwnerUserId) {
+                $this->connection->update(
+                    'account_memberships',
+                    ['role' => TeamRole::ADMIN->value],
+                    ['account_id' => $accountId, 'user_id' => $account->ownerUserId],
+                );
+            }
+
+            $this->connection->update(
+                'account_memberships',
+                ['role' => TeamRole::OWNER->value],
+                ['account_id' => $accountId, 'user_id' => $newOwnerUserId],
+            );
+            $this->connection->update('accounts', ['owner_user_id' => $newOwnerUserId], ['id' => $accountId]);
+        });
     }
 
     public function getEffectiveRole(int $accountId, string $userId): ?TeamRole

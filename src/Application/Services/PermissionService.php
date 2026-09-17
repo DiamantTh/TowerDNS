@@ -172,6 +172,11 @@ final readonly class PermissionService
         $this->assertAccount($user, Permission::ACCOUNT_MEMBERS_MANAGE, $accountId);
     }
 
+    public function assertCanTransferAccountOwnership(int $accountId, User $user): void
+    {
+        $this->assertAccount($user, Permission::ACCOUNT_OWNERSHIP_TRANSFER, $accountId);
+    }
+
     public function assertCanManageAccount(int $accountId, User $user): void
     {
         $this->assertAccount($user, Permission::ACCOUNT_UPDATE, $accountId);

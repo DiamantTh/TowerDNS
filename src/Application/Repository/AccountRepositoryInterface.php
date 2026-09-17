@@ -52,6 +52,8 @@ interface AccountRepositoryInterface
 
     public function removeMembership(int $accountId, string $userId): void;
 
+    public function transferOwnership(int $accountId, string $newOwnerUserId): void;
+
     /**
      * Returns the effective TeamRole for a user in an account, or null if not a member.
      */
