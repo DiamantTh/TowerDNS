@@ -86,7 +86,7 @@ TOML enthaelt ausschliesslich Bootstrap-Parameter, die vor jeder DB-Verbindung b
 Ein Restore ist nur vollstaendig, wenn **beide** Bestandteile gemeinsam gesichert und wiederhergestellt werden:
 
 1. **Datenbank** (SQLite-Datei bzw. `pg_dump`/`mysqldump`-Export je nach Treiber).
-2. **`config/config.local.toml`**, insbesondere `security.encryption_key`.
+2. **`configs/config.local.toml`** (und, falls vorhanden, `configs/database.toml`/`configs/providers.toml`), insbesondere `security.encryption_key`.
 
 Provider-Credentials und TOTP-Secrets werden mit `security.encryption_key` reversibel verschluesselt in der DB abgelegt (`CredentialService`). Ein DB-Dump allein ist damit **nicht** wiederherstellbar nutzbar: ohne den passenden Schluessel bleiben alle verschluesselten Werte dauerhaft unlesbar. Beide Artefakte muessen daher als zusammengehoerige Einheit gesichert, transportiert und aufbewahrt werden (z.B. gemeinsam verschluesseltes Backup-Archiv, getrennt von der Produktionsumgebung).
 

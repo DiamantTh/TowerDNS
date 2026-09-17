@@ -132,7 +132,6 @@ Theme erben (`system`) oder eines der installierten Themes auswaehlen.
 Weiterfuehrende Dokumentation:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/RBAC.md](docs/RBAC.md)
-- [docs/BACKUP_RESTORE.md](docs/BACKUP_RESTORE.md)
 - [docs/MIGRATION_FROM_DESEC_MANAGER.md](docs/MIGRATION_FROM_DESEC_MANAGER.md)
 
 ## Naechste Schritte
