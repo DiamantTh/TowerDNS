@@ -80,3 +80,14 @@ Neuen Provider hinzufuegen:
 | `system_settings`| Passwort-Policy, HIBP-Flags, zukuenftige Runtime-Werte |
 
 TOML enthaelt ausschliesslich Bootstrap-Parameter, die vor jeder DB-Verbindung benoetigt werden. Alle ueber die Admin-UI aenderbaren Einstellungen werden in der Tabelle `system_settings` gespeichert (`DbalSystemSettingsRepository`, per-Request-Cache).
+
+### Backup, Restore und Key Recovery
+
+Ein Restore ist nur vollstaendig, wenn **beide** Bestandteile gemeinsam gesichert und wiederhergestellt werden:
+
+1. **Datenbank** (SQLite-Datei bzw. `pg_dump`/`mysqldump`-Export je nach Treiber).
+2. **`config/config.local.toml`**, insbesondere `security.encryption_key`.
+
+Provider-Credentials und TOTP-Secrets werden mit `security.encryption_key` reversibel verschluesselt in der DB abgelegt (`CredentialService`). Ein DB-Dump allein ist damit **nicht** wiederherstellbar nutzbar: ohne den passenden Schluessel bleiben alle verschluesselten Werte dauerhaft unlesbar. Beide Artefakte muessen daher als zusammengehoerige Einheit gesichert, transportiert und aufbewahrt werden (z.B. gemeinsam verschluesseltes Backup-Archiv, getrennt von der Produktionsumgebung).
+
+`ContainerFactory` und `InstallCommand` erzeugen `encryption_key` **ausschliesslich einmalig** beim Fresh Install. Es gibt bewusst keinen Laufzeit-Fallback, der bei fehlendem oder ungueltigem Schluessel automatisch einen neuen erzeugt (`ContainerFactory::create()` wirft stattdessen eine `RuntimeException`) — ein automatisch neu erzeugter Schluessel wuerde alle bestehenden verschluesselten Daten unbemerkt und permanent unlesbar machen. Geht der Produktions-Schluessel verloren und existiert kein Backup davon, sind Provider-Credentials und TOTP-Secrets nicht wiederherstellbar; betroffene ProviderAccounts und TOTP-Registrierungen muessen dann manuell neu angelegt werden.
