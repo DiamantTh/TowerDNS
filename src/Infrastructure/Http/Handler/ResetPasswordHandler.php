@@ -17,10 +17,13 @@ use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Exception\PasswordResetException;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PasswordResetService;
+use TowerDNS\Infrastructure\RateLimit\RateLimiter;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /**
  * Password-reset completion handler.
@@ -30,6 +33,9 @@ use TowerDNS\Application\Services\PasswordResetService;
  */
 final readonly class ResetPasswordHandler implements RequestHandlerInterface
 {
+    private const int RATE_LIMIT       = 10;
+    private const int RATE_WINDOW_SECS = 900; // 15 minutes
+
     public function __construct(
         private TemplateRendererInterface             $renderer,
         private PasswordResetTokenRepositoryInterface $tokens,
@@ -37,6 +43,7 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
         private ClockInterface                        $clock,
+        private CacheInterface                        $cache,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -107,6 +114,27 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
             ]),
             422
         ));
+
+        $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '');
+        $limiter = new RateLimiter(
+            $this->cache,
+            'pwreset_' . hash('sha256', $ip),
+            self::RATE_LIMIT,
+            self::RATE_WINDOW_SECS,
+            'PasswordReset',
+        );
+        try {
+            $limiter->hit();
+        } catch (RateLimitExceededException) {
+            return new HtmlResponse(
+                $this->renderer->render('app::reset_password', [
+                    'csrfToken' => $guard->generateToken(),
+                    'token'     => $rawToken,
+                    'error'     => $this->translator->translate('auth.error.rate-limited'),
+                ]),
+                429,
+            );
+        }
 
         if ($password !== $confirm) {
             return $renderError($this->translator->translate('auth.error.passwords-do-not-match'));

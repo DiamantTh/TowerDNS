@@ -16,9 +16,12 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\MailService;
+use TowerDNS\Infrastructure\RateLimit\RateLimiter;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /**
  * Password-forgot flow.
@@ -32,6 +35,8 @@ use TowerDNS\Application\Services\MailService;
 final readonly class ForgotPasswordHandler implements RequestHandlerInterface
 {
     private const int TOKEN_TTL_SECONDS = 3600; // 1 hour
+    private const int RATE_LIMIT        = 5;
+    private const int RATE_WINDOW_SECS  = 900; // 15 minutes
 
     public function __construct(
         private TemplateRendererInterface           $renderer,
@@ -40,6 +45,7 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
         private MailService                         $mail,
         private string                              $appBaseUrl,
         private TranslatorInterface                 $translator,
+        private CacheInterface                      $cache,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -73,6 +79,22 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
         }
 
         $email = strtolower(trim((string) ($body['email'] ?? '')));
+
+        $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '');
+        $limiter = new RateLimiter(
+            $this->cache,
+            'forgot_' . hash('sha256', $ip),
+            self::RATE_LIMIT,
+            self::RATE_WINDOW_SECS,
+            'ForgotPassword',
+        );
+        try {
+            $limiter->hit();
+        } catch (RateLimitExceededException) {
+            // Same generic "sent" redirect as success — do not reveal that the
+            // request was throttled, which would itself leak information.
+            return new RedirectResponse('/password/forgot?sent=1');
+        }
 
         if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
             $user = $this->users->findByEmail($email);

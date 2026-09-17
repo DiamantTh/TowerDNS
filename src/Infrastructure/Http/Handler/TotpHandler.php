@@ -17,10 +17,13 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
+use TowerDNS\Infrastructure\RateLimit\RateLimiter;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /**
  * GET  /login/totp — show TOTP input form.
@@ -32,6 +35,9 @@ use TowerDNS\Infrastructure\Http\SessionSecurity;
  */
 final readonly class TotpHandler implements RequestHandlerInterface
 {
+    private const int RATE_LIMIT       = 10;
+    private const int RATE_WINDOW_SECS = 300; // 5 minutes
+
     public function __construct(
         private TemplateRendererInterface $renderer,
         private UserRepositoryInterface   $users,
@@ -39,6 +45,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         private AuditLogService           $audit,
         private TranslatorInterface       $translator,
         private SessionSecurity           $sessionSecurity,
+        private CacheInterface            $cache,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -86,6 +93,25 @@ final readonly class TotpHandler implements RequestHandlerInterface
 
         if ($code === '') {
             return $this->renderError($this->translator->translate('totp.error.code-required'), $guard);
+        }
+
+        $limiter = new RateLimiter(
+            $this->cache,
+            'totp_' . hash('sha256', $userId),
+            self::RATE_LIMIT,
+            self::RATE_WINDOW_SECS,
+            'TOTP',
+        );
+        try {
+            $limiter->hit();
+        } catch (RateLimitExceededException) {
+            return new HtmlResponse(
+                $this->renderer->render('app::mfa_totp', [
+                    'error'     => $this->translator->translate('auth.error.rate-limited'),
+                    'csrfToken' => $guard->generateToken(),
+                ]),
+                429,
+            );
         }
 
         if (!$this->secrets->verify($userId, $code)) {

@@ -13,11 +13,14 @@ use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
+use TowerDNS\Infrastructure\RateLimit\RateLimiter;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 use Webauthn\Exception\AuthenticatorResponseVerificationException;
 
 /**
@@ -31,6 +34,9 @@ use Webauthn\Exception\AuthenticatorResponseVerificationException;
  */
 final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterface
 {
+    private const int RATE_LIMIT       = 10;
+    private const int RATE_WINDOW_SECS = 300; // 5 minutes
+
     public function __construct(
         private WebAuthnService                       $webAuthn,
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
@@ -38,6 +44,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
         private SessionSecurity                       $sessionSecurity,
+        private CacheInterface                        $cache,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -54,6 +61,19 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
 
         // Consume session state immediately (replay protection).
         $session->unset('webauthn_auth_options');
+
+        $limiter = new RateLimiter(
+            $this->cache,
+            'webauthn_' . hash('sha256', $userId),
+            self::RATE_LIMIT,
+            self::RATE_WINDOW_SECS,
+            'WebAuthn',
+        );
+        try {
+            $limiter->hit();
+        } catch (RateLimitExceededException) {
+            return new JsonResponse(['error' => $this->translator->translate('auth.error.rate-limited')], 429);
+        }
 
         $body = (string) $request->getBody();
         if ($body === '') {

@@ -65,9 +65,9 @@ use TowerDNS\Application\Repository\AccountResourceLimitsRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
+use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
-use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\SystemProviderConfigurationStoreInterface;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
@@ -78,7 +78,6 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\BreachedPasswordCheckerInterface;
 use TowerDNS\Application\Services\CredentialService;
-use TowerDNS\Application\Services\DNSManagementService;
 use TowerDNS\Application\Services\HealthStatusService;
 use TowerDNS\Application\Services\MailService;
 use TowerDNS\Application\Services\NullBreachedPasswordChecker;
@@ -97,11 +96,11 @@ use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Console\InstallCommand;
 use TowerDNS\Infrastructure\Console\ModuleListCommand;
 use TowerDNS\Infrastructure\Console\PasswordResetCommand;
-use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
 use TowerDNS\Infrastructure\Console\RecordListCommand;
 use TowerDNS\Infrastructure\Console\RrsetListCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
+use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
@@ -112,9 +111,9 @@ use TowerDNS\Infrastructure\Persistence\DbalAccountResourceLimitsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAdminImpersonationSessionRepository;
 use TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAuditLogRepository;
+use TowerDNS\Infrastructure\Persistence\DbalManagedZoneRepository;
 use TowerDNS\Infrastructure\Persistence\DbalPasswordResetTokenRepository;
 use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
-use TowerDNS\Infrastructure\Persistence\DbalManagedZoneRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
@@ -235,9 +234,9 @@ final class ContainerFactory
 
             // ── Multi-Tenant repositories ─────────────────────────────────────
             AccountRepositoryInterface::class                   => \DI\autowire(DbalAccountRepository::class),
-            AccountResourceLimitsRepositoryInterface::class      => \DI\autowire(DbalAccountResourceLimitsRepository::class),
+            AccountResourceLimitsRepositoryInterface::class     => \DI\autowire(DbalAccountResourceLimitsRepository::class),
             ProviderAccountRepositoryInterface::class           => \DI\autowire(DbalProviderAccountRepository::class),
-            ManagedZoneRepositoryInterface::class                => \DI\autowire(DbalManagedZoneRepository::class),
+            ManagedZoneRepositoryInterface::class               => \DI\autowire(DbalManagedZoneRepository::class),
             AuditLogRepositoryInterface::class                  => \DI\autowire(DbalAuditLogRepository::class),
             ZoneMembershipRepositoryInterface::class            => \DI\autowire(DbalZoneMembershipRepository::class),
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
@@ -285,7 +284,6 @@ final class ContainerFactory
                 static fn(PermissionRegistry $permissions): ActionGroupRegistry => new ModuleActionGroupRegistryFactory($moduleDiscovery, $permissions)->create()
             ),
             AuthorizationService::class     => \DI\autowire(),
-            DNSManagementService::class     => \DI\autowire(),
             TotpService::class              => \DI\autowire(),
             TotpSecretService::class        => \DI\autowire(),
             ThemeManager::class             => $themeManager,
@@ -337,10 +335,11 @@ final class ContainerFactory
                     PasswordResetTokenRepositoryInterface $tokens,
                     MailService $mail,
                     TranslatorInterface $translator,
+                    CacheInterface $cache,
                 ) use ($appConf): ForgotPasswordHandler {
                     $app     = (array) ($appConf['app'] ?? []);
                     $baseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
-                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator);
+                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator, $cache);
                 }
             ),
 
