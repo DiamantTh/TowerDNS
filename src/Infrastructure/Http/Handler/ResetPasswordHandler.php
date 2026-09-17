@@ -45,7 +45,6 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         private TranslatorInterface                   $translator,
         private ClockInterface                        $clock,
         private CacheInterface                        $cache,
-        private ClientIpResolver                       $clientIp,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -117,7 +116,7 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
             422
         ));
 
-        $ip      = (string) ($this->clientIp->resolve($request) ?? '');
+        $ip      = (string) ($request->getAttribute(ClientIpResolver::ATTRIBUTE) ?? '');
         $limiter = new RateLimiter(
             $this->cache,
             'pwreset_' . hash('sha256', $ip),

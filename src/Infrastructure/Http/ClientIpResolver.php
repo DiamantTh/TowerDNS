@@ -28,6 +28,14 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final readonly class ClientIpResolver
 {
+    /**
+     * Request attribute key under which {@see ClientIpMiddleware} stores the
+     * resolved client IP. Application-layer code (e.g. AuditLogService) reads
+     * this attribute instead of depending on this Infrastructure class
+     * directly, keeping the Application layer transport/infrastructure-free.
+     */
+    public const string ATTRIBUTE = 'client_ip';
+
     /** @param list<string> $trustedProxies IP addresses or CIDR ranges. */
     public function __construct(private array $trustedProxies = []) {}
 

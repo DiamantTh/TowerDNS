@@ -17,6 +17,7 @@ use Mezzio\Router\Middleware\ImplicitOptionsMiddleware;
 use Mezzio\Router\Middleware\RouteMiddleware;
 use Mezzio\Session\SessionMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 
 final class Pipeline
@@ -28,6 +29,10 @@ final class Pipeline
 
         // Security headers on every response (including error pages)
         $app->pipe(SecurityHeaderMiddleware::class);
+
+        // Resolve the real client IP (honoring configured trusted proxies)
+        // once, before anything that keys on it (rate limiting, audit log).
+        $app->pipe(ClientIpMiddleware::class);
 
         // Session must run before authentication
         $app->pipe(SessionMiddleware::class);

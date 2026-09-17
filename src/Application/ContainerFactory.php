@@ -105,6 +105,7 @@ use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
@@ -293,6 +294,7 @@ final class ContainerFactory
             ThemeManager::class             => $themeManager,
             AuthenticationMiddleware::class => \DI\autowire(),
             RequireAuthMiddleware::class    => \DI\autowire(),
+            ClientIpMiddleware::class       => \DI\autowire(),
             WebAuthnService::class          => \DI\factory(
                 static function (SerializerInterface $serializer) use ($appConf): WebAuthnService {
                     $app    = (array) ($appConf['app'] ?? []);
@@ -340,11 +342,10 @@ final class ContainerFactory
                     MailService $mail,
                     TranslatorInterface $translator,
                     CacheInterface $cache,
-                    ClientIpResolver $clientIp,
                 ) use ($appConf): ForgotPasswordHandler {
                     $app     = (array) ($appConf['app'] ?? []);
                     $baseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
-                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator, $cache, $clientIp);
+                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator, $cache);
                 }
             ),
 

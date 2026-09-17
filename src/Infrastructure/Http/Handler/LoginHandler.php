@@ -55,7 +55,6 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
         private SessionSecurity                       $sessionSecurity,
-        private ClientIpResolver                      $clientIp,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -77,8 +76,10 @@ final readonly class LoginHandler implements RequestHandlerInterface
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
-        // Rate-limit by client IP before doing any DB work.
-        $ip      = (string) ($this->clientIp->resolve($request) ?? '');
+        // Rate-limit by client IP before doing any DB work. The real IP
+        // (behind any configured trusted proxy) was already resolved by
+        // ClientIpMiddleware earlier in the pipeline.
+        $ip      = (string) ($request->getAttribute(ClientIpResolver::ATTRIBUTE) ?? '');
         $limiter = new RateLimiter(
             $this->cache,
             'login_' . hash('sha256', $ip),

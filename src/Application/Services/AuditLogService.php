@@ -241,10 +241,18 @@ final readonly class AuditLogService
         ?int $providerAccountId = null,
         ?string $impersonationSessionId = null,
     ): AuditContext {
-        // Trust X-Forwarded-For only if you control the proxy tier.
-        // For now: use REMOTE_ADDR only.
-        $params = $request->getServerParams();
-        $ip     = $params['REMOTE_ADDR'] ?? null;
+        // The real client IP (honoring any configured trusted reverse
+        // proxy) is resolved once by ClientIpMiddleware and stored as a
+        // plain PSR-7 request attribute. Reading it here keeps this
+        // Application-layer service free of any Infrastructure dependency
+        // while still benefiting from trusted-proxy-aware resolution.
+        // Falls back to raw REMOTE_ADDR if the middleware did not run
+        // (e.g. a request built directly in tests).
+        $ip = $request->getAttribute('client_ip');
+        if (!is_string($ip) || $ip === '') {
+            $params = $request->getServerParams();
+            $ip     = $params['REMOTE_ADDR'] ?? null;
+        }
 
         return new AuditContext(
             $actorUserId,
