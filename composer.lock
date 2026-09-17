@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "6a28c63e62170062a3291a46de61d09f",
+    "content-hash": "9261dd5a25bd1ac65a057a50351333a9",
     "packages": [
         {
             "name": "bjeavons/zxcvbn-php",
@@ -10522,7 +10522,11 @@
     "platform": {
         "php": ">=8.4",
         "ext-intl": "*",
-        "ext-json": "*"
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-pdo": "*",
+        "ext-sodium": "*"
     },
     "platform-dev": {},
     "platform-overrides": {
