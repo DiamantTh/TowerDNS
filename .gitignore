@@ -18,3 +18,5 @@ coverage/
 cache/
 logs/
 data/
+# Local architecture working document (deliberately not versioned)
+docs/LOCAL_ARCHITECTURE_TARGET.md
