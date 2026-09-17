@@ -230,6 +230,21 @@ final readonly class AuditLogService
         $this->record($request, 'account.ownership.transfer', 'account', (string) $accountId, $actorId, $accountId, null, null, null, null, ['owner_user_id' => $targetUserId]);
     }
 
+    public function recordAccountCreated(ServerRequestInterface $request, string $actorId, int $accountId, string $name, string $slug): void
+    {
+        $this->record($request, 'account.create', 'account', (string) $accountId, $actorId, $accountId, null, null, null, null, null, null, ['name' => $name, 'slug' => $slug]);
+    }
+
+    public function recordAccountRenamed(ServerRequestInterface $request, string $actorId, int $accountId, string $newName): void
+    {
+        $this->record($request, 'account.rename', 'account', (string) $accountId, $actorId, $accountId, null, null, null, null, null, null, ['name' => $newName]);
+    }
+
+    public function recordAccountDeactivated(ServerRequestInterface $request, string $actorId, int $accountId): void
+    {
+        $this->record($request, 'account.deactivate', 'account', (string) $accountId, $actorId, $accountId);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     public static function fromHttpRequest(

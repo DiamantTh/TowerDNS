@@ -17,9 +17,10 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Services\AccountManagementService;
 use TowerDNS\Application\Services\AccountMembershipManagementService;
-use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AccountOwnershipService;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
@@ -44,6 +45,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         private AuditLogService                      $audit,
         private AccountMembershipManagementService   $memberships,
         private AccountOwnershipService              $ownership,
+        private AccountManagementService             $accountManagement,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -117,24 +119,12 @@ final readonly class AccountHandler implements RequestHandlerInterface
             return new HtmlResponse('Ungültige Anfrage.', 400);
         }
 
-        $name = trim((string) ($body['name'] ?? ''));
-        $slug = trim((string) ($body['slug'] ?? ''));
-
-        if ($name === '' || $slug === '') {
-            return new RedirectResponse('/accounts?error=' . rawurlencode('Name und Slug sind erforderlich.'));
-        }
-
-        if (!preg_match('/^[a-z0-9\-]{2,64}$/', $slug)) {
-            return new RedirectResponse('/accounts?error=' . rawurlencode('Slug: nur Kleinbuchstaben, Ziffern und Bindestriche (2–64 Zeichen).'));
-        }
+        $name = (string) ($body['name'] ?? '');
+        $slug = (string) ($body['slug'] ?? '');
 
         try {
-            $this->accounts->create(
-                name: $name,
-                slug: $slug,
-                ownerUserId: $user->id,
-                createdAt: new \DateTimeImmutable()->format('Y-m-d H:i:s'),
-            );
+            $account = $this->accountManagement->create($user, $name, $slug);
+            $this->audit->recordAccountCreated($request, $user->id, $account->id, $account->name, $account->slug);
         } catch (\Throwable $e) {
             return new RedirectResponse('/accounts?error=' . rawurlencode($e->getMessage()));
         }
@@ -183,12 +173,6 @@ final readonly class AccountHandler implements RequestHandlerInterface
         /** @var User $user */
         $user = $request->getAttribute(User::class);
 
-        try {
-            $this->permissions->assertCanManageAccount($accountId, $user);
-        } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
-        }
-
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         /** @var array<string, string> $body */
@@ -202,16 +186,24 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $action = (string) ($body['action'] ?? 'rename');
 
         if ($action === 'deactivate') {
-            $this->accounts->deactivate($accountId);
+            try {
+                $this->accountManagement->deactivate($user, $accountId);
+                $this->audit->recordAccountDeactivated($request, $user->id, $accountId);
+            } catch (\Throwable $e) {
+                return new RedirectResponse('/accounts/' . $accountId . '?error=' . rawurlencode($e->getMessage()));
+            }
             return new RedirectResponse('/accounts');
         }
 
-        $name = trim((string) ($body['name'] ?? ''));
-        if ($name === '') {
-            return new RedirectResponse('/accounts/' . $accountId . '?error=' . rawurlencode('Name darf nicht leer sein.'));
+        $name = (string) ($body['name'] ?? '');
+
+        try {
+            $this->accountManagement->rename($user, $accountId, $name);
+            $this->audit->recordAccountRenamed($request, $user->id, $accountId, trim($name));
+        } catch (\Throwable $e) {
+            return new RedirectResponse('/accounts/' . $accountId . '?error=' . rawurlencode($e->getMessage()));
         }
 
-        $this->accounts->updateName($accountId, $name);
         return new RedirectResponse('/accounts/' . $accountId);
     }
 
@@ -258,7 +250,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
     private function handleMembersPost(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $actor */
-        $actor    = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
+        $actor     = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('id', 0);
 
         if (!$actor instanceof User) {
@@ -322,7 +314,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
     private function handleOwnershipPost(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $actor */
-        $actor = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
+        $actor     = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('id', 0);
         if (!$actor instanceof User) {
             return new RedirectResponse('/accounts?error=' . rawurlencode('Invalid request.'));
