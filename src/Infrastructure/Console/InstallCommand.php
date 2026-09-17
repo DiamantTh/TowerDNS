@@ -280,7 +280,7 @@ final class InstallCommand extends Command
         }
 
         // ── Lock file ─────────────────────────────────────────────────────
-        file_put_contents($lockFile, $now);
+        new AtomicConfigurationWriter()->write($lockFile, $now);
 
         $io->success([
             'Installation successful!',

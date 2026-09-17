@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Installation;
 
 use Doctrine\DBAL\Connection;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
+use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
 
 /**
  * Builds the database portion of a fresh installation.
@@ -32,6 +33,8 @@ final readonly class FreshInstallBootstrapper
         if ($request->adminId === '' || $request->accountName === '' || $request->accountSlug === '' || $request->createdAt === '') {
             throw new \RuntimeException('Fresh-install bootstrap data is incomplete.');
         }
+
+        new SqliteConnectionConfigurator()->configure($this->connection);
 
         $schema = new SchemaManager($this->connection);
         $schema->createTablesIfNotExist();

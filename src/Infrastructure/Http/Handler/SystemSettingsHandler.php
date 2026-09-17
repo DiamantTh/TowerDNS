@@ -21,6 +21,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Theme\ThemeManager;
+use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -38,6 +39,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         private SystemSettingsRepositoryInterface $settings,
         private ThemeManager                      $themes,
         private string                            $configPath,
+        private AtomicConfigurationWriter         $configWriter,
         private TranslatorInterface               $translator,
     ) {}
 
@@ -221,9 +223,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
 
         try {
             $toml = Toml::encode($conf);
-            if (file_put_contents($this->configPath, $toml) === false) {
-                throw new \RuntimeException('Configuration file could not be written.');
-            }
+            $this->configWriter->write($this->configPath, $toml);
 
             // Runtime-Werte (DB)
             $this->settings->setMany([

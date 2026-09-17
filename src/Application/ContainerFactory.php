@@ -79,6 +79,7 @@ use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\BreachedPasswordCheckerInterface;
 use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Services\DNSManagementService;
+use TowerDNS\Application\Services\HealthStatusService;
 use TowerDNS\Application\Services\MailService;
 use TowerDNS\Application\Services\NullBreachedPasswordChecker;
 use TowerDNS\Application\Services\PasswordAdministrationService;
@@ -96,6 +97,7 @@ use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Console\InstallCommand;
 use TowerDNS\Infrastructure\Console\ModuleListCommand;
 use TowerDNS\Infrastructure\Console\PasswordResetCommand;
+use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
 use TowerDNS\Infrastructure\Console\RecordListCommand;
 use TowerDNS\Infrastructure\Console\RrsetListCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
@@ -221,7 +223,9 @@ final class ContainerFactory
                     ];
                 }
 
-                return DriverManager::getConnection($params);
+                $connection = DriverManager::getConnection($params);
+                new \TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator()->configure($connection);
+                return $connection;
             }),
 
             // ── Repositories ──────────────────────────────────────────────────
@@ -296,6 +300,18 @@ final class ContainerFactory
                 }
             ),
 
+            HealthStatusService::class => \DI\factory(
+                static fn(\Psr\Container\ContainerInterface $c): HealthStatusService => new HealthStatusService(
+                    $c->get(Connection::class),
+                    $projectRoot,
+                    $projectRoot . '/configs/config.local.toml',
+                    $projectRoot . '/configs/providers.toml',
+                    $moduleDiscovery,
+                )
+            ),
+
+            HealthHandler::class => \DI\autowire(),
+
             SystemSettingsHandler::class => \DI\factory(
                 static fn(
                     TemplateRendererInterface          $renderer,
@@ -309,6 +325,7 @@ final class ContainerFactory
                     $settings,
                     $themes,
                     $projectRoot . '/configs/config.local.toml',
+                    new \TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter(),
                     $translator,
                 )
             ),

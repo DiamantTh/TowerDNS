@@ -15,6 +15,7 @@ use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\DNSSECHandler;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
+use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
 use TowerDNS\Infrastructure\Http\Handler\PasswordChangeHandler;
@@ -57,6 +58,8 @@ final class Routes
     public static function configure(Application $app): void
     {
         // ── Public ────────────────────────────────────────────────────────────
+        $app->get('/health', HealthHandler::class, 'health');
+        $app->get('/ready', HealthHandler::class, 'ready');
         $app->get('/login', LoginHandler::class, 'login.form');
         $app->post('/login', LoginHandler::class, 'login.submit');
         $app->get('/login/totp', TotpHandler::class, 'login.totp.form');
