@@ -23,6 +23,7 @@ use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Validation\LoginInputFilter;
+use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
@@ -54,6 +55,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
         private SessionSecurity                       $sessionSecurity,
+        private ClientIpResolver                      $clientIp,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -76,7 +78,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
         // Rate-limit by client IP before doing any DB work.
-        $ip      = (string) ($request->getServerParams()['REMOTE_ADDR'] ?? '');
+        $ip      = (string) ($this->clientIp->resolve($request) ?? '');
         $limiter = new RateLimiter(
             $this->cache,
             'login_' . hash('sha256', $ip),

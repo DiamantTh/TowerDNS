@@ -99,6 +99,7 @@ use TowerDNS\Infrastructure\Console\PasswordResetCommand;
 use TowerDNS\Infrastructure\Console\RecordListCommand;
 use TowerDNS\Infrastructure\Console\RrsetListCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
+use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
@@ -152,8 +153,11 @@ final class ContainerFactory
         $dbConf   = $loadToml('database.toml');
         $provConf = $loadToml('providers.toml');
 
-        $debug           = (bool) ($appConf['app']['debug'] ?? false);
-        $forceHttps      = (bool) ($appConf['app']['force_https'] ?? false);
+        $debug          = (bool) ($appConf['app']['debug'] ?? false);
+        $forceHttps     = (bool) ($appConf['app']['force_https'] ?? false);
+        $trustedProxies = isset($appConf['app']['trusted_proxies'])
+            ? array_values(array_filter((array) $appConf['app']['trusted_proxies'], is_string(...)))
+            : [];
         $sessionConf     = (array) ($appConf['session'] ?? []);
         $configuredTheme = (string) ($appConf['theme']['name'] ?? 'default');
         $themeManager    = new ThemeManager($projectRoot, $configuredTheme);
@@ -336,10 +340,11 @@ final class ContainerFactory
                     MailService $mail,
                     TranslatorInterface $translator,
                     CacheInterface $cache,
+                    ClientIpResolver $clientIp,
                 ) use ($appConf): ForgotPasswordHandler {
                     $app     = (array) ($appConf['app'] ?? []);
                     $baseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
-                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator, $cache);
+                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator, $cache, $clientIp);
                 }
             ),
 
@@ -500,6 +505,9 @@ final class ContainerFactory
             ),
             SecurityHeaderMiddleware::class => \DI\factory(
                 static fn(): SecurityHeaderMiddleware => new SecurityHeaderMiddleware($forceHttps)
+            ),
+            ClientIpResolver::class => \DI\factory(
+                static fn(): ClientIpResolver => new ClientIpResolver($trustedProxies)
             ),
 
             // ── Symfony Mailer ────────────────────────────────────────────────

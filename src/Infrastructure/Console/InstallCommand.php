@@ -393,6 +393,11 @@ final class InstallCommand extends Command
             domain      = "{$esc($appDomain)}"
             force_https = {$forceHttps}
             debug       = false
+            # If TowerDNS runs behind a reverse proxy (nginx, traefik, ...),
+            # list its IP(s)/CIDR(s) here to trust its X-Forwarded-For header
+            # for rate-limiting and audit logging. Leave empty (the default)
+            # to trust only the direct connection (REMOTE_ADDR).
+            trusted_proxies = []
 
             [session]
             cookie_secure = {$forceHttps}
