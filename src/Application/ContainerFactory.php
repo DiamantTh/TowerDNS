@@ -106,6 +106,7 @@ use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
@@ -509,6 +510,9 @@ final class ContainerFactory
             ),
             ClientIpResolver::class => \DI\factory(
                 static fn(): ClientIpResolver => new ClientIpResolver($trustedProxies)
+            ),
+            ForceHttpsMiddleware::class => \DI\factory(
+                static fn(ClientIpResolver $ips): ForceHttpsMiddleware => new ForceHttpsMiddleware($forceHttps, $ips)
             ),
 
             // ── Symfony Mailer ────────────────────────────────────────────────

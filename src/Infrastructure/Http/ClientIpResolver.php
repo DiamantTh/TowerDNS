@@ -70,6 +70,18 @@ final readonly class ClientIpResolver
         return $remoteAddr;
     }
 
+    /**
+     * Whether the given address is one of the configured trusted reverse
+     * proxies. Exposed so other infrastructure code (e.g. {@see
+     * \TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware}) can
+     * apply the same trust decision to other forwarded headers
+     * (X-Forwarded-Proto) without duplicating the IP/CIDR matching logic.
+     */
+    public function isTrustedProxy(string $ip): bool
+    {
+        return $this->isTrusted($ip);
+    }
+
     private function isTrusted(string $ip): bool
     {
         return array_any($this->trustedProxies, fn(string $proxy): bool => $this->ipMatches($ip, $proxy));
