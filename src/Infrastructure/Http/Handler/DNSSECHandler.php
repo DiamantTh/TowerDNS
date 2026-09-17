@@ -1,8 +1,5 @@
 <?php
 
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2026 TowerDNS contributors
-
 declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Http\Handler;
@@ -17,133 +14,52 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Services\DNSManagementService;
+use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 
-/**
- * GET  /zones/{provider}/{zone}/dnssec — DNSSEC-Status anzeigen
- * POST /zones/{provider}/{zone}/dnssec — DNSSEC-Aktion ausführen (enable/disable/…)
- */
 final readonly class DNSSECHandler implements RequestHandlerInterface
 {
-    public function __construct(
-        private TemplateRendererInterface $renderer,
-        private DNSManagementService      $dns,
-        private TranslatorInterface        $translator,
-    ) {}
-
+    public function __construct(private TemplateRendererInterface $renderer, private ManagedZoneDNSService $dns, private TranslatorInterface $translator) {}
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        /** @var User $user */
-        $user       = $request->getAttribute(User::class);
-        $providerId = (string) $request->getAttribute('provider', '');
-        $zoneId     = (string) $request->getAttribute('zone', '');
-
-        $back = '/zones/' . rawurlencode($providerId) . '/' . rawurlencode($zoneId) . '/dnssec';
-
-        /** @var CsrfGuardInterface $guard */
-        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $csrfToken = $guard->generateToken();
-
+        $user = $request->getAttribute(User::class);
+        if (!$user instanceof User) {
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        }
+        $accountId = (int) $request->getAttribute('account', 0);
+        $zoneId = (int) $request->getAttribute('zone', 0);
+        $back = '/accounts/' . $accountId . '/zones/' . $zoneId . '/dnssec';
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $csrfToken = $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '';
         if ($request->getMethod() === 'POST') {
-            return $this->handlePost($request, $guard, $user, $providerId, $zoneId, $back);
+            $body = (array) ($request->getParsedBody() ?? []);
+            if (!$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
+                return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
+            }
+            $action = trim((string) ($body['action'] ?? ''));
+            if ($action === '') {
+                return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('dnssec.error.action-required')));
+            }
+            unset($body['csrf_token'], $body['action']);
+            try {
+                $this->dns->executeDnssecAction($user, $accountId, $zoneId, $action, $body);
+            } catch (\Throwable) {
+                return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('dnssec.error.action-failed')));
+            }
+            return new RedirectResponse($back . '?success=' . rawurlencode($this->translator->translate(['enable' => 'dnssec.success.enabled', 'disable' => 'dnssec.success.disabled'][$action] ?? 'dnssec.success.action-executed')));
         }
-
-        // GET — Flash-Nachrichten aus Query-Params lesen
-        $queryParams  = $request->getQueryParams();
-        $flashError   = isset($queryParams['error'])   && is_string($queryParams['error']) ? $queryParams['error'] : null;
-        $flashSuccess = isset($queryParams['success']) && is_string($queryParams['success']) ? $queryParams['success'] : null;
-
-        // Status laden
         try {
-            $profile = $this->dns->getDnssecProfile($user, $providerId, $zoneId);
+            $profile = $this->dns->dnssecProfile($user, $accountId, $zoneId);
         } catch (AuthorizationException) {
-            return new HtmlResponse(
-                $this->renderer->render('app::zones/dnssec', [
-                    'user'       => $user,
-                    'providerId' => $providerId,
-                    'zoneId'     => $zoneId,
-                    'profile'    => null,
-                    'csrfToken'  => $csrfToken,
-                    'error'      => $this->translator->translate('dnssec.error.read-denied'),
-                    'success'    => null,
-                ]),
-                403,
-            );
+            return $this->render($user, $accountId, $zoneId, null, $csrfToken, $this->translator->translate('dnssec.error.read-denied'), 403);
         } catch (\Throwable) {
-            return new HtmlResponse(
-                $this->renderer->render('app::zones/dnssec', [
-                    'user'       => $user,
-                    'providerId' => $providerId,
-                    'zoneId'     => $zoneId,
-                    'profile'    => null,
-                    'csrfToken'  => $csrfToken,
-                    'error'      => $this->translator->translate('dnssec.error.read-failed'),
-                    'success'    => null,
-                ]),
-            );
+            return $this->render($user, $accountId, $zoneId, null, $csrfToken, $this->translator->translate('dnssec.error.read-failed'), 500);
         }
-
-        return new HtmlResponse(
-            $this->renderer->render('app::zones/dnssec', [
-                'user'       => $user,
-                'providerId' => $providerId,
-                'zoneId'     => $zoneId,
-                'profile'    => $profile,
-                'csrfToken'  => $csrfToken,
-                'error'      => $flashError,
-                'success'    => $flashSuccess,
-            ]),
-        );
+        $query = $request->getQueryParams();
+        return $this->render($user, $accountId, $zoneId, $profile, $csrfToken, is_string($query['error'] ?? null) ? $query['error'] : null, 200, is_string($query['success'] ?? null) ? $query['success'] : null);
     }
-
-    private function handlePost(
-        ServerRequestInterface $request,
-        CsrfGuardInterface $guard,
-        User $user,
-        string $providerId,
-        string $zoneId,
-        string $back,
-    ): ResponseInterface {
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
-
-        if (!$guard->validateToken($token)) {
-            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
-        }
-
-        $action = trim((string) ($body['action'] ?? ''));
-        if ($action === '') {
-            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('dnssec.error.action-required')));
-        }
-
-        // Einfache Payload-Weiterleitung (z. B. key.add braucht Typ-Felder)
-        $payload = [];
-        foreach ($body as $key => $value) {
-            if ($key === 'csrf_token') {
-                continue;
-            }
-            if ($key === 'action') {
-                continue;
-            }
-            if (is_string($value) && $value !== '') {
-                $payload[$key] = $value;
-            }
-        }
-
-        try {
-            $this->dns->executeDnssecAction($user, $providerId, $zoneId, $action, $payload);
-        } catch (\Throwable) {
-            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('dnssec.error.action-failed')));
-        }
-
-        $labels = [
-            'enable'  => 'dnssec.success.enabled',
-            'disable' => 'dnssec.success.disabled',
-        ];
-        $success = $this->translator->translate($labels[$action] ?? 'dnssec.success.action-executed');
-
-        return new RedirectResponse($back . '?success=' . rawurlencode($success));
+    private function render(User $user, int $accountId, int $zoneId, mixed $profile, string $csrfToken, ?string $error, int $status, ?string $success = null): HtmlResponse
+    {
+        return new HtmlResponse($this->renderer->render('app::zones/dnssec', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'profile' => $profile, 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success]), $status);
     }
 }

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -15,68 +16,62 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Services\DNSManagementService;
+use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\ActiveAccountContext;
 
 /**
- * GET /zones — lists all configured providers with their zones.
+ * GET /accounts/{account}/zones — lists locally managed zones for one account.
  */
 final readonly class ZoneListHandler implements RequestHandlerInterface
 {
     public function __construct(
         private TemplateRendererInterface $renderer,
-        private DNSManagementService      $dns,
+        private ManagedZoneDNSService     $dns,
+        private TranslatorInterface       $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $user */
-        $user = $request->getAttribute(User::class);
+        $user      = $request->getAttribute(User::class);
+        $accountId = (int) $request->getAttribute('account', 0);
+        if ($accountId <= 0) {
+            $context   = $request->getAttribute(ActiveAccountContext::class);
+            $accountId = $context instanceof ActiveAccountContext && $context->account instanceof \TowerDNS\Domain\Account\Account ? $context->account->id : 0;
+        }
 
         /** @var CsrfGuardInterface $guard */
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
         try {
-            $providers = $this->dns->listProviders($user);
-        } catch (AuthorizationException $e) {
+            $zones            = $this->dns->list($user, $accountId);
+            $providerAccounts = $this->dns->availableProviderAccounts($user, $accountId);
+        } catch (AuthorizationException) {
             return new HtmlResponse(
                 $this->renderer->render('app::zones/list', [
-                    'user'            => $user,
-                    'providers'       => [],
-                    'zonesByProvider' => [],
-                    'fetchErrors'     => [],
-                    'csrfToken'       => $csrfToken,
-                    'error'           => $e->getMessage(),
+                    'user'             => $user,
+                    'accountId'        => $accountId,
+                    'managedZones'     => [],
+                    'providerAccounts' => [],
+                    'csrfToken'        => $csrfToken,
+                    'error'            => $this->translator->translate('http.error.forbidden'),
                 ]),
                 403,
             );
-        }
-
-        /** @var array<string, list<\TowerDNS\Domain\DNS\Zone>> $zonesByProvider */
-        $zonesByProvider = [];
-        /** @var array<string, string> $fetchErrors */
-        $fetchErrors = [];
-
-        foreach ($providers as $provider) {
-            try {
-                $zonesByProvider[$provider->id] = $this->dns->listZones($user, $provider->id);
-            } catch (\Throwable $e) {
-                $zonesByProvider[$provider->id] = [];
-                $fetchErrors[$provider->id]     = $e->getMessage();
-            }
         }
 
         $flashError = $request->getQueryParams()['error'] ?? null;
 
         return new HtmlResponse(
             $this->renderer->render('app::zones/list', [
-                'user'            => $user,
-                'providers'       => $providers,
-                'zonesByProvider' => $zonesByProvider,
-                'fetchErrors'     => $fetchErrors,
-                'csrfToken'       => $csrfToken,
-                'error'           => is_string($flashError) ? $flashError : null,
+                'user'             => $user,
+                'accountId'        => $accountId,
+                'managedZones'     => $zones,
+                'providerAccounts' => $providerAccounts,
+                'csrfToken'        => $csrfToken,
+                'error'            => is_string($flashError) ? $flashError : null,
             ]),
         );
     }

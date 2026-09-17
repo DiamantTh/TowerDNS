@@ -1,8 +1,5 @@
 <?php
 
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2026 TowerDNS contributors
-
 declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Http\Handler;
@@ -16,53 +13,48 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
-use TowerDNS\Application\Services\DNSManagementService;
+use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 
-/**
- * POST /zones/{provider}/{zone}/delete — removes a zone from the given provider.
- *
- * Uses POST instead of DELETE so that plain HTML forms can trigger the action
- * without JavaScript.
- */
+/** Deletes exactly one account-owned managed zone. */
 final readonly class ZoneDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private DNSManagementService $dns,
-        private AuditLogService      $audit,
-        private TranslatorInterface  $translator,
+        private ManagedZoneDNSService $dns,
+        private ManagedZoneRepositoryInterface $zones,
+        private AuditLogService $audit,
+        private TranslatorInterface $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        /** @var CsrfGuardInterface $guard */
+        $user = $request->getAttribute(User::class);
+        if (!$user instanceof User) {
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        }
+        $accountId = (int) $request->getAttribute('account', 0);
+        $zoneId = (int) $request->getAttribute('zone', 0);
+        $back = '/accounts/' . $accountId . '/zones';
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
-
-        if (!$guard->validateToken($token)) {
+        $body = (array) ($request->getParsedBody() ?? []);
+        if (!$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
-
-        /** @var User $user */
-        $user       = $request->getAttribute(User::class);
-        $providerId = (string) $request->getAttribute('provider', '');
-        $zoneId     = (string) $request->getAttribute('zone', '');
-
-        try {
-            $this->dns->deleteZone($user, $providerId, $zoneId);
-            $this->audit->recordZoneDelete($request, $user->id, null, $zoneId, $zoneId);
-        } catch (AuthorizationException) {
-            return new RedirectResponse('/zones?error=' . rawurlencode(
-                $this->translator->translate('zones.error.delete-denied'),
-            ));
-        } catch (\Throwable) {
-            return new RedirectResponse('/zones?error=' . rawurlencode(
-                $this->translator->translate('zones.error.delete-failed'),
-            ));
+        $zone = $this->zones->findByIdForAccount($zoneId, $accountId);
+        if (!$zone instanceof \TowerDNS\Domain\Account\ManagedZone) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('http.error.not-found')));
         }
-
-        return new RedirectResponse('/zones');
+        try {
+            $this->dns->delete($user, $accountId, $zoneId);
+            $actor = $request->getAttribute('actor_user');
+            $this->audit->recordZoneDelete($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $zoneId, $zone->canonicalName);
+        } catch (AuthorizationException) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('zones.error.delete-denied')));
+        } catch (\Throwable) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('zones.error.delete-failed')));
+        }
+        return new RedirectResponse($back);
     }
 }

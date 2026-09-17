@@ -101,22 +101,23 @@ final class Routes
         $app->post('/roles/{id}', [RequireAuthMiddleware::class, RoleEditHandler::class], 'roles.edit.submit');
         $app->post('/roles/{id}/delete', [RequireAuthMiddleware::class, RoleDeleteHandler::class], 'roles.delete');
         // ── DNS zones ─────────────────────────────────────────────────────────
-        $app->get('/zones', [RequireAuthMiddleware::class, ZoneListHandler::class], 'zones.list');
-        $app->post('/zones/{provider}', [RequireAuthMiddleware::class, ZoneCreateHandler::class], 'zones.create');
-        $app->post('/zones/{provider}/{zone}/delete', [RequireAuthMiddleware::class, ZoneDeleteHandler::class], 'zones.delete');
+        $app->get('/zones', [RequireAuthMiddleware::class, ZoneListHandler::class], 'zones.active');
+        $app->get('/accounts/{account}/zones', [RequireAuthMiddleware::class, ZoneListHandler::class], 'zones.list');
+        $app->post('/accounts/{account}/zones', [RequireAuthMiddleware::class, ZoneCreateHandler::class], 'zones.create');
+        $app->post('/accounts/{account}/zones/{zone}/delete', [RequireAuthMiddleware::class, ZoneDeleteHandler::class], 'zones.delete');
 
         // ── DNS records ───────────────────────────────────────────────────────
-        $app->get('/zones/{provider}/{zone}', [RequireAuthMiddleware::class, RecordListHandler::class], 'records.list');
-        $app->post('/zones/{provider}/{zone}/records', [RequireAuthMiddleware::class, RecordCreateHandler::class], 'records.create');
-        $app->get('/zones/{provider}/{zone}/records/{record}/edit', [RequireAuthMiddleware::class, RecordEditHandler::class], 'records.edit.form');
-        $app->post('/zones/{provider}/{zone}/records/{record}/update', [RequireAuthMiddleware::class, ZoneUpdateHandler::class], 'records.update');
-        $app->post('/zones/{provider}/{zone}/records/{record}/delete', [RequireAuthMiddleware::class, RecordDeleteHandler::class], 'records.delete');
-        $app->post('/zones/{provider}/{zone}/rrsets', [RequireAuthMiddleware::class, RrsetReplaceHandler::class], 'rrsets.replace');
-        $app->post('/zones/{provider}/{zone}/rrsets/{owner}/{type}/delete', [RequireAuthMiddleware::class, RrsetDeleteHandler::class], 'rrsets.delete');
+        $app->get('/accounts/{account}/zones/{zone}', [RequireAuthMiddleware::class, RecordListHandler::class], 'records.list');
+        $app->post('/accounts/{account}/zones/{zone}/records', [RequireAuthMiddleware::class, RecordCreateHandler::class], 'records.create');
+        $app->get('/accounts/{account}/zones/{zone}/records/{record}/edit', [RequireAuthMiddleware::class, RecordEditHandler::class], 'records.edit.form');
+        $app->post('/accounts/{account}/zones/{zone}/records/{record}/update', [RequireAuthMiddleware::class, ZoneUpdateHandler::class], 'records.update');
+        $app->post('/accounts/{account}/zones/{zone}/records/{record}/delete', [RequireAuthMiddleware::class, RecordDeleteHandler::class], 'records.delete');
+        $app->post('/accounts/{account}/zones/{zone}/rrsets', [RequireAuthMiddleware::class, RrsetReplaceHandler::class], 'rrsets.replace');
+        $app->post('/accounts/{account}/zones/{zone}/rrsets/{owner}/{type}/delete', [RequireAuthMiddleware::class, RrsetDeleteHandler::class], 'rrsets.delete');
 
         // ── DNSSEC ────────────────────────────────────────────────────────────
-        $app->get('/zones/{provider}/{zone}/dnssec', [RequireAuthMiddleware::class, DNSSECHandler::class], 'dnssec.status');
-        $app->post('/zones/{provider}/{zone}/dnssec', [RequireAuthMiddleware::class, DNSSECHandler::class], 'dnssec.action');
+        $app->get('/accounts/{account}/zones/{zone}/dnssec', [RequireAuthMiddleware::class, DNSSECHandler::class], 'dnssec.status');
+        $app->post('/accounts/{account}/zones/{zone}/dnssec', [RequireAuthMiddleware::class, DNSSECHandler::class], 'dnssec.action');
 
         // ── System settings ───────────────────────────────────────────────
         $app->get('/settings', [RequireAuthMiddleware::class, SystemSettingsHandler::class], 'settings.form');
@@ -142,8 +143,8 @@ final class Routes
         $app->post('/accounts/{id}/providers/{pid}/deactivate', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.deactivate');
 
         // ── Zone members ──────────────────────────────────────────────────────
-        $app->get('/accounts/{id}/providers/{pid}/zones/{zone}/members', [RequireAuthMiddleware::class, ZoneMembersHandler::class], 'zone.members');
-        $app->post('/accounts/{id}/providers/{pid}/zones/{zone}/members', [RequireAuthMiddleware::class, ZoneMembersHandler::class], 'zone.members.submit');
+        $app->get('/accounts/{id}/zones/{zone}/members', [RequireAuthMiddleware::class, ZoneMembersHandler::class], 'zone.members');
+        $app->post('/accounts/{id}/zones/{zone}/members', [RequireAuthMiddleware::class, ZoneMembersHandler::class], 'zone.members.submit');
 
         // ── Admin Switch ──────────────────────────────────────────────────────
         $app->get('/admin/switch', [RequireAuthMiddleware::class, AdminSwitchHandler::class], 'admin.switch.form');

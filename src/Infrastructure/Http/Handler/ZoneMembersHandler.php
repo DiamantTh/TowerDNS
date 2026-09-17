@@ -28,8 +28,8 @@ use TowerDNS\Domain\Auth\User;
  * Zone-level membership management.
  *
  * Routes handled (all behind RequireAuthMiddleware):
- *   GET  /accounts/{id}/providers/{pid}/zones/{zone}/members → list zone members
- *   POST /accounts/{id}/providers/{pid}/zones/{zone}/members → grant or revoke
+ *   GET  /accounts/{id}/zones/{zone}/members → list zone members
+ *   POST /accounts/{id}/zones/{zone}/members → grant or revoke
  *
  * Zone memberships grant zone-specific access without account-wide rights.
  * Only users with account-level OWNER or ADMIN role may manage zone members.
@@ -117,8 +117,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
 
         $action       = (string) ($body['action'] ?? '');
         $targetUserId = trim((string) ($body['user_id'] ?? ''));
-        $base         = '/accounts/' . $accountId . '/providers/' . rawurlencode((string) $request->getAttribute('pid', ''))
-            . '/zones/' . rawurlencode((string) $managedZoneId) . '/members';
+        $base = '/accounts/' . $accountId . '/zones/' . $managedZoneId . '/members';
 
         if ($action === 'revoke') {
             if ($targetUserId === '') {
