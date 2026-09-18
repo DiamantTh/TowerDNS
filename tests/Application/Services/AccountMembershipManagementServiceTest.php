@@ -47,7 +47,7 @@ final class AccountMembershipManagementServiceTest extends TestCase
         $limits = new ResourceLimitService($limitsRepository, $managedZones, $accounts, $providerAccounts);
 
         $permissions = $this->servicePermissions($accounts);
-        $service = new AccountMembershipManagementService($accounts, $users, $permissions, $limits);
+        $service     = new AccountMembershipManagementService($accounts, $users, $permissions, $limits);
 
         $service->invite(new User('actor', 'actor@example.test'), 42, 'target', TeamRole::ADMIN);
     }
@@ -57,11 +57,11 @@ final class AccountMembershipManagementServiceTest extends TestCase
         /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'owner', true, '2026-09-16 00:00:00'));
-        $accounts->method('findMembership')->with(42, 'owner')->willReturn(new AccountMembership(1, 42, 'owner', TeamRole::OWNER, '2026-09-16 00:00:00', null));
+        $accounts->method('findMembership')->with(42, 'owner')->willReturn(new AccountMembership(1, 42, 'owner', TeamRole::OWNER, '2026-09-16 00:00:00'));
 
-        $users = $this->createMock(UserRepositoryInterface::class);
+        $users       = $this->createMock(UserRepositoryInterface::class);
         $permissions = $this->servicePermissions($accounts);
-        $service = new AccountMembershipManagementService($accounts, $users, $permissions);
+        $service     = new AccountMembershipManagementService($accounts, $users, $permissions);
 
         $this->expectException(\DomainException::class);
         $this->expectExceptionMessage('Account owners cannot be removed. Transfer ownership first.');
@@ -71,7 +71,7 @@ final class AccountMembershipManagementServiceTest extends TestCase
     private function servicePermissions(AccountRepositoryInterface $accounts): PermissionService
     {
         /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */
-        $rbac = new RbacPermissionChecker();
+        $rbac        = new RbacPermissionChecker();
         $memberships = $this->createMock(ZoneMembershipRepositoryInterface::class);
         $accounts->method('getEffectiveRole')->with(42, 'actor')->willReturn(TeamRole::ADMIN);
         return new PermissionService($accounts, $memberships, new AuthorizationService($rbac), $rbac);

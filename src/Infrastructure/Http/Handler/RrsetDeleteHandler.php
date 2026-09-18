@@ -22,17 +22,17 @@ final readonly class RrsetDeleteHandler implements RequestHandlerInterface
     public function __construct(private ManagedZoneDNSService $dns, private AuditLogService $audit, private TranslatorInterface $translator) {}
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $user = $request->getAttribute(User::class);
+        $user      = $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('account', 0);
-        $zoneId = (int) $request->getAttribute('zone', 0);
-        $back = '/accounts/' . $accountId . '/zones/' . $zoneId;
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body = (array) ($request->getParsedBody() ?? []);
+        $zoneId    = (int) $request->getAttribute('zone', 0);
+        $back      = '/accounts/' . $accountId . '/zones/' . $zoneId;
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body      = (array) ($request->getParsedBody() ?? []);
         if (!$user instanceof User || !$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
         $owner = (string) $request->getAttribute('owner', '');
-        $type = (string) $request->getAttribute('type', '');
+        $type  = (string) $request->getAttribute('type', '');
         try {
             $this->dns->deleteRrset($user, $accountId, $zoneId, $owner, $type);
             $actor = $request->getAttribute('actor_user');

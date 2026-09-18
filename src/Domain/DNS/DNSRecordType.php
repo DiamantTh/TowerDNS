@@ -18,10 +18,10 @@ final readonly class DNSRecordType
 {
     /** @var array<string, int> */
     private const array KNOWN = [
-        'A' => 1, 'NS' => 2, 'CNAME' => 5, 'SOA' => 6, 'PTR' => 12,
-        'MX' => 15, 'TXT' => 16, 'AAAA' => 28, 'SRV' => 33, 'DS' => 43,
+        'A'     => 1, 'NS' => 2, 'CNAME' => 5, 'SOA' => 6, 'PTR' => 12,
+        'MX'    => 15, 'TXT' => 16, 'AAAA' => 28, 'SRV' => 33, 'DS' => 43,
         'SSHFP' => 44, 'RRSIG' => 46, 'NSEC' => 47, 'DNSKEY' => 48,
-        'TLSA' => 52, 'SVCB' => 64, 'HTTPS' => 65, 'CAA' => 257,
+        'TLSA'  => 52, 'SVCB' => 64, 'HTTPS' => 65, 'CAA' => 257,
     ];
 
     private function __construct(

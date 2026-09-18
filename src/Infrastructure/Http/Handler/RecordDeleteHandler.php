@@ -22,13 +22,13 @@ final readonly class RecordDeleteHandler implements RequestHandlerInterface
     public function __construct(private ManagedZoneDNSService $dns, private AuditLogService $audit, private TranslatorInterface $translator) {}
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $user = $request->getAttribute(User::class);
+        $user      = $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('account', 0);
-        $zoneId = (int) $request->getAttribute('zone', 0);
-        $recordId = (string) $request->getAttribute('record', '');
-        $back = '/accounts/' . $accountId . '/zones/' . $zoneId;
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body = (array) ($request->getParsedBody() ?? []);
+        $zoneId    = (int) $request->getAttribute('zone', 0);
+        $recordId  = (string) $request->getAttribute('record', '');
+        $back      = '/accounts/' . $accountId . '/zones/' . $zoneId;
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body      = (array) ($request->getParsedBody() ?? []);
         if (!$user instanceof User || !$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }

@@ -27,7 +27,7 @@ final class DbalManagedZoneRepositoryTest extends TestCase
 
     public function testSameExternalZoneIdIsAllowedForDifferentProviderAccounts(): void
     {
-        $first = $this->repository->create(1, 10, 'external-1', 'example.org', '2026-09-16 00:00:00');
+        $first  = $this->repository->create(1, 10, 'external-1', 'example.org', '2026-09-16 00:00:00');
         $second = $this->repository->create(2, 20, 'external-1', 'example.net', '2026-09-16 00:00:00');
 
         self::assertNotSame($first, $second);

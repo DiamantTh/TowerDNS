@@ -89,7 +89,7 @@ final readonly class HealthStatusService
 
     private function databaseOk(): bool
     {
-        if (!$this->connection instanceof \Doctrine\DBAL\Connection) {
+        if (!$this->connection instanceof Connection) {
             return false;
         }
 
@@ -177,7 +177,7 @@ final readonly class HealthStatusService
 
     private function moduleDiscoveryOk(): bool
     {
-        if (!$this->moduleDiscovery instanceof \TowerDNS\Application\Module\LocalModuleDiscovery) {
+        if (!$this->moduleDiscovery instanceof LocalModuleDiscovery) {
             return true;
         }
 
@@ -191,7 +191,7 @@ final readonly class HealthStatusService
 
     private function schemaOk(): bool
     {
-        if (!$this->connection instanceof \Doctrine\DBAL\Connection) {
+        if (!$this->connection instanceof Connection) {
             return false;
         }
 

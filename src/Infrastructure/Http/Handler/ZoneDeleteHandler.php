@@ -35,10 +35,10 @@ final readonly class ZoneDeleteHandler implements RequestHandlerInterface
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
         $accountId = (int) $request->getAttribute('account', 0);
-        $zoneId = (int) $request->getAttribute('zone', 0);
-        $back = '/accounts/' . $accountId . '/zones';
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body = (array) ($request->getParsedBody() ?? []);
+        $zoneId    = (int) $request->getAttribute('zone', 0);
+        $back      = '/accounts/' . $accountId . '/zones';
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body      = (array) ($request->getParsedBody() ?? []);
         if (!$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }

@@ -15,7 +15,6 @@ use TowerDNS\Application\Services\RbacPermissionChecker;
 use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\AccountMembership;
 use TowerDNS\Domain\Account\TeamRole;
-use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
 final class AccountOwnershipServiceTest extends TestCase
@@ -57,7 +56,7 @@ final class AccountOwnershipServiceTest extends TestCase
     private function permissionService(AccountRepositoryInterface $accounts): PermissionService
     {
         /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */
-        $rbac = new RbacPermissionChecker();
+        $rbac        = new RbacPermissionChecker();
         $memberships = $this->createMock(ZoneMembershipRepositoryInterface::class);
         return new PermissionService($accounts, $memberships, new AuthorizationService($rbac), $rbac);
     }

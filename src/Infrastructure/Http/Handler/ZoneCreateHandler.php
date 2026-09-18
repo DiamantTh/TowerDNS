@@ -33,20 +33,20 @@ final readonly class ZoneCreateHandler implements RequestHandlerInterface
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
         $accountId = (int) $request->getAttribute('account', 0);
-        $back = '/accounts/' . $accountId . '/zones';
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body = (array) ($request->getParsedBody() ?? []);
+        $back      = '/accounts/' . $accountId . '/zones';
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body      = (array) ($request->getParsedBody() ?? []);
         if (!$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
-        $name = trim((string) ($body['zone_name'] ?? ''));
+        $name              = trim((string) ($body['zone_name'] ?? ''));
         $providerAccountId = (int) ($body['provider_account_id'] ?? 0);
         if ($name === '' || $providerAccountId <= 0) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('zones.error.name-required')));
         }
         try {
-            $zone = $this->dns->create($user, $accountId, $providerAccountId, $name);
+            $zone  = $this->dns->create($user, $accountId, $providerAccountId, $name);
             $actor = $request->getAttribute('actor_user');
             $this->audit->recordZoneCreate($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $zone->id, $zone->canonicalName);
         } catch (AuthorizationException) {

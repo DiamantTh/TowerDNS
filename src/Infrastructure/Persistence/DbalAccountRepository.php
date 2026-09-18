@@ -60,22 +60,22 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
     {
         return $this->connection->transactional(function () use ($name, $slug, $ownerUserId, $createdAt): int {
             $this->connection->insert('accounts', [
-            'name'          => $name,
-            'slug'          => $slug,
-            'owner_user_id' => $ownerUserId,
-            'is_active'     => 1,
-            'created_at'    => $createdAt,
-        ]);
+                'name'          => $name,
+                'slug'          => $slug,
+                'owner_user_id' => $ownerUserId,
+                'is_active'     => 1,
+                'created_at'    => $createdAt,
+            ]);
             $id = (int) $this->connection->lastInsertId();
 
-        // Automatically add the owner as a member with owner role
+            // Automatically add the owner as a member with owner role
             $this->connection->insert('account_memberships', [
-            'account_id' => $id,
-            'user_id'    => $ownerUserId,
-            'role'       => TeamRole::OWNER->value,
-            'invited_by' => null,
-            'created_at' => $createdAt,
-        ]);
+                'account_id' => $id,
+                'user_id'    => $ownerUserId,
+                'role'       => TeamRole::OWNER->value,
+                'invited_by' => null,
+                'created_at' => $createdAt,
+            ]);
 
             return $id;
         });

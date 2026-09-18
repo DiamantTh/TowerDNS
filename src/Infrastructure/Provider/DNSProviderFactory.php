@@ -12,7 +12,7 @@ use TowerDNS\Application\Exception\ProviderNotFoundException;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
 
 /** Central catalogue and construction point for DNS-provider adapters. */
-final class DNSProviderFactory
+final readonly class DNSProviderFactory
 {
     public function __construct(private ?ProviderModuleRegistry $moduleRegistry = null) {}
     /**

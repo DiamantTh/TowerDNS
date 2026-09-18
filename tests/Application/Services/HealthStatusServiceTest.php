@@ -25,7 +25,7 @@ final class HealthStatusServiceTest extends TestCase
         mkdir($base . '/cache/ratelimit', 0o750, true);
         mkdir($base . '/logs', 0o750, true);
 
-        $configPath = $base . '/configs/config.local.toml';
+        $configPath   = $base . '/configs/config.local.toml';
         $providerPath = $base . '/configs/providers.toml';
         file_put_contents($configPath, "[security]\nencryption_key = \"" . CredentialService::generateKey() . "\"\n");
         file_put_contents($providerPath, "# provider config\n");
@@ -59,7 +59,7 @@ final class HealthStatusServiceTest extends TestCase
         mkdir($base . '/cache/ratelimit', 0o750, true);
         mkdir($base . '/logs', 0o750, true);
 
-        $configPath = $base . '/configs/config.local.toml';
+        $configPath   = $base . '/configs/config.local.toml';
         $providerPath = $base . '/configs/providers.toml';
         file_put_contents($configPath, "[security]\nkey = \"secret-value\"\n");
         file_put_contents($providerPath, "# provider config\n");
@@ -75,7 +75,7 @@ final class HealthStatusServiceTest extends TestCase
             new LocalModuleDiscovery($base . '/modules'),
         );
 
-        $status = $service->readiness();
+        $status  = $service->readiness();
         $payload = json_encode($status);
         self::assertIsString($payload);
 

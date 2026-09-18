@@ -19,7 +19,10 @@ use TowerDNS\Domain\DNS\Zone;
 #[AsCommand(name: 'rrset:list', description: 'List DNS RRsets in a provider zone')]
 final class RrsetListCommand extends Command
 {
-    public function __construct(private readonly ProviderRegistry $providers) { parent::__construct(); }
+    public function __construct(private readonly ProviderRegistry $providers)
+    {
+        parent::__construct();
+    }
 
     protected function configure(): void
     {
@@ -34,7 +37,9 @@ final class RrsetListCommand extends Command
         $io = new SymfonyStyle($input, $output);
         try {
             $provider = $this->providers->get((string) $input->getArgument('provider'));
-            if (!$provider instanceof RrsetProviderInterface) { throw new \LogicException('Provider unterstützt keine RRset-Operationen.'); }
+            if (!$provider instanceof RrsetProviderInterface) {
+                throw new \LogicException('Provider unterstützt keine RRset-Operationen.');
+            }
             $zone = $this->resolveZone($provider->listZones(), (string) $input->getArgument('zone'));
             $sets = $provider->listRrsets($zone->id);
         } catch (\Throwable $exception) {
@@ -42,7 +47,9 @@ final class RrsetListCommand extends Command
             return self::FAILURE;
         }
         $type = strtoupper((string) $input->getOption('type'));
-        if ($type !== '') { $sets = array_values(array_filter($sets, static fn(Rrset $set): bool => $set->type->presentation === $type)); }
+        if ($type !== '') {
+            $sets = array_values(array_filter($sets, static fn(Rrset $set): bool => $set->type->presentation === $type));
+        }
         $rows = array_map(static fn(Rrset $set): array => ['zone_id' => $set->zoneId, 'name' => $set->ownerName, 'type' => $set->type->presentation, 'ttl' => $set->ttl, 'rdata' => $set->rdata, 'provider_identity' => $set->providerIdentity], $sets);
         StructuredOutput::write($io, (string) $input->getOption('format'), ['Name' => 'name', 'Type' => 'type', 'TTL' => 'ttl', 'RDATA' => 'rdata'], $rows, 'rrsets');
         return self::SUCCESS;
@@ -51,9 +58,11 @@ final class RrsetListCommand extends Command
     /** @param list<Zone> $zones */
     private function resolveZone(array $zones, string $name): Zone
     {
-        $name = strtolower(rtrim($name, '.'));
+        $name    = strtolower(rtrim($name, '.'));
         $matches = array_values(array_filter($zones, static fn(Zone $zone): bool => strtolower(rtrim($zone->name, '.')) === $name));
-        if (count($matches) !== 1) { throw new \InvalidArgumentException('Zone was not found or is ambiguous.'); }
+        if (count($matches) !== 1) {
+            throw new \InvalidArgumentException('Zone was not found or is ambiguous.');
+        }
         return $matches[0];
     }
 }

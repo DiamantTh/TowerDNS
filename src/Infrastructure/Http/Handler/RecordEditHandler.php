@@ -28,9 +28,9 @@ final readonly class RecordEditHandler implements RequestHandlerInterface
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
         $accountId = (int) $request->getAttribute('account', 0);
-        $zoneId = (int) $request->getAttribute('zone', 0);
-        $recordId = (string) $request->getAttribute('record', '');
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $zoneId    = (int) $request->getAttribute('zone', 0);
+        $recordId  = (string) $request->getAttribute('record', '');
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '';
         try {
             $record = $this->dns->findRecordForUpdate($user, $accountId, $zoneId, $recordId);

@@ -24,12 +24,12 @@ final readonly class RrsetReplaceHandler implements RequestHandlerInterface
     public function __construct(private ManagedZoneDNSService $dns, private AuditLogService $audit, private TranslatorInterface $translator) {}
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $user = $request->getAttribute(User::class);
+        $user      = $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('account', 0);
-        $zoneId = (int) $request->getAttribute('zone', 0);
-        $back = '/accounts/' . $accountId . '/zones/' . $zoneId;
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body = (array) ($request->getParsedBody() ?? []);
+        $zoneId    = (int) $request->getAttribute('zone', 0);
+        $back      = '/accounts/' . $accountId . '/zones/' . $zoneId;
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body      = (array) ($request->getParsedBody() ?? []);
         if (!$user instanceof User || !$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
@@ -38,9 +38,9 @@ final readonly class RrsetReplaceHandler implements RequestHandlerInterface
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.rdata-required')));
         }
         try {
-            $rrset = new Rrset('', trim((string) ($body['name'] ?? '')), DNSRecordType::parse(trim((string) ($body['type'] ?? ''))), (int) ($body['ttl'] ?? 300), $rdata);
+            $rrset   = new Rrset('', trim((string) ($body['name'] ?? '')), DNSRecordType::parse(trim((string) ($body['type'] ?? ''))), (int) ($body['ttl'] ?? 300), $rdata);
             $written = $this->dns->replaceRrset($user, $accountId, $zoneId, $rrset);
-            $actor = $request->getAttribute('actor_user');
+            $actor   = $request->getAttribute('actor_user');
             $this->audit->recordRecordUpdate($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $zoneId, $written->ownerName, $written->type->presentation);
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.write-denied')));

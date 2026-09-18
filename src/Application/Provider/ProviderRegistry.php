@@ -73,9 +73,9 @@ final class ProviderRegistry
                 $provider->displayName(),
                 $provider->capabilities()->all(),
                 $provider instanceof ProviderConstraintProviderInterface ? [
-                    'rrset_write_mode' => $provider->constraints()->rrsetWriteMode,
+                    'rrset_write_mode'      => $provider->constraints()->rrsetWriteMode,
                     'read_back_consistency' => $provider->constraints()->readBackConsistency,
-                    'rfc3597_write' => $provider->constraints()->supportsRfc3597Write,
+                    'rfc3597_write'         => $provider->constraints()->supportsRfc3597Write,
                     ...$provider->constraints()->details,
                 ] : [],
             );

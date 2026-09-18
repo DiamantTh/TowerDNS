@@ -19,14 +19,14 @@ final readonly class HealthHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $path = $request->getUri()->getPath();
+        $path    = $request->getUri()->getPath();
         $payload = str_ends_with($path, '/ready') ? $this->health->readiness() : $this->health->check();
 
         $status = match ($payload['status']) {
-            'ok' => 200,
+            'ok'       => 200,
             'degraded' => 200,
-            'fail' => 503,
-            default => 503,
+            'fail'     => 503,
+            default    => 503,
         };
 
         return new JsonResponse($payload, $status);

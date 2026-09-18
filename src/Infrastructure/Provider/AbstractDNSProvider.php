@@ -52,12 +52,10 @@ abstract class AbstractDNSProvider implements DNSProviderInterface, RrsetProvide
         $sets = [];
         foreach ($this->listRecords($zoneId) as $record) {
             $type = DNSRecordType::parse($record->type->value);
-            $key = strtolower(rtrim($record->name, '.')) . "\0" . $type->code;
-            if (!isset($sets[$key])) {
-                $sets[$key] = ['owner' => $record->name, 'type' => $type, 'ttl' => $record->ttl, 'rdata' => [], 'ids' => []];
-            }
+            $key  = strtolower(rtrim($record->name, '.')) . "\0" . $type->code;
+            $sets[$key] ??= ['owner' => $record->name, 'type' => $type, 'ttl' => $record->ttl, 'rdata' => [], 'ids' => []];
             $sets[$key]['rdata'][] = $record->content;
-            $sets[$key]['ids'][] = $record->id;
+            $sets[$key]['ids'][]   = $record->id;
         }
 
         $result = [];
@@ -66,7 +64,12 @@ abstract class AbstractDNSProvider implements DNSProviderInterface, RrsetProvide
                 continue;
             }
             $result[] = new Rrset(
-                $zoneId, $set['owner'], $set['type'], $set['ttl'], $set['rdata'], implode(',', $set['ids']),
+                $zoneId,
+                $set['owner'],
+                $set['type'],
+                $set['ttl'],
+                $set['rdata'],
+                implode(',', $set['ids']),
             );
         }
         return $result;

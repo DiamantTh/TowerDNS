@@ -50,11 +50,11 @@ final readonly class DbalManagedZoneRepository implements ManagedZoneRepositoryI
         }
 
         $this->connection->insert('managed_zones', [
-            'account_id' => $accountId,
+            'account_id'          => $accountId,
             'provider_account_id' => $providerAccountId,
-            'provider_zone_id' => $providerZoneId,
-            'canonical_name' => $canonicalName,
-            'created_at' => $createdAt,
+            'provider_zone_id'    => $providerZoneId,
+            'canonical_name'      => $canonicalName,
+            'created_at'          => $createdAt,
         ]);
         return (int) $this->connection->lastInsertId();
     }

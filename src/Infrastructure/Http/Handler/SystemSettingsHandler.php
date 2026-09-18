@@ -21,9 +21,9 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Theme\ThemeManager;
-use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
 
 /**
  * GET+POST /settings — Systemeinstellungen lesen und schreiben.

@@ -27,9 +27,9 @@ final readonly class DNSSECHandler implements RequestHandlerInterface
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
         $accountId = (int) $request->getAttribute('account', 0);
-        $zoneId = (int) $request->getAttribute('zone', 0);
-        $back = '/accounts/' . $accountId . '/zones/' . $zoneId . '/dnssec';
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $zoneId    = (int) $request->getAttribute('zone', 0);
+        $back      = '/accounts/' . $accountId . '/zones/' . $zoneId . '/dnssec';
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '';
         if ($request->getMethod() === 'POST') {
             $body = (array) ($request->getParsedBody() ?? []);

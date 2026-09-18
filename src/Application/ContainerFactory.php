@@ -298,8 +298,11 @@ final class ContainerFactory
             ClientIpMiddleware::class       => \DI\autowire(),
             WebAuthnService::class          => \DI\factory(
                 static function (SerializerInterface $serializer) use ($appConf): WebAuthnService {
-                    $app    = (array) ($appConf['app'] ?? []);
-                    $rpId   = (string) ($app['hostname'] ?? 'localhost');
+                    $app = (array) ($appConf['app'] ?? []);
+                    // Both installers persist the public host as app.domain.
+                    // Keep hostname as a backwards-compatible override for
+                    // existing deployments that used the older key.
+                    $rpId   = (string) ($app['hostname'] ?? $app['domain'] ?? 'localhost');
                     $rpName = (string) ($app['name'] ?? 'TowerDNS');
                     return new WebAuthnService($serializer, $rpId, $rpName);
                 }

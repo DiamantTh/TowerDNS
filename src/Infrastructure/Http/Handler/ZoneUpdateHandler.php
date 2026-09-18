@@ -26,16 +26,16 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $user = $request->getAttribute(User::class);
+        $user      = $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('account', 0);
-        $zoneId = (int) $request->getAttribute('zone', 0);
-        $recordId = (string) $request->getAttribute('record', '');
-        $back = '/accounts/' . $accountId . '/zones/' . $zoneId;
+        $zoneId    = (int) $request->getAttribute('zone', 0);
+        $recordId  = (string) $request->getAttribute('record', '');
+        $back      = '/accounts/' . $accountId . '/zones/' . $zoneId;
         if (!$user instanceof User) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
         }
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $body = (array) ($request->getParsedBody() ?? []);
+        $body  = (array) ($request->getParsedBody() ?? []);
         if (!$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
         }
@@ -48,7 +48,7 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
         if (!$filter->isValid() || ($type = RecordType::tryFrom($typeRaw)) === null) {
             return new RedirectResponse($back . '/records/' . rawurlencode($recordId) . '/edit?error=' . rawurlencode($this->translator->translate('records.error.invalid-input')));
         }
-        $value = $filter->getValues();
+        $value  = $filter->getValues();
         $record = new Record($recordId, '', (string) $value['name'], $type, (int) $value['ttl'], (string) $value['content'], ($comment = trim((string) ($body['comment'] ?? ''))) !== '' ? $comment : null);
         try {
             $this->dns->updateRecord($user, $accountId, $zoneId, $record);

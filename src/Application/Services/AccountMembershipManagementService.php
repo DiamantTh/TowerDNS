@@ -33,7 +33,7 @@ final readonly class AccountMembershipManagementService
         }
 
         $targetUserId = trim($targetUserId);
-        if ($targetUserId === '' || $this->users->findById($targetUserId) === null) {
+        if ($targetUserId === '' || !$this->users->findById($targetUserId) instanceof User) {
             throw new \DomainException('Target user not found.');
         }
 

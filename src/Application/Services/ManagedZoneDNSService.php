@@ -18,9 +18,9 @@ use TowerDNS\Domain\Account\ManagedZone;
 use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
-use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 
@@ -151,8 +151,8 @@ final readonly class ManagedZoneDNSService
     public function deleteRrset(User $user, int $accountId, int $managedZoneId, string $ownerName, string $type): void
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_DELETE, Capability::RECORD_DELETE);
-        $recordType = DNSRecordType::parse($type);
-        $rrsets = $this->rrsets($provider);
+        $recordType        = DNSRecordType::parse($type);
+        $rrsets            = $this->rrsets($provider);
         $rrsets->deleteRrset($zone->providerZoneId, $ownerName, $recordType->presentation);
         foreach ($rrsets->listRrsets($zone->providerZoneId) as $rrset) {
             if ($rrset->type->equals($recordType) && strcasecmp(rtrim($rrset->ownerName, '.'), rtrim($ownerName, '.')) === 0) {

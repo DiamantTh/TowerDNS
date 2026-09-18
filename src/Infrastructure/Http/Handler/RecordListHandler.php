@@ -28,8 +28,8 @@ final readonly class RecordListHandler implements RequestHandlerInterface
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
         $accountId = (int) $request->getAttribute('account', 0);
-        $zoneId = (int) $request->getAttribute('zone', 0);
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $zoneId    = (int) $request->getAttribute('zone', 0);
+        $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '';
         try {
             $rrsets = $this->dns->listRrsets($user, $accountId, $zoneId);

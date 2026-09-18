@@ -13,7 +13,7 @@ final class RrsetComparatorTest extends TestCase
 {
     public function testRdataOrderAndTlsaHexCaseDoNotMatter(): void
     {
-        $type = DNSRecordType::parse('TLSA');
+        $type     = DNSRecordType::parse('TLSA');
         $expected = new Rrset('example.org', '_443._tcp', $type, 300, ['3 1 1 AABB', '3 1 1 CCDD']);
         $observed = new Rrset('example.org', '_443._tcp.', $type, 300, ['3 1 1 ccdd', '3 1 1 aabb']);
         self::assertTrue(RrsetComparator::equals($expected, $observed));

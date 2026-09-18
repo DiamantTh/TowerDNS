@@ -117,7 +117,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
 
         $action       = (string) ($body['action'] ?? '');
         $targetUserId = trim((string) ($body['user_id'] ?? ''));
-        $base = '/accounts/' . $accountId . '/zones/' . $managedZoneId . '/members';
+        $base         = '/accounts/' . $accountId . '/zones/' . $managedZoneId . '/members';
 
         if ($action === 'revoke') {
             if ($targetUserId === '') {
