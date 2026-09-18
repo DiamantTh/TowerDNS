@@ -68,6 +68,17 @@ final class AccountMembershipManagementServiceTest extends TestCase
         $service->revoke(new User('actor', 'actor@example.test'), 42, 'owner');
     }
 
+    public function testPersonalAccountRejectsAdditionalMembers(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Personal', 'personal-actor', 'actor', true, '2026-09-16 00:00:00'));
+        $accounts->expects(self::never())->method('addMembership');
+        $users   = $this->createMock(UserRepositoryInterface::class);
+        $service = new AccountMembershipManagementService($accounts, $users, $this->servicePermissions($accounts));
+        $this->expectException(\DomainException::class);
+        $service->invite(new User('actor', 'actor@example.test'), 42, 'target', TeamRole::VIEWER);
+    }
+
     private function servicePermissions(AccountRepositoryInterface $accounts): PermissionService
     {
         /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */

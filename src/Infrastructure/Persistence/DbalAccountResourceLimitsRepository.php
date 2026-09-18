@@ -23,10 +23,16 @@ final readonly class DbalAccountResourceLimitsRepository implements AccountResou
 
     public function save(AccountResourceLimits $limits): void
     {
-        $this->connection->executeStatement(
-            'INSERT INTO account_resource_limits (account_id, max_zones, max_members, max_provider_accounts) VALUES (?, ?, ?, ?) ON CONFLICT(account_id) DO UPDATE SET max_zones = excluded.max_zones, max_members = excluded.max_members, max_provider_accounts = excluded.max_provider_accounts',
-            [$limits->accountId, $limits->maxZones, $limits->maxMembers, $limits->maxProviderAccounts],
-        );
+        $values = [
+            'max_zones'             => $limits->maxZones,
+            'max_members'           => $limits->maxMembers,
+            'max_provider_accounts' => $limits->maxProviderAccounts,
+        ];
+        if ($this->connection->fetchOne('SELECT 1 FROM account_resource_limits WHERE account_id = ?', [$limits->accountId]) !== false) {
+            $this->connection->update('account_resource_limits', $values, ['account_id' => $limits->accountId]);
+            return;
+        }
+        $this->connection->insert('account_resource_limits', ['account_id' => $limits->accountId, ...$values]);
     }
 
     private function nullableInt(mixed $value): ?int

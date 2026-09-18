@@ -51,6 +51,14 @@ Workflows fragen `DnssecProfile::$features` ab, um pro Zone passende Aktionen an
 
 Rechte werden zentral in der Application-Schicht (`AuthorizationService`) anhand von `Permission`-Werten geprueft. Jeder oeffentliche Service-Aufruf beginnt mit einer `assert(...)`-Pruefung, bevor Provider oder Domain-Logik beruehrt werden.
 
+## Benutzer, Profil und Accounts
+
+`User` ist die Login-Identitaet; Ressourcen gehoeren ausschliesslich einem `Account`. `AccountMembership` verbindet beide. `UserLifecycleService` legt bei der Benutzererstellung transaktional einen persoenlichen Account mit Owner-Membership und ResourceLimits an. Der Fresh Install erzeugt fuer den ersten Administrator zusaetzlich zum benannten Organisations-Account einen persoenlichen Account. Bestandsbenutzer ohne diesen Container erhalten ihn bei der naechsten authentifizierten Anfrage idempotent. Bei Benutzerloeschung verhindern weitere Mitglieder im persoenlichen Account, eigene Ressourcen oder noch gehaltene Organisations-Accounts eine stille Loeschung.
+
+Ohne Schema-Migration wird `AccountKind` derzeit ueber den reservierten Slug `personal-<user-id>` bestimmt; andere Accounts sind Organisationen. Neue Organisations-Slugs duerfen dieses Praefix nicht verwenden. Eine spaetere explizite `accounts.type`-Spalte ist fuer eine Migrationsphase vorgesehen. `ActiveAccount` bleibt nur Scope und verleiht keine Rechte.
+
+Das bestehende `users.locale` speichert eine der unterstuetzten UI-/Regional-Locale-Kombinationen `en-GB` oder `de-DE`; die Sprache wird daraus abgeleitet. Der Translator setzt sie fuer jede Anfrage neu und faellt auf `en-GB` zurueck. Eine getrennte Sprachpraeferenz, Zeitzone sowie optionale Kontakt- und ERP-/CRM-Personenfelder benoetigen eine spaetere Schemaerweiterung. Passwort-Hash, TOTP-Secrets und andere Zugangsdaten sind nicht Teil des Profilmodells. Profil- und Zugangsdaten-Routen sind waehrend Impersonation gesperrt.
+
 ## Erweiterung
 
 Neuen Provider hinzufuegen:

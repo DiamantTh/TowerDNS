@@ -7,6 +7,7 @@ namespace TowerDNS\Application\Services;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Domain\Account\Account;
+use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Account\AccountMembership;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
@@ -26,6 +27,9 @@ final readonly class AccountOwnershipService
         $account = $this->accounts->findById($accountId);
         if (!$account instanceof Account || !$account->isActive) {
             throw new \DomainException('Account not found or inactive.');
+        }
+        if ($account->kind() === AccountKind::PERSONAL) {
+            throw new \DomainException('Personal account ownership cannot be transferred.');
         }
 
         $newOwnerUserId = trim($newOwnerUserId);

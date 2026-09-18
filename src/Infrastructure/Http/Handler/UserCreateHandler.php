@@ -16,9 +16,9 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Symfony\Component\Uid\Uuid;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\PasswordPolicy;
+use TowerDNS\Application\Services\UserLifecycleService;
 use TowerDNS\Application\Validation\UserInputFilter;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
@@ -29,7 +29,7 @@ use TowerDNS\Domain\Auth\User;
 final readonly class UserCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private UserRepositoryInterface $users,
+        private UserLifecycleService $users,
         private AuthorizationService    $authz,
         private PasswordPolicy          $passwordPolicy,
         private TranslatorInterface     $translator,

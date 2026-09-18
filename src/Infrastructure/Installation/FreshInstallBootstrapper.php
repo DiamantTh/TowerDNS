@@ -8,6 +8,14 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Installation;
 
 use Doctrine\DBAL\Connection;
+use TowerDNS\Application\Services\UserLifecycleService;
+use TowerDNS\Infrastructure\Clock\SystemClock;
+use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
+use TowerDNS\Infrastructure\Persistence\DbalAccountResourceLimitsRepository;
+use TowerDNS\Infrastructure\Persistence\DbalManagedZoneRepository;
+use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
+use TowerDNS\Infrastructure\Persistence\DbalTransactionRunner;
+use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
 
@@ -78,6 +86,18 @@ final readonly class FreshInstallBootstrapper
                 $request->createdAt,
             );
         }
+
+        // The installation's named default account remains an organization;
+        // the admin also receives the same personal resource container as
+        // every subsequently created user.
+        new UserLifecycleService(
+            new DbalTransactionRunner($this->connection),
+            new DbalUserRepository($this->connection, new SystemClock()),
+            new DbalAccountRepository($this->connection),
+            new DbalAccountResourceLimitsRepository($this->connection),
+            new DbalManagedZoneRepository($this->connection),
+            new DbalProviderAccountRepository($this->connection),
+        )->ensurePersonalAccount($existingAdminId);
 
         return new FreshInstallBootstrapResult(
             $userCount === 1 && $accountCount === 0,

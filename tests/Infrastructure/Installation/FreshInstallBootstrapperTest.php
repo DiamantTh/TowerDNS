@@ -29,12 +29,12 @@ final class FreshInstallBootstrapperTest extends TestCase
             'SELECT role_id FROM user_roles WHERE user_id = ?',
             [$request->adminId],
         ));
-        self::assertSame($request->adminId, $connection->fetchOne('SELECT owner_user_id FROM accounts'));
+        self::assertSame($request->adminId, $connection->fetchOne('SELECT owner_user_id FROM accounts WHERE slug = ?', [$request->accountSlug]));
         self::assertSame('owner', $connection->fetchOne(
-            'SELECT role FROM account_memberships WHERE user_id = ?',
-            [$request->adminId],
+            'SELECT role FROM account_memberships am JOIN accounts a ON a.id = am.account_id WHERE am.user_id = ? AND a.slug = ?',
+            [$request->adminId, 'personal-' . $request->adminId],
         ));
-        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM account_resource_limits'));
+        self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM account_resource_limits'));
         self::assertNull($connection->fetchOne('SELECT max_zones FROM account_resource_limits'));
         self::assertGreaterThanOrEqual(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles WHERE is_system = 1'));
         self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM managed_zones'));
@@ -61,7 +61,7 @@ final class FreshInstallBootstrapperTest extends TestCase
         self::assertFalse($result->createdInitialState);
         self::assertSame($first->adminId, $result->adminId);
         self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM users'));
-        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts'));
+        self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts'));
         self::assertSame($first->adminEmail, $connection->fetchOne('SELECT email FROM users'));
     }
 
@@ -78,8 +78,8 @@ final class FreshInstallBootstrapperTest extends TestCase
         $result = $bootstrapper->bootstrap($request);
 
         self::assertTrue($result->createdInitialState);
-        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts'));
-        self::assertSame($request->adminId, $connection->fetchOne('SELECT owner_user_id FROM accounts'));
+        self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts'));
+        self::assertSame($request->adminId, $connection->fetchOne('SELECT owner_user_id FROM accounts WHERE slug = ?', ['personal-' . $request->adminId]));
     }
 
     public function testRejectsAnAmbiguousIncompleteDatabaseWithoutChangingIt(): void

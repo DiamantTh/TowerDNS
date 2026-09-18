@@ -53,6 +53,18 @@ final class AccountOwnershipServiceTest extends TestCase
         $service->transfer(new User('actor', 'actor@example.test'), 42, 'target');
     }
 
+    public function testPersonalAccountOwnershipCannotBeTransferred(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Personal', 'personal-actor', 'actor', true, '2026-09-16 00:00:00'));
+        $accounts->method('getEffectiveRole')->with(42, 'actor')->willReturn(TeamRole::OWNER);
+        $accounts->expects(self::never())->method('transferOwnership');
+        $users   = $this->createMock(UserRepositoryInterface::class);
+        $service = new AccountOwnershipService($accounts, $users, $this->permissionService($accounts));
+        $this->expectException(\DomainException::class);
+        $service->transfer(new User('actor', 'actor@example.test'), 42, 'target');
+    }
+
     private function permissionService(AccountRepositoryInterface $accounts): PermissionService
     {
         /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */

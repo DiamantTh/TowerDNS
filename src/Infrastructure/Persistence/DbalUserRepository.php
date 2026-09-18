@@ -11,6 +11,7 @@ use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Psr\Clock\ClockInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Services\SupportedLocales;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
@@ -33,7 +34,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findById(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, display_name, theme FROM users WHERE id = ? AND active = 1',
+            'SELECT id, email, display_name, theme, locale, last_login_at, created_at, updated_at FROM users WHERE id = ? AND active = 1',
             [$id],
         );
 
@@ -41,19 +42,13 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             return null;
         }
 
-        return new User(
-            (string) ($raw['id'] ?? ''),
-            (string) ($raw['email'] ?? ''),
-            $this->loadRolesForUser((string) ($raw['id'] ?? '')),
-            isset($raw['display_name']) && $raw['display_name'] !== '' ? (string) $raw['display_name'] : null,
-            (string) ($raw['theme'] ?? 'system'),
-        );
+        return $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id']));
     }
 
     public function findByEmail(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, display_name, theme FROM users WHERE email = ? AND active = 1',
+            'SELECT id, email, display_name, theme, locale, last_login_at, created_at, updated_at FROM users WHERE email = ? AND active = 1',
             [$email],
         );
 
@@ -61,13 +56,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             return null;
         }
 
-        return new User(
-            (string) ($raw['id'] ?? ''),
-            (string) ($raw['email'] ?? ''),
-            $this->loadRolesForUser((string) ($raw['id'] ?? '')),
-            isset($raw['display_name']) && $raw['display_name'] !== '' ? (string) $raw['display_name'] : null,
-            (string) ($raw['theme'] ?? 'system'),
-        );
+        return $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id']));
     }
 
     public function fetchPasswordHash(string $email): ?string
@@ -119,6 +108,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             'totp_secret_encrypted' => null,
             'active'                => true,
             'theme'                 => 'system',
+            'locale'                => SupportedLocales::DEFAULT,
             'created_at'            => $now,
             'updated_at'            => $now,
         ]);
@@ -148,16 +138,14 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         );
     }
 
-    public function updateTheme(string $userId, string $theme): void
+    public function updateProfile(string $userId, string $displayName, string $theme, string $locale): void
     {
-        $this->connection->update(
-            'users',
-            [
-                'theme'      => $theme,
-                'updated_at' => $this->clock->now()->format('Y-m-d H:i:s'),
-            ],
-            ['id' => $userId],
-        );
+        $this->connection->update('users', [
+            'display_name' => $displayName === '' ? null : $displayName,
+            'theme'        => $theme,
+            'locale'       => $locale,
+            'updated_at'   => $this->clock->now()->format('Y-m-d H:i:s'),
+        ], ['id' => $userId]);
     }
 
     public function syncRoles(string $userId, array $roleIds): void
@@ -184,7 +172,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findAll(): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, email, display_name, theme FROM users WHERE active = 1 ORDER BY email',
+            'SELECT id, email, display_name, theme, locale, last_login_at, created_at, updated_at FROM users WHERE active = 1 ORDER BY email',
         );
 
         if ($rows === []) {
@@ -200,14 +188,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $users = [];
         foreach ($rows as $row) {
             $uid     = (string) ($row['id'] ?? '');
-            $dn      = isset($row['display_name']) && $row['display_name'] !== '' ? (string) $row['display_name'] : null;
-            $users[] = new User(
-                $uid,
-                (string) ($row['email'] ?? ''),
-                $rolesByUser[$uid] ?? [],
-                $dn,
-                (string) ($row['theme'] ?? 'system'),
-            );
+            $users[] = $this->hydrate($row, $rolesByUser[$uid] ?? []);
         }
 
         return $users;
@@ -317,5 +298,23 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         }
 
         return $result;
+    }
+
+    /** @param array<string, mixed> $row
+     *  @param list<Role> $roles
+     */
+    private function hydrate(array $row, array $roles): User
+    {
+        return new User(
+            (string) $row['id'],
+            (string) $row['email'],
+            $roles,
+            isset($row['display_name']) && $row['display_name'] !== '' ? (string) $row['display_name'] : null,
+            (string) ($row['theme'] ?? 'system'),
+            SupportedLocales::normalize((string) ($row['locale'] ?? '')) ?? SupportedLocales::DEFAULT,
+            isset($row['last_login_at']) ? (string) $row['last_login_at'] : null,
+            isset($row['created_at']) ? (string) $row['created_at'] : null,
+            isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+        );
     }
 }

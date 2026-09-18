@@ -18,6 +18,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\IamAdministrationService;
+use TowerDNS\Application\Services\UserLifecycleService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -32,6 +33,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
         private UserRepositoryInterface $users,
         private AuthorizationService    $authz,
         private IamAdministrationService $iam,
+        private UserLifecycleService      $lifecycle,
         private TranslatorInterface       $translator,
     ) {}
 
@@ -69,7 +71,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
 
         try {
             $this->iam->assertCanDelete($targetId);
-            $this->users->delete($targetId);
+            $this->lifecycle->delete($targetId);
         } catch (\Throwable) {
             return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.delete-failed')));
         }

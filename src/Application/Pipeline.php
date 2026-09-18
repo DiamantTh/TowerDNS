@@ -19,6 +19,8 @@ use Mezzio\Session\SessionMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\LocaleMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\OwnProfileMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 
 final class Pipeline
@@ -44,6 +46,8 @@ final class Pipeline
 
         // Authenticate user from session — sets User attribute on every request
         $app->pipe(AuthenticationMiddleware::class);
+        $app->pipe(OwnProfileMiddleware::class);
+        $app->pipe(LocaleMiddleware::class);
 
         // CSRF guard — must run after session so token storage is available
         $app->pipe(CsrfMiddleware::class);

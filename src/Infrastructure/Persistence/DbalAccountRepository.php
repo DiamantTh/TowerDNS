@@ -10,6 +10,7 @@ namespace TowerDNS\Infrastructure\Persistence;
 use Doctrine\DBAL\Connection;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Domain\Account\Account;
+use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Account\AccountMembership;
 use TowerDNS\Domain\Account\TeamRole;
 
@@ -154,6 +155,9 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
             $account = $this->findById($accountId);
             if (!$account instanceof Account) {
                 throw new \DomainException('Account not found.');
+            }
+            if ($account->kind() === AccountKind::PERSONAL) {
+                throw new \DomainException('Personal account ownership cannot be transferred.');
             }
 
             $target = $this->findMembership($accountId, $newOwnerUserId);

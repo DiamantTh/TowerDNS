@@ -84,12 +84,13 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
                         ? $this->activeAccounts->resolve($effectiveUser, $impersonation->effectiveAccountId)
                         : (is_int($activeId) || (is_string($activeId) && ctype_digit($activeId))
                             ? $this->activeAccounts->resolve($effectiveUser, (int) $activeId)
-                            : null);
+                            : $this->activeAccounts->defaultFor($effectiveUser));
                     if ($impersonation?->effectiveAccountId !== null && (int) $activeId !== $impersonation->effectiveAccountId) {
                         $session->unset('active_account_id');
                     }
                     if (!$active instanceof \TowerDNS\Domain\Account\Account && $activeId !== null) {
                         $session->unset('active_account_id');
+                        $active = $this->activeAccounts->defaultFor($effectiveUser);
                     }
                     $request = $request->withAttribute(ActiveAccountContext::class, new ActiveAccountContext($active));
                 }

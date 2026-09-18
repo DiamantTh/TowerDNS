@@ -18,6 +18,10 @@ final readonly class User
         public array $roles = [],
         public ?string $displayName = null,
         public string $theme = 'system',
+        public string $locale = 'en-GB',
+        public ?string $lastLoginAt = null,
+        public ?string $createdAt = null,
+        public ?string $updatedAt = null,
     ) {}
 
     public function hasPermission(Permission|string $permission): bool

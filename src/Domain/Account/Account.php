@@ -23,4 +23,9 @@ final readonly class Account
         public bool   $isActive,
         public string $createdAt,
     ) {}
+
+    public function kind(): AccountKind
+    {
+        return PersonalAccount::kindOf($this);
+    }
 }

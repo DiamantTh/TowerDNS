@@ -39,6 +39,15 @@ final class AccountManagementServiceTest extends TestCase
         $service->create(new User('owner', 'owner@example.test'), 'Team', 'Invalid Slug!');
     }
 
+    public function testCreateReservesPersonalSlugNamespace(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->expects(self::never())->method('create');
+        $service = new AccountManagementService($accounts, $this->permissionService($accounts));
+        $this->expectException(\DomainException::class);
+        $service->create(new User('owner', 'owner@example.test'), 'Collision', 'personal-other');
+    }
+
     public function testCreatePersistsAndReturnsTheNewAccount(): void
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);
@@ -119,6 +128,16 @@ final class AccountManagementServiceTest extends TestCase
 
         $service = new AccountManagementService($accounts, $this->permissionService($accounts));
         $service->deactivate(new User('actor', 'actor@example.test'), 42);
+    }
+
+    public function testPersonalAccountCannotBeDeactivated(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('getEffectiveRole')->with(42, 'actor')->willReturn(TeamRole::OWNER);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Personal', 'personal-actor', 'actor', true, '2026-09-16 00:00:00'));
+        $accounts->expects(self::never())->method('deactivate');
+        $this->expectException(\DomainException::class);
+        new AccountManagementService($accounts, $this->permissionService($accounts))->deactivate(new User('actor', 'actor@example.test'), 42);
     }
 
     private function permissionService(AccountRepositoryInterface $accounts): PermissionService

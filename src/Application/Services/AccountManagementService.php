@@ -9,6 +9,7 @@ namespace TowerDNS\Application\Services;
 
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Domain\Account\Account;
+use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
@@ -35,6 +36,9 @@ final readonly class AccountManagementService
 
         if (!preg_match('/^[a-z0-9\-]{2,64}$/', $slug)) {
             throw new \DomainException('Slug: nur Kleinbuchstaben, Ziffern und Bindestriche (2–64 Zeichen).');
+        }
+        if (str_starts_with($slug, 'personal-')) {
+            throw new \DomainException('The personal account slug namespace is reserved.');
         }
 
         $accountId = $this->accounts->create(
@@ -76,6 +80,9 @@ final readonly class AccountManagementService
         $account = $this->accounts->findById($accountId);
         if (!$account instanceof Account) {
             throw new \DomainException('Account nicht gefunden.');
+        }
+        if ($account->kind() === AccountKind::PERSONAL) {
+            throw new \DomainException('A personal account cannot be deactivated.');
         }
 
         $this->accounts->deactivate($accountId);

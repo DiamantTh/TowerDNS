@@ -23,6 +23,7 @@ use TowerDNS\Application\Services\AccountMembershipManagementService;
 use TowerDNS\Application\Services\AccountOwnershipService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
@@ -91,7 +92,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $accounts   = $this->accounts->findByUserId($user->id);
+        $accounts   = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value], $this->accounts->findByUserId($user->id));
         $flashError = $request->getQueryParams()['error'] ?? null;
 
         return new HtmlResponse(
@@ -118,7 +119,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
         $name = (string) ($body['name'] ?? '');
@@ -142,14 +143,14 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $user    = $request->getAttribute(User::class);
         $account = $this->accounts->findById($accountId);
 
-        if (!$account instanceof \TowerDNS\Domain\Account\Account) {
-            return new HtmlResponse('Account nicht gefunden.', 404);
+        if (!$account instanceof Account) {
+            return new HtmlResponse($this->translator->translate('http.error.not-found'), 404);
         }
 
         try {
             $this->permissions->assertCanManageAccount($accountId, $user);
         } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
         /** @var CsrfGuardInterface $guard */
@@ -182,7 +183,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
         $action = (string) ($body['action'] ?? 'rename');
@@ -218,14 +219,14 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $accountId = (int) $request->getAttribute('id', 0);
         $account   = $this->accounts->findById($accountId);
 
-        if (!$account instanceof \TowerDNS\Domain\Account\Account) {
-            return new HtmlResponse('Account nicht gefunden.', 404);
+        if (!$account instanceof Account) {
+            return new HtmlResponse($this->translator->translate('http.error.not-found'), 404);
         }
 
         try {
             $this->permissions->assertCanManageMembers($accountId, $user);
         } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
         /** @var CsrfGuardInterface $guard */
@@ -256,13 +257,13 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $accountId = (int) $request->getAttribute('id', 0);
 
         if (!$actor instanceof User) {
-            return new HtmlResponse('Kein Zugriff.', 403);
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
         try {
             $this->permissions->assertCanManageMembers($accountId, $actor);
         } catch (AuthorizationException) {
-            return new HtmlResponse('Kein Zugriff.', 403);
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
         /** @var CsrfGuardInterface $guard */
@@ -272,7 +273,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $token = (string) ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
-            return new HtmlResponse('Ungültige Anfrage.', 400);
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
         $action       = (string) ($body['action'] ?? '');
@@ -281,7 +282,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
 
         if ($action === 'remove') {
             if ($targetUserId === '') {
-                return new RedirectResponse($base . '?error=' . rawurlencode('Benutzer-ID fehlt.'));
+                return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate('accounts.error.user-id-required')));
             }
             try {
                 $this->memberships->revoke($actor, $accountId, $targetUserId);
@@ -297,7 +298,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             $role    = TeamRole::tryFrom($roleVal);
 
             if ($targetUserId === '' || $role === null) {
-                return new RedirectResponse($base . '?error=' . rawurlencode('Benutzer-ID und Rolle sind erforderlich.'));
+                return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate('accounts.error.member-input-required')));
             }
 
             try {
@@ -310,7 +311,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             return new RedirectResponse($base);
         }
 
-        return new RedirectResponse($base . '?error=' . rawurlencode('Unbekannte Aktion.'));
+        return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate('accounts.error.unknown-action')));
     }
 
     private function handleOwnershipPost(ServerRequestInterface $request): ResponseInterface
@@ -319,7 +320,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $actor     = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('id', 0);
         if (!$actor instanceof User) {
-            return new RedirectResponse('/accounts?error=' . rawurlencode('Invalid request.'));
+            return new RedirectResponse('/accounts?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
         }
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
@@ -327,7 +328,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $body = (array) ($request->getParsedBody() ?? []);
         $base = '/accounts/' . $accountId . '/members';
         if (!$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
-            return new RedirectResponse($base . '?error=' . rawurlencode('Invalid request.'));
+            return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
         }
         $target = trim((string) ($body['user_id'] ?? ''));
         try {

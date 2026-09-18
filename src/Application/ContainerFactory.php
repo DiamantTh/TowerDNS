@@ -55,6 +55,7 @@ use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
 use TowerDNS\Application\Contracts\ProviderCredentialSchemaInterface;
+use TowerDNS\Application\Contracts\TransactionRunnerInterface;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Application\Module\ModuleActionGroupRegistryFactory;
 use TowerDNS\Application\Module\ModulePermissionRegistryFactory;
@@ -74,6 +75,7 @@ use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
+use TowerDNS\Application\Services\ActiveAccountService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\BreachedPasswordCheckerInterface;
@@ -86,9 +88,11 @@ use TowerDNS\Application\Services\PasswordGenerator;
 use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\PasswordResetService;
 use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Application\Services\SupportedLocales;
 use TowerDNS\Application\Services\SystemProviderConfigurationService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\TotpService;
+use TowerDNS\Application\Services\UserLifecycleService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Auth\PermissionRegistry;
@@ -107,6 +111,7 @@ use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\LocaleMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
@@ -119,6 +124,7 @@ use TowerDNS\Infrastructure\Persistence\DbalPasswordResetTokenRepository;
 use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
+use TowerDNS\Infrastructure\Persistence\DbalTransactionRunner;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\DbalZoneMembershipRepository;
@@ -249,6 +255,7 @@ final class ContainerFactory
             PasswordResetTokenRepositoryInterface::class        => \DI\autowire(DbalPasswordResetTokenRepository::class),
             SystemSettingsRepositoryInterface::class            => \DI\autowire(DbalSystemSettingsRepository::class),
             SystemProviderConfigurationStoreInterface::class    => \DI\factory(static fn(): TomlSystemProviderConfigurationStore => new TomlSystemProviderConfigurationStore($projectRoot . '/configs/providers.toml')),
+            TransactionRunnerInterface::class                   => \DI\autowire(DbalTransactionRunner::class),
 
             // ── Credential service (app-key encryption) ───────────────────────
             CredentialService::class => \DI\factory(static function () use ($appConf): CredentialService {
@@ -262,6 +269,8 @@ final class ContainerFactory
 
             // ── Multi-Tenant services ─────────────────────────────────────────
             PermissionService::class                  => \DI\autowire(),
+            UserLifecycleService::class               => \DI\autowire(),
+            ActiveAccountService::class               => \DI\factory(static fn(\Psr\Container\ContainerInterface $c): ActiveAccountService => new ActiveAccountService($c->get(AccountRepositoryInterface::class), $c->get(UserLifecycleService::class))),
             AuditLogService::class                    => \DI\autowire(),
             PasswordResetService::class               => \DI\autowire(),
             PasswordAdministrationService::class      => \DI\autowire(),
@@ -294,6 +303,7 @@ final class ContainerFactory
             TotpSecretService::class        => \DI\autowire(),
             ThemeManager::class             => $themeManager,
             AuthenticationMiddleware::class => \DI\autowire(),
+            LocaleMiddleware::class         => \DI\factory(static fn(\Psr\Container\ContainerInterface $c): LocaleMiddleware => new LocaleMiddleware($c->get(TranslatorInterface::class), SupportedLocales::normalize((string) ($appConf['app']['locale'] ?? '')) ?? SupportedLocales::DEFAULT)),
             RequireAuthMiddleware::class    => \DI\autowire(),
             ClientIpMiddleware::class       => \DI\autowire(),
             WebAuthnService::class          => \DI\factory(
@@ -532,10 +542,10 @@ final class ContainerFactory
             // ── Laminas I18n Translator ───────────────────────────────────────
             TranslatorInterface::class => \DI\factory(
                 static function () use ($appConf, $projectRoot, $moduleDiscovery): TranslatorInterface {
-                    $locale     = str_replace('_', '-', (string) ($appConf['app']['locale'] ?? 'en-GB'));
+                    $locale     = SupportedLocales::normalize((string) ($appConf['app']['locale'] ?? '')) ?? SupportedLocales::DEFAULT;
                     $translator = new Translator();
                     $translator->setLocale($locale);
-                    $translator->setFallbackLocale('en-GB');
+                    $translator->setFallbackLocale(SupportedLocales::DEFAULT);
                     $translationsDir = $projectRoot . '/translations';
                     if (is_dir($translationsDir)) {
                         $translator->addTranslationFilePattern(
