@@ -74,6 +74,9 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         $queryParams  = $request->getQueryParams();
         $flashError   = isset($queryParams['error'])   && is_string($queryParams['error']) ? $queryParams['error'] : null;
         $flashSuccess = isset($queryParams['success']) && is_string($queryParams['success']) ? $queryParams['success'] : null;
+        if ($flashSuccess === 'saved') {
+            $flashSuccess = $this->translator->translate('settings.success.saved');
+        }
 
         $fields = $this->readFields();
 
@@ -133,7 +136,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
                 $this->renderer->render('app::settings', [
                     'user'      => $user,
                     'fields'    => $this->readFields(),
-                    'error'     => 'Ungültige Anfrage.',
+                    'error'     => $this->translator->translate('http.error.invalid-request'),
                     'success'   => null,
                     'csrfToken' => $csrfToken,
                 ]),
@@ -168,7 +171,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
                 $this->renderer->render('app::settings', [
                     'user'      => $user,
                     'fields'    => $fields,
-                    'error'     => 'Das ausgewählte Theme ist nicht installiert oder ungültig.',
+                    'error'     => $this->translator->translate('settings.error.invalid-theme'),
                     'success'   => null,
                     'csrfToken' => $csrfToken,
                 ]),
@@ -243,7 +246,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             );
         }
 
-        return new RedirectResponse('/settings?success=' . rawurlencode('Einstellungen wurden gespeichert.'));
+        return new RedirectResponse('/settings?success=saved');
     }
 
     /**

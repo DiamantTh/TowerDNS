@@ -25,6 +25,7 @@ final class FreshInstallBootstrapperTest extends TestCase
             'SELECT password_hash FROM users WHERE id = ?',
             [$request->adminId],
         )));
+        self::assertSame('en-GB', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', [$request->adminId]));
         self::assertSame('superadmin', $connection->fetchOne(
             'SELECT role_id FROM user_roles WHERE user_id = ?',
             [$request->adminId],

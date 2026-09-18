@@ -10,6 +10,7 @@ namespace TowerDNS\Infrastructure\Ui;
 use Laminas\I18n\Translator\Translator;
 use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Template\TemplateRendererInterface;
+use TowerDNS\Application\Services\SupportedLocales;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Auth\Role;
@@ -169,6 +170,6 @@ final class SvelteRenderer implements TemplateRendererInterface
 
     private function locale(): string
     {
-        return $this->translator instanceof Translator ? $this->translator->getLocale() : 'en-GB';
+        return $this->translator instanceof Translator ? $this->translator->getLocale() : SupportedLocales::DEFAULT;
     }
 }

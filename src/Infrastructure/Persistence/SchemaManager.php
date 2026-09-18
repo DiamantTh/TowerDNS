@@ -10,6 +10,7 @@ namespace TowerDNS\Infrastructure\Persistence;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
+use TowerDNS\Application\Services\SupportedLocales;
 use TowerDNS\Domain\Auth\Permission;
 
 /**
@@ -192,7 +193,7 @@ final readonly class SchemaManager
                 'totp_secret_encrypted' => null,
                 'active'                => true,
                 'theme'                 => 'system',
-                'locale'                => 'en',
+                'locale'                => SupportedLocales::DEFAULT,
                 'last_login_at'         => null,
                 'created_at'            => $now,
                 'updated_at'            => $now,
@@ -329,7 +330,7 @@ final readonly class SchemaManager
         $users->addColumn('totp_secret_encrypted', Types::STRING, ['length' => 255, 'notnull' => false]);
         $users->addColumn('active', Types::BOOLEAN, ['default' => true]);
         $users->addColumn('theme', Types::STRING, ['length' => 64, 'default' => 'system']);
-        $users->addColumn('locale', Types::STRING, ['length' => 16, 'default' => 'en']);
+        $users->addColumn('locale', Types::STRING, ['length' => 16, 'default' => SupportedLocales::DEFAULT]);
         $users->addColumn('last_login_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
         $users->addColumn('created_at', Types::DATETIME_MUTABLE);
         $users->addColumn('updated_at', Types::DATETIME_MUTABLE);

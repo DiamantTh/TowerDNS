@@ -33,6 +33,7 @@ final class SchemaManagerFreshInstallTest extends TestCase
         self::assertTrue($schemaManager->introspectTable('admin_impersonation_sessions')->hasForeignKey('fk_ais_effective_account_id'));
         self::assertTrue($schemaManager->introspectTable('password_reset_tokens')->hasIndex('idx_prt_expires_at'));
         self::assertSame('superadmin', $connection->fetchOne('SELECT role_id FROM user_roles WHERE user_id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));
+        self::assertSame('en-GB', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));
         self::assertSame('owner', $connection->fetchOne('SELECT role FROM account_memberships WHERE user_id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));
         self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM account_resource_limits'));
         self::assertNull($connection->fetchOne('SELECT max_zones FROM account_resource_limits'));
