@@ -111,6 +111,25 @@ final class FreshInstallBootstrapperTest extends TestCase
         $bootstrapper->bootstrap($request);
     }
 
+    public function testRejectsAReservedPersonalSlugForTheNamedAccount(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $request    = $this->request();
+        $invalid    = new FreshInstallBootstrapRequest(
+            $request->adminId,
+            $request->adminEmail,
+            $request->adminPasswordHash,
+            $request->adminDisplayName,
+            $request->accountName,
+            'personal-' . $request->adminId,
+            $request->createdAt,
+        );
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('slug namespace is reserved');
+        new FreshInstallBootstrapper($connection)->bootstrap($invalid);
+    }
+
     private function request(): FreshInstallBootstrapRequest
     {
         return new FreshInstallBootstrapRequest(

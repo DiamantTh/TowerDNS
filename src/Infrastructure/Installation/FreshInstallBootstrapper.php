@@ -41,6 +41,9 @@ final readonly class FreshInstallBootstrapper
         if ($request->adminId === '' || $request->accountName === '' || $request->accountSlug === '' || $request->createdAt === '') {
             throw new \RuntimeException('Fresh-install bootstrap data is incomplete.');
         }
+        if (str_starts_with($request->accountSlug, 'personal-')) {
+            throw new \RuntimeException('The personal account slug namespace is reserved.');
+        }
 
         new SqliteConnectionConfigurator()->configure($this->connection);
 
