@@ -7,11 +7,12 @@ declare(strict_types=1);
 
 namespace TowerDNS\Tests\Infrastructure\Http\Handler;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 final class ErrorTranslationCatalogTest extends TestCase
 {
-    /** @dataProvider localeProvider */
+    #[DataProvider('localeProvider')]
     public function testZoneRecordAndUserErrorKeysExistInBothRuntimeCatalogues(string $locale): void
     {
         /** @var array<string, string> $catalogue */
