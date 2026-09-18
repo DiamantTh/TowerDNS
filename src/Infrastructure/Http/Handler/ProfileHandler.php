@@ -80,12 +80,15 @@ final readonly class ProfileHandler implements RequestHandlerInterface
                 return new RedirectResponse('/profile?error=' . rawurlencode($this->translator->translate('http.error.operation-failed')));
             }
 
-            return new RedirectResponse('/profile?success=' . rawurlencode($this->translator->translate('profile.success.updated')));
+            return new RedirectResponse('/profile?success=updated');
         }
 
         // ── GET ───────────────────────────────────────────────────────────
         $error   = $request->getQueryParams()['error']   ?? null;
         $success = $request->getQueryParams()['success'] ?? null;
+        if ($success === 'updated') {
+            $success = $this->translator->translate('profile.success.updated');
+        }
 
         $totpEnabled   = $this->totpSecrets->isEnabled($currentUser->id);
         $webAuthnCount = count($this->webauthn->findByUserId($currentUser->id));
