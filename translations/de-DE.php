@@ -229,6 +229,7 @@ return [
     'page.credentials.title'                    => 'Provider-Zugangsdaten',
     'accounts.create'                           => 'Account anlegen',
     'accounts.members'                          => 'Mitglieder',
+    'accounts.error.operation-failed'           => 'Die Account-Aktion konnte nicht abgeschlossen werden.',
     'users.create'                              => 'Benutzer anlegen',
     'status.configured'                         => 'konfiguriert',
     'settings.application-name'                 => 'Anwendungsname',

@@ -229,6 +229,7 @@ return [
     'page.credentials.title'                    => 'Provider credentials',
     'accounts.create'                           => 'Create account',
     'accounts.members'                          => 'Members',
+    'accounts.error.operation-failed'           => 'The account operation could not be completed.',
     'users.create'                              => 'Create user',
     'status.configured'                         => 'configured',
     'settings.application-name'                 => 'Application name',

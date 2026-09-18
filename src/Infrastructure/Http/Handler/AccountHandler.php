@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
+use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -46,6 +47,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         private AccountMembershipManagementService   $memberships,
         private AccountOwnershipService              $ownership,
         private AccountManagementService             $accountManagement,
+        private TranslatorInterface                  $translator,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -125,8 +127,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
         try {
             $account = $this->accountManagement->create($user, $name, $slug);
             $this->audit->recordAccountCreated($request, $user->id, $account->id, $account->name, $account->slug);
-        } catch (\Throwable $e) {
-            return new RedirectResponse('/accounts?error=' . rawurlencode($e->getMessage()));
+        } catch (\Throwable) {
+            return $this->errorRedirect('/accounts');
         }
 
         return new RedirectResponse('/accounts');
@@ -189,8 +191,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
             try {
                 $this->accountManagement->deactivate($user, $accountId);
                 $this->audit->recordAccountDeactivated($request, $user->id, $accountId);
-            } catch (\Throwable $e) {
-                return new RedirectResponse('/accounts/' . $accountId . '?error=' . rawurlencode($e->getMessage()));
+            } catch (\Throwable) {
+                return $this->errorRedirect('/accounts/' . $accountId);
             }
             return new RedirectResponse('/accounts');
         }
@@ -200,8 +202,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
         try {
             $this->accountManagement->rename($user, $accountId, $name);
             $this->audit->recordAccountRenamed($request, $user->id, $accountId, trim($name));
-        } catch (\Throwable $e) {
-            return new RedirectResponse('/accounts/' . $accountId . '?error=' . rawurlencode($e->getMessage()));
+        } catch (\Throwable) {
+            return $this->errorRedirect('/accounts/' . $accountId);
         }
 
         return new RedirectResponse('/accounts/' . $accountId);
@@ -284,8 +286,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
             try {
                 $this->memberships->revoke($actor, $accountId, $targetUserId);
                 $this->audit->recordMemberRemoved($request, $actor->id, $accountId, $targetUserId);
-            } catch (\Throwable $e) {
-                return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
+            } catch (\Throwable) {
+                return $this->errorRedirect($base);
             }
             return new RedirectResponse($base);
         }
@@ -301,8 +303,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
             try {
                 $this->memberships->invite($actor, $accountId, $targetUserId, $role);
                 $this->audit->recordMemberInvited($request, $actor->id, $accountId, $targetUserId, $role->value);
-            } catch (\Throwable $e) {
-                return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
+            } catch (\Throwable) {
+                return $this->errorRedirect($base);
             }
 
             return new RedirectResponse($base);
@@ -331,9 +333,14 @@ final readonly class AccountHandler implements RequestHandlerInterface
         try {
             $this->ownership->transfer($actor, $accountId, $target);
             $this->audit->recordAccountOwnershipTransferred($request, $actor->id, $accountId, $target);
-        } catch (\Throwable $e) {
-            return new RedirectResponse($base . '?error=' . rawurlencode($e->getMessage()));
+        } catch (\Throwable) {
+            return $this->errorRedirect($base);
         }
         return new RedirectResponse($base);
+    }
+
+    private function errorRedirect(string $path): RedirectResponse
+    {
+        return new RedirectResponse($path . '?error=' . rawurlencode($this->translator->translate('accounts.error.operation-failed')));
     }
 }
