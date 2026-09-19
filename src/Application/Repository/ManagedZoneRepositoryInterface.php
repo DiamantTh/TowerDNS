@@ -17,6 +17,8 @@ interface ManagedZoneRepositoryInterface
     /** @return list<ManagedZone> */
     public function findByAccountId(int $accountId): array;
 
+    public function countByAccountId(int $accountId): int;
+
     public function create(int $accountId, int $providerAccountId, string $providerZoneId, string $canonicalName, string $createdAt): int;
 
     public function delete(int $id): void;

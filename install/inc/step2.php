@@ -220,8 +220,10 @@ function processStep2(): array
     $appTheme  = (string) ($_POST['app_theme'] ?? 'default');
     $appHttps  = !empty($_POST['app_https']);
 
-    $appName = htmlspecialchars(strip_tags($appName), ENT_QUOTES, 'UTF-8');
-    if ($appName === '' || strlen($appName) > 100) {
+    // Keep the configured value intact; installer views and the application
+    // escape it at their output boundaries. Stripping/HTML-encoding here
+    // corrupts international names and stores entities in configuration.
+    if ($appName === '' || mb_strlen($appName) > 100) {
         $errors[] = t('step2.app_name_invalid');
     }
     if ($appDomain !== '' && !preg_match('/^[a-zA-Z0-9.\-]{1,253}$/', $appDomain)) {

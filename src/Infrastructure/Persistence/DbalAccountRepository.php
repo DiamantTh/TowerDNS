@@ -169,6 +169,14 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return array_map($this->hydrateMembership(...), $rows);
     }
 
+    public function countMemberships(int $accountId): int
+    {
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM account_memberships WHERE account_id = ?',
+            [$accountId],
+        );
+    }
+
     public function findMembership(int $accountId, string $userId): ?AccountMembership
     {
         $row = $this->connection->fetchAssociative(

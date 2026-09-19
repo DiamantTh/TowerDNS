@@ -20,6 +20,8 @@ interface ProviderAccountRepositoryInterface
      */
     public function findByAccountId(int $accountId): array;
 
+    public function countByAccountId(int $accountId): int;
+
     /**
      * Returns active provider accounts of a specific type for an account.
      * Used by ProviderFactory when resolving the provider for a zone.

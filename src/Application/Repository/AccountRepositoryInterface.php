@@ -51,6 +51,8 @@ interface AccountRepositoryInterface
      */
     public function findMemberships(int $accountId): array;
 
+    public function countMemberships(int $accountId): int;
+
     public function findMembership(int $accountId, string $userId): ?AccountMembership;
 
     public function addMembership(int $accountId, string $userId, TeamRole $role, string $createdAt, ?string $invitedBy = null): void;

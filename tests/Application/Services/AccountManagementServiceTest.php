@@ -178,11 +178,11 @@ final class AccountManagementServiceTest extends TestCase
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('getEffectiveRole')->with(42, 'actor')->willReturn(TeamRole::OWNER);
         $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'actor', true, '2026-09-16 00:00:00'));
-        $accounts->method('findMemberships')->with(42)->willReturn([]);
+        $accounts->method('countMemberships')->with(42)->willReturn(1);
         $zones = $this->createMock(ManagedZoneRepositoryInterface::class);
-        $zones->method('findByAccountId')->with(42)->willReturn([new \stdClass()]);
+        $zones->method('countByAccountId')->with(42)->willReturn(1);
         $providers = $this->createMock(ProviderAccountRepositoryInterface::class);
-        $providers->expects(self::never())->method('findByAccountId');
+        $providers->expects(self::never())->method('countByAccountId');
         $accounts->expects(self::never())->method('delete');
 
         $service = new AccountManagementService($accounts, $this->permissionService($accounts), $zones, $providers);

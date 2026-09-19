@@ -39,6 +39,14 @@ final readonly class DbalManagedZoneRepository implements ManagedZoneRepositoryI
         return array_map($this->hydrate(...), $rows);
     }
 
+    public function countByAccountId(int $accountId): int
+    {
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM managed_zones WHERE account_id = ?',
+            [$accountId],
+        );
+    }
+
     public function create(int $accountId, int $providerAccountId, string $providerZoneId, string $canonicalName, string $createdAt): int
     {
         $providerBelongs = $this->connection->fetchOne(

@@ -83,6 +83,28 @@ final class LocalModuleDiscoveryTest extends TestCase
         ));
     }
 
+    public function testReusesLoadedModulesForSubsequentContributors(): void
+    {
+        $counter = sys_get_temp_dir() . '/towerdns-module-loads-' . bin2hex(random_bytes(8));
+        file_put_contents($counter, '0');
+        $this->writeCountingManifest('Counted', 'towerdns.counted', $counter);
+
+        try {
+            $discovery = new LocalModuleDiscovery($this->modulesDirectory);
+
+            self::assertSame(['towerdns.counted'], array_column($discovery->discover(), 'id'));
+            self::assertSame([], $discovery->providerModules());
+            self::assertSame([], $discovery->permissionDefinitions());
+            self::assertSame([], $discovery->translationDirectories());
+            self::assertSame([], $discovery->translationDirectories());
+            self::assertSame('1', file_get_contents($counter));
+        } finally {
+            if (is_file($counter)) {
+                unlink($counter);
+            }
+        }
+    }
+
     public function testOrdersDependenciesBeforeDependantsRegardlessOfFolderOrder(): void
     {
         $this->writeManifest('ZFeature', 'towerdns.feature', 'Feature', 'feature', ['towerdns.base']);
@@ -178,6 +200,16 @@ final class LocalModuleDiscoveryTest extends TestCase
             var_export($dependencies, true),
         );
         file_put_contents($this->modulesDirectory . '/' . $directory . '/module.php', $manifest);
+    }
+
+    private function writeCountingManifest(string $directory, string $id, string $counter): void
+    {
+        mkdir($this->modulesDirectory . '/' . $directory, 0o700);
+        $counterLiteral = var_export($counter, true);
+        file_put_contents(
+            $this->modulesDirectory . '/' . $directory . '/module.php',
+            "<?php\nfile_put_contents({$counterLiteral}, (string) ((int) (file_get_contents({$counterLiteral}) ?: '0') + 1));\nreturn new \\TowerDNS\\Application\\Module\\ModuleManifest('{$id}', 'Counted', '1.0.0', \\TowerDNS\\Application\\Module\\ModuleType::FEATURE);\n",
+        );
     }
 
     private function writePermissionModule(string $directory, string $id, string $permission): void

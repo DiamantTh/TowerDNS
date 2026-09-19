@@ -35,11 +35,11 @@ final readonly class AccountResourceUsageService
 
         return new AccountResourceUsage(
             accountId: $accountId,
-            usedZones: count($this->zones->findByAccountId($accountId)),
+            usedZones: $this->zones->countByAccountId($accountId),
             maxZones: $limits->maxZones,
-            usedMembers: count($this->accounts->findMemberships($accountId)),
+            usedMembers: $this->accounts->countMemberships($accountId),
             maxMembers: $limits->maxMembers,
-            usedProviderAccounts: count($this->providers->findByAccountId($accountId)),
+            usedProviderAccounts: $this->providers->countByAccountId($accountId),
             maxProviderAccounts: $limits->maxProviderAccounts,
         );
     }

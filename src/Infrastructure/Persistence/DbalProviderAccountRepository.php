@@ -33,6 +33,14 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         return array_map($this->hydrate(...), $rows);
     }
 
+    public function countByAccountId(int $accountId): int
+    {
+        return (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM provider_accounts WHERE account_id = ?',
+            [$accountId],
+        );
+    }
+
     public function findActiveByAccountAndType(int $accountId, string $providerType): array
     {
         $rows = $this->connection->fetchAllAssociative(

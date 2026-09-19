@@ -58,11 +58,11 @@ final class ResourceLimitServiceTest extends TestCase
         $limitsRepository = $this->createMock(AccountResourceLimitsRepositoryInterface::class);
         $limitsRepository->method('findByAccountId')->willReturn($limits);
         $managedZones = $this->createMock(ManagedZoneRepositoryInterface::class);
-        $managedZones->method('findByAccountId')->willReturn(array_fill(0, $zones, null));
+        $managedZones->method('countByAccountId')->willReturn($zones);
         $accounts = $this->createMock(AccountRepositoryInterface::class);
-        $accounts->method('findMemberships')->willReturn(array_fill(0, $members, null));
+        $accounts->method('countMemberships')->willReturn($members);
         $providerAccounts = $this->createMock(ProviderAccountRepositoryInterface::class);
-        $providerAccounts->method('findByAccountId')->willReturn(array_fill(0, $providers, null));
+        $providerAccounts->method('countByAccountId')->willReturn($providers);
         return new ResourceLimitService($limitsRepository, $managedZones, $accounts, $providerAccounts);
     }
 }

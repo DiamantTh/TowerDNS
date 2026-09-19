@@ -74,7 +74,7 @@ final readonly class UserLifecycleService
                         throw new \DomainException('Personal account has unexpected members.');
                     }
                 }
-                if ($this->zones->findByAccountId($personal->id) !== [] || $this->providers->findByAccountId($personal->id) !== []) {
+                if ($this->zones->countByAccountId($personal->id) > 0 || $this->providers->countByAccountId($personal->id) > 0) {
                     throw new \DomainException('Personal account still contains resources.');
                 }
                 $this->accounts->delete($personal->id);

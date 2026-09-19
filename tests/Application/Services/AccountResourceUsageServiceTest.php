@@ -26,13 +26,13 @@ final class AccountResourceUsageServiceTest extends TestCase
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('getEffectiveRole')->with(42, 'user')->willReturn(TeamRole::OWNER);
         $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'user', true, '2026-09-17 00:00:00'));
-        $accounts->method('findMemberships')->with(42)->willReturn([new \stdClass(), new \stdClass()]);
+        $accounts->expects(self::once())->method('countMemberships')->with(42)->willReturn(2);
         $limits = $this->createMock(AccountResourceLimitsRepositoryInterface::class);
         $limits->expects(self::once())->method('findByAccountId')->with(42)->willReturn(new AccountResourceLimits(42, 10, null, 5));
         $zones = $this->createMock(ManagedZoneRepositoryInterface::class);
-        $zones->expects(self::once())->method('findByAccountId')->with(42)->willReturn([new \stdClass()]);
+        $zones->expects(self::once())->method('countByAccountId')->with(42)->willReturn(1);
         $providers = $this->createMock(ProviderAccountRepositoryInterface::class);
-        $providers->expects(self::once())->method('findByAccountId')->with(42)->willReturn([new \stdClass(), new \stdClass()]);
+        $providers->expects(self::once())->method('countByAccountId')->with(42)->willReturn(2);
         $rbac        = new RbacPermissionChecker();
         $permissions = new PermissionService($accounts, $this->createMock(ZoneMembershipRepositoryInterface::class), new AuthorizationService($rbac), $rbac);
 

@@ -14,13 +14,22 @@ namespace TowerDNS\Application\Module;
  * PowerDNS, INWX, OVHcloud or TLSA). They never derive technical IDs. Composer
  * repositories and package types are irrelevant here.
  */
-final readonly class LocalModuleDiscovery
+final class LocalModuleDiscovery
 {
+    /** @var null|list<ModuleManifest|TowerDNSModuleInterface> */
+    private ?array $loadedModules = null;
+
+    /** @var null|list<string> */
+    private ?array $loadedTranslationDirectories = null;
+
+    /** @var null|array<string, string> */
+    private ?array $moduleDirectories = null;
+
     /** @param null|list<string> $enabledModuleIds Null enables every locally discovered module. */
     public function __construct(
-        private string $moduleDirectory,
-        private string $towerDnsVersion = '1.0.0',
-        private ?array $enabledModuleIds = null,
+        private readonly string $moduleDirectory,
+        private readonly string $towerDnsVersion = '1.0.0',
+        private readonly ?array $enabledModuleIds = null,
     ) {}
 
     /** @return list<ModuleManifest> */
@@ -78,26 +87,27 @@ final readonly class LocalModuleDiscovery
     /** @return list<string> Translation directories of currently active modules. */
     public function translationDirectories(): array
     {
+        if ($this->loadedTranslationDirectories !== null) {
+            return $this->loadedTranslationDirectories;
+        }
+
         $active = [];
         foreach ($this->load() as $module) {
             $manifest              = $module instanceof ModuleManifest ? $module : $module->manifest();
             $active[$manifest->id] = true;
         }
         $directories = [];
-        foreach (glob($this->moduleDirectory . '/*/module.php') ?: [] as $file) {
-            $module = require $file;
-            if (!$module instanceof ModuleManifest && !$module instanceof TowerDNSModuleInterface) {
-                continue;
-            }
-            $manifest  = $module instanceof ModuleManifest ? $module : $module->manifest();
-            $directory = dirname($file) . '/translations';
-            if (isset($active[$manifest->id]) && is_dir($directory)) {
-                $directories[] = $directory;
+        foreach ($active as $moduleId => $_active) {
+            $moduleDirectory = $this->moduleDirectories[$moduleId] ?? null;
+            if ($moduleDirectory !== null && is_dir($moduleDirectory . '/translations')) {
+                $directories[] = $moduleDirectory . '/translations';
             }
         }
         sort($directories, SORT_STRING);
         $this->assertTranslationKeysAreUnique($directories);
-        return $directories;
+        $this->loadedTranslationDirectories = $directories;
+
+        return $this->loadedTranslationDirectories;
     }
 
     /** @param list<string> $directories */
@@ -133,13 +143,20 @@ final readonly class LocalModuleDiscovery
     /** @return list<ModuleManifest|TowerDNSModuleInterface> */
     private function load(): array
     {
+        if ($this->loadedModules !== null) {
+            return $this->loadedModules;
+        }
+
         if (!is_dir($this->moduleDirectory)) {
+            $this->loadedModules     = [];
+            $this->moduleDirectories = [];
             return [];
         }
         $files = glob($this->moduleDirectory . '/*/module.php') ?: [];
         sort($files, SORT_STRING);
-        $modules     = [];
-        $directories = [];
+        $modules           = [];
+        $directories       = [];
+        $moduleDirectories = [];
         foreach ($files as $file) {
             $directory    = basename(dirname($file));
             $directoryKey = strtolower($directory);
@@ -164,7 +181,8 @@ final readonly class LocalModuleDiscovery
             if (!version_compare($this->towerDnsVersion, ltrim($manifest->requiresTowerDns, '>='), '>=')) {
                 throw new \RuntimeException(sprintf('Module %s requires TowerDNS %s.', $manifest->id, $manifest->requiresTowerDns));
             }
-            $modules[$key] = $module;
+            $modules[$key]           = $module;
+            $moduleDirectories[$key] = dirname($file);
         }
         $enabled = $this->enabledModuleIds === null
             ? $modules
@@ -182,7 +200,10 @@ final readonly class LocalModuleDiscovery
             }
         }
 
-        return $this->sortByDependencies($enabled);
+        $this->moduleDirectories = $moduleDirectories;
+        $this->loadedModules     = $this->sortByDependencies($enabled);
+
+        return $this->loadedModules;
     }
 
     private function isEnabled(ModuleManifest|TowerDNSModuleInterface $module): bool

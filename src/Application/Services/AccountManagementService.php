@@ -109,11 +109,10 @@ final readonly class AccountManagementService
         if ($account->kind() === AccountKind::PERSONAL) {
             throw new \DomainException('Personal accounts cannot be deleted separately.');
         }
-        if ($this->zones->findByAccountId($accountId) !== [] || $this->providers->findByAccountId($accountId) !== []) {
+        if ($this->zones->countByAccountId($accountId) > 0 || $this->providers->countByAccountId($accountId) > 0) {
             throw new \DomainException('Account still contains resources.');
         }
-        $members = $this->accounts->findMemberships($accountId);
-        if (count($members) > 1) {
+        if ($this->accounts->countMemberships($accountId) > 1) {
             throw new \DomainException('Remove all other account members before deleting the account.');
         }
         $this->accounts->delete($accountId);

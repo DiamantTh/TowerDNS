@@ -48,4 +48,15 @@ final class DbalManagedZoneRepositoryTest extends TestCase
         $this->expectException(\DomainException::class);
         $this->repository->create(1, 20, 'external-1', 'example.org', '2026-09-16 00:00:00');
     }
+
+    public function testCountByAccountIdDoesNotHydrateZones(): void
+    {
+        $this->repository->create(1, 10, 'external-1', 'example.org', '2026-09-16 00:00:00');
+        $this->repository->create(1, 10, 'external-2', 'example.net', '2026-09-16 00:00:00');
+        $this->repository->create(2, 20, 'external-1', 'example.test', '2026-09-16 00:00:00');
+
+        self::assertSame(2, $this->repository->countByAccountId(1));
+        self::assertSame(1, $this->repository->countByAccountId(2));
+        self::assertSame(0, $this->repository->countByAccountId(999));
+    }
 }

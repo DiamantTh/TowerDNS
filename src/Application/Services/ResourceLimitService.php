@@ -22,17 +22,29 @@ final readonly class ResourceLimitService
 
     public function assertCanCreateZone(int $accountId): void
     {
-        $this->assertLimit($this->limits->findByAccountId($accountId)->maxZones, count($this->managedZones->findByAccountId($accountId)), ResourceLimitExceededException::ZONES);
+        $limit = $this->limits->findByAccountId($accountId)->maxZones;
+        if ($limit === null) {
+            return;
+        }
+        $this->assertLimit($limit, $this->managedZones->countByAccountId($accountId), ResourceLimitExceededException::ZONES);
     }
 
     public function assertCanAddMember(int $accountId): void
     {
-        $this->assertLimit($this->limits->findByAccountId($accountId)->maxMembers, count($this->accounts->findMemberships($accountId)), ResourceLimitExceededException::MEMBERS);
+        $limit = $this->limits->findByAccountId($accountId)->maxMembers;
+        if ($limit === null) {
+            return;
+        }
+        $this->assertLimit($limit, $this->accounts->countMemberships($accountId), ResourceLimitExceededException::MEMBERS);
     }
 
     public function assertCanCreateProviderAccount(int $accountId): void
     {
-        $this->assertLimit($this->limits->findByAccountId($accountId)->maxProviderAccounts, count($this->providerAccounts->findByAccountId($accountId)), ResourceLimitExceededException::PROVIDER_ACCOUNTS);
+        $limit = $this->limits->findByAccountId($accountId)->maxProviderAccounts;
+        if ($limit === null) {
+            return;
+        }
+        $this->assertLimit($limit, $this->providerAccounts->countByAccountId($accountId), ResourceLimitExceededException::PROVIDER_ACCOUNTS);
     }
 
     private function assertLimit(?int $limit, int $used, string $code): void
