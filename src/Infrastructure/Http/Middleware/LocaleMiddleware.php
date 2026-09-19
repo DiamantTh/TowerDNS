@@ -19,7 +19,7 @@ final readonly class LocaleMiddleware implements MiddlewareInterface
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $user   = $request->getAttribute(User::class);
-        $locale = $user instanceof User ? $user->locale : $this->defaultLocale;
+        $locale = $user instanceof User ? $user->language : $this->defaultLocale;
         $this->translator->setLocale(SupportedLocales::normalize($locale) ?? SupportedLocales::DEFAULT);
         return $handler->handle($request);
     }

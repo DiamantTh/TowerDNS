@@ -11,6 +11,7 @@ use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Domain\Account\Account;
+use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Account\AccountResourceLimits;
 use TowerDNS\Domain\Account\PersonalAccount;
 
@@ -36,7 +37,7 @@ final readonly class UserLifecycleService
 
     public function ensurePersonalAccount(string $userId): Account
     {
-        $existing = $this->accounts->findBySlug(PersonalAccount::slugFor($userId));
+        $existing = $this->accounts->findPersonalByUserId($userId);
         if ($existing instanceof Account) {
             if ($existing->ownerUserId !== $userId) {
                 throw new \DomainException('Personal account owner mismatch.');
@@ -44,7 +45,7 @@ final readonly class UserLifecycleService
             return $existing;
         }
         return $this->transactions->run(function () use ($userId): Account {
-            $account = $this->accounts->findBySlug(PersonalAccount::slugFor($userId));
+            $account = $this->accounts->findPersonalByUserId($userId);
             if ($account instanceof Account) {
                 if ($account->ownerUserId !== $userId) {
                     throw new \DomainException('Personal account owner mismatch.');
@@ -58,9 +59,9 @@ final readonly class UserLifecycleService
     public function delete(string $userId): void
     {
         $this->transactions->run(function () use ($userId): void {
-            $personal = $this->accounts->findBySlug(PersonalAccount::slugFor($userId));
+            $personal = $this->accounts->findPersonalByUserId($userId);
             foreach ($this->accounts->findAll() as $account) {
-                if ($account->ownerUserId === $userId && $account->id !== $personal?->id) {
+                if ($account->type === AccountKind::ORGANIZATION && $account->ownerUserId === $userId) {
                     throw new \DomainException('Transfer organization account ownership before deleting the user.');
                 }
             }
@@ -84,7 +85,7 @@ final readonly class UserLifecycleService
 
     private function createPersonalAccount(string $userId): Account
     {
-        $id = $this->accounts->create('Personal', PersonalAccount::slugFor($userId), $userId, new \DateTimeImmutable()->format('Y-m-d H:i:s'));
+        $id = $this->accounts->create('Personal', PersonalAccount::slugFor($userId), $userId, new \DateTimeImmutable()->format('Y-m-d H:i:s'), AccountKind::PERSONAL, $userId);
         $this->limits->save(new AccountResourceLimits($id, null, null, null));
         return $this->accounts->findById($id) ?? throw new \RuntimeException('Personal account creation failed.');
     }

@@ -10,7 +10,9 @@ namespace TowerDNS\Infrastructure\Persistence;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
-use TowerDNS\Application\Services\SupportedLocales;
+use TowerDNS\Application\Services\UserPreferences;
+use TowerDNS\Domain\Account\AccountKind;
+use TowerDNS\Domain\Account\PersonalAccount;
 use TowerDNS\Domain\Auth\Permission;
 
 /**
@@ -44,6 +46,7 @@ final readonly class SchemaManager
                 $sm->createTable($table);
             }
         }
+        $this->upgradePersonalAndProfileColumns();
     }
 
     /**
@@ -193,7 +196,9 @@ final readonly class SchemaManager
                 'totp_secret_encrypted' => null,
                 'active'                => true,
                 'theme'                 => 'system',
-                'locale'                => SupportedLocales::DEFAULT,
+                'language'              => UserPreferences::DEFAULT_LANGUAGE,
+                'locale'                => UserPreferences::DEFAULT_LOCALE,
+                'timezone'              => UserPreferences::DEFAULT_TIMEZONE,
                 'last_login_at'         => null,
                 'created_at'            => $now,
                 'updated_at'            => $now,
@@ -203,6 +208,19 @@ final readonly class SchemaManager
                 'user_id' => $id,
                 'role_id' => 'superadmin',
             ]);
+
+            $this->connection->insert('accounts', [
+                'name'             => 'Personal',
+                'slug'             => PersonalAccount::slugFor($id),
+                'owner_user_id'    => $id,
+                'account_type'     => AccountKind::PERSONAL->value,
+                'personal_user_id' => $id,
+                'is_active'        => true,
+                'created_at'       => $now,
+            ]);
+            $accountId = (int) $this->connection->lastInsertId();
+            $this->connection->insert('account_memberships', ['account_id' => $accountId, 'user_id' => $id, 'role' => 'owner', 'invited_by' => null, 'created_at' => $now]);
+            $this->connection->insert('account_resource_limits', ['account_id' => $accountId, 'max_zones' => null, 'max_members' => null, 'max_provider_accounts' => null]);
         });
     }
 
@@ -220,7 +238,7 @@ final readonly class SchemaManager
         string $slug,
         string $now,
     ): void {
-        $count = $this->connection->fetchOne('SELECT COUNT(*) FROM accounts');
+        $count = $this->connection->fetchOne('SELECT COUNT(*) FROM accounts WHERE account_type = ?', [AccountKind::ORGANIZATION->value]);
         if ($count !== false && (int) $count > 0) {
             return;
         }
@@ -230,6 +248,7 @@ final readonly class SchemaManager
                 'name'          => $accountName,
                 'slug'          => $slug,
                 'owner_user_id' => $ownerUserId,
+                'account_type'  => AccountKind::ORGANIZATION->value,
                 'is_active'     => true,
                 'created_at'    => $now,
             ]);
@@ -330,7 +349,21 @@ final readonly class SchemaManager
         $users->addColumn('totp_secret_encrypted', Types::STRING, ['length' => 255, 'notnull' => false]);
         $users->addColumn('active', Types::BOOLEAN, ['default' => true]);
         $users->addColumn('theme', Types::STRING, ['length' => 64, 'default' => 'system']);
-        $users->addColumn('locale', Types::STRING, ['length' => 16, 'default' => SupportedLocales::DEFAULT]);
+        $users->addColumn('language', Types::STRING, ['length' => 16, 'default' => UserPreferences::DEFAULT_LANGUAGE]);
+        $users->addColumn('locale', Types::STRING, ['length' => 16, 'default' => UserPreferences::DEFAULT_LOCALE]);
+        $users->addColumn('timezone', Types::STRING, ['length' => 64, 'default' => UserPreferences::DEFAULT_TIMEZONE]);
+        $users->addColumn('first_name', Types::STRING, ['length' => 100, 'notnull' => false]);
+        $users->addColumn('last_name', Types::STRING, ['length' => 100, 'notnull' => false]);
+        $users->addColumn('alternate_email', Types::STRING, ['length' => 254, 'notnull' => false]);
+        $users->addColumn('phone', Types::STRING, ['length' => 64, 'notnull' => false]);
+        $users->addColumn('mobile', Types::STRING, ['length' => 64, 'notnull' => false]);
+        $users->addColumn('street', Types::STRING, ['length' => 255, 'notnull' => false]);
+        $users->addColumn('street2', Types::STRING, ['length' => 255, 'notnull' => false]);
+        $users->addColumn('postal_code', Types::STRING, ['length' => 32, 'notnull' => false]);
+        $users->addColumn('city', Types::STRING, ['length' => 128, 'notnull' => false]);
+        $users->addColumn('region', Types::STRING, ['length' => 128, 'notnull' => false]);
+        $users->addColumn('country', Types::STRING, ['length' => 2, 'notnull' => false]);
+        $users->addColumn('external_reference', Types::STRING, ['length' => 255, 'notnull' => false]);
         $users->addColumn('last_login_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
         $users->addColumn('created_at', Types::DATETIME_MUTABLE);
         $users->addColumn('updated_at', Types::DATETIME_MUTABLE);
@@ -401,11 +434,16 @@ final readonly class SchemaManager
         $accounts->addColumn('name', Types::STRING, ['length' => 255]);
         $accounts->addColumn('slug', Types::STRING, ['length' => 100]);
         $accounts->addColumn('owner_user_id', Types::GUID);
+        $accounts->addColumn('account_type', Types::STRING, ['length' => 32, 'default' => AccountKind::ORGANIZATION->value]);
+        $accounts->addColumn('personal_user_id', Types::GUID, ['notnull' => false]);
+        $accounts->addColumn('customer_number', Types::STRING, ['length' => 64, 'notnull' => false]);
+        $accounts->addColumn('external_reference', Types::STRING, ['length' => 255, 'notnull' => false]);
         $accounts->addColumn('is_active', Types::BOOLEAN, ['default' => true]);
         $accounts->addColumn('created_at', Types::DATETIME_MUTABLE);
         $accounts->setPrimaryKey(['id']);
         $accounts->addUniqueIndex(['slug'], 'uq_accounts_slug');
         $accounts->addIndex(['owner_user_id'], 'idx_accounts_owner');
+        $accounts->addUniqueIndex(['personal_user_id'], 'uq_accounts_personal_user');
         $accounts->addForeignKeyConstraint(
             'users',
             ['owner_user_id'],
@@ -629,5 +667,65 @@ final readonly class SchemaManager
             $accounts, $resourceLimits, $accMembers, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
             $pwResetTokens, $systemSettings,
         ];
+    }
+
+    /**
+     * Lightweight, idempotent additive upgrade for installations predating the
+     * explicit account type. This is deliberately not a general migration
+     * framework; it only makes the current schema safe before repositories use
+     * the new columns.
+     */
+    private function upgradePersonalAndProfileColumns(): void
+    {
+        $manager = $this->connection->createSchemaManager();
+        foreach ([
+            'users' => [
+                'language VARCHAR(16) NOT NULL DEFAULT \'en-GB\'', 'timezone VARCHAR(64) NOT NULL DEFAULT \'UTC\'',
+                'first_name VARCHAR(100) NULL', 'last_name VARCHAR(100) NULL', 'alternate_email VARCHAR(254) NULL',
+                'phone VARCHAR(64) NULL', 'mobile VARCHAR(64) NULL', 'street VARCHAR(255) NULL', 'street2 VARCHAR(255) NULL',
+                'postal_code VARCHAR(32) NULL', 'city VARCHAR(128) NULL', 'region VARCHAR(128) NULL', 'country VARCHAR(2) NULL', 'external_reference VARCHAR(255) NULL',
+            ],
+            'accounts' => [
+                "account_type VARCHAR(32) NOT NULL DEFAULT 'organization'", 'personal_user_id VARCHAR(36) NULL',
+                'customer_number VARCHAR(64) NULL', 'external_reference VARCHAR(255) NULL',
+            ],
+        ] as $table => $columns) {
+            $known = array_map(strtolower(...), array_keys($manager->listTableColumns($table)));
+            foreach ($columns as $definition) {
+                $name = strtolower(strtok($definition, ' '));
+                if (!in_array($name, $known, true)) {
+                    $this->connection->executeStatement("ALTER TABLE {$table} ADD COLUMN {$definition}");
+                }
+            }
+        }
+        $this->connection->executeStatement("UPDATE users SET language = locale WHERE language IS NULL OR language = ''");
+        foreach ($this->connection->fetchAllAssociative('SELECT id, slug, owner_user_id FROM accounts') as $account) {
+            if ((string) $account['slug'] === PersonalAccount::slugFor((string) $account['owner_user_id'])) {
+                $this->connection->update('accounts', ['account_type' => AccountKind::PERSONAL->value, 'personal_user_id' => $account['owner_user_id']], ['id' => $account['id']]);
+            }
+        }
+        $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
+        foreach ($this->connection->fetchFirstColumn('SELECT id FROM users') as $userId) {
+            $userId     = (string) $userId;
+            $personalId = $this->connection->fetchOne('SELECT id FROM accounts WHERE account_type = ? AND personal_user_id = ?', [AccountKind::PERSONAL->value, $userId]);
+            if ($personalId === false) {
+                $slug = PersonalAccount::slugFor($userId);
+                if ($this->connection->fetchOne('SELECT id FROM accounts WHERE slug = ?', [$slug]) !== false) {
+                    throw new \RuntimeException("Cannot create the required personal account for user {$userId}: reserved slug is in use.");
+                }
+                $this->connection->insert('accounts', ['name' => 'Personal', 'slug' => $slug, 'owner_user_id' => $userId, 'account_type' => AccountKind::PERSONAL->value, 'personal_user_id' => $userId, 'is_active' => true, 'created_at' => $now]);
+                $personalId = (int) $this->connection->lastInsertId();
+            }
+            if ($this->connection->fetchOne('SELECT 1 FROM account_memberships WHERE account_id = ? AND user_id = ?', [$personalId, $userId]) === false) {
+                $this->connection->insert('account_memberships', ['account_id' => $personalId, 'user_id' => $userId, 'role' => 'owner', 'invited_by' => null, 'created_at' => $now]);
+            }
+            if ($this->connection->fetchOne('SELECT 1 FROM account_resource_limits WHERE account_id = ?', [$personalId]) === false) {
+                $this->connection->insert('account_resource_limits', ['account_id' => $personalId, 'max_zones' => null, 'max_members' => null, 'max_provider_accounts' => null]);
+            }
+        }
+        try {
+            $this->connection->executeStatement('CREATE UNIQUE INDEX uq_accounts_personal_user ON accounts (personal_user_id)');
+        } catch (\Throwable) {
+        }
     }
 }

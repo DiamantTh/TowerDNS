@@ -70,8 +70,8 @@ interface UserRepositoryInterface
      */
     public function updateDisplayName(string $userId, string $displayName): void;
 
-    /** Atomically stores public profile preferences; "system" inherits the configured theme. */
-    public function updateProfile(string $userId, string $displayName, string $theme, string $locale): void;
+    /** @param array<string, string|null> $profile Optional personal data and presentation preferences. */
+    public function updateProfile(string $userId, array $profile): void;
 
     /**
      * Atomically replaces the full set of roles assigned to a user.

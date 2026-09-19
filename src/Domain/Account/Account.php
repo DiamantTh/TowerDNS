@@ -22,10 +22,14 @@ final readonly class Account
         public string $ownerUserId,
         public bool   $isActive,
         public string $createdAt,
+        public AccountKind $type = AccountKind::ORGANIZATION,
+        public ?string $personalUserId = null,
+        public ?string $customerNumber = null,
+        public ?string $externalReference = null,
     ) {}
 
     public function kind(): AccountKind
     {
-        return PersonalAccount::kindOf($this);
+        return $this->type;
     }
 }

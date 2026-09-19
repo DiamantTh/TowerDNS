@@ -26,7 +26,7 @@ final class LocaleMiddlewareTest extends TestCase
                 return new EmptyResponse(204);
             }
         };
-        $middleware->process(new ServerRequest()->withAttribute(User::class, new User('id', 'user@example.test', locale: 'de-DE')), $next);
+        $middleware->process(new ServerRequest()->withAttribute(User::class, new User('id', 'user@example.test', language: 'de-DE', locale: 'en-GB')), $next);
         self::assertSame('de-DE', $translator->getLocale());
         $middleware->process(new ServerRequest(), $next);
         self::assertSame('en-GB', $translator->getLocale());

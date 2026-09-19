@@ -6,7 +6,6 @@ namespace TowerDNS\Application\Services;
 
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Domain\Account\Account;
-use TowerDNS\Domain\Account\PersonalAccount;
 use TowerDNS\Domain\Auth\User;
 
 /** Resolves and validates an account selection independently of authorization. */
@@ -25,7 +24,7 @@ final readonly class ActiveAccountService
     {
         $accounts = $this->availableTo($user);
         foreach ($accounts as $account) {
-            if ($account->slug === PersonalAccount::slugFor($user->id)) {
+            if ($account->type === \TowerDNS\Domain\Account\AccountKind::PERSONAL && $account->personalUserId === $user->id) {
                 return $account;
             }
         }

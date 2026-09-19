@@ -71,7 +71,7 @@ final class AccountMembershipManagementServiceTest extends TestCase
     public function testPersonalAccountRejectsAdditionalMembers(): void
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);
-        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Personal', 'personal-actor', 'actor', true, '2026-09-16 00:00:00'));
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Personal', 'personal-actor', 'actor', true, '2026-09-16 00:00:00', \TowerDNS\Domain\Account\AccountKind::PERSONAL, 'actor'));
         $accounts->expects(self::never())->method('addMembership');
         $users   = $this->createMock(UserRepositoryInterface::class);
         $service = new AccountMembershipManagementService($accounts, $users, $this->servicePermissions($accounts));

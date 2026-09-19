@@ -11,7 +11,7 @@ use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
 use Psr\Clock\ClockInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
-use TowerDNS\Application\Services\SupportedLocales;
+use TowerDNS\Application\Services\UserPreferences;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
@@ -34,7 +34,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findById(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, display_name, theme, locale, last_login_at, created_at, updated_at FROM users WHERE id = ? AND active = 1',
+            'SELECT id, email, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE id = ? AND active = 1',
             [$id],
         );
 
@@ -48,7 +48,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findByEmail(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, display_name, theme, locale, last_login_at, created_at, updated_at FROM users WHERE email = ? AND active = 1',
+            'SELECT id, email, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE email = ? AND active = 1',
             [$email],
         );
 
@@ -108,7 +108,9 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             'totp_secret_encrypted' => null,
             'active'                => true,
             'theme'                 => 'system',
-            'locale'                => SupportedLocales::DEFAULT,
+            'language'              => UserPreferences::DEFAULT_LANGUAGE,
+            'locale'                => UserPreferences::DEFAULT_LOCALE,
+            'timezone'              => UserPreferences::DEFAULT_TIMEZONE,
             'created_at'            => $now,
             'updated_at'            => $now,
         ]);
@@ -138,14 +140,15 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         );
     }
 
-    public function updateProfile(string $userId, string $displayName, string $theme, string $locale): void
+    public function updateProfile(string $userId, array $profile): void
     {
-        $this->connection->update('users', [
-            'display_name' => $displayName === '' ? null : $displayName,
-            'theme'        => $theme,
-            'locale'       => $locale,
-            'updated_at'   => $this->clock->now()->format('Y-m-d H:i:s'),
-        ], ['id' => $userId]);
+        $allowed = ['display_name', 'theme', 'language', 'locale', 'timezone', 'first_name', 'last_name', 'alternate_email', 'phone', 'mobile', 'street', 'street2', 'postal_code', 'city', 'region', 'country', 'external_reference'];
+        $values  = array_intersect_key($profile, array_flip($allowed));
+        foreach ($values as $key => $value) {
+            $values[$key] = $value === '' ? null : $value;
+        }
+        $values['updated_at'] = $this->clock->now()->format('Y-m-d H:i:s');
+        $this->connection->update('users', $values, ['id' => $userId]);
     }
 
     public function syncRoles(string $userId, array $roleIds): void
@@ -172,7 +175,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findAll(): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, email, display_name, theme, locale, last_login_at, created_at, updated_at FROM users WHERE active = 1 ORDER BY email',
+            'SELECT id, email, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE active = 1 ORDER BY email',
         );
 
         if ($rows === []) {
@@ -311,10 +314,30 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             $roles,
             isset($row['display_name']) && $row['display_name'] !== '' ? (string) $row['display_name'] : null,
             (string) ($row['theme'] ?? 'system'),
-            SupportedLocales::normalize((string) ($row['locale'] ?? '')) ?? SupportedLocales::DEFAULT,
+            UserPreferences::normalizeLanguage((string) ($row['language'] ?? '')) ?? UserPreferences::DEFAULT_LANGUAGE,
+            UserPreferences::normalizeLocale((string) ($row['locale'] ?? ''))     ?? UserPreferences::DEFAULT_LOCALE,
+            UserPreferences::normalizeTimezone((string) ($row['timezone'] ?? '')) ?? UserPreferences::DEFAULT_TIMEZONE,
+            $this->nullable($row, 'first_name'),
+            $this->nullable($row, 'last_name'),
+            $this->nullable($row, 'alternate_email'),
+            $this->nullable($row, 'phone'),
+            $this->nullable($row, 'mobile'),
+            $this->nullable($row, 'street'),
+            $this->nullable($row, 'street2'),
+            $this->nullable($row, 'postal_code'),
+            $this->nullable($row, 'city'),
+            $this->nullable($row, 'region'),
+            $this->nullable($row, 'country'),
+            $this->nullable($row, 'external_reference'),
             isset($row['last_login_at']) ? (string) $row['last_login_at'] : null,
             isset($row['created_at']) ? (string) $row['created_at'] : null,
             isset($row['updated_at']) ? (string) $row['updated_at'] : null,
         );
+    }
+
+    /** @param array<string, mixed> $row */
+    private function nullable(array $row, string $key): ?string
+    {
+        return isset($row[$key]) && $row[$key] !== '' ? (string) $row[$key] : null;
     }
 }

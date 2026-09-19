@@ -20,9 +20,8 @@ use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ProfileService;
-use TowerDNS\Application\Services\SupportedLocales;
 use TowerDNS\Application\Services\TotpSecretService;
-use TowerDNS\Domain\Account\PersonalAccount;
+use TowerDNS\Application\Services\UserPreferences;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\ActiveAccountContext;
 
@@ -69,11 +68,9 @@ final readonly class ProfileHandler implements RequestHandlerInterface
             try {
                 $this->profiles->update(
                     $currentUser,
-                    (string) ($body['display_name'] ?? ''),
-                    (string) ($body['theme'] ?? ''),
-                    (string) ($body['locale'] ?? ''),
+                    $body,
                 );
-                $this->audit->record($request, 'user.profile.updated', 'user', $currentUser->id, $currentUser->id, null, null, null, null, $currentUser->id, null, null, ['fields' => ['display_name', 'theme', 'locale']]);
+                $this->audit->record($request, 'user.profile.updated', 'user', $currentUser->id, $currentUser->id, null, null, null, null, $currentUser->id, null, null, ['fields' => ['profile']]);
             } catch (\InvalidArgumentException) {
                 return new RedirectResponse('/profile?error=' . rawurlencode($this->translator->translate('profile.error.invalid-preference')));
             } catch (\Throwable) {
@@ -97,7 +94,7 @@ final readonly class ProfileHandler implements RequestHandlerInterface
         foreach ($this->accounts->findByUserId($currentUser->id) as $account) {
             $role  = $this->accounts->getEffectiveRole($account->id, $currentUser->id);
             $entry = ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value, 'role' => $role?->value];
-            if ($account->slug === PersonalAccount::slugFor($currentUser->id)) {
+            if ($account->type === \TowerDNS\Domain\Account\AccountKind::PERSONAL && $account->personalUserId === $currentUser->id) {
                 $personal = $entry;
             } else {
                 $memberships[] = $entry;
@@ -114,7 +111,9 @@ final readonly class ProfileHandler implements RequestHandlerInterface
                 'personalAccount'    => $personal,
                 'accountMemberships' => $memberships,
                 'activeAccountId'    => $active instanceof ActiveAccountContext ? $active->account?->id : null,
-                'supportedLocales'   => SupportedLocales::all(),
+                'supportedLanguages' => UserPreferences::languages(),
+                'supportedLocales'   => UserPreferences::locales(),
+                'supportedTimezones' => UserPreferences::timezones(),
                 'active'             => 'profile',
                 'error'              => $error,
                 'success'            => $success,

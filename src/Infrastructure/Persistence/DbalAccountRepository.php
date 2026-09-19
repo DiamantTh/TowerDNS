@@ -36,6 +36,15 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    public function findPersonalByUserId(string $userId): ?Account
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT * FROM accounts WHERE account_type = ? AND personal_user_id = ?',
+            [AccountKind::PERSONAL->value, $userId],
+        );
+        return $row !== false ? $this->hydrate($row) : null;
+    }
+
     public function findByUserId(string $userId): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -57,15 +66,22 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return array_map($this->hydrate(...), $rows);
     }
 
-    public function create(string $name, string $slug, string $ownerUserId, string $createdAt): int
+    public function create(string $name, string $slug, string $ownerUserId, string $createdAt, AccountKind $type = AccountKind::ORGANIZATION, ?string $personalUserId = null, ?string $customerNumber = null, ?string $externalReference = null): int
     {
-        return $this->connection->transactional(function () use ($name, $slug, $ownerUserId, $createdAt): int {
+        if ($type === AccountKind::PERSONAL && $personalUserId !== $ownerUserId) {
+            throw new \DomainException('A personal account must be permanently assigned to its owner.');
+        }
+        return $this->connection->transactional(function () use ($name, $slug, $ownerUserId, $createdAt, $type, $personalUserId, $customerNumber, $externalReference): int {
             $this->connection->insert('accounts', [
-                'name'          => $name,
-                'slug'          => $slug,
-                'owner_user_id' => $ownerUserId,
-                'is_active'     => 1,
-                'created_at'    => $createdAt,
+                'name'               => $name,
+                'slug'               => $slug,
+                'owner_user_id'      => $ownerUserId,
+                'account_type'       => $type->value,
+                'personal_user_id'   => $personalUserId,
+                'customer_number'    => $customerNumber,
+                'external_reference' => $externalReference,
+                'is_active'          => 1,
+                'created_at'         => $createdAt,
             ]);
             $id = (int) $this->connection->lastInsertId();
 
@@ -206,6 +222,10 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
             ownerUserId: (string) $row['owner_user_id'],
             isActive: (bool) $row['is_active'],
             createdAt: (string) ($row['created_at'] ?? ''),
+            type: AccountKind::tryFrom((string) ($row['account_type'] ?? '')) ?? AccountKind::ORGANIZATION,
+            personalUserId: isset($row['personal_user_id'])      && $row['personal_user_id']   !== '' ? (string) $row['personal_user_id'] : null,
+            customerNumber: isset($row['customer_number'])       && $row['customer_number']    !== '' ? (string) $row['customer_number'] : null,
+            externalReference: isset($row['external_reference']) && $row['external_reference'] !== '' ? (string) $row['external_reference'] : null,
         );
     }
 

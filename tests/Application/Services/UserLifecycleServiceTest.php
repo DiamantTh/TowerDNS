@@ -9,6 +9,7 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Services\ActiveAccountService;
 use TowerDNS\Application\Services\UserLifecycleService;
+use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAccountResourceLimitsRepository;
@@ -46,6 +47,8 @@ final class UserLifecycleServiceTest extends TestCase
         self::assertSame($userId, $account->ownerUserId);
         self::assertSame('personal-' . $userId, $account->slug);
         self::assertSame('personal', $account->kind()->value);
+        self::assertSame(AccountKind::PERSONAL, $account->type);
+        self::assertSame($userId, $account->personalUserId);
         self::assertSame($account->id, $this->lifecycle->ensurePersonalAccount($userId)->id);
         self::assertSame(1, (int) $this->connection->fetchOne('SELECT COUNT(*) FROM accounts'));
         self::assertSame('owner', $this->connection->fetchOne('SELECT role FROM account_memberships WHERE account_id = ?', [$account->id]));

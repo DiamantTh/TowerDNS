@@ -134,7 +134,7 @@ final class AccountManagementServiceTest extends TestCase
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('getEffectiveRole')->with(42, 'actor')->willReturn(TeamRole::OWNER);
-        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Personal', 'personal-actor', 'actor', true, '2026-09-16 00:00:00'));
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Personal', 'personal-actor', 'actor', true, '2026-09-16 00:00:00', \TowerDNS\Domain\Account\AccountKind::PERSONAL, 'actor'));
         $accounts->expects(self::never())->method('deactivate');
         $this->expectException(\DomainException::class);
         new AccountManagementService($accounts, $this->permissionService($accounts))->deactivate(new User('actor', 'actor@example.test'), 42);

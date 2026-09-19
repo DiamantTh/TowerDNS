@@ -52,14 +52,15 @@ final readonly class FreshInstallBootstrapper
         $schema->seedSystemRoles();
         $schema->seedSystemSettingsDefaults();
 
-        $userCount    = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM users');
-        $accountCount = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM accounts');
+        $userCount         = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM users');
+        $accountCount      = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM accounts');
+        $organizationCount = (int) $this->connection->fetchOne('SELECT COUNT(*) FROM accounts WHERE account_type = ?', ['organization']);
 
         if ($userCount === 0 && $accountCount > 0) {
             throw new \RuntimeException('Cannot bootstrap an account without a user.');
         }
 
-        if ($userCount > 1 && $accountCount === 0) {
+        if ($userCount > 1 && $organizationCount === 0) {
             throw new \RuntimeException('Cannot determine an owner for an incomplete bootstrap.');
         }
 
@@ -70,7 +71,8 @@ final readonly class FreshInstallBootstrapper
                 $request->adminPasswordHash,
                 $request->adminDisplayName,
             );
-            $userCount = 1;
+            $userCount         = 1;
+            $organizationCount = 0;
         }
 
         /** @var string|false $existingAdminId */
@@ -81,7 +83,7 @@ final readonly class FreshInstallBootstrapper
             throw new \RuntimeException('Bootstrap user could not be resolved.');
         }
 
-        if ($accountCount === 0) {
+        if ($organizationCount === 0) {
             $schema->seedDefaultAccount(
                 $existingAdminId,
                 $request->accountName,
@@ -103,7 +105,7 @@ final readonly class FreshInstallBootstrapper
         )->ensurePersonalAccount($existingAdminId);
 
         return new FreshInstallBootstrapResult(
-            $userCount === 1 && $accountCount === 0,
+            $userCount === 1 && $organizationCount === 0,
             $existingAdminId,
         );
     }

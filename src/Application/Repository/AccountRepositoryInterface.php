@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application\Repository;
 
 use TowerDNS\Domain\Account\Account;
+use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Account\AccountMembership;
 use TowerDNS\Domain\Account\TeamRole;
 
@@ -16,6 +17,8 @@ interface AccountRepositoryInterface
     public function findById(int $id): ?Account;
 
     public function findBySlug(string $slug): ?Account;
+
+    public function findPersonalByUserId(string $userId): ?Account;
 
     /**
      * Returns all accounts the given user is a member of (any role).
@@ -29,7 +32,7 @@ interface AccountRepositoryInterface
      */
     public function findAll(): array;
 
-    public function create(string $name, string $slug, string $ownerUserId, string $createdAt): int;
+    public function create(string $name, string $slug, string $ownerUserId, string $createdAt, AccountKind $type = AccountKind::ORGANIZATION, ?string $personalUserId = null, ?string $customerNumber = null, ?string $externalReference = null): int;
 
     public function updateName(int $id, string $name): void;
 
