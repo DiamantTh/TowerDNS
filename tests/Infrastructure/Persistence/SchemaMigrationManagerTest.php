@@ -113,6 +113,22 @@ final class SchemaMigrationManagerTest extends TestCase
         self::assertFalse($status->metadataInitialized);
     }
 
+    public function testSemanticallyMatchingLegacyIndexIsNotDuplicatedDuringSchemaMerge(): void
+    {
+        $connection    = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $schemaManager = new SchemaManager($connection);
+        $schemaManager->createTablesIfNotExist();
+        $databaseSchema = $connection->createSchemaManager()->introspectSchema();
+        $accounts       = $databaseSchema->getTable('accounts');
+        $accounts->dropIndex('uq_accounts_slug');
+        $accounts->addUniqueIndex(['slug'], 'legacy_accounts_slug');
+
+        $schemaManager->mergeCanonicalSchema($databaseSchema);
+
+        self::assertFalse($accounts->hasIndex('uq_accounts_slug'));
+        self::assertTrue($accounts->hasIndex('legacy_accounts_slug'));
+    }
+
     private function manager(\Doctrine\DBAL\Connection $connection): SchemaMigrationManager
     {
         return new SchemaMigrationManager($connection, sys_get_temp_dir() . '/towerdns-test-' . bin2hex(random_bytes(8)) . '.lock');

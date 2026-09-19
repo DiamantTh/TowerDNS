@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Persistence;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Schema\Column;
+use Doctrine\DBAL\Schema\ForeignKeyConstraint;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
@@ -75,7 +76,14 @@ final readonly class SchemaManager
             }
 
             foreach ($expected->getIndexes() as $index) {
-                if ($target->hasIndex($index->getName())) {
+                $indexPresent = false;
+                foreach ($target->getIndexes() as $candidate) {
+                    if ($index->isFulfilledBy($candidate)) {
+                        $indexPresent = true;
+                        break;
+                    }
+                }
+                if ($indexPresent) {
                     continue;
                 }
                 if ($index->isPrimary()) {
@@ -88,15 +96,18 @@ final readonly class SchemaManager
             }
 
             foreach ($expected->getForeignKeys() as $foreignKey) {
-                if (!$target->hasForeignKey($foreignKey->getName())) {
-                    $target->addForeignKeyConstraint(
-                        $foreignKey->getForeignTableName(),
-                        $foreignKey->getLocalColumns(),
-                        $foreignKey->getForeignColumns(),
-                        $foreignKey->getOptions(),
-                        $foreignKey->getName(),
-                    );
+                foreach ($target->getForeignKeys() as $candidate) {
+                    if ($this->foreignKeysMatch($foreignKey, $candidate)) {
+                        continue 2;
+                    }
                 }
+                $target->addForeignKeyConstraint(
+                    $foreignKey->getForeignTableName(),
+                    $foreignKey->getLocalColumns(),
+                    $foreignKey->getForeignColumns(),
+                    $foreignKey->getOptions(),
+                    $foreignKey->getName(),
+                );
             }
         }
     }
@@ -147,10 +158,7 @@ final readonly class SchemaManager
             foreach ($expected->getForeignKeys() as $foreignKey) {
                 $matching = false;
                 foreach ($actual->getForeignKeys() as $candidate) {
-                    if ($candidate->getUnqualifiedForeignTableName() === $foreignKey->getUnqualifiedForeignTableName()
-                        && $candidate->getLocalColumns()             === $foreignKey->getLocalColumns()
-                        && $candidate->getForeignColumns()           === $foreignKey->getForeignColumns()
-                    ) {
+                    if ($this->foreignKeysMatch($foreignKey, $candidate)) {
                         $matching = true;
                         break;
                     }
@@ -162,6 +170,13 @@ final readonly class SchemaManager
         }
 
         return $issues;
+    }
+
+    private function foreignKeysMatch(ForeignKeyConstraint $expected, ForeignKeyConstraint $candidate): bool
+    {
+        return $candidate->getUnqualifiedForeignTableName() === $expected->getUnqualifiedForeignTableName()
+            && $candidate->getLocalColumns()                === $expected->getLocalColumns()
+            && $candidate->getForeignColumns()              === $expected->getForeignColumns();
     }
 
     public function schemaIsCurrent(): bool
