@@ -69,6 +69,16 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id']));
     }
 
+    public function findByEmailForAdministration(string $email): ?User
+    {
+        $raw = $this->connection->fetchAssociative(
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE email = ?',
+            [strtolower(trim($email))],
+        );
+
+        return is_array($raw) ? $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id'])) : null;
+    }
+
     public function fetchPasswordHash(string $email): ?string
     {
         $hash = $this->connection->fetchOne(

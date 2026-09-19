@@ -129,16 +129,17 @@ final class SvelteRenderer implements TemplateRendererInterface
     private function titleFor(string $page): string
     {
         $key = match ($page) {
-            'login'           => 'page.login.title',
-            'forgot_password' => 'page.forgot-password.title',
-            'reset_password'  => 'page.reset-password.title',
-            'dashboard'       => 'page.dashboard.title',
-            'zones/list'      => 'page.zones.title',
-            'settings'        => 'page.settings.title',
-            'profile/index'   => 'page.profile.title',
-            'iam/roles'       => 'page.roles.title',
-            'iam/role_edit'   => 'page.role-edit.title',
-            default           => 'page.application.title',
+            'login'                                      => 'page.login.title',
+            'forgot_password'                            => 'page.forgot-password.title',
+            'reset_password'                             => 'page.reset-password.title',
+            'dashboard'                                  => 'page.dashboard.title',
+            'zones/list'                                 => 'page.zones.title',
+            'settings'                                   => 'page.settings.title',
+            'profile/index'                              => 'page.profile.title',
+            'invitations/accept', 'invitations/register' => 'accounts.invitation-title',
+            'iam/roles'                                  => 'page.roles.title',
+            'iam/role_edit'                              => 'page.role-edit.title',
+            default                                      => 'page.application.title',
         };
 
         $title = $this->translator?->translate($key);

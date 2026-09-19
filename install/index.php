@@ -9,7 +9,7 @@ declare(strict_types=1);
  *
  * Routing-Reihenfolge:
  *   1. bootstrap.php laden (Session, CSRF, Lock/Token-Checks)
- *   2. Wenn LOCK_FILE existiert → locked-View anzeigen
+ *   2. Wenn Installationsmarker oder LOCK_FILE existiert → locked-View anzeigen
  *   3. Wenn Installer-Token nicht verifiziert → access_denied-View anzeigen
  *   4. vendor/autoload.php laden, helpers + i18n initialisieren
  *   5. ?back=1-Navigation verarbeiten
@@ -20,7 +20,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/inc/bootstrap.php';
 
 // ── Bereits installiert? ───────────────────────────────────────────────────
-if (file_exists(LOCK_FILE)) {
+if (installationIsLocked()) {
     // i18n so früh wie möglich initialisieren (best-effort, kein autoload nötig)
     if (VENDOR_OK) {
         require_once PROJECT_ROOT . '/vendor/autoload.php';
@@ -96,7 +96,7 @@ if (isset($_GET['back']) && $_GET['back'] === '1') {
     if ($currentStep > 1) {
         $_SESSION['install_step'] = $currentStep - 1;
     }
-    header('Location: index.php');
+    header('Location: ' . INSTALLER_ENTRY);
     exit;
 }
 
@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
 ) {
     verifyCsrf();
     rmDirRecursive(INSTALL_DIR);
-    header('Location: ../../index.php');
+    header('Location: /');
     exit;
 }
 
@@ -127,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'
     require_once INSTALL_DIR . '/inc/step2.php';
     $step2Errors = processStep2();
     if (empty($step2Errors)) {
-        header('Location: index.php');
+        header('Location: ' . INSTALLER_ENTRY);
         exit;
     }
     // Bei Fehlern Schritt 2 erneut anzeigen

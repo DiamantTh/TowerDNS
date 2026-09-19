@@ -24,6 +24,7 @@ final class SchemaManagerFreshInstallTest extends TestCase
         self::assertTrue($schemaManager->tablesExist([
             'roles', 'role_permissions', 'users', 'user_roles', 'webauthn_credentials', 'api_keys',
             'accounts', 'account_resource_limits', 'account_memberships', 'provider_accounts',
+            'account_invitations',
             'managed_zones', 'zone_memberships', 'admin_impersonation_sessions', 'audit_logs',
             'password_reset_tokens', 'system_settings',
         ]));

@@ -238,6 +238,11 @@ final class ContainerFactory
 
                 $connection = DriverManager::getConnection($params);
                 new \TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator()->configure($connection);
+                // Additive, idempotent schema reconciliation keeps existing
+                // installations usable after a release upgrade (for example
+                // when the invitation table was introduced). It never drops
+                // tables or overwrites existing rows.
+                new \TowerDNS\Infrastructure\Persistence\SchemaManager($connection)->createTablesIfNotExist();
                 return $connection;
             }),
 

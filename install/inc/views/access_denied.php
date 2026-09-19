@@ -43,7 +43,7 @@ $wrongToken = isset($_POST['install_token']) && $_POST['install_token'] !== '';
         </div>
 
         <div class="box">
-            <form method="post" action="index.php" autocomplete="off">
+            <form method="post" action="<?= e(INSTALLER_ENTRY) ?>" autocomplete="off">
                 <div class="field">
                     <label class="label" for="install_token"><?= e(t('access.token_label')) ?></label>
                     <div class="control">

@@ -25,7 +25,7 @@ function processStep1(): void
         $_SESSION['install_step'] = 2;
     }
 
-    header('Location: index.php');
+    header('Location: ' . INSTALLER_ENTRY);
     exit;
 }
 
@@ -92,7 +92,7 @@ ob_start();
 </div>
 <?php endif; ?>
 
-<form method="post" action="index.php">
+<form method="post" action="<?= e(INSTALLER_ENTRY) ?>">
     <input type="hidden" name="csrf_token" value="<?= e(CSRF_TOKEN) ?>">
     <input type="hidden" name="action" value="step1">
     <div class="field is-grouped is-grouped-right">

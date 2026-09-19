@@ -27,6 +27,9 @@ interface UserRepositoryInterface
      */
     public function findByEmail(string $email): ?User;
 
+    /** Returns an active or inactive user for administrative workflows. */
+    public function findByEmailForAdministration(string $email): ?User;
+
     /**
      * Returns the stored password hash (bcrypt / Argon2id) for the given
      * e-mail address. Returns null when the address is unknown.

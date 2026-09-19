@@ -8,7 +8,7 @@ declare(strict_types=1);
  * TowerDNS Installer — Erfolgs-View
  */
 
-/** @var array{admin_user: string, admin_pass: string} $result */
+/** @var array{admin_user: string} $result */
 $result = $_SESSION['install_result'] ?? [];
 unset($_SESSION['install_result']);
 ?><!DOCTYPE html>
@@ -44,13 +44,7 @@ unset($_SESSION['install_result']);
                 <strong><?= e(t('success.admin_user')) ?>:</strong>
                 <code><?= e($result['admin_user'] ?? '') ?></code>
             </p>
-            <p>
-                <strong><?= e(t('success.admin_pass')) ?>:</strong>
-                <code style="background:#e8f5e9;padding:.3em .6em;border-radius:4px">
-                    <?= e($result['admin_pass'] ?? '') ?>
-                </code>
-            </p>
-            <p class="mt-3 is-size-7 has-text-danger">⚠️ <?= e(t('success.pass_warning')) ?></p>
+            <p class="mt-2 is-size-7"><?= e(t('success.password_not_shown')) ?></p>
         </div>
 
         <div class="notification is-danger is-light mt-3 warn-left">
@@ -59,7 +53,7 @@ unset($_SESSION['install_result']);
         </div>
 
         <div class="buttons mt-4">
-            <form method="post" action="index.php" style="display:inline">
+            <form method="post" action="<?= e(INSTALLER_ENTRY) ?>" style="display:inline">
                 <input type="hidden" name="csrf_token" value="<?= e(CSRF_TOKEN) ?>">
                 <input type="hidden" name="action" value="cleanup">
                 <button type="submit" class="button is-danger"
@@ -67,7 +61,7 @@ unset($_SESSION['install_result']);
                     🗑 <?= e(t('success.delete_installer')) ?>
                 </button>
             </form>
-            <a href="../../index.php" class="button is-primary">→ <?= e(t('layout.to_app')) ?></a>
+            <a href="/" class="button is-primary">→ <?= e(t('layout.to_app')) ?></a>
         </div>
 
     </div>

@@ -20,6 +20,15 @@ function processStep2(): array
         $errors[] = t('step2.invalid_driver');
         return $errors;
     }
+    $driverExtension = match ($driver) {
+        'pdo_sqlite' => 'pdo_sqlite',
+        'pdo_pgsql'  => 'pdo_pgsql',
+        default      => 'pdo_mysql',
+    };
+    if (!extension_loaded($driverExtension)) {
+        $errors[] = t('step2.driver_extension_missing');
+        return $errors;
+    }
 
     if ($driver === 'pdo_sqlite') {
         $path = trim((string) ($_POST['db_sqlite_path'] ?? ''));
@@ -38,7 +47,8 @@ function processStep2(): array
         try {
             new PDO('sqlite:' . $path);
         } catch (Exception $ex) {
-            $errors[] = sprintf(t('step2.sqlite_error'), e($ex->getMessage()));
+            error_log('TowerDNS installer SQLite connection failed: ' . $ex->getMessage());
+            $errors[] = t('step2.sqlite_error');
             return $errors;
         }
         $_SESSION['install_db'] = ['driver' => 'pdo_sqlite', 'path' => $path];
@@ -74,7 +84,8 @@ function processStep2(): array
             );
             unset($pdo);
         } catch (Exception $ex) {
-            $errors[] = sprintf(t('step2.pgsql_error'), e($ex->getMessage()));
+            error_log('TowerDNS installer PostgreSQL connection failed: ' . $ex->getMessage());
+            $errors[] = t('step2.pgsql_error');
             return $errors;
         }
 
@@ -130,7 +141,8 @@ function processStep2(): array
                 $rootPdo->exec("GRANT ALL PRIVILEGES ON `{$name}`.* TO '{$user}'@'%'");
                 $rootPdo->exec('FLUSH PRIVILEGES');
             } catch (Exception $ex) {
-                $errors[] = sprintf(t('step2.root_error'), e($ex->getMessage()));
+                error_log('TowerDNS installer MySQL database provisioning failed: ' . $ex->getMessage());
+                $errors[] = t('step2.root_error');
                 return $errors;
             }
         }
@@ -144,7 +156,8 @@ function processStep2(): array
             );
             unset($pdo);
         } catch (Exception $ex) {
-            $errors[] = sprintf(t('step2.mysql_error'), e($ex->getMessage()));
+            error_log('TowerDNS installer MySQL connection failed: ' . $ex->getMessage());
+            $errors[] = t('step2.mysql_error');
             return $errors;
         }
 
@@ -190,7 +203,8 @@ function processStep2(): array
         );
         $policy->assertValid($adminPass);
     } catch (InvalidArgumentException $ex) {
-        $errors[] = e($ex->getMessage());
+        error_log('TowerDNS installer password policy rejected the administrator password: ' . $ex->getMessage());
+        $errors[] = t('step2.admin_pass_weak');
         return $errors;
     }
 
@@ -312,7 +326,7 @@ ob_start();
 <h2 class="title is-5"><?= e(t('step2.heading')) ?></h2>
 <p class="mb-4 has-text-grey is-size-7"><?= e(t('step2.subheading')) ?></p>
 
-<form method="post" action="index.php" id="config-form">
+<form method="post" action="<?= e(INSTALLER_ENTRY) ?>" id="config-form">
     <input type="hidden" name="csrf_token" value="<?= e(CSRF_TOKEN) ?>">
     <input type="hidden" name="action" value="step2">
 

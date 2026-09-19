@@ -110,6 +110,10 @@ function processStep3(): array
         $escapedAppName  = addcslashes($app['name'], '"\\');
         $escapedAppTheme = addcslashes($app['theme'], '"\\');
         $forceHttps      = $app['https'] ? 'true' : 'false';
+        $baseUrl         = ($app['domain'] ?? '') !== ''
+            ? (($app['https'] ? 'https' : 'http') . '://' . $app['domain'])
+            : '';
+        $escapedBaseUrl = addcslashes($baseUrl, '"\\');
 
         $localToml = <<<TOML
             # TowerDNS — Lokale Konfiguration (auto-generiert am {$now})
@@ -126,6 +130,7 @@ function processStep3(): array
 
             [app]
             domain      = "{$escapedDomain}"
+            base_url   = "{$escapedBaseUrl}"
             force_https = {$forceHttps}
             debug       = false
             # Steht TowerDNS hinter einem Reverse Proxy (nginx, traefik, ...),
@@ -231,11 +236,13 @@ function processStep3(): array
 
         // ── Lock-Datei ────────────────────────────────────────────────────
         $writer->write(LOCK_FILE, $now . "\n");
+        // This marker is deliberately outside install/, because successful
+        // cleanup removes the installer directory entirely.
+        $writer->write(INSTALLATION_MARKER, $now . "\n");
 
         // ── Session abschliessen ──────────────────────────────────────────
         $_SESSION['install_result'] = [
             'admin_user' => $admin['email'],
-            'admin_pass' => $admin['password'],
         ];
         unset(
             $_SESSION['install_db'],
@@ -245,7 +252,8 @@ function processStep3(): array
             $_SESSION['install_step']
         );
     } catch (Throwable $ex) {
-        return [sprintf(t('step3.install_failed'), e($ex->getMessage()))];
+        error_log('TowerDNS installer failed: ' . $ex->getMessage());
+        return [t('step3.install_failed')];
     }
 
     return [];
@@ -323,7 +331,7 @@ ob_start();
 </table>
 
 <div class="buttons mt-5">
-    <form method="post" action="index.php" style="display:inline">
+    <form method="post" action="<?= e(INSTALLER_ENTRY) ?>" style="display:inline">
         <input type="hidden" name="csrf_token" value="<?= e(CSRF_TOKEN) ?>">
         <input type="hidden" name="action" value="install">
         <button type="submit" class="button is-danger is-medium"

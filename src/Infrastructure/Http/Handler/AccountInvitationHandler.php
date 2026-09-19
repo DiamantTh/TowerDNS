@@ -13,6 +13,7 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Services\AccountInvitationRegistrationService;
 use TowerDNS\Application\Services\AccountInvitationService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Domain\Account\AccountInvitation;
@@ -23,6 +24,7 @@ final readonly class AccountInvitationHandler implements RequestHandlerInterface
     public function __construct(
         private TemplateRendererInterface $renderer,
         private AccountInvitationService $invitations,
+        private AccountInvitationRegistrationService $registration,
         private AuditLogService $audit,
         private TranslatorInterface $translator,
     ) {}
@@ -32,10 +34,6 @@ final readonly class AccountInvitationHandler implements RequestHandlerInterface
         $token = (string) $request->getAttribute('token', '');
         /** @var User|null $user */
         $user = $request->getAttribute(User::class);
-        if (!$user instanceof User) {
-            return new RedirectResponse('/login');
-        }
-
         if ($request->getMethod() === 'POST') {
             /** @var CsrfGuardInterface $guard */
             $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
@@ -45,19 +43,39 @@ final readonly class AccountInvitationHandler implements RequestHandlerInterface
             }
             $action = (string) ($body['action'] ?? '');
             try {
+                if ($action === 'register' && !$user instanceof User) {
+                    $email    = (string) ($body['email'] ?? '');
+                    $password = (string) ($body['password'] ?? '');
+                    if ($password !== (string) ($body['password_confirm'] ?? '')) {
+                        return $this->renderRegistration($request, $token, $this->translator->translate('accounts.error.password-mismatch'), $email);
+                    }
+                    $invitation = $this->invitations->preview($token);
+                    $result     = $this->registration->register($token, $email, $password);
+                    $this->audit->record($request, 'account.invitation.registered', 'account_invitation', (string) $invitation->id, actorUserId: $result->userId, accountId: $result->organizationAccountId);
+                    return new RedirectResponse('/login?registered=1');
+                }
                 if ($action === 'accept') {
+                    if (!$user instanceof User) {
+                        return $this->renderRegistration($request, $token, null, '');
+                    }
                     $invitation = $this->invitations->preview($token);
                     $this->invitations->accept($user, $token);
                     $this->audit->record($request, 'account.invitation.accepted', 'account_invitation', (string) $invitation->id, actorUserId: $user->id, accountId: $invitation->accountId);
                     return new RedirectResponse('/accounts/' . $invitation->accountId);
                 }
                 if ($action === 'decline') {
+                    if (!$user instanceof User) {
+                        return $this->renderRegistration($request, $token, null, '');
+                    }
                     $invitation = $this->invitations->preview($token);
                     $this->invitations->decline($user, $token);
                     $this->audit->record($request, 'account.invitation.declined', 'account_invitation', (string) $invitation->id, actorUserId: $user->id, accountId: $invitation->accountId);
                     return new RedirectResponse('/accounts');
                 }
-            } catch (\Throwable) {
+            } catch (\Throwable $error) {
+                if ($action === 'register' && !$user instanceof User) {
+                    return $this->renderRegistration($request, $token, $this->registrationError($error), (string) ($body['email'] ?? ''));
+                }
                 return new HtmlResponse($this->translator->translate('accounts.error.invitation-unavailable'), 400);
             }
         }
@@ -67,14 +85,49 @@ final readonly class AccountInvitationHandler implements RequestHandlerInterface
         } catch (\Throwable) {
             return new HtmlResponse($this->translator->translate('accounts.error.invitation-unavailable'), 404);
         }
+        if (!$user instanceof User) {
+            return $this->renderInvitation($request, $token, $invitation, true);
+        }
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        return new HtmlResponse($this->renderer->render('app::invitations/accept', [
-            'user'       => $user,
-            'invitation' => $this->safeInvitation($invitation),
-            'token'      => $token,
-            'csrfToken'  => $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '',
+        return $this->renderInvitation($request, $token, $invitation, false, $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '');
+    }
+
+    private function renderRegistration(ServerRequestInterface $request, string $token, ?string $error, string $email): ResponseInterface
+    {
+        try {
+            $invitation = $this->invitations->preview($token);
+        } catch (\Throwable) {
+            return new HtmlResponse($this->translator->translate('accounts.error.invitation-unavailable'), 404);
+        }
+        return $this->renderInvitation($request, $token, $invitation, true, null, $error, $email);
+    }
+
+    private function renderInvitation(ServerRequestInterface $request, string $token, AccountInvitation $invitation, bool $registration, ?string $csrfToken = null, ?string $error = null, string $email = ''): ResponseInterface
+    {
+        /** @var CsrfGuardInterface $guard */
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        return new HtmlResponse($this->renderer->render($registration ? 'app::invitations/register' : 'app::invitations/accept', [
+            'user'         => $request->getAttribute(User::class),
+            'invitation'   => $this->safeInvitation($invitation),
+            'token'        => $token,
+            'csrfToken'    => $csrfToken ?? ($guard instanceof CsrfGuardInterface ? $guard->generateToken() : ''),
+            'registration' => $registration,
+            'error'        => $error,
+            'email'        => $email !== '' ? $email : $invitation->email,
         ]));
+    }
+
+    private function registrationError(\Throwable $error): string
+    {
+        $message = strtolower($error->getMessage());
+        return match (true) {
+            str_contains($message, 'password')                                 => $this->translator->translate('auth.error.password-policy'),
+            str_contains($message, 'already exists')                           => $this->translator->translate('accounts.error.invitation-existing-user'),
+            str_contains($message, 'disabled')                                 => $this->translator->translate('accounts.error.invitation-user-disabled'),
+            str_contains($message, 'email') && str_contains($message, 'match') => $this->translator->translate('accounts.error.invitation-email-mismatch'),
+            default                                                            => $this->translator->translate('accounts.error.invitation-unavailable'),
+        };
     }
 
     /** @return array{id:int,accountId:int,email:string,role:string,expiresAt:string} */
