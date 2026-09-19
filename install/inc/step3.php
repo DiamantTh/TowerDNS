@@ -347,7 +347,7 @@ ob_start();
             🚀 <?= e(t('step3.btn_install')) ?>
         </button>
     </form>
-    <a href="index.php?back=1" class="button is-light is-medium">← <?= e(t('nav.back')) ?></a>
+    <a href="<?= e(INSTALLER_ENTRY) ?>?back=1" class="button is-light is-medium">← <?= e(t('nav.back')) ?></a>
 </div>
 <?php
 $_step_content = ob_get_clean();

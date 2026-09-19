@@ -30,7 +30,7 @@ $displayStep  ??= 1;
     <title><?= e($pageTitle ?? 'TowerDNS — ' . t('layout.title')) ?></title>
     <script src="/assets/theme-init.bundle.js"></script>
     <link rel="stylesheet" href="/assets/app.css">
-    <link rel="icon" type="image/svg+xml" href="../../assets/img/favicon.svg">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <style>
         :root { --primary: #1565c0; --primary-dark: #0d47a1; color-scheme: light; }
         body  { background: #f5f5f5; }
@@ -70,7 +70,7 @@ $displayStep  ??= 1;
         <div class="lang-switcher" aria-label="<?= e(t('layout.lang_switch')) ?>">
             <?php foreach (INSTALLER_LANGS as $code => $native):
                 $active = (str_replace('_', '-', $locale) === $code) ? ' active' : '';
-                $url    = 'index.php?lang=' . urlencode($code);
+                $url    = INSTALLER_ENTRY . '?lang=' . urlencode($code);
                 ?>
             <a href="<?= e($url) ?>" class="<?= $active ?>" lang="<?= e($code) ?>"
                hreflang="<?= e($code) ?>"><?= e($native) ?></a>

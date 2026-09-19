@@ -28,7 +28,7 @@ http_response_code(403);
             <strong><?= e(t('locked.recommendation')) ?></strong><br>
             <pre style="background:#fff;padding:.5rem;border-radius:4px;margin-top:.5rem"><code>rm -rf install/</code></pre>
         </div>
-        <a href="../../index.php" class="button is-primary">→ <?= e(t('layout.to_app')) ?></a>
+        <a href="/" class="button is-primary">→ <?= e(t('layout.to_app')) ?></a>
     </div>
 </section>
 <script type="module" src="/assets/app.bundle.js"></script>
