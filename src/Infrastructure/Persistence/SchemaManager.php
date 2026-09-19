@@ -18,9 +18,10 @@ use TowerDNS\Domain\Auth\Permission;
 /**
  * Manages the TowerDNS database schema using Doctrine DBAL's schema API.
  *
- * Call {@see createTablesIfNotExist()} once during installation or on first
- * boot to ensure all required tables are present.  The method is idempotent —
- * existing tables are never dropped or altered.
+ * Call {@see createTablesIfNotExist()} explicitly during installation or a
+ * controlled maintenance operation to ensure all required tables are present.
+ * The method is idempotent for table creation — existing tables are never
+ * dropped or altered.
  *
  * Call {@see seedSystemRoles()} after table creation to populate the built-in
  * roles defined in the RBAC documentation.  Existing rows are left untouched.

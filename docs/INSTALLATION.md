@@ -1,7 +1,9 @@
 # TowerDNS installieren und betreiben
 
-Diese Anleitung beschreibt den unterstützten Weg für ein fertiges TowerDNS-
-Release auf Shared Hosting sowie den Betrieb mit PHP-FPM. Das Release enthält
+Diese Anleitung beschreibt die technische Vorbereitung für ein späteres
+TowerDNS-Release auf Shared Hosting sowie den Betrieb mit PHP-FPM. Ein
+konkretes Release oder eine allgemeine Hosting-Zertifizierung ist damit nicht
+verbunden. Ein späteres Release enthält
 bereits den Composer-Autoloader und die kompilierten Browser-Assets. Auf dem
 Zielhost sind deshalb weder Composer noch Node.js erforderlich.
 
@@ -41,7 +43,7 @@ Auf dem Entwicklungs- oder Build-Rechner:
 
 ```sh
 npm ci
-npm run release:build
+TOWERDNS_VERSION=0.0.0-dev npm run release:build
 ```
 
 Der Build führt den Vite-Produktionsbuild aus und ruft anschließend
@@ -51,7 +53,7 @@ Produktionsabhängigkeiten und erzeugt `dist/towerdns-<version>.zip`.
 Diese Composer-Optionen entsprechen dem empfohlenen Deployment-Ablauf in der
 [offiziellen Composer-Dokumentation](https://getcomposer.org/doc/03-cli.md).
 
-Die Versionsnummer kommt aus `VERSION` oder aus `--version=...`. Für einen
+Die Versionsnummer kommt aus `TOWERDNS_VERSION` oder aus `--version=...`. Für einen
 lokalen Build ohne `sodium` kann vorübergehend
 `--ignore-platform-req=ext-sodium` verwendet werden; ein solches Archiv darf
 nicht als Produktionsrelease verteilt werden. Produktionsbuilds müssen alle
@@ -64,7 +66,7 @@ Ein Release enthält unter anderem:
 * `src/`, `modules/`, `templates/`, `translations/`, Theme-Manifeste und
   `install/`,
 * `vendor/` mit Produktionsabhängigkeiten,
-* `bin/towerdns`, `VERSION`, `LICENSE` und diese Anleitung.
+* `bin/towerdns`, `LICENSE` und diese Anleitung.
 
 Nicht enthalten sind Git-Metadaten, Tests, Node-Module, Theme-Quellcode,
 Entwicklungsdateien, Composer-Dateien, lokale Konfigurationen, Logs, Cache,
@@ -135,13 +137,13 @@ Neue Releases sollten in ein neues privates Verzeichnis entpackt werden. Die
 gesicherten Konfigurationen und Laufzeitdaten werden übernommen und der
 DocumentRoot anschließend auf das neue `httpdocs/` umgeschaltet.
 
-Beim ersten Request gleicht `SchemaManager` fehlende Tabellen und bekannte
-Spalten additiv ab. TowerDNS enthält derzeit keine allgemeine, versionierte
-Doctrine-Migrationsverwaltung; destruktive oder datenverändernde Migrationen
-werden daher nicht automatisch ausgeführt. Bei größeren Schemaänderungen ist
-ein vorheriger Datenbankdump und ein getesteter Upgrade-Schritt erforderlich.
-Eine vorhandene Installation wird niemals stillschweigend mit einem frischen
-Schema überschrieben.
+Der normale Anwendungsstart führt keine Schemaänderungen aus. `SchemaManager`
+wird beim Fresh-Install und in den entsprechenden Installations-/Testpfaden
+explizit aufgerufen. TowerDNS enthält derzeit keine allgemeine, versionierte
+Doctrine-Migrationsverwaltung; bestehende Installationen benötigen für spätere
+Schemaänderungen daher einen ausdrücklich geplanten Upgrade-Schritt mit
+Datenbankdump. Eine vorhandene Installation wird beim normalen Request niemals
+still mit einem frischen Schema überschrieben.
 
 ## Einladungsregistrierung
 
@@ -171,8 +173,8 @@ npm run frontend:check
 composer check
 ```
 
-Die Release-Prüfung ist auf PHP 8.4+ mit den Pflicht-Erweiterungen und einer
-funktionierenden Composer-/Node-Toolchain ausgelegt. In einer Sandbox ohne
+Die optionale Artefaktprüfung ist auf PHP 8.4+ mit den Pflicht-Erweiterungen und
+einer funktionierenden Composer-/Node-Toolchain ausgelegt. In einer Sandbox ohne
 `sodium` kann der Anwendungstest weiterlaufen, aber ein echter
 Produktions-Composer-Check bleibt zu Recht rot; dieses Umgebungsdefizit darf
 nicht als Produktionskompatibilität gewertet werden.

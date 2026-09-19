@@ -90,15 +90,15 @@ npm run check
 npm run build        # produktionsfertige Assets -> httpdocs/assets/
 ```
 
-Die gebauten Assets werden mit dem Release ausgeliefert; auf dem Zielsystem
-ist deshalb kein Node.js erforderlich. Mezzio liefert Seitendaten und
+Die gebauten Assets können später mit einem Release ausgeliefert werden; auf
+dem Zielsystem ist deshalb kein Node.js erforderlich. Mezzio liefert Seitendaten und
 CSRF-geschuetzte Endpunkte; Svelte rendert die gesamte Anwendung.
 
-Eine vollständige Anleitung für Release-Erstellung, Shared Hosting, sicheren
-DocumentRoot und Browser-Installation steht in
+Eine technische Vorbereitung für spätere Release-Erstellung, Shared Hosting,
+sicheren DocumentRoot und Browser-Installation steht in
 [docs/INSTALLATION.md](docs/INSTALLATION.md). Ein reproduzierbares Release
-entsteht mit `npm run release:build` (Composer und Node.js werden nur auf dem
-Build-Rechner benötigt).
+Artefakt kann mit `TOWERDNS_VERSION=0.0.0-dev npm run release:build`
+erzeugt werden (Composer und Node.js werden nur auf dem Build-Rechner benötigt).
 
 ## Kommandozeile
 

@@ -40,11 +40,11 @@ foreach (array_slice($argv, 1) as $argument) {
 }
 
 if ($version === '') {
-    $versionFile = $root . '/VERSION';
-    $version = is_file($versionFile) ? trim((string) file_get_contents($versionFile)) : '';
+    fwrite(STDERR, "A semantic version is required (use TOWERDNS_VERSION or --version).\n");
+    exit(1);
 }
 if (!preg_match('/^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $version)) {
-    fwrite(STDERR, "A semantic version is required (use VERSION or --version).\n");
+    fwrite(STDERR, "A semantic version is required (use TOWERDNS_VERSION or --version).\n");
     exit(1);
 }
 $version = ltrim($version, 'v');
@@ -89,7 +89,7 @@ $copyTree = static function (string $source, string $destination) use (&$copyTre
 
 $copyPaths = [
     'httpdocs', 'install', 'src', 'modules', 'templates', 'themes', 'translations',
-    'bin/towerdns', 'LICENSE', 'VERSION', 'composer.json', 'composer.lock',
+    'bin/towerdns', 'LICENSE', 'composer.json', 'composer.lock',
     'docs/INSTALLATION.md',
 ];
 
