@@ -22,3 +22,8 @@ define('CSRF_TOKEN',   '');
 define('INSTALLER_LANGS', []);
 define('VENDOR_OK', (bool) random_int(0, 1));
 define('INSTALLER_ENTRY', 'install.php');
+
+function detectInstallerLocale(): string
+{
+    return 'en-GB';
+}

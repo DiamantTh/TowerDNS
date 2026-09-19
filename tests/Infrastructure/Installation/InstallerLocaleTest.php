@@ -25,13 +25,13 @@ final class InstallerLocaleTest extends TestCase
     {
         $_SERVER['HTTP_ACCEPT_LANGUAGE'] = '';
 
-        self::assertSame('en-GB', \detectInstallerLocale());
+        self::assertSame('en-GB', call_user_func('detectInstallerLocale'));
     }
 
     public function testAcceptLanguagePrefixSelectsSupportedLocale(): void
     {
         $_SERVER['HTTP_ACCEPT_LANGUAGE'] = 'de;q=0.9,en;q=0.8';
 
-        self::assertSame('de-DE', \detectInstallerLocale());
+        self::assertSame('de-DE', call_user_func('detectInstallerLocale'));
     }
 }
