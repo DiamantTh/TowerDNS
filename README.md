@@ -112,6 +112,9 @@ aufgelöst.
 php bin/towerdns list --format=toml # außerdem: txt, json, xml, md
 php bin/towerdns              # interaktive Installation
 php bin/towerdns towerdns:user:password-reset admin@example.org --generate
+php bin/towerdns towerdns:schema:status
+php bin/towerdns towerdns:schema:validate
+php bin/towerdns towerdns:schema:migrate --confirm
 php bin/towerdns zone:list desec
 php bin/towerdns record:list desec example.org --format=json | jq '.records[]'
 ```

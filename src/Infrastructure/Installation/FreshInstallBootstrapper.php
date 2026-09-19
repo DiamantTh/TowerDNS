@@ -17,17 +17,17 @@ use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalTransactionRunner;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
+use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
 
 /**
  * Builds the database portion of a fresh installation.
  *
- * Schema creation is intentionally kept outside a transaction because DDL
- * transaction semantics differ between supported database engines. The
- * mutable bootstrap pairs (user/role and account/owner/limits) are delegated
- * to SchemaManager's transactional seed methods. A retried bootstrap can
- * safely finish the account part after an interruption, but never silently
- * takes ownership of an ambiguous pre-existing database.
+ * Schema changes are delegated to the explicit migration runner. The mutable
+ * bootstrap pairs (user/role and account/owner/limits) are delegated to
+ * SchemaManager's transactional seed methods. A retried bootstrap can safely
+ * finish the account part after an interruption, but never silently takes
+ * ownership of an ambiguous pre-existing database.
  */
 final readonly class FreshInstallBootstrapper
 {
@@ -47,8 +47,10 @@ final readonly class FreshInstallBootstrapper
 
         new SqliteConnectionConfigurator()->configure($this->connection);
 
+        $schemaMigrations = new SchemaMigrationManager($this->connection);
+        $schemaMigrations->migrate();
+
         $schema = new SchemaManager($this->connection);
-        $schema->createTablesIfNotExist();
         $schema->seedSystemRoles();
         $schema->seedSystemSettingsDefaults();
 

@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Persistence;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Schema\Column;
+use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
 use Doctrine\DBAL\Types\Types;
 use TowerDNS\Application\Services\UserPreferences;
@@ -35,9 +37,9 @@ final readonly class SchemaManager
 
     /**
      * Creates every application table that does not yet exist during a
-     * controlled installation or maintenance operation. Existing tables are
-     * never dropped; legacy profile/account columns may be added explicitly
-     * when this method is run against an older installation.
+     * controlled installation operation. Existing tables are never altered.
+     * Existing installations are upgraded through the versioned migration
+     * runner, never as a side effect of a normal schema helper call.
      */
     public function createTablesIfNotExist(): void
     {
@@ -49,7 +51,223 @@ final readonly class SchemaManager
                 $sm->createTable($table);
             }
         }
-        $this->upgradePersonalAndProfileColumns();
+    }
+
+    /**
+     * Merges the canonical schema into Doctrine's migration schema object.
+     * Missing tables, columns, indexes and foreign keys are added only; no
+     * existing definition is dropped or changed implicitly.
+     */
+    public function mergeCanonicalSchema(Schema $schema): void
+    {
+        foreach ($this->buildTables() as $expected) {
+            if (!$schema->hasTable($expected->getName())) {
+                $target = $schema->createTable($expected->getName());
+                $this->copyTableDefinition($expected, $target);
+                continue;
+            }
+
+            $target = $schema->getTable($expected->getName());
+            foreach ($expected->getColumns() as $column) {
+                if (!$target->hasColumn($column->getName())) {
+                    $target->addColumn($column->getName(), $column->getType()->getName(), $this->columnOptions($column));
+                }
+            }
+
+            foreach ($expected->getIndexes() as $index) {
+                if ($target->hasIndex($index->getName())) {
+                    continue;
+                }
+                if ($index->isPrimary()) {
+                    $target->setPrimaryKey($index->getColumns(), $index->getName());
+                } elseif ($index->isUnique()) {
+                    $target->addUniqueIndex($index->getColumns(), $index->getName(), $index->getOptions());
+                } else {
+                    $target->addIndex($index->getColumns(), $index->getName(), $index->getFlags(), $index->getOptions());
+                }
+            }
+
+            foreach ($expected->getForeignKeys() as $foreignKey) {
+                if (!$target->hasForeignKey($foreignKey->getName())) {
+                    $target->addForeignKeyConstraint(
+                        $foreignKey->getForeignTableName(),
+                        $foreignKey->getLocalColumns(),
+                        $foreignKey->getForeignColumns(),
+                        $foreignKey->getOptions(),
+                        $foreignKey->getName(),
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Returns additive schema problems that prevent a safe baseline. Type
+     * mismatches are reported, while existing extra objects are tolerated.
+     *
+     * @return list<string>
+     */
+    public function schemaIssues(): array
+    {
+        $manager  = $this->connection->createSchemaManager();
+        $existing = array_fill_keys(array_map(strtolower(...), $manager->listTableNames()), true);
+        $issues   = [];
+
+        foreach ($this->buildTables() as $expected) {
+            $name = strtolower($expected->getName());
+            if (!isset($existing[$name])) {
+                $issues[] = sprintf('missing table %s', $expected->getName());
+                continue;
+            }
+
+            $actual = $manager->introspectTable($expected->getName());
+            foreach ($expected->getColumns() as $column) {
+                if (!$actual->hasColumn($column->getName())) {
+                    $issues[] = sprintf('missing column %s.%s', $expected->getName(), $column->getName());
+                    continue;
+                }
+                if ($actual->getColumn($column->getName())->getType()->getName() !== $column->getType()->getName()) {
+                    $issues[] = sprintf('incompatible type for %s.%s', $expected->getName(), $column->getName());
+                }
+            }
+
+            foreach ($expected->getIndexes() as $index) {
+                $matching = null;
+                foreach ($actual->getIndexes() as $candidate) {
+                    if ($index->isFulfilledBy($candidate)) {
+                        $matching = $candidate;
+                        break;
+                    }
+                }
+                if ($matching === null) {
+                    $issues[] = sprintf('missing index %s on %s', $index->getName(), $expected->getName());
+                }
+            }
+
+            foreach ($expected->getForeignKeys() as $foreignKey) {
+                $matching = false;
+                foreach ($actual->getForeignKeys() as $candidate) {
+                    if ($candidate->getUnqualifiedForeignTableName() === $foreignKey->getUnqualifiedForeignTableName()
+                        && $candidate->getLocalColumns()             === $foreignKey->getLocalColumns()
+                        && $candidate->getForeignColumns()           === $foreignKey->getForeignColumns()
+                    ) {
+                        $matching = true;
+                        break;
+                    }
+                }
+                if (!$matching) {
+                    $issues[] = sprintf('missing foreign key %s on %s', $foreignKey->getName(), $expected->getName());
+                }
+            }
+        }
+
+        return $issues;
+    }
+
+    public function schemaIsCurrent(): bool
+    {
+        return $this->schemaIssues() === [];
+    }
+
+    /**
+     * Returns data-level prerequisites that must hold before an existing
+     * database may be marked as the migration baseline.
+     *
+     * @return list<string>
+     */
+    public function dataIssues(): array
+    {
+        $manager = $this->connection->createSchemaManager();
+        if (!$manager->tablesExist(['users', 'roles', 'role_permissions', 'accounts', 'account_memberships', 'account_resource_limits'])) {
+            return [];
+        }
+
+        $issues        = [];
+        $requiredRoles = ['viewer', 'editor', 'dnssec_op', 'provider_op', 'iam_admin', 'superadmin'];
+        $existingRoles = array_map(
+            static fn(mixed $role): string => (string) $role,
+            $this->connection->fetchFirstColumn('SELECT id FROM roles'),
+        );
+        $missingRoles = array_values(array_diff($requiredRoles, $existingRoles));
+        if ($missingRoles !== []) {
+            $issues[] = 'missing system roles: ' . implode(', ', $missingRoles);
+        }
+        $requiredPermissions = array_map(
+            static fn(Permission $permission): string => $permission->value,
+            Permission::cases(),
+        );
+        $existingSuperadminPermissions = array_map(
+            static fn(mixed $permission): string => (string) $permission,
+            $this->connection->fetchFirstColumn("SELECT permission FROM role_permissions WHERE role_id = 'superadmin'"),
+        );
+        $missingSuperadminPermissions = array_values(array_diff($requiredPermissions, $existingSuperadminPermissions));
+        if ($missingSuperadminPermissions !== []) {
+            $issues[] = 'superadmin role is missing permissions';
+        }
+
+        $requiredSettings = [
+            'security.password.min_length',
+            'security.password.min_score',
+            'security.password.hibp_enabled',
+            'security.password.hibp_fail_open',
+            'security.password.hibp_timeout',
+        ];
+        if ($manager->tablesExist(['system_settings'])) {
+            $existingSettings = array_map(
+                static fn(mixed $setting): string => (string) $setting,
+                $this->connection->fetchFirstColumn('SELECT setting_key FROM system_settings'),
+            );
+            $missingSettings = array_values(array_diff($requiredSettings, $existingSettings));
+            if ($missingSettings !== []) {
+                $issues[] = 'missing system settings: ' . implode(', ', $missingSettings);
+            }
+        }
+
+        if ((int) $this->connection->fetchOne('SELECT COUNT(*) FROM users') === 0) {
+            $issues[] = 'no users found';
+        }
+
+        foreach ($this->connection->fetchFirstColumn('SELECT id FROM users') as $userId) {
+            $personalCount = (int) $this->connection->fetchOne(
+                'SELECT COUNT(*) FROM accounts WHERE account_type = ? AND personal_user_id = ?',
+                [AccountKind::PERSONAL->value, (string) $userId],
+            );
+            if ($personalCount !== 1) {
+                $issues[] = sprintf('user %s does not have exactly one personal account', (string) $userId);
+            }
+        }
+
+        $missingLimits = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM accounts a LEFT JOIN account_resource_limits l ON l.account_id = a.id WHERE l.account_id IS NULL',
+        );
+        if ($missingLimits > 0) {
+            $issues[] = sprintf('%d account(s) have no resource limits', $missingLimits);
+        }
+
+        $personalMembers = (int) $this->connection->fetchOne(
+            'SELECT COUNT(*) FROM (SELECT a.id FROM accounts a JOIN account_memberships m ON m.account_id = a.id WHERE a.account_type = ? GROUP BY a.id HAVING COUNT(*) <> 1) invalid_personal_accounts',
+            [AccountKind::PERSONAL->value],
+        );
+        if ($personalMembers > 0) {
+            $issues[] = 'personal accounts must have exactly one owner membership';
+        }
+
+        $personalOwners = (int) $this->connection->fetchOne(
+            "SELECT COUNT(*) FROM accounts a WHERE a.account_type = ? AND NOT EXISTS (SELECT 1 FROM account_memberships m WHERE m.account_id = a.id AND m.user_id = a.personal_user_id AND m.role = 'owner')",
+            [AccountKind::PERSONAL->value],
+        );
+        if ($personalOwners > 0) {
+            $issues[] = 'personal accounts must be owned by their personal user';
+        }
+
+        $accountOwners = (int) $this->connection->fetchOne(
+            "SELECT COUNT(*) FROM accounts a WHERE NOT EXISTS (SELECT 1 FROM account_memberships m WHERE m.account_id = a.id AND m.user_id = a.owner_user_id AND m.role = 'owner')",
+        );
+        if ($accountOwners > 0) {
+            $issues[] = 'accounts must have an owner membership';
+        }
+
+        return $issues;
     }
 
     /**
@@ -454,6 +672,13 @@ final readonly class SchemaManager
             ['onDelete' => 'RESTRICT'],
             'fk_acc_owner_user_id',
         );
+        $accounts->addForeignKeyConstraint(
+            'users',
+            ['personal_user_id'],
+            ['id'],
+            ['onDelete' => 'RESTRICT'],
+            'fk_acc_personal_user_id',
+        );
 
         // account_resource_limits -------------------------------------------
         $resourceLimits = new Table('account_resource_limits');
@@ -696,34 +921,11 @@ final readonly class SchemaManager
     }
 
     /**
-     * Lightweight, idempotent additive upgrade for installations predating the
-     * explicit account type. This is deliberately not a general migration
-     * framework; it only makes the current schema safe before repositories use
-     * the new columns.
+     * Backfills data introduced with the explicit account type and profile
+     * model. Schema changes themselves are handled by versioned migrations.
      */
-    private function upgradePersonalAndProfileColumns(): void
+    public function backfillLegacyProfileAndAccountData(): void
     {
-        $manager = $this->connection->createSchemaManager();
-        foreach ([
-            'users' => [
-                'language VARCHAR(16) NOT NULL DEFAULT \'en-GB\'', 'timezone VARCHAR(64) NOT NULL DEFAULT \'UTC\'',
-                'first_name VARCHAR(100) NULL', 'last_name VARCHAR(100) NULL', 'alternate_email VARCHAR(254) NULL',
-                'phone VARCHAR(64) NULL', 'mobile VARCHAR(64) NULL', 'street VARCHAR(255) NULL', 'street2 VARCHAR(255) NULL',
-                'postal_code VARCHAR(32) NULL', 'city VARCHAR(128) NULL', 'region VARCHAR(128) NULL', 'country VARCHAR(2) NULL', 'external_reference VARCHAR(255) NULL',
-            ],
-            'accounts' => [
-                "account_type VARCHAR(32) NOT NULL DEFAULT 'organization'", 'personal_user_id VARCHAR(36) NULL',
-                'customer_number VARCHAR(64) NULL', 'external_reference VARCHAR(255) NULL',
-            ],
-        ] as $table => $columns) {
-            $known = array_map(strtolower(...), array_keys($manager->listTableColumns($table)));
-            foreach ($columns as $definition) {
-                $name = strtolower(strtok($definition, ' '));
-                if (!in_array($name, $known, true)) {
-                    $this->connection->executeStatement("ALTER TABLE {$table} ADD COLUMN {$definition}");
-                }
-            }
-        }
         $this->connection->executeStatement("UPDATE users SET language = locale WHERE language IS NULL OR language = ''");
         foreach ($this->connection->fetchAllAssociative('SELECT id, slug, owner_user_id FROM accounts') as $account) {
             if ((string) $account['slug'] === PersonalAccount::slugFor((string) $account['owner_user_id'])) {
@@ -749,19 +951,60 @@ final readonly class SchemaManager
                 $this->connection->insert('account_resource_limits', ['account_id' => $personalId, 'max_zones' => null, 'max_members' => null, 'max_provider_accounts' => null]);
             }
         }
-        $hasPersonalUserIndex = false;
-        foreach ($manager->listTableIndexes('accounts') as $index) {
-            if (strtolower($index->getName()) === 'uq_accounts_personal_user') {
-                $hasPersonalUserIndex = true;
-                break;
+    }
+
+    private function copyTableDefinition(Table $source, Table $target): void
+    {
+        foreach ($source->getColumns() as $column) {
+            $target->addColumn($column->getName(), $column->getType()->getName(), $this->columnOptions($column));
+        }
+
+        $primary = $source->getPrimaryKey();
+        if ($primary !== null) {
+            $target->setPrimaryKey($primary->getColumns(), $primary->getName());
+        }
+        foreach ($source->getIndexes() as $index) {
+            if ($index->isPrimary()) {
+                continue;
+            }
+            if ($index->isUnique()) {
+                $target->addUniqueIndex($index->getColumns(), $index->getName(), $index->getOptions());
+            } else {
+                $target->addIndex($index->getColumns(), $index->getName(), $index->getFlags(), $index->getOptions());
             }
         }
-        if (!$hasPersonalUserIndex) {
-            try {
-                $this->connection->executeStatement('CREATE UNIQUE INDEX uq_accounts_personal_user ON accounts (personal_user_id)');
-            } catch (\Throwable $exception) {
-                throw new \RuntimeException('Cannot enforce one personal account per user.', 0, $exception);
+        foreach ($source->getForeignKeys() as $foreignKey) {
+            $target->addForeignKeyConstraint(
+                $foreignKey->getForeignTableName(),
+                $foreignKey->getLocalColumns(),
+                $foreignKey->getForeignColumns(),
+                $foreignKey->getOptions(),
+                $foreignKey->getName(),
+            );
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private function columnOptions(Column $column): array
+    {
+        $options = [
+            'notnull'       => $column->getNotnull(),
+            'autoincrement' => $column->getAutoincrement(),
+        ];
+        foreach (['length', 'precision', 'scale', 'unsigned', 'fixed', 'default'] as $option) {
+            $value = match ($option) {
+                'length'    => $column->getLength(),
+                'precision' => $column->getPrecision(),
+                'scale'     => $column->getScale(),
+                'unsigned'  => $column->getUnsigned(),
+                'fixed'     => $column->getFixed(),
+                'default'   => $column->getDefault(),
+            };
+            if ($value !== null) {
+                $options[$option] = $value;
             }
         }
+
+        return $options;
     }
 }

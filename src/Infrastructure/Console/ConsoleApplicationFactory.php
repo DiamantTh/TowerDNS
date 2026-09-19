@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Console;
 
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Command\LazyCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputDefinition;
 use Symfony\Component\Console\Input\InputOption;
@@ -41,6 +42,27 @@ final class ConsoleApplicationFactory
         $application->addCommand($container->get(RecordListCommand::class));
         $application->addCommand($container->get(RrsetListCommand::class));
         $application->addCommand($container->get(ModuleListCommand::class));
+        $application->addCommand(new LazyCommand(
+            'towerdns:schema:status',
+            [],
+            'Show TowerDNS database migration status',
+            false,
+            static fn(): SchemaStatusCommand => $container->get(SchemaStatusCommand::class),
+        ));
+        $application->addCommand(new LazyCommand(
+            'towerdns:schema:migrate',
+            [],
+            'Apply pending TowerDNS database migrations',
+            false,
+            static fn(): SchemaMigrateCommand => $container->get(SchemaMigrateCommand::class),
+        ));
+        $application->addCommand(new LazyCommand(
+            'towerdns:schema:validate',
+            [],
+            'Validate the TowerDNS database schema',
+            false,
+            static fn(): SchemaValidateCommand => $container->get(SchemaValidateCommand::class),
+        ));
         $application->setDefaultCommand('towerdns:install');
 
         return $application;

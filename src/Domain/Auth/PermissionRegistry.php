@@ -90,6 +90,7 @@ final class PermissionRegistry
             new PermissionDefinition(Permission::USER_MANAGE->value, 'permission.user.manage.label', 'permission.user.manage.description', ['system']),
             new PermissionDefinition(Permission::ROLE_MANAGE->value, 'permission.role.manage.label', 'permission.role.manage.description', ['system']),
             new PermissionDefinition(Permission::SYSTEM_SETTINGS_MANAGE->value, 'permission.system.settings.manage.label', 'permission.system.settings.manage.description', ['system']),
+            new PermissionDefinition(Permission::SYSTEM_SCHEMA_MANAGE->value, 'permission.system.schema.manage.label', 'permission.system.schema.manage.description', ['system']),
             new PermissionDefinition(Permission::SYSTEM_ACCOUNTS_ACCESS->value, 'permission.system.accounts.access.label', 'permission.system.accounts.access.description', ['system']),
             new PermissionDefinition(Permission::SYSTEM_IMPERSONATION_EXECUTE->value, 'permission.system.impersonation.execute.label', 'permission.system.impersonation.execute.description', ['system']),
         ];

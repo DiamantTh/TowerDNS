@@ -103,11 +103,15 @@ use TowerDNS\Infrastructure\Console\ModuleListCommand;
 use TowerDNS\Infrastructure\Console\PasswordResetCommand;
 use TowerDNS\Infrastructure\Console\RecordListCommand;
 use TowerDNS\Infrastructure\Console\RrsetListCommand;
+use TowerDNS\Infrastructure\Console\SchemaMigrateCommand;
+use TowerDNS\Infrastructure\Console\SchemaStatusCommand;
+use TowerDNS\Infrastructure\Console\SchemaValidateCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
+use TowerDNS\Infrastructure\Http\Handler\SchemaMigrationHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
@@ -130,6 +134,7 @@ use TowerDNS\Infrastructure\Persistence\DbalTransactionRunner;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\DbalZoneMembershipRepository;
+use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 use TowerDNS\Infrastructure\Persistence\TomlSystemProviderConfigurationStore;
 use TowerDNS\Infrastructure\Provider\DNSProviderFactory;
 use TowerDNS\Infrastructure\Provider\ModuleProviderCredentialSchemaCatalog;
@@ -241,6 +246,13 @@ final class ContainerFactory
                 return $connection;
             }),
 
+            SchemaMigrationManager::class => \DI\factory(
+                static fn(Connection $connection): SchemaMigrationManager => new SchemaMigrationManager(
+                    $connection,
+                    $projectRoot . '/data/schema-migrations.lock',
+                )
+            ),
+
             // ── Repositories ──────────────────────────────────────────────────
             UserRepositoryInterface::class   => \DI\autowire(DbalUserRepository::class),
             RoleRepositoryInterface::class   => \DI\autowire(DbalRoleRepository::class),
@@ -350,6 +362,7 @@ final class ContainerFactory
                     $translator,
                 )
             ),
+            SchemaMigrationHandler::class => \DI\autowire(),
 
             ForgotPasswordHandler::class => \DI\factory(
                 static function (
@@ -585,11 +598,14 @@ final class ContainerFactory
             PasswordResetCommand::class => \DI\factory(
                 static fn(): PasswordResetCommand => new PasswordResetCommand($projectRoot)
             ),
-            ZoneListCommand::class      => \DI\autowire(),
-            RecordListCommand::class    => \DI\autowire(),
-            RrsetListCommand::class     => \DI\autowire(),
-            ModuleListCommand::class    => \DI\autowire(),
-            LocalModuleDiscovery::class => $moduleDiscovery,
+            ZoneListCommand::class       => \DI\autowire(),
+            RecordListCommand::class     => \DI\autowire(),
+            RrsetListCommand::class      => \DI\autowire(),
+            ModuleListCommand::class     => \DI\autowire(),
+            SchemaStatusCommand::class   => \DI\autowire(),
+            SchemaMigrateCommand::class  => \DI\autowire(),
+            SchemaValidateCommand::class => \DI\autowire(),
+            LocalModuleDiscovery::class  => $moduleDiscovery,
         ]);
 
         return $builder->build();

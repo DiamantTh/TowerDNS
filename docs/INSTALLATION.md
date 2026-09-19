@@ -136,13 +136,35 @@ Verschlüsselungsschlüssels) und bei SQLite die Datei unter `data/` sichern.
 Bestehende Installationen dürfen nicht durch einen normalen Request neu
 initialisiert werden.
 
-Der normale Anwendungsstart führt keine Schemaänderungen aus. `SchemaManager`
-wird beim Fresh-Install und in den entsprechenden Installations-/Testpfaden
-explizit aufgerufen. TowerDNS enthält derzeit keine allgemeine, versionierte
-Doctrine-Migrationsverwaltung; spätere Schemaänderungen benötigen daher einen
-ausdrücklich geplanten Upgrade-Schritt mit Datenbankdump. Eine vorhandene
-Installation wird beim normalen Request niemals still mit einem frischen
-Schema überschrieben.
+Der normale Anwendungsstart führt keine Schemaänderungen aus. Der
+`FreshInstallBootstrapper` und der CLI-Installer rufen den versionierten
+`SchemaMigrationManager` ausdrücklich auf. Eine vorhandene Installation kann
+Migrationen entweder über die CLI oder als authentifizierter Systemadministrator
+unter `/settings/schema` ausführen. Der Browserweg ist CSRF-geschützt, erfordert
+die Permission `system.schema.manage` und verwendet eine Datenbank-/Dateisperre
+gegen parallele Upgrades.
+
+```sh
+php bin/towerdns towerdns:schema:status
+php bin/towerdns towerdns:schema:validate
+php bin/towerdns towerdns:schema:migrate
+```
+
+Die Migrationstabelle `towerdns_schema_migrations` zeichnet jede ausgeführte
+Migration in fester Reihenfolge auf. Eine aktuelle Bestandsinstallation wird
+nur dann als Baseline übernommen, wenn Tabellen, Spalten, Indizes,
+Foreign-Keys und Datentypen dem kanonischen Schema entsprechen. Ein
+unvollständiger oder inkompatibler Zustand bleibt sichtbar und wird nicht
+automatisch als erfolgreich markiert. Additive Strukturmigrationen und
+Daten-Backfills sind getrennt; irreversible Änderungen werden nicht als
+Rollback versprochen. Nach einem Fehler kann der kontrollierte Befehl erneut
+ausgeführt werden, sofern die konkrete Datenbank-DDL keinen manuellen Restore
+erfordert.
+
+Doctrine DBAL und Doctrine Migrations abstrahieren die unterstützten PDO-
+Treiber. Im lokalen Testlauf wird SQLite integriert geprüft; MySQL/MariaDB und
+PostgreSQL benötigen vor einem Rollout zusätzliche Tests mit der tatsächlichen
+Hosting-Datenbank.
 
 ## Einladungsregistrierung
 

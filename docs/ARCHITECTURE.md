@@ -17,7 +17,7 @@ src/
 2. **Application** orchestriert Workflows, normalisiert Eingaben (`DnsNameValidator`, `RecordValidator`), prueft Rechte zentral (`AuthorizationService`) und prueft Provider-Faehigkeiten (`Capability` + `ProviderCapabilitySet`).
 3. **Domain** stellt das kanonische DNS-Modell (`Zone`, `Record`, `RecordType`, `DnssecProfile`, `DnssecState`), das RBAC-Modell (`User`, `Role`, `Permission`) und das Account-Modell (`Account`, `AccountMembership`, `ZoneMembership`, `AuditLogEntry`).
 4. **Infrastructure/Provider** kapselt jede externe API in einem eigenen Adapter unter `src/Infrastructure/Provider/<Provider>/`.
-5. **Infrastructure/Persistence** implementiert alle Repository-Interfaces per Doctrine DBAL. `SchemaManager` verwaltet das DB-Schema und die Seed-Daten idempotent.
+5. **Infrastructure/Persistence** implementiert alle Repository-Interfaces per Doctrine DBAL. `SchemaManager` enthält die kanonische Tabellenbeschreibung; `SchemaMigrationManager` führt kontrollierte Doctrine-Migrationen ausschließlich bei Installation oder ausdrücklich ausgelöstem Upgrade aus.
 
 ## Provider-Registry
 

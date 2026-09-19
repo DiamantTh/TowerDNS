@@ -135,6 +135,7 @@ final class SvelteRenderer implements TemplateRendererInterface
             'dashboard'                                  => 'page.dashboard.title',
             'zones/list'                                 => 'page.zones.title',
             'settings'                                   => 'page.settings.title',
+            'settings/schema'                            => 'schema.page.title',
             'profile/index'                              => 'page.profile.title',
             'invitations/accept', 'invitations/register' => 'accounts.invitation-title',
             'iam/roles'                                  => 'page.roles.title',

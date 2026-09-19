@@ -34,6 +34,7 @@ use TowerDNS\Infrastructure\Http\Handler\RoleEditHandler;
 use TowerDNS\Infrastructure\Http\Handler\RoleListHandler;
 use TowerDNS\Infrastructure\Http\Handler\RrsetDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RrsetReplaceHandler;
+use TowerDNS\Infrastructure\Http\Handler\SchemaMigrationHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpSetupHandler;
@@ -126,6 +127,8 @@ final class Routes
         // ── System settings ───────────────────────────────────────────────
         $app->get('/settings', [RequireAuthMiddleware::class, SystemSettingsHandler::class], 'settings.form');
         $app->post('/settings', [RequireAuthMiddleware::class, SystemSettingsHandler::class], 'settings.submit');
+        $app->get('/settings/schema', [RequireAuthMiddleware::class, SchemaMigrationHandler::class], 'settings.schema.form');
+        $app->post('/settings/schema', [RequireAuthMiddleware::class, SchemaMigrationHandler::class], 'settings.schema.submit');
         // ── Provider credentials ──────────────────────────────────────────
         $app->get('/credentials', [RequireAuthMiddleware::class, ProviderCredentialsHandler::class], 'credentials.form');
         $app->post('/credentials', [RequireAuthMiddleware::class, ProviderCredentialsHandler::class], 'credentials.submit');

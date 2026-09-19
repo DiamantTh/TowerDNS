@@ -15,6 +15,7 @@
         "bjeavons/zxcvbn-php": "^1.4",
         "devium/toml": "^1.0",
         "doctrine/dbal": "^3.7",
+        "doctrine/migrations": "^3.9",
         "google/apiclient": "^2.19",
         "guzzlehttp/guzzle": "^7.8",
         "inwx/domrobot": "^3.6",

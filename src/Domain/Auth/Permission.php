@@ -47,6 +47,7 @@ enum Permission: string
     case ROLE_MANAGE = 'role.manage';
 
     case SYSTEM_SETTINGS_MANAGE       = 'system.settings.manage';
+    case SYSTEM_SCHEMA_MANAGE         = 'system.schema.manage';
     case SYSTEM_ACCOUNTS_ACCESS       = 'system.accounts.access';
     case SYSTEM_IMPERSONATION_EXECUTE = 'system.impersonation.execute';
 }
