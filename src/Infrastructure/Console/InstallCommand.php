@@ -48,12 +48,13 @@ final class InstallCommand extends Command
         $installDir = $this->projectRoot . '/install';
         $lockFile   = $installDir . '/.lock';
         $cfgDir     = $this->projectRoot . '/configs';
+        $markerFile = $cfgDir . '/.installed';
 
         // ── Already installed? ────────────────────────────────────────────
-        if (file_exists($lockFile)) {
+        if (is_file($markerFile) || file_exists($lockFile)) {
             $io->error([
-                'TowerDNS is already installed (.lock file exists).',
-                'Remove ' . $lockFile . ' to reinstall.',
+                'TowerDNS is already installed.',
+                'Remove the installation marker and lock only when a deliberate reinstall is intended.',
             ]);
             return Command::FAILURE;
         }
@@ -281,6 +282,7 @@ final class InstallCommand extends Command
 
         // ── Lock file ─────────────────────────────────────────────────────
         new AtomicConfigurationWriter()->write($lockFile, $now);
+        new AtomicConfigurationWriter()->write($markerFile, $now);
 
         $io->success([
             'Installation successful!',
