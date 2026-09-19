@@ -15,6 +15,7 @@ use TowerDNS\Application\Services\UserPreferences;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Domain\Account\TeamRole;
 
 /**
  * Doctrine DBAL implementation of {@see UserRepositoryInterface}.
@@ -186,7 +187,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         }
     }
 
-    public function findAll(?string $search = null, ?bool $active = true, int $limit = 100, int $offset = 0): array
+    public function findAll(?string $search = null, ?bool $active = true, int $limit = 100, int $offset = 0, ?string $accountSearch = null, ?TeamRole $membershipRole = null): array
     {
         $conditions = [];
         $params     = [];
@@ -200,6 +201,18 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             $params[]     = $term;
             $params[]     = $term;
             $params[]     = $term;
+        }
+        if ($accountSearch !== null && trim($accountSearch) !== '') {
+            $conditions[] = 'EXISTS (SELECT 1 FROM account_memberships am JOIN accounts a ON a.id = am.account_id WHERE am.user_id = users.id AND (a.name LIKE ? OR a.slug LIKE ? OR a.customer_number LIKE ? OR a.external_reference LIKE ?))';
+            $term = '%' . trim($accountSearch) . '%';
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+            $params[] = $term;
+        }
+        if ($membershipRole instanceof TeamRole) {
+            $conditions[] = 'EXISTS (SELECT 1 FROM account_memberships am WHERE am.user_id = users.id AND am.role = ?)';
+            $params[] = $membershipRole->value;
         }
         $where    = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
         $params[] = max(1, min($limit, 500));

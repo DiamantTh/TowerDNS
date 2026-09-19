@@ -32,6 +32,7 @@ use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\ActiveAccountContext;
 
 /**
  * Account management: list, create, edit, delete, manage members.
@@ -114,6 +115,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $hasNext    = count($loaded) > $pageSize;
         $accounts   = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value, 'isActive' => $account->isActive], array_slice($loaded, 0, $pageSize));
         $flashError = $query['error'] ?? null;
+        $activeContext = $request->getAttribute(ActiveAccountContext::class);
+        $activeAccountId = $activeContext instanceof ActiveAccountContext ? $activeContext->account?->id : null;
 
         return new HtmlResponse(
             $this->renderer->render('app::accounts/list', [
@@ -127,6 +130,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 'page'      => $page,
                 'hasNext'   => $hasNext,
                 'csrfToken' => $csrfToken,
+                'activeAccountId' => $activeAccountId,
                 'error'     => is_string($flashError) ? $flashError : null,
             ]),
         );

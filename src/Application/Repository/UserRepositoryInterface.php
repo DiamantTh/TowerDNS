@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application\Repository;
 
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Domain\Account\TeamRole;
 
 interface UserRepositoryInterface
 {
@@ -87,7 +88,7 @@ interface UserRepositoryInterface
     public function syncRoles(string $userId, array $roleIds): void;
 
     /** @return list<User> */
-    public function findAll(?string $search = null, ?bool $active = true, int $limit = 100, int $offset = 0): array;
+    public function findAll(?string $search = null, ?bool $active = true, int $limit = 100, int $offset = 0, ?string $accountSearch = null, ?TeamRole $membershipRole = null): array;
 
     public function delete(string $userId): void;
 
