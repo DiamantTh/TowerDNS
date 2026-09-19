@@ -64,6 +64,22 @@ final class SchemaMigrationManagerTest extends TestCase
         self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts WHERE personal_user_id = ?', ['user-2']));
     }
 
+    public function testLegacyAccountTypeGapIsReportedWithoutFailingStatusInspection(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $schema     = new SchemaManager($connection);
+        $schema->createTablesIfNotExist();
+        $schema->seedSystemRoles();
+        $schema->seedSystemSettingsDefaults();
+        $schema->seedFirstUser('user-legacy-account', 'legacy-account@example.test', password_hash('safe-password', PASSWORD_ARGON2ID), 'Legacy');
+        $connection->executeStatement('ALTER TABLE accounts DROP COLUMN account_type');
+
+        $status = $this->manager($connection)->status();
+
+        self::assertFalse($status->schemaCurrent);
+        self::assertStringContainsString('missing column accounts.account_type', implode(' ', $status->schemaIssues));
+    }
+
     public function testStatusDoesNotCreateMetadataOrChangeSchema(): void
     {
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);

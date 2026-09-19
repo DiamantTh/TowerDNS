@@ -197,6 +197,20 @@ final readonly class SchemaManager
             return [];
         }
 
+        foreach ([
+            'users'                   => ['id'],
+            'roles'                   => ['id'],
+            'role_permissions'        => ['role_id', 'permission'],
+            'accounts'                => ['id', 'owner_user_id', 'account_type', 'personal_user_id'],
+            'account_memberships'     => ['account_id', 'user_id', 'role'],
+            'account_resource_limits' => ['account_id'],
+        ] as $table => $columns) {
+            $availableColumns = array_map(strtolower(...), array_keys($manager->listTableColumns($table)));
+            if (array_diff($columns, $availableColumns) !== []) {
+                return [];
+            }
+        }
+
         $issues        = [];
         $requiredRoles = ['viewer', 'editor', 'dnssec_op', 'provider_op', 'iam_admin', 'superadmin'];
         $existingRoles = array_map(
