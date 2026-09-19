@@ -137,7 +137,10 @@ final readonly class SchemaManager
                     $issues[] = sprintf('missing column %s.%s', $expected->getName(), $column->getName());
                     continue;
                 }
-                if ($actual->getColumn($column->getName())->getType()->getName() !== $column->getType()->getName()) {
+                if (!$this->typesMatch(
+                    $column->getType()->getName(),
+                    $actual->getColumn($column->getName())->getType()->getName(),
+                )) {
                     $issues[] = sprintf('incompatible type for %s.%s', $expected->getName(), $column->getName());
                 }
             }
@@ -170,6 +173,20 @@ final readonly class SchemaManager
         }
 
         return $issues;
+    }
+
+    private function typesMatch(string $expected, string $actual): bool
+    {
+        if ($expected === $actual) {
+            return true;
+        }
+
+        // DBAL exposes PostgreSQL BYTEA as its generic blob type. It is the
+        // binary-key equivalent of the canonical BINARY definition used for
+        // MariaDB (PostgreSQL does not expose a fixed byte length here).
+        return $this->connection->getDatabasePlatform()->getName() === 'postgresql'
+            && $expected                                           === Types::BINARY
+            && $actual                                             === Types::BLOB;
     }
 
     private function foreignKeysMatch(ForeignKeyConstraint $expected, ForeignKeyConstraint $candidate): bool
@@ -643,7 +660,19 @@ final readonly class SchemaManager
 
         // webauthn_credentials -----------------------------------------------
         $waCredentials = new Table('webauthn_credentials');
-        $waCredentials->addColumn('credential_id', Types::TEXT);
+        // SQLite accepts a TEXT primary key and has historically stored the
+        // raw credential bytes through its TEXT affinity. MariaDB and
+        // PostgreSQL need a binary key representation instead: TEXT/BLOB
+        // columns cannot be indexed as a primary key on MariaDB, while BYTEA
+        // is the native PostgreSQL equivalent.
+        $credentialIdType = $this->connection->getDatabasePlatform()->getName() === 'sqlite'
+            ? Types::TEXT
+            : Types::BINARY;
+        $waCredentials->addColumn(
+            'credential_id',
+            $credentialIdType,
+            $credentialIdType === Types::BINARY ? ['length' => 1024] : [],
+        );
         $waCredentials->addColumn('user_id', Types::GUID);
         $waCredentials->addColumn('name', Types::STRING, ['length' => 64]);
         $waCredentials->addColumn('data', Types::TEXT);

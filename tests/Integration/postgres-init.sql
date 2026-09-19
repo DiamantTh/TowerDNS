@@ -1,0 +1,2 @@
+CREATE ROLE towerdns_app LOGIN PASSWORD 'towerdns_app' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+CREATE DATABASE towerdns_test OWNER towerdns_app;

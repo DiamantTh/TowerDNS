@@ -1,0 +1,31 @@
+services:
+  mariadb:
+    image: docker.io/library/mariadb:11.4
+    environment:
+      MARIADB_DATABASE: towerdns_test
+      MARIADB_USER: towerdns_app
+      MARIADB_PASSWORD: towerdns_app
+      MARIADB_ROOT_PASSWORD: towerdns_root
+    ports:
+      - "127.0.0.1:13306:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -ptowerdns_root"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  postgres:
+    image: docker.io/library/postgres:16
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: towerdns_admin
+      POSTGRES_PASSWORD: towerdns_admin
+    volumes:
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-towerdns.sql:ro
+    ports:
+      - "127.0.0.1:15432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U towerdns_admin -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 20

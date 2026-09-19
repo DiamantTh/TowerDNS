@@ -162,9 +162,11 @@ ausgeführt werden, sofern die konkrete Datenbank-DDL keinen manuellen Restore
 erfordert.
 
 Doctrine DBAL und Doctrine Migrations abstrahieren die unterstützten PDO-
-Treiber. Im lokalen Testlauf wird SQLite integriert geprüft; MySQL/MariaDB und
-PostgreSQL benötigen vor einem Rollout zusätzliche Tests mit der tatsächlichen
-Hosting-Datenbank.
+Treiber. Die automatisierte Migrationsmatrix prüft SQLite immer und kann
+MariaDB sowie PostgreSQL über die wegwerfbare Containerumgebung unter
+`tests/Integration/` zuschalten. Die dort dokumentierten Testdatenbanken sind
+keine Laufzeitvoraussetzung für TowerDNS und ersetzen keine Validierung mit der
+tatsächlichen Hosting-Datenbank.
 
 ## Einladungsregistrierung
 
