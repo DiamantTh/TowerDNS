@@ -103,8 +103,16 @@ final class RdataCanonicalizer
     private static function dnskey(string $value): string
     {
         $parts = preg_split('/\s+/', $value, 4);
-        if ($parts                                                                                                 === false || count($parts) !== 4 || !ctype_digit($parts[0]) || $parts[1] !== '3' || !ctype_digit($parts[2])
-                             || (int) $parts[0] > 65535 || (int) $parts[2] > 255 || base64_decode($parts[3], true) === false) {
+        if (
+            $parts === false
+            || count($parts) !== 4
+            || !ctype_digit($parts[0])
+            || $parts[1] !== '3'
+            || !ctype_digit($parts[2])
+            || (int) $parts[0] > 65535
+            || (int) $parts[2] > 255
+            || base64_decode($parts[3], true) === false
+        ) {
             throw new \InvalidArgumentException('Ungültiger DNSKEY-RDATA-Wert.');
         }
         return (int) $parts[0] . ' 3 ' . (int) $parts[2] . ' ' . $parts[3];

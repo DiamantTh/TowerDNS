@@ -12,20 +12,20 @@ use Laminas\Diactoros\Response\RedirectResponse;
 use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
-use Mezzio\Template\TemplateRendererInterface;
 use Mezzio\Session\SessionInterface;
+use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
-use TowerDNS\Application\Services\AccountManagementService;
 use TowerDNS\Application\Services\AccountInvitationService;
-use TowerDNS\Application\Services\AccountResourceLimitManagementService;
-use TowerDNS\Application\Services\AccountResourceUsageService;
+use TowerDNS\Application\Services\AccountManagementService;
 use TowerDNS\Application\Services\AccountMembershipManagementService;
 use TowerDNS\Application\Services\AccountOwnershipService;
+use TowerDNS\Application\Services\AccountResourceLimitManagementService;
+use TowerDNS\Application\Services\AccountResourceUsageService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Domain\Account\Account;
@@ -103,35 +103,35 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $query      = $request->getQueryParams();
-        $search     = is_string($query['q'] ?? null) ? trim($query['q']) : null;
-        $type       = AccountKind::tryFrom((string) ($query['type'] ?? ''));
-        $role       = TeamRole::tryFrom((string) ($query['role'] ?? ''));
-        $status     = in_array(($query['status'] ?? 'all'), ['active', 'inactive'], true) ? (string) $query['status'] : 'all';
-        $active     = $status === 'active' ? true : ($status === 'inactive' ? false : null);
-        $page       = max(1, (int) ($query['page'] ?? 1));
-        $pageSize   = 50;
-        $loaded     = $this->accounts->findByUserId($user->id, $search, $type, $pageSize + 1, ($page - 1) * $pageSize, true, $role, $active);
-        $hasNext    = count($loaded) > $pageSize;
-        $accounts   = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value, 'isActive' => $account->isActive], array_slice($loaded, 0, $pageSize));
-        $flashError = $query['error'] ?? null;
-        $activeContext = $request->getAttribute(ActiveAccountContext::class);
+        $query           = $request->getQueryParams();
+        $search          = is_string($query['q'] ?? null) ? trim($query['q']) : null;
+        $type            = AccountKind::tryFrom((string) ($query['type'] ?? ''));
+        $role            = TeamRole::tryFrom((string) ($query['role'] ?? ''));
+        $status          = in_array(($query['status'] ?? 'all'), ['active', 'inactive'], true) ? (string) $query['status'] : 'all';
+        $active          = $status === 'active' ? true : ($status === 'inactive' ? false : null);
+        $page            = max(1, (int) ($query['page'] ?? 1));
+        $pageSize        = 50;
+        $loaded          = $this->accounts->findByUserId($user->id, $search, $type, $pageSize + 1, ($page - 1) * $pageSize, true, $role, $active);
+        $hasNext         = count($loaded) > $pageSize;
+        $accounts        = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value, 'isActive' => $account->isActive], array_slice($loaded, 0, $pageSize));
+        $flashError      = $query['error'] ?? null;
+        $activeContext   = $request->getAttribute(ActiveAccountContext::class);
         $activeAccountId = $activeContext instanceof ActiveAccountContext ? $activeContext->account?->id : null;
 
         return new HtmlResponse(
             $this->renderer->render('app::accounts/list', [
-                'user'      => $user,
-                'accounts'  => $accounts,
-                'search'    => $search ?? '',
-                'type'      => $type instanceof AccountKind ? $type->value : 'all',
-                'role'      => $role instanceof TeamRole ? $role->value : 'all',
-                'status'    => $status,
-                'roles'     => TeamRole::cases(),
-                'page'      => $page,
-                'hasNext'   => $hasNext,
-                'csrfToken' => $csrfToken,
+                'user'            => $user,
+                'accounts'        => $accounts,
+                'search'          => $search ?? '',
+                'type'            => $type instanceof AccountKind ? $type->value : 'all',
+                'role'            => $role instanceof TeamRole ? $role->value : 'all',
+                'status'          => $status,
+                'roles'           => TeamRole::cases(),
+                'page'            => $page,
+                'hasNext'         => $hasNext,
+                'csrfToken'       => $csrfToken,
                 'activeAccountId' => $activeAccountId,
-                'error'     => is_string($flashError) ? $flashError : null,
+                'error'           => is_string($flashError) ? $flashError : null,
             ]),
         );
     }
@@ -257,8 +257,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 return $parsed;
             };
             try {
-                $zones = $parseLimit($body['max_zones'] ?? '');
-                $members = $parseLimit($body['max_members'] ?? '');
+                $zones     = $parseLimit($body['max_zones'] ?? '');
+                $members   = $parseLimit($body['max_members'] ?? '');
                 $providers = $parseLimit($body['max_provider_accounts'] ?? '');
             } catch (\DomainException $error) {
                 return $this->errorRedirect('/accounts/' . $accountId, $error);
@@ -323,25 +323,25 @@ final readonly class AccountHandler implements RequestHandlerInterface
             $member = $this->users->findByIdForAdministration($membership->userId);
             return ['id' => $membership->id, 'userId' => $membership->userId, 'email' => $member instanceof User ? $member->email : $membership->userId, 'displayName' => $member instanceof User ? $member->displayName : null, 'role' => $membership->role->value, 'createdAt' => $membership->createdAt];
         }, $this->accounts->findMemberships($accountId));
-        $invitations = array_map(static fn (\TowerDNS\Domain\Account\AccountInvitation $invitation): array => [
-            'id' => $invitation->id,
-            'email' => $invitation->email,
-            'role' => $invitation->role->value,
+        $invitations = array_map(static fn(\TowerDNS\Domain\Account\AccountInvitation $invitation): array => [
+            'id'        => $invitation->id,
+            'email'     => $invitation->email,
+            'role'      => $invitation->role->value,
             'createdAt' => $invitation->createdAt,
             'expiresAt' => $invitation->expiresAt,
-            'status' => $invitation->status()->value,
+            'status'    => $invitation->status()->value,
         ], $this->invitations->listForAccount($user, $accountId));
         $flashError = $request->getQueryParams()['error'] ?? null;
 
         return new HtmlResponse(
             $this->renderer->render('app::accounts/members', [
-                'user'      => $user,
-                'account'   => $account,
-                'members'   => $members,
+                'user'        => $user,
+                'account'     => $account,
+                'members'     => $members,
                 'invitations' => $invitations,
-                'roles'     => TeamRole::cases(),
-                'csrfToken' => $csrfToken,
-                'error'     => is_string($flashError) ? $flashError : null,
+                'roles'       => TeamRole::cases(),
+                'csrfToken'   => $csrfToken,
+                'error'       => is_string($flashError) ? $flashError : null,
             ]),
         );
     }
@@ -397,7 +397,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             $email   = strtolower(trim((string) ($body['email'] ?? '')));
             if ($email === '' && $targetUserId !== '') {
                 $target = $this->users->findByIdForAdministration($targetUserId);
-                $email = $target instanceof User ? strtolower($target->email) : '';
+                $email  = $target instanceof User ? strtolower($target->email) : '';
             }
 
             if ($email === '' || $role === null) {
@@ -405,7 +405,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             }
 
             try {
-                $origin = $request->getUri()->getScheme() !== '' ? $request->getUri()->getScheme() . '://' . $request->getUri()->getHost() : '';
+                $origin  = $request->getUri()->getScheme() !== '' ? $request->getUri()->getScheme() . '://' . $request->getUri()->getHost() : '';
                 $created = $this->invitations->create($actor, $accountId, $email, $role, $origin);
                 $this->audit->record($request, 'account.invitation.created', 'account_invitation', (string) $created->invitation->id, actorUserId: $actor->id, accountId: $accountId, metadata: ['role' => $role->value, 'mail_delivered' => $created->mailDelivered]);
             } catch (\Throwable $error) {
@@ -480,7 +480,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             str_contains($message, 'target user not found') || str_contains($message, 'target user')        => 'accounts.error.user-not-found',
             str_contains($message, 'membership not found')                                                  => 'accounts.error.membership-not-found',
             str_contains($message, 'already pending')                                                       => 'accounts.error.invitation-pending',
-            str_contains($message, 'invitation')                                                           => 'accounts.error.invitation-unavailable',
+            str_contains($message, 'invitation')                                                            => 'accounts.error.invitation-unavailable',
             str_contains($message, 'resource limits')                                                       => 'accounts.error.operation-failed',
             str_contains($message, 'ownership') || str_contains($message, 'owner')                          => 'accounts.error.ownership',
             str_contains($message, 'inactive')                                                              => 'accounts.error.inactive',

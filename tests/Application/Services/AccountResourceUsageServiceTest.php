@@ -33,10 +33,10 @@ final class AccountResourceUsageServiceTest extends TestCase
         $zones->expects(self::once())->method('findByAccountId')->with(42)->willReturn([new \stdClass()]);
         $providers = $this->createMock(ProviderAccountRepositoryInterface::class);
         $providers->expects(self::once())->method('findByAccountId')->with(42)->willReturn([new \stdClass(), new \stdClass()]);
-        $rbac = new RbacPermissionChecker();
+        $rbac        = new RbacPermissionChecker();
         $permissions = new PermissionService($accounts, $this->createMock(ZoneMembershipRepositoryInterface::class), new AuthorizationService($rbac), $rbac);
 
-        $usage = (new AccountResourceUsageService($accounts, $limits, $zones, $providers, $permissions))->forUser(new User('user', 'user@example.test'), 42);
+        $usage = new AccountResourceUsageService($accounts, $limits, $zones, $providers, $permissions)->forUser(new User('user', 'user@example.test'), 42);
 
         self::assertSame(1, $usage->usedZones);
         self::assertSame(10, $usage->maxZones);

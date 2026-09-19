@@ -32,7 +32,7 @@ final class AccountInvitationServiceTest extends TestCase
         $accounts->method('findMembership')->willReturn(null);
         $accounts->expects(self::once())->method('addMembership');
         $accounts->expects(self::never())->method('removeMembership');
-        $users = $this->createMock(UserRepositoryInterface::class);
+        $users  = $this->createMock(UserRepositoryInterface::class);
         $target = new User('target', 'target@example.test');
         $users->method('findByEmail')->with('target@example.test')->willReturn($target);
         $invitations = $this->createMock(AccountInvitationRepositoryInterface::class);
@@ -49,15 +49,15 @@ final class AccountInvitationServiceTest extends TestCase
         $limitsRepository = $this->createMock(AccountResourceLimitsRepositoryInterface::class);
         $limitsRepository->method('findByAccountId')->with(42)->willReturn(new \TowerDNS\Domain\Account\AccountResourceLimits(42, null, 10, null));
         $accounts->method('findMemberships')->with(42)->willReturn([]);
-        $limits = new ResourceLimitService($limitsRepository, $this->createMock(ManagedZoneRepositoryInterface::class), $accounts, $this->createMock(ProviderAccountRepositoryInterface::class));
-        $rbac = new RbacPermissionChecker();
+        $limits      = new ResourceLimitService($limitsRepository, $this->createMock(ManagedZoneRepositoryInterface::class), $accounts, $this->createMock(ProviderAccountRepositoryInterface::class));
+        $rbac        = new RbacPermissionChecker();
         $permissions = new PermissionService($accounts, $this->createMock(\TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface::class), new AuthorizationService($rbac), $rbac);
 
-        $result = (new AccountInvitationService($invitations, $accounts, $users, $permissions, $limits, new MailService('null://null', 'noreply@example.test', 'TowerDNS')))->create(new User('owner', 'owner@example.test'), 42, 'target@example.test', TeamRole::VIEWER);
+        new AccountInvitationService($invitations, $accounts, $users, $permissions, $limits, new MailService('null://null', 'noreply@example.test', 'TowerDNS'))->create(new User('owner', 'owner@example.test'), 42, 'target@example.test', TeamRole::VIEWER);
 
         self::assertIsString($capturedHash);
         self::assertSame(64, strlen($capturedHash));
         self::assertTrue(ctype_xdigit($capturedHash));
-        (new AccountInvitationService($invitations, $accounts, $users, $permissions, $limits, new MailService('null://null', 'noreply@example.test', 'TowerDNS')))->accept($target, str_repeat('b', 64));
+        new AccountInvitationService($invitations, $accounts, $users, $permissions, $limits, new MailService('null://null', 'noreply@example.test', 'TowerDNS'))->accept($target, str_repeat('b', 64));
     }
 }

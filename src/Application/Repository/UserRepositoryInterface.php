@@ -7,8 +7,8 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Repository;
 
-use TowerDNS\Domain\Auth\User;
 use TowerDNS\Domain\Account\TeamRole;
+use TowerDNS\Domain\Auth\User;
 
 interface UserRepositoryInterface
 {

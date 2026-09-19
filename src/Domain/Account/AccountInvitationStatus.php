@@ -6,9 +6,9 @@ namespace TowerDNS\Domain\Account;
 
 enum AccountInvitationStatus: string
 {
-    case PENDING = 'pending';
+    case PENDING  = 'pending';
     case ACCEPTED = 'accepted';
     case DECLINED = 'declined';
-    case REVOKED = 'revoked';
-    case EXPIRED = 'expired';
+    case REVOKED  = 'revoked';
+    case EXPIRED  = 'expired';
 }

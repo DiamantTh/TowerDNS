@@ -51,7 +51,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         $params     = [$userId];
         if ($active !== null) {
             $conditions[] = 'a.is_active = ?';
-            $params[] = $active ? 1 : 0;
+            $params[]     = $active ? 1 : 0;
         } elseif (!$includeInactive) {
             $conditions[] = 'a.is_active = 1';
         }

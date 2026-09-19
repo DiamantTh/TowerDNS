@@ -10,8 +10,8 @@ use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Contracts\RrsetProviderInterface;
 use TowerDNS\Application\DNS\RdataCanonicalizer;
 use TowerDNS\Application\DNS\RrsetComparator;
-use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Validation\DNSNameValidator;
 use TowerDNS\Application\Validation\RecordValidator;
@@ -160,8 +160,8 @@ final readonly class ManagedZoneDNSService
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_DELETE, Capability::RECORD_DELETE);
         $this->assertAccountActive($accountId);
-        $recordType        = DNSRecordType::parse($type);
-        $rrsets            = $this->rrsets($provider);
+        $recordType = DNSRecordType::parse($type);
+        $rrsets     = $this->rrsets($provider);
         $rrsets->deleteRrset($zone->providerZoneId, $ownerName, $recordType->presentation);
         foreach ($rrsets->listRrsets($zone->providerZoneId) as $rrset) {
             if ($rrset->type->equals($recordType) && strcasecmp(rtrim($rrset->ownerName, '.'), rtrim($ownerName, '.')) === 0) {

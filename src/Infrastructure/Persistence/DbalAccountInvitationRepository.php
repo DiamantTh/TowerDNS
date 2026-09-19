@@ -16,17 +16,17 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
     public function create(int $accountId, string $email, ?string $userId, TeamRole $role, string $invitedBy, string $tokenHash, string $createdAt, string $expiresAt): int
     {
         $this->connection->insert('account_invitations', [
-            'account_id' => $accountId,
-            'email' => strtolower(trim($email)),
-            'user_id' => $userId,
-            'role' => $role->value,
-            'invited_by' => $invitedBy,
-            'token_hash' => $tokenHash,
-            'created_at' => $createdAt,
-            'expires_at' => $expiresAt,
+            'account_id'  => $accountId,
+            'email'       => strtolower(trim($email)),
+            'user_id'     => $userId,
+            'role'        => $role->value,
+            'invited_by'  => $invitedBy,
+            'token_hash'  => $tokenHash,
+            'created_at'  => $createdAt,
+            'expires_at'  => $expiresAt,
             'accepted_at' => null,
             'declined_at' => null,
-            'revoked_at' => null,
+            'revoked_at'  => null,
         ]);
         return (int) $this->connection->lastInsertId();
     }
@@ -106,7 +106,7 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
             expiresAt: (string) $row['expires_at'],
             acceptedAt: isset($row['accepted_at']) && $row['accepted_at'] !== '' ? (string) $row['accepted_at'] : null,
             declinedAt: isset($row['declined_at']) && $row['declined_at'] !== '' ? (string) $row['declined_at'] : null,
-            revokedAt: isset($row['revoked_at']) && $row['revoked_at'] !== '' ? (string) $row['revoked_at'] : null,
+            revokedAt: isset($row['revoked_at'])   && $row['revoked_at']  !== '' ? (string) $row['revoked_at'] : null,
         );
     }
 }

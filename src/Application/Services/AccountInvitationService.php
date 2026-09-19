@@ -31,7 +31,7 @@ final readonly class AccountInvitationService
     {
         $this->permissions->assertCanManageMembers($accountId, $actor);
         $account = $this->accountForInvitation($accountId);
-        $email = strtolower(trim($email));
+        $email   = strtolower(trim($email));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 254) {
             throw new \DomainException('Invitation email is invalid.');
         }
@@ -40,10 +40,10 @@ final readonly class AccountInvitationService
         }
 
         $target = $this->users->findByEmail($email);
-        if ($target instanceof User && $this->accounts->findMembership($accountId, $target->id) !== null) {
+        if ($target instanceof User && $this->accounts->findMembership($accountId, $target->id) instanceof \TowerDNS\Domain\Account\AccountMembership) {
             throw new \DomainException('User is already a member of this account.');
         }
-        $now = new \DateTimeImmutable();
+        $now     = new \DateTimeImmutable();
         $nowText = $now->format('Y-m-d H:i:s');
         if ($this->invitations->findPendingByAccountAndEmail($accountId, $email, $nowText) instanceof AccountInvitation) {
             throw new \DomainException('An invitation for this email is already pending.');
@@ -51,8 +51,8 @@ final readonly class AccountInvitationService
 
         $this->resourceLimits->assertCanAddMember($accountId);
         $rawToken = bin2hex(random_bytes(32));
-        $expires = $now->modify('+' . self::EXPIRY_DAYS . ' days');
-        $id = $this->invitations->create(
+        $expires  = $now->modify('+' . self::EXPIRY_DAYS . ' days');
+        $id       = $this->invitations->create(
             accountId: $accountId,
             email: $email,
             userId: $target instanceof User ? $target->id : null,
@@ -67,7 +67,7 @@ final readonly class AccountInvitationService
             throw new \RuntimeException('Invitation persistence failed.');
         }
 
-        $url = rtrim($baseUrl, '/') . '/invitations/' . rawurlencode($rawToken);
+        $url           = rtrim($baseUrl, '/') . '/invitations/' . rawurlencode($rawToken);
         $mailDelivered = true;
         try {
             $this->mail->send(
@@ -90,7 +90,7 @@ final readonly class AccountInvitationService
             throw new \DomainException('This invitation belongs to another email address.');
         }
         $account = $this->accountForInvitation($invitation->accountId);
-        if ($this->accounts->findMembership($account->id, $user->id) !== null) {
+        if ($this->accounts->findMembership($account->id, $user->id) instanceof \TowerDNS\Domain\Account\AccountMembership) {
             throw new \DomainException('User is already a member of this account.');
         }
         $this->resourceLimits->assertCanAddMember($account->id);

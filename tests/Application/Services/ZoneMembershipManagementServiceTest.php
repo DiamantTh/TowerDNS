@@ -18,8 +18,8 @@ use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\RbacPermissionChecker;
 use TowerDNS\Application\Services\ZoneMembershipManagementService;
-use TowerDNS\Domain\Account\ManagedZone;
 use TowerDNS\Domain\Account\Account;
+use TowerDNS\Domain\Account\ManagedZone;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 

@@ -39,7 +39,7 @@ final readonly class AccountInvitationHandler implements RequestHandlerInterface
         if ($request->getMethod() === 'POST') {
             /** @var CsrfGuardInterface $guard */
             $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-            $body = (array) ($request->getParsedBody() ?? []);
+            $body  = (array) ($request->getParsedBody() ?? []);
             if (!$guard instanceof CsrfGuardInterface || !$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
                 return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
             }
@@ -57,7 +57,7 @@ final readonly class AccountInvitationHandler implements RequestHandlerInterface
                     $this->audit->record($request, 'account.invitation.declined', 'account_invitation', (string) $invitation->id, actorUserId: $user->id, accountId: $invitation->accountId);
                     return new RedirectResponse('/accounts');
                 }
-            } catch (\Throwable $error) {
+            } catch (\Throwable) {
                 return new HtmlResponse($this->translator->translate('accounts.error.invitation-unavailable'), 400);
             }
         }
@@ -70,10 +70,10 @@ final readonly class AccountInvitationHandler implements RequestHandlerInterface
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         return new HtmlResponse($this->renderer->render('app::invitations/accept', [
-            'user' => $user,
+            'user'       => $user,
             'invitation' => $this->safeInvitation($invitation),
-            'token' => $token,
-            'csrfToken' => $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '',
+            'token'      => $token,
+            'csrfToken'  => $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '',
         ]));
     }
 
@@ -81,10 +81,10 @@ final readonly class AccountInvitationHandler implements RequestHandlerInterface
     private function safeInvitation(AccountInvitation $invitation): array
     {
         return [
-            'id' => $invitation->id,
+            'id'        => $invitation->id,
             'accountId' => $invitation->accountId,
-            'email' => $invitation->email,
-            'role' => $invitation->role->value,
+            'email'     => $invitation->email,
+            'role'      => $invitation->role->value,
             'expiresAt' => $invitation->expiresAt,
         ];
     }
