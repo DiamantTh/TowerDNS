@@ -26,6 +26,8 @@ function processStep3(): array
         return [t('step3.session_lost')];
     }
 
+    $lockWritten = false;
+
     try {
         // ── Doctrine DBAL-Verbindung ──────────────────────────────────────
         $params = match ($db['driver']) {
@@ -236,6 +238,7 @@ function processStep3(): array
 
         // ── Lock-Datei ────────────────────────────────────────────────────
         $writer->write(LOCK_FILE, $now . "\n");
+        $lockWritten = true;
         // This marker is deliberately outside install/, because successful
         // cleanup removes the installer directory entirely.
         $writer->write(INSTALLATION_MARKER, $now . "\n");
@@ -252,6 +255,11 @@ function processStep3(): array
             $_SESSION['install_step']
         );
     } catch (Throwable $ex) {
+        // A failed marker write must not leave the legacy lock behind: the
+        // installer must remain retryable after an interrupted first run.
+        if ($lockWritten && !is_file(INSTALLATION_MARKER)) {
+            @unlink(LOCK_FILE);
+        }
         error_log('TowerDNS installer failed: ' . $ex->getMessage());
         return [t('step3.install_failed')];
     }
