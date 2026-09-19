@@ -43,7 +43,11 @@ function detectInstallerLocale(): string
     // Accept-Language auswerten
     $accept = $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '';
     foreach (explode(',', $accept) as $tag) {
-        $lang = trim(strtok($tag, ';'));
+        $languagePart = strtok($tag, ';');
+        $lang         = is_string($languagePart) ? trim($languagePart) : '';
+        if ($lang === '') {
+            continue;
+        }
         // Exakter Treffer (z. B. de-DE)
         $normalized = preg_replace('/[^a-zA-Z\-]/', '', $lang) ?? $lang;
         if (array_key_exists($normalized, INSTALLER_LANGS)) {
