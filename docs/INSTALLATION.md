@@ -107,14 +107,17 @@ Auf klassischem Shared Hosting sind PHP 8.4+, der passende PDO-Treiber,
 Schreibrechte für die privaten Verzeichnisse und ein auf `httpdocs/` gesetzter
 DocumentRoot erforderlich. Composer, Node.js, SSH, Root-Rechte und dauerhafte
 Worker werden zur Laufzeit nicht benötigt, müssen aber für einen
-Repository-Checkout während der Entwicklung vorhanden sein. Ein Provider kann
-stattdessen ein vorbereitetes Deployment-Verzeichnis bereitstellen; dessen
-Erstellung ist nicht Bestandteil der Anwendung.
+Repository-Checkout während der Entwicklung vorhanden sein. Für einen Betrieb
+ohne SSH, Composer und Node.js muss ein extern vorbereitetes
+Deployment-Verzeichnis bereits `vendor/` und die gebauten Dateien unter
+`httpdocs/assets/` enthalten. Der Entwicklungscheckout allein ist dafür nicht
+vollständig; die Erstellung eines solchen Verzeichnisses ist nicht Bestandteil
+der Anwendung.
 
 Der typische Ablauf auf einem geeigneten Hosting-Paket ist:
 
-1. TowerDNS-Dateien in den privaten Webspace übertragen und den DocumentRoot
-   auf `httpdocs/` setzen.
+1. Ein vorbereitetes TowerDNS-Deployment-Verzeichnis in den privaten Webspace
+   übertragen und den DocumentRoot auf `httpdocs/` setzen.
 2. Beim Hosting-Provider PHP 8.4+ und den benötigten PDO-Treiber aktivieren und
    eine Datenbank samt Benutzer anlegen.
 3. `https://example.org/install.php` aufrufen und die Zugangsdaten eingeben.
