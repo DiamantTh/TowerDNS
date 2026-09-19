@@ -63,7 +63,15 @@ final readonly class UserListHandler implements RequestHandlerInterface
             );
         }
 
-        $allUsers = $this->users->findAll();
+        $query    = $request->getQueryParams();
+        $search   = is_string($query['q'] ?? null) ? trim($query['q']) : null;
+        $status   = (string) ($query['status'] ?? 'active');
+        $active   = $status === 'all' ? null : $status !== 'inactive';
+        $page     = max(1, (int) ($query['page'] ?? 1));
+        $pageSize = 50;
+        $loaded   = $this->users->findAll($search, $active, $pageSize + 1, ($page - 1) * $pageSize);
+        $hasNext  = count($loaded) > $pageSize;
+        $allUsers = array_slice($loaded, 0, $pageSize);
         $allRoles = $this->roles->findAll();
 
         return new HtmlResponse(
@@ -74,6 +82,10 @@ final readonly class UserListHandler implements RequestHandlerInterface
                 'csrfToken'   => $csrfToken,
                 'error'       => is_string($flashError) ? $flashError : null,
                 'success'     => is_string($flashSuccess) ? $flashSuccess : null,
+                'search'      => $search ?? '',
+                'status'      => $status,
+                'page'        => $page,
+                'hasNext'     => $hasNext,
             ]),
         );
     }

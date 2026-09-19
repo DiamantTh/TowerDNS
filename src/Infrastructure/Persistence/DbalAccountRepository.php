@@ -45,15 +45,30 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return $row !== false ? $this->hydrate($row) : null;
     }
 
-    public function findByUserId(string $userId): array
+    public function findByUserId(string $userId, ?string $search = null, ?AccountKind $type = null, int $limit = 100, int $offset = 0): array
     {
-        $rows = $this->connection->fetchAllAssociative(
+        $conditions = ['am.user_id = ?', 'a.is_active = 1'];
+        $params     = [$userId];
+        if ($search !== null && trim($search) !== '') {
+            $conditions[] = '(a.name LIKE ? OR a.slug LIKE ? OR a.customer_number LIKE ? OR a.external_reference LIKE ?)';
+            $term         = '%' . trim($search) . '%';
+            $params[]     = $term;
+            $params[]     = $term;
+            $params[]     = $term;
+            $params[]     = $term;
+        }
+        if ($type instanceof AccountKind) {
+            $conditions[] = 'a.account_type = ?';
+            $params[]     = $type->value;
+        }
+        $params[] = max(1, min($limit, 500));
+        $params[] = max(0, $offset);
+        $rows     = $this->connection->fetchAllAssociative(
             'SELECT a.* FROM accounts a
              JOIN account_memberships am ON am.account_id = a.id
-             WHERE am.user_id = ?
-               AND a.is_active = 1
-             ORDER BY a.name ASC',
-            [$userId]
+             WHERE ' . implode(' AND ', $conditions) . '
+             ORDER BY a.name ASC LIMIT ? OFFSET ?',
+            $params,
         );
         return array_map($this->hydrate(...), $rows);
     }
@@ -101,6 +116,15 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
     public function updateName(int $id, string $name): void
     {
         $this->connection->update('accounts', ['name' => $name], ['id' => $id]);
+    }
+
+    public function updateOrganizationDetails(int $id, string $name, ?string $customerNumber, ?string $externalReference): void
+    {
+        $this->connection->update('accounts', [
+            'name'               => $name,
+            'customer_number'    => $customerNumber,
+            'external_reference' => $externalReference,
+        ], ['id' => $id]);
     }
 
     public function deactivate(int $id): void

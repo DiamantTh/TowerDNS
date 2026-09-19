@@ -79,6 +79,38 @@ final class AccountMembershipManagementServiceTest extends TestCase
         $service->invite(new User('actor', 'actor@example.test'), 42, 'target', TeamRole::VIEWER);
     }
 
+    public function testChangeRoleUpdatesExistingNonOwnerMember(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'owner', true, '2026-09-16 00:00:00'));
+        $accounts->method('findMembership')->with(42, 'target')->willReturn(new AccountMembership(7, 42, 'target', TeamRole::VIEWER, '2026-09-16 00:00:00'));
+        $accounts->expects(self::once())->method('updateMembershipRole')->with(42, 'target', TeamRole::ADMIN);
+
+        $service = new AccountMembershipManagementService(
+            $accounts,
+            $this->createMock(UserRepositoryInterface::class),
+            $this->servicePermissions($accounts),
+        );
+
+        $service->changeRole(new User('actor', 'actor@example.test'), 42, 'target', TeamRole::ADMIN);
+    }
+
+    public function testChangeRoleCannotPromoteOwnerThroughRoleForm(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'owner', true, '2026-09-16 00:00:00'));
+        $accounts->expects(self::never())->method('updateMembershipRole');
+
+        $service = new AccountMembershipManagementService(
+            $accounts,
+            $this->createMock(UserRepositoryInterface::class),
+            $this->servicePermissions($accounts),
+        );
+
+        $this->expectException(\DomainException::class);
+        $service->changeRole(new User('actor', 'actor@example.test'), 42, 'target', TeamRole::OWNER);
+    }
+
     private function servicePermissions(AccountRepositoryInterface $accounts): PermissionService
     {
         /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */

@@ -18,12 +18,14 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AccountManagementService;
 use TowerDNS\Application\Services\AccountMembershipManagementService;
 use TowerDNS\Application\Services\AccountOwnershipService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Domain\Account\Account;
+use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
@@ -49,6 +51,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         private AccountOwnershipService              $ownership,
         private AccountManagementService             $accountManagement,
         private TranslatorInterface                  $translator,
+        private UserRepositoryInterface             $users,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -92,13 +95,24 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $accounts   = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value], $this->accounts->findByUserId($user->id));
-        $flashError = $request->getQueryParams()['error'] ?? null;
+        $query      = $request->getQueryParams();
+        $search     = is_string($query['q'] ?? null) ? trim($query['q']) : null;
+        $type       = AccountKind::tryFrom((string) ($query['type'] ?? ''));
+        $page       = max(1, (int) ($query['page'] ?? 1));
+        $pageSize   = 50;
+        $loaded     = $this->accounts->findByUserId($user->id, $search, $type, $pageSize + 1, ($page - 1) * $pageSize);
+        $hasNext    = count($loaded) > $pageSize;
+        $accounts   = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value], array_slice($loaded, 0, $pageSize));
+        $flashError = $query['error'] ?? null;
 
         return new HtmlResponse(
             $this->renderer->render('app::accounts/list', [
                 'user'      => $user,
                 'accounts'  => $accounts,
+                'search'    => $search ?? '',
+                'type'      => $type instanceof AccountKind ? $type->value : 'all',
+                'page'      => $page,
+                'hasNext'   => $hasNext,
                 'csrfToken' => $csrfToken,
                 'error'     => is_string($flashError) ? $flashError : null,
             ]),
@@ -192,19 +206,31 @@ final readonly class AccountHandler implements RequestHandlerInterface
             try {
                 $this->accountManagement->deactivate($user, $accountId);
                 $this->audit->recordAccountDeactivated($request, $user->id, $accountId);
-            } catch (\Throwable) {
-                return $this->errorRedirect('/accounts/' . $accountId);
+            } catch (\Throwable $error) {
+                return $this->errorRedirect('/accounts/' . $accountId, $error);
             }
             return new RedirectResponse('/accounts');
         }
 
-        $name = (string) ($body['name'] ?? '');
+        if ($action === 'delete') {
+            try {
+                $this->accountManagement->delete($user, $accountId);
+                $this->audit->record($request, 'account.deleted', 'account', (string) $accountId, actorUserId: $user->id, accountId: $accountId);
+            } catch (\Throwable $error) {
+                return $this->errorRedirect('/accounts/' . $accountId, $error);
+            }
+            return new RedirectResponse('/accounts');
+        }
+
+        $name              = (string) ($body['name'] ?? '');
+        $customerNumber    = isset($body['customer_number']) ? trim((string) $body['customer_number']) : null;
+        $externalReference = isset($body['external_reference']) ? trim((string) $body['external_reference']) : null;
 
         try {
-            $this->accountManagement->rename($user, $accountId, $name);
+            $this->accountManagement->updateOrganizationDetails($user, $accountId, $name, $customerNumber, $externalReference);
             $this->audit->recordAccountRenamed($request, $user->id, $accountId, trim($name));
-        } catch (\Throwable) {
-            return $this->errorRedirect('/accounts/' . $accountId);
+        } catch (\Throwable $error) {
+            return $this->errorRedirect('/accounts/' . $accountId, $error);
         }
 
         return new RedirectResponse('/accounts/' . $accountId);
@@ -233,7 +259,10 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $members    = $this->accounts->findMemberships($accountId);
+        $members = array_map(function (\TowerDNS\Domain\Account\AccountMembership $membership): array {
+            $member = $this->users->findByIdForAdministration($membership->userId);
+            return ['id' => $membership->id, 'userId' => $membership->userId, 'email' => $member instanceof User ? $member->email : $membership->userId, 'displayName' => $member instanceof User ? $member->displayName : null, 'role' => $membership->role->value, 'createdAt' => $membership->createdAt];
+        }, $this->accounts->findMemberships($accountId));
         $flashError = $request->getQueryParams()['error'] ?? null;
 
         return new HtmlResponse(
@@ -287,8 +316,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
             try {
                 $this->memberships->revoke($actor, $accountId, $targetUserId);
                 $this->audit->recordMemberRemoved($request, $actor->id, $accountId, $targetUserId);
-            } catch (\Throwable) {
-                return $this->errorRedirect($base);
+            } catch (\Throwable $error) {
+                return $this->errorRedirect($base, $error);
             }
             return new RedirectResponse($base);
         }
@@ -304,10 +333,24 @@ final readonly class AccountHandler implements RequestHandlerInterface
             try {
                 $this->memberships->invite($actor, $accountId, $targetUserId, $role);
                 $this->audit->recordMemberInvited($request, $actor->id, $accountId, $targetUserId, $role->value);
-            } catch (\Throwable) {
-                return $this->errorRedirect($base);
+            } catch (\Throwable $error) {
+                return $this->errorRedirect($base, $error);
             }
 
+            return new RedirectResponse($base);
+        }
+
+        if ($action === 'role') {
+            $role = TeamRole::tryFrom(trim((string) ($body['role'] ?? '')));
+            if ($targetUserId === '' || $role === null) {
+                return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate('accounts.error.member-input-required')));
+            }
+            try {
+                $this->memberships->changeRole($actor, $accountId, $targetUserId, $role);
+                $this->audit->record($request, 'account.member.role_changed', 'account_membership', $targetUserId, actorUserId: $actor->id, accountId: $accountId, metadata: ['role' => $role->value]);
+            } catch (\Throwable $error) {
+                return $this->errorRedirect($base, $error);
+            }
             return new RedirectResponse($base);
         }
 
@@ -334,14 +377,26 @@ final readonly class AccountHandler implements RequestHandlerInterface
         try {
             $this->ownership->transfer($actor, $accountId, $target);
             $this->audit->recordAccountOwnershipTransferred($request, $actor->id, $accountId, $target);
-        } catch (\Throwable) {
-            return $this->errorRedirect($base);
+        } catch (\Throwable $error) {
+            return $this->errorRedirect($base, $error);
         }
         return new RedirectResponse($base);
     }
 
-    private function errorRedirect(string $path): RedirectResponse
+    private function errorRedirect(string $path, ?\Throwable $error = null): RedirectResponse
     {
-        return new RedirectResponse($path . '?error=' . rawurlencode($this->translator->translate('accounts.error.operation-failed')));
+        $message = strtolower($error?->getMessage() ?? '');
+        $key     = match (true) {
+            str_contains($message, 'personal account')                                                      => 'accounts.error.personal-immutable',
+            str_contains($message, 'still contains resources')                                              => 'accounts.error.resources-present',
+            str_contains($message, 'additional members') || str_contains($message, 'other account members') => 'accounts.error.members-present',
+            str_contains($message, 'already a member')                                                      => 'accounts.error.already-member',
+            str_contains($message, 'target user not found') || str_contains($message, 'target user')        => 'accounts.error.user-not-found',
+            str_contains($message, 'membership not found')                                                  => 'accounts.error.membership-not-found',
+            str_contains($message, 'ownership') || str_contains($message, 'owner')                          => 'accounts.error.ownership',
+            str_contains($message, 'inactive')                                                              => 'accounts.error.inactive',
+            default                                                                                         => 'accounts.error.operation-failed',
+        };
+        return new RedirectResponse($path . '?error=' . rawurlencode($this->translator->translate($key)));
     }
 }

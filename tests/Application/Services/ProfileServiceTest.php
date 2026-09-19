@@ -92,4 +92,21 @@ final class ProfileServiceTest extends TestCase
         self::assertNotNull($fallback);
         self::assertSame('en-GB', $fallback->locale);
     }
+
+    public function testAdministrativeLookupIncludesInactiveUsersAndSupportsSearch(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        new SchemaManager($connection)->createTablesIfNotExist();
+        $users = new DbalUserRepository($connection, new SystemClock());
+        $users->create('active-user', 'active@example.test', 'hash');
+        $users->create('inactive-user', 'inactive@example.test', 'hash');
+        $users->setActive('inactive-user', false);
+
+        self::assertNull($users->findById('inactive-user'));
+        $inactive = $users->findByIdForAdministration('inactive-user');
+        self::assertNotNull($inactive);
+        self::assertFalse($inactive->active);
+        self::assertCount(1, $users->findAll('inactive@', false));
+        self::assertCount(2, $users->findAll(null, null));
+    }
 }

@@ -111,5 +111,7 @@ final class UserLifecycleServiceTest extends TestCase
         self::assertSame('personal-' . $userId, $active->defaultFor($user)?->slug);
         self::assertSame($organizationId, $active->select($user, $organizationId)->id);
         self::assertNull($active->resolve($user, 999999));
+        self::assertCount(1, $accounts->findByUserId($userId, 'AAA', AccountKind::ORGANIZATION));
+        self::assertCount(1, $accounts->findByUserId($userId, null, AccountKind::PERSONAL, 1, 0));
     }
 }

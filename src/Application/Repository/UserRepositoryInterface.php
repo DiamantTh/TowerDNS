@@ -17,6 +17,9 @@ interface UserRepositoryInterface
      */
     public function findById(string $id): ?User;
 
+    /** Administrative lookup that also returns inactive users. */
+    public function findByIdForAdministration(string $id): ?User;
+
     /**
      * Loads a user by e-mail address.
      * Returns null when no user with that address exists.
@@ -70,6 +73,8 @@ interface UserRepositoryInterface
      */
     public function updateDisplayName(string $userId, string $displayName): void;
 
+    public function setActive(string $userId, bool $active): void;
+
     /** @param array<string, string|null> $profile Optional personal data and presentation preferences. */
     public function updateProfile(string $userId, array $profile): void;
 
@@ -82,7 +87,7 @@ interface UserRepositoryInterface
     public function syncRoles(string $userId, array $roleIds): void;
 
     /** @return list<User> */
-    public function findAll(): array;
+    public function findAll(?string $search = null, ?bool $active = true, int $limit = 100, int $offset = 0): array;
 
     public function delete(string $userId): void;
 

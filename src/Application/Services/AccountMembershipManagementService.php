@@ -37,9 +37,14 @@ final readonly class AccountMembershipManagementService
         }
 
         $targetUserId = trim($targetUserId);
-        if ($targetUserId === '' || !$this->users->findById($targetUserId) instanceof User) {
+        $target       = $targetUserId !== '' ? $this->users->findById($targetUserId) : null;
+        if (!$target instanceof User && str_contains($targetUserId, '@')) {
+            $target = $this->users->findByEmail(strtolower($targetUserId));
+        }
+        if (!$target instanceof User) {
             throw new \DomainException('Target user not found.');
         }
+        $targetUserId = $target->id;
 
         if ($role === TeamRole::OWNER) {
             throw new \DomainException('Account ownership can only be changed through ownership transfer.');
@@ -82,5 +87,28 @@ final readonly class AccountMembershipManagementService
         }
 
         $this->accounts->removeMembership($accountId, $membership->userId);
+    }
+
+    public function changeRole(User $actor, int $accountId, string $targetUserId, TeamRole $role): void
+    {
+        $this->permissions->assertCanManageMembers($accountId, $actor);
+        $account = $this->accounts->findById($accountId);
+        if (!$account instanceof Account || !$account->isActive) {
+            throw new \DomainException('Account not found or inactive.');
+        }
+        if ($account->kind() === AccountKind::PERSONAL) {
+            throw new \DomainException('Personal account membership cannot be changed.');
+        }
+        if ($role === TeamRole::OWNER) {
+            throw new \DomainException('Account ownership can only be changed through ownership transfer.');
+        }
+        $membership = $this->accounts->findMembership($accountId, trim($targetUserId));
+        if (!$membership instanceof AccountMembership) {
+            throw new \DomainException('Membership not found.');
+        }
+        if ($membership->role === TeamRole::OWNER) {
+            throw new \DomainException('Transfer ownership before changing the owner role.');
+        }
+        $this->accounts->updateMembershipRole($accountId, $membership->userId, $role);
     }
 }

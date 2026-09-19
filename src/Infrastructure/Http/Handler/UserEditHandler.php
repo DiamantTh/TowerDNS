@@ -70,7 +70,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
             );
         }
 
-        $target = $this->users->findById($targetId);
+        $target = $this->users->findByIdForAdministration($targetId);
         if (!$target instanceof User) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/user_edit', [
@@ -126,6 +126,20 @@ final readonly class UserEditHandler implements RequestHandlerInterface
             return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode($this->translator->translate('users.success.display-name-updated')));
         }
 
+        if ($action === 'status') {
+            if ($targetId === $currentUser->id && (string) ($body['active'] ?? '') !== '1') {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.self-deactivate')));
+            }
+            try {
+                $active = (string) ($body['active'] ?? '') === '1';
+                $this->users->setActive($targetId, $active);
+                $this->audit->record($request, 'user.status.changed', 'user', $targetId, actorUserId: $currentUser->id, after: ['active' => $active]);
+            } catch (\Throwable) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.save-failed')));
+            }
+            return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode($this->translator->translate('users.success.status-updated')));
+        }
+
         // ── Passwort zurücksetzen ─────────────────────────────────────────
         if ($action === 'reset_password') {
             $newPassword = (string) ($body['new_password'] ?? '');
@@ -175,7 +189,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         }
 
         // Reload user so the template reflects the updated roles.
-        $updated = $this->users->findById($targetId) ?? $target;
+        $updated = $this->users->findByIdForAdministration($targetId) ?? $target;
 
         return new HtmlResponse(
             $this->renderer->render('app::iam/user_edit', [

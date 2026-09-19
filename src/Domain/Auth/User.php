@@ -16,6 +16,7 @@ final readonly class User
         public string $id,
         public string $email,
         public array $roles = [],
+        public bool $active = true,
         public ?string $displayName = null,
         public string $theme = 'system',
         public string $language = 'en-GB',

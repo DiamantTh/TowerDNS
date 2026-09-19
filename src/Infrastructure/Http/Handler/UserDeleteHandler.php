@@ -64,7 +64,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
             return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.self-delete-not-allowed')));
         }
 
-        $target = $this->users->findById($targetId);
+        $target = $this->users->findByIdForAdministration($targetId);
         if (!$target instanceof User) {
             return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.not-found')));
         }
