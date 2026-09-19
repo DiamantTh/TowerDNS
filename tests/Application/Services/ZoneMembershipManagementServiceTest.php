@@ -19,6 +19,7 @@ use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\RbacPermissionChecker;
 use TowerDNS\Application\Services\ZoneMembershipManagementService;
 use TowerDNS\Domain\Account\ManagedZone;
+use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
@@ -86,6 +87,7 @@ final class ZoneMembershipManagementServiceTest extends TestCase
     ): ZoneMembershipManagementService {
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('getEffectiveRole')->with(42, 'actor')->willReturn(TeamRole::ADMIN);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'actor', true, '2026-09-16 00:00:00'));
         $rbac        = new RbacPermissionChecker();
         $permissions = new PermissionService($accounts, $memberships, new AuthorizationService($rbac), $rbac, $zones);
 

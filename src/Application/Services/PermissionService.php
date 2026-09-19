@@ -206,6 +206,14 @@ final readonly class PermissionService
         }
     }
 
+    public function assertAccountActive(int $accountId): void
+    {
+        $account = $this->accounts->findById($accountId);
+        if (!$account instanceof \TowerDNS\Domain\Account\Account || !$account->isActive) {
+            throw new \DomainException('Account is inactive.');
+        }
+    }
+
     public function assertZone(User $user, Permission $permission, int $accountId, string $zoneId): void
     {
         if (!$this->authorizeZone($user, $permission, $accountId, $zoneId)) {

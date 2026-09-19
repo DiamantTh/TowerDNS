@@ -145,4 +145,19 @@ final readonly class AccountManagementService
 
         $this->accounts->deactivate($accountId);
     }
+
+    public function activate(User $actor, int $accountId): void
+    {
+        $this->permissions->assertAccount($actor, Permission::ACCOUNT_UPDATE, $accountId);
+
+        $account = $this->accounts->findById($accountId);
+        if (!$account instanceof Account) {
+            throw new \DomainException('Account not found.');
+        }
+        if ($account->kind() === AccountKind::PERSONAL) {
+            throw new \DomainException('Personal accounts cannot be changed through account status actions.');
+        }
+
+        $this->accounts->activate($accountId);
+    }
 }

@@ -494,6 +494,29 @@ final readonly class SchemaManager
             'fk_accm_invited_by',
         );
 
+        // account_invitations -----------------------------------------------
+        // Raw invitation tokens are never persisted; token_hash is SHA-256.
+        $accountInvitations = new Table('account_invitations');
+        $accountInvitations->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $accountInvitations->addColumn('account_id', Types::INTEGER);
+        $accountInvitations->addColumn('email', Types::STRING, ['length' => 254]);
+        $accountInvitations->addColumn('user_id', Types::GUID, ['notnull' => false]);
+        $accountInvitations->addColumn('role', Types::STRING, ['length' => 32]);
+        $accountInvitations->addColumn('invited_by', Types::GUID);
+        $accountInvitations->addColumn('token_hash', Types::STRING, ['length' => 64]);
+        $accountInvitations->addColumn('created_at', Types::STRING, ['length' => 19]);
+        $accountInvitations->addColumn('expires_at', Types::STRING, ['length' => 19]);
+        $accountInvitations->addColumn('accepted_at', Types::STRING, ['length' => 19, 'notnull' => false]);
+        $accountInvitations->addColumn('declined_at', Types::STRING, ['length' => 19, 'notnull' => false]);
+        $accountInvitations->addColumn('revoked_at', Types::STRING, ['length' => 19, 'notnull' => false]);
+        $accountInvitations->setPrimaryKey(['id']);
+        $accountInvitations->addUniqueIndex(['token_hash'], 'uq_account_invitation_token');
+        $accountInvitations->addIndex(['account_id', 'email'], 'idx_account_invitation_account_email');
+        $accountInvitations->addIndex(['email', 'expires_at'], 'idx_account_invitation_email_expiry');
+        $accountInvitations->addForeignKeyConstraint('accounts', ['account_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_ai_account_id');
+        $accountInvitations->addForeignKeyConstraint('users', ['user_id'], ['id'], ['onDelete' => 'SET NULL'], 'fk_ai_user_id');
+        $accountInvitations->addForeignKeyConstraint('users', ['invited_by'], ['id'], ['onDelete' => 'RESTRICT'], 'fk_ai_invited_by');
+
         // provider_accounts --------------------------------------------------
         $provAccounts = new Table('provider_accounts');
         $provAccounts->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
@@ -664,7 +687,7 @@ final readonly class SchemaManager
 
         return [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $apiKeys,
-            $accounts, $resourceLimits, $accMembers, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
+            $accounts, $resourceLimits, $accMembers, $accountInvitations, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
             $pwResetTokens, $systemSettings,
         ];
     }

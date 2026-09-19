@@ -13,6 +13,7 @@ use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
+use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -20,6 +21,9 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AccountManagementService;
+use TowerDNS\Application\Services\AccountInvitationService;
+use TowerDNS\Application\Services\AccountResourceLimitManagementService;
+use TowerDNS\Application\Services\AccountResourceUsageService;
 use TowerDNS\Application\Services\AccountMembershipManagementService;
 use TowerDNS\Application\Services\AccountOwnershipService;
 use TowerDNS\Application\Services\AuditLogService;
@@ -52,6 +56,9 @@ final readonly class AccountHandler implements RequestHandlerInterface
         private AccountManagementService             $accountManagement,
         private TranslatorInterface                  $translator,
         private UserRepositoryInterface             $users,
+        private AccountResourceUsageService          $resourceUsage,
+        private AccountResourceLimitManagementService $resourceLimits,
+        private AccountInvitationService            $invitations,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -98,11 +105,14 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $query      = $request->getQueryParams();
         $search     = is_string($query['q'] ?? null) ? trim($query['q']) : null;
         $type       = AccountKind::tryFrom((string) ($query['type'] ?? ''));
+        $role       = TeamRole::tryFrom((string) ($query['role'] ?? ''));
+        $status     = in_array(($query['status'] ?? 'all'), ['active', 'inactive'], true) ? (string) $query['status'] : 'all';
+        $active     = $status === 'active' ? true : ($status === 'inactive' ? false : null);
         $page       = max(1, (int) ($query['page'] ?? 1));
         $pageSize   = 50;
-        $loaded     = $this->accounts->findByUserId($user->id, $search, $type, $pageSize + 1, ($page - 1) * $pageSize);
+        $loaded     = $this->accounts->findByUserId($user->id, $search, $type, $pageSize + 1, ($page - 1) * $pageSize, true, $role, $active);
         $hasNext    = count($loaded) > $pageSize;
-        $accounts   = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value], array_slice($loaded, 0, $pageSize));
+        $accounts   = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value, 'isActive' => $account->isActive], array_slice($loaded, 0, $pageSize));
         $flashError = $query['error'] ?? null;
 
         return new HtmlResponse(
@@ -111,6 +121,9 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 'accounts'  => $accounts,
                 'search'    => $search ?? '',
                 'type'      => $type instanceof AccountKind ? $type->value : 'all',
+                'role'      => $role instanceof TeamRole ? $role->value : 'all',
+                'status'    => $status,
+                'roles'     => TeamRole::cases(),
                 'page'      => $page,
                 'hasNext'   => $hasNext,
                 'csrfToken' => $csrfToken,
@@ -178,6 +191,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 'user'      => $user,
                 'account'   => $account,
                 'csrfToken' => $csrfToken,
+                'usage'     => $this->resourceUsage->forUser($user, $accountId),
                 'error'     => is_string($flashError) ? $flashError : null,
             ]),
         );
@@ -209,7 +223,49 @@ final readonly class AccountHandler implements RequestHandlerInterface
             } catch (\Throwable $error) {
                 return $this->errorRedirect('/accounts/' . $accountId, $error);
             }
+            $session = $request->getAttribute(SessionInterface::class);
+            if ($session instanceof SessionInterface && (int) $session->get('active_account_id', 0) === $accountId) {
+                $session->unset('active_account_id');
+            }
             return new RedirectResponse('/accounts');
+        }
+
+        if ($action === 'activate') {
+            try {
+                $this->accountManagement->activate($user, $accountId);
+                $this->audit->record($request, 'account.activated', 'account', (string) $accountId, actorUserId: $user->id, accountId: $accountId);
+            } catch (\Throwable $error) {
+                return $this->errorRedirect('/accounts/' . $accountId, $error);
+            }
+            return new RedirectResponse('/accounts/' . $accountId);
+        }
+
+        if ($action === 'limits') {
+            $parseLimit = static function (mixed $value): ?int {
+                $value = trim((string) $value);
+                if ($value === '') {
+                    return null;
+                }
+                $parsed = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+                if ($parsed === false) {
+                    throw new \DomainException('Resource limits are invalid.');
+                }
+                return $parsed;
+            };
+            try {
+                $zones = $parseLimit($body['max_zones'] ?? '');
+                $members = $parseLimit($body['max_members'] ?? '');
+                $providers = $parseLimit($body['max_provider_accounts'] ?? '');
+            } catch (\DomainException $error) {
+                return $this->errorRedirect('/accounts/' . $accountId, $error);
+            }
+            try {
+                $this->resourceLimits->update($user, $accountId, $zones, $members, $providers);
+                $this->audit->record($request, 'account.limits.updated', 'account', (string) $accountId, actorUserId: $user->id, accountId: $accountId);
+            } catch (\Throwable $error) {
+                return $this->errorRedirect('/accounts/' . $accountId, $error);
+            }
+            return new RedirectResponse('/accounts/' . $accountId);
         }
 
         if ($action === 'delete') {
@@ -263,6 +319,14 @@ final readonly class AccountHandler implements RequestHandlerInterface
             $member = $this->users->findByIdForAdministration($membership->userId);
             return ['id' => $membership->id, 'userId' => $membership->userId, 'email' => $member instanceof User ? $member->email : $membership->userId, 'displayName' => $member instanceof User ? $member->displayName : null, 'role' => $membership->role->value, 'createdAt' => $membership->createdAt];
         }, $this->accounts->findMemberships($accountId));
+        $invitations = array_map(static fn (\TowerDNS\Domain\Account\AccountInvitation $invitation): array => [
+            'id' => $invitation->id,
+            'email' => $invitation->email,
+            'role' => $invitation->role->value,
+            'createdAt' => $invitation->createdAt,
+            'expiresAt' => $invitation->expiresAt,
+            'status' => $invitation->status()->value,
+        ], $this->invitations->listForAccount($user, $accountId));
         $flashError = $request->getQueryParams()['error'] ?? null;
 
         return new HtmlResponse(
@@ -270,6 +334,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 'user'      => $user,
                 'account'   => $account,
                 'members'   => $members,
+                'invitations' => $invitations,
                 'roles'     => TeamRole::cases(),
                 'csrfToken' => $csrfToken,
                 'error'     => is_string($flashError) ? $flashError : null,
@@ -325,18 +390,35 @@ final readonly class AccountHandler implements RequestHandlerInterface
         if ($action === 'invite') {
             $roleVal = trim((string) ($body['role'] ?? ''));
             $role    = TeamRole::tryFrom($roleVal);
+            $email   = strtolower(trim((string) ($body['email'] ?? '')));
+            if ($email === '' && $targetUserId !== '') {
+                $target = $this->users->findByIdForAdministration($targetUserId);
+                $email = $target instanceof User ? strtolower($target->email) : '';
+            }
 
-            if ($targetUserId === '' || $role === null) {
+            if ($email === '' || $role === null) {
                 return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate('accounts.error.member-input-required')));
             }
 
             try {
-                $this->memberships->invite($actor, $accountId, $targetUserId, $role);
-                $this->audit->recordMemberInvited($request, $actor->id, $accountId, $targetUserId, $role->value);
+                $origin = $request->getUri()->getScheme() !== '' ? $request->getUri()->getScheme() . '://' . $request->getUri()->getHost() : '';
+                $created = $this->invitations->create($actor, $accountId, $email, $role, $origin);
+                $this->audit->record($request, 'account.invitation.created', 'account_invitation', (string) $created->invitation->id, actorUserId: $actor->id, accountId: $accountId, metadata: ['role' => $role->value, 'mail_delivered' => $created->mailDelivered]);
             } catch (\Throwable $error) {
                 return $this->errorRedirect($base, $error);
             }
 
+            return new RedirectResponse($base);
+        }
+
+        if ($action === 'revoke_invitation') {
+            $invitationId = (int) ($body['invitation_id'] ?? 0);
+            try {
+                $this->invitations->revoke($actor, $invitationId);
+                $this->audit->record($request, 'account.invitation.revoked', 'account_invitation', (string) $invitationId, actorUserId: $actor->id, accountId: $accountId);
+            } catch (\Throwable $error) {
+                return $this->errorRedirect($base, $error);
+            }
             return new RedirectResponse($base);
         }
 
@@ -393,6 +475,9 @@ final readonly class AccountHandler implements RequestHandlerInterface
             str_contains($message, 'already a member')                                                      => 'accounts.error.already-member',
             str_contains($message, 'target user not found') || str_contains($message, 'target user')        => 'accounts.error.user-not-found',
             str_contains($message, 'membership not found')                                                  => 'accounts.error.membership-not-found',
+            str_contains($message, 'already pending')                                                       => 'accounts.error.invitation-pending',
+            str_contains($message, 'invitation')                                                           => 'accounts.error.invitation-unavailable',
+            str_contains($message, 'resource limits')                                                       => 'accounts.error.operation-failed',
             str_contains($message, 'ownership') || str_contains($message, 'owner')                          => 'accounts.error.ownership',
             str_contains($message, 'inactive')                                                              => 'accounts.error.inactive',
             default                                                                                         => 'accounts.error.operation-failed',

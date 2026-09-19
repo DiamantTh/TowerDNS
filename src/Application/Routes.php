@@ -9,6 +9,7 @@ namespace TowerDNS\Application;
 
 use Mezzio\Application;
 use TowerDNS\Infrastructure\Http\Handler\AccountHandler;
+use TowerDNS\Infrastructure\Http\Handler\AccountInvitationHandler;
 use TowerDNS\Infrastructure\Http\Handler\ActiveAccountHandler;
 use TowerDNS\Infrastructure\Http\Handler\AdminSwitchHandler;
 use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
@@ -138,6 +139,8 @@ final class Routes
         $app->get('/accounts/{id}/members', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.members');
         $app->post('/accounts/{id}/members', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.members.submit');
         $app->post('/accounts/{id}/ownership', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.ownership.transfer');
+        $app->get('/invitations/{token}', [RequireAuthMiddleware::class, AccountInvitationHandler::class], 'account.invitation.form');
+        $app->post('/invitations/{token}', [RequireAuthMiddleware::class, AccountInvitationHandler::class], 'account.invitation.submit');
 
         // ── Provider Accounts ─────────────────────────────────────────────────
         $app->get('/accounts/{id}/providers', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.list');

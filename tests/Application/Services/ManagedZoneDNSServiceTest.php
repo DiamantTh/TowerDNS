@@ -18,6 +18,7 @@ use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\RbacPermissionChecker;
 use TowerDNS\Domain\Account\ManagedZone;
+use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
@@ -29,6 +30,22 @@ use TowerDNS\Domain\DNS\Zone;
 
 final class ManagedZoneDNSServiceTest extends TestCase
 {
+    public function testMutationsAreBlockedForInactiveAccounts(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('getEffectiveRole')->with(42, 'user')->willReturn(TeamRole::OWNER);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Disabled', 'disabled', 'user', false, '2026-09-17 00:00:00'));
+        $zones = $this->createMock(ManagedZoneRepositoryInterface::class);
+        $providerAccounts = $this->createMock(ProviderAccountRepositoryInterface::class);
+        $providerAccounts->expects(self::never())->method('findById');
+        $factory = $this->createMock(AccountProviderFactoryInterface::class);
+        $permissions = new PermissionService($accounts, $this->createMock(ZoneMembershipRepositoryInterface::class), new AuthorizationService(new RbacPermissionChecker()), new RbacPermissionChecker(), $zones);
+        $service = new ManagedZoneDNSService($permissions, $accounts, $zones, $providerAccounts, $factory);
+
+        $this->expectException(\DomainException::class);
+        $service->create(new User('user', 'user@example.test'), 42, 9, 'example.test');
+    }
+
     public function testRecordOperationResolvesOnlyTheManagedZoneProviderReference(): void
     {
         $managed = new ManagedZone(7, 42, 9, 'same-external-id', 'example.test', '2026-09-17 12:00:00');
@@ -85,10 +102,11 @@ final class ManagedZoneDNSServiceTest extends TestCase
         $factory->expects(self::once())->method('buildProvider')->willReturn($provider);
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('getEffectiveRole')->with(42, 'user')->willReturn(TeamRole::DNS_MANAGER);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'user', true, '2026-09-17 00:00:00'));
         $memberships = $this->createMock(ZoneMembershipRepositoryInterface::class);
         $rbac        = new RbacPermissionChecker();
         $permissions = new PermissionService($accounts, $memberships, new AuthorizationService($rbac), $rbac, $zones);
-        $service     = new ManagedZoneDNSService($permissions, $zones, $providerAccounts, $factory);
+        $service     = new ManagedZoneDNSService($permissions, $accounts, $zones, $providerAccounts, $factory);
 
         $service->createRecord(new User('user', 'user@example.test'), 42, 7, new Record('', 'untrusted-zone', 'www', RecordType::A, 300, '192.0.2.1'));
 

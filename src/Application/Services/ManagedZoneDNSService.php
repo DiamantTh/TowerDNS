@@ -11,6 +11,7 @@ use TowerDNS\Application\Contracts\RrsetProviderInterface;
 use TowerDNS\Application\DNS\RdataCanonicalizer;
 use TowerDNS\Application\DNS\RrsetComparator;
 use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
+use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Validation\DNSNameValidator;
 use TowerDNS\Application\Validation\RecordValidator;
@@ -29,6 +30,7 @@ final readonly class ManagedZoneDNSService
 {
     public function __construct(
         private PermissionService $permissions,
+        private AccountRepositoryInterface $accounts,
         private ManagedZoneRepositoryInterface $managedZones,
         private ProviderAccountRepositoryInterface $providerAccounts,
         private AccountProviderFactoryInterface $providerFactory,
@@ -38,6 +40,7 @@ final readonly class ManagedZoneDNSService
     public function create(User $user, int $accountId, int $providerAccountId, string $name): ManagedZone
     {
         $this->permissions->assertAccount($user, Permission::ZONE_CREATE, $accountId);
+        $this->assertAccountActive($accountId);
         $this->resourceLimits?->assertCanCreateZone($accountId);
         $provider = $this->provider($accountId, $providerAccountId, Capability::ZONE_CREATE);
         $zone     = $provider->createZone(DNSNameValidator::normalise($name));
@@ -81,6 +84,7 @@ final readonly class ManagedZoneDNSService
             throw new \DomainException('Managed zone not found.');
         }
         $this->permissions->assertAccount($user, Permission::ZONE_DELETE, $accountId);
+        $this->assertAccountActive($accountId);
         $provider = $this->provider($accountId, $zone->providerAccountId, Capability::ZONE_DELETE);
         $provider->deleteZone($zone->providerZoneId);
         $this->managedZones->delete($zone->id);
@@ -103,6 +107,7 @@ final readonly class ManagedZoneDNSService
     public function createRecord(User $user, int $accountId, int $managedZoneId, Record $record): Record
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_CREATE, Capability::RECORD_CREATE);
+        $this->assertAccountActive($accountId);
         RecordValidator::assertTtl($record->ttl);
         RecordValidator::assertContent($record->type, $record->content);
         return $provider->createRecord($this->forProviderZone($record, $zone->providerZoneId));
@@ -111,6 +116,7 @@ final readonly class ManagedZoneDNSService
     public function updateRecord(User $user, int $accountId, int $managedZoneId, Record $record): Record
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_UPDATE, Capability::RECORD_UPDATE);
+        $this->assertAccountActive($accountId);
         RecordValidator::assertTtl($record->ttl);
         RecordValidator::assertContent($record->type, $record->content);
         return $provider->updateRecord($this->forProviderZone($record, $zone->providerZoneId));
@@ -130,12 +136,14 @@ final readonly class ManagedZoneDNSService
     public function deleteRecord(User $user, int $accountId, int $managedZoneId, string $recordId): void
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_DELETE, Capability::RECORD_DELETE);
+        $this->assertAccountActive($accountId);
         $provider->deleteRecord($zone->providerZoneId, $recordId);
     }
 
     public function replaceRrset(User $user, int $accountId, int $managedZoneId, Rrset $rrset): Rrset
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_UPDATE, Capability::RECORD_UPDATE);
+        $this->assertAccountActive($accountId);
         RecordValidator::assertTtl($rrset->ttl);
         foreach ($rrset->rdata as $rdata) {
             RdataCanonicalizer::canonicalize($rrset->type, $rdata);
@@ -151,6 +159,7 @@ final readonly class ManagedZoneDNSService
     public function deleteRrset(User $user, int $accountId, int $managedZoneId, string $ownerName, string $type): void
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_DELETE, Capability::RECORD_DELETE);
+        $this->assertAccountActive($accountId);
         $recordType        = DNSRecordType::parse($type);
         $rrsets            = $this->rrsets($provider);
         $rrsets->deleteRrset($zone->providerZoneId, $ownerName, $recordType->presentation);
@@ -171,6 +180,7 @@ final readonly class ManagedZoneDNSService
     public function executeDnssecAction(User $user, int $accountId, int $managedZoneId, string $action, array $payload = []): DNSSECProfile
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::DNSSEC_ACTION_EXECUTE, Capability::DNSSEC_ACTION_EXECUTE);
+        $this->assertAccountActive($accountId);
         return $provider->executeDnssecAction($zone->providerZoneId, $action, $payload);
     }
 
@@ -198,6 +208,14 @@ final readonly class ManagedZoneDNSService
             throw new \TowerDNS\Application\Exception\CapabilityException('Provider capability is not supported.');
         }
         return $provider;
+    }
+
+    private function assertAccountActive(int $accountId): void
+    {
+        $account = $this->accounts->findById($accountId);
+        if (!$account instanceof \TowerDNS\Domain\Account\Account || !$account->isActive) {
+            throw new \DomainException('Account is inactive.');
+        }
     }
 
     private function rrsets(DNSProviderInterface $provider): RrsetProviderInterface

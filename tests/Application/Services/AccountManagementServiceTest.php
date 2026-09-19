@@ -142,6 +142,27 @@ final class AccountManagementServiceTest extends TestCase
         $this->service($accounts)->deactivate(new User('actor', 'actor@example.test'), 42);
     }
 
+    public function testOrganizationCanBeReactivated(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('getEffectiveRole')->with(42, 'actor')->willReturn(TeamRole::OWNER);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'actor', false, '2026-09-16 00:00:00'));
+        $accounts->expects(self::once())->method('activate')->with(42);
+
+        $this->service($accounts)->activate(new User('actor', 'actor@example.test'), 42);
+    }
+
+    public function testPersonalAccountCannotBeReactivatedThroughStatusAction(): void
+    {
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('getEffectiveRole')->with(42, 'actor')->willReturn(TeamRole::OWNER);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Personal', 'personal-actor', 'actor', true, '2026-09-16 00:00:00', \TowerDNS\Domain\Account\AccountKind::PERSONAL, 'actor'));
+        $accounts->expects(self::never())->method('activate');
+
+        $this->expectException(\DomainException::class);
+        $this->service($accounts)->activate(new User('actor', 'actor@example.test'), 42);
+    }
+
     public function testOrganizationDetailsUpdatePersistsOptionalFields(): void
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);

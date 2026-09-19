@@ -102,6 +102,7 @@ final readonly class ZoneMembershipManagementService
     private function authorizeZoneAdministration(User $actor, int $accountId, int $managedZoneId): void
     {
         $this->permissions->assertCanManageMembers($accountId, $actor);
+        $this->permissions->assertAccountActive($accountId);
         if (!$this->managedZones->findByIdForAccount($managedZoneId, $accountId) instanceof \TowerDNS\Domain\Account\ManagedZone) {
             throw new ZoneMembershipException(ZoneMembershipException::MANAGED_ZONE_NOT_FOUND);
         }

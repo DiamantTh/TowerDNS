@@ -45,10 +45,16 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return $row !== false ? $this->hydrate($row) : null;
     }
 
-    public function findByUserId(string $userId, ?string $search = null, ?AccountKind $type = null, int $limit = 100, int $offset = 0): array
+    public function findByUserId(string $userId, ?string $search = null, ?AccountKind $type = null, int $limit = 100, int $offset = 0, bool $includeInactive = false, ?TeamRole $role = null, ?bool $active = null): array
     {
-        $conditions = ['am.user_id = ?', 'a.is_active = 1'];
+        $conditions = ['am.user_id = ?'];
         $params     = [$userId];
+        if ($active !== null) {
+            $conditions[] = 'a.is_active = ?';
+            $params[] = $active ? 1 : 0;
+        } elseif (!$includeInactive) {
+            $conditions[] = 'a.is_active = 1';
+        }
         if ($search !== null && trim($search) !== '') {
             $conditions[] = '(a.name LIKE ? OR a.slug LIKE ? OR a.customer_number LIKE ? OR a.external_reference LIKE ?)';
             $term         = '%' . trim($search) . '%';
@@ -60,6 +66,10 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         if ($type instanceof AccountKind) {
             $conditions[] = 'a.account_type = ?';
             $params[]     = $type->value;
+        }
+        if ($role instanceof TeamRole) {
+            $conditions[] = 'am.role = ?';
+            $params[]     = $role->value;
         }
         $params[] = max(1, min($limit, 500));
         $params[] = max(0, $offset);
@@ -108,6 +118,12 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
                 'invited_by' => null,
                 'created_at' => $createdAt,
             ]);
+            $this->connection->insert('account_resource_limits', [
+                'account_id'            => $id,
+                'max_zones'             => null,
+                'max_members'           => null,
+                'max_provider_accounts' => null,
+            ]);
 
             return $id;
         });
@@ -130,6 +146,11 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
     public function deactivate(int $id): void
     {
         $this->connection->update('accounts', ['is_active' => 0], ['id' => $id]);
+    }
+
+    public function activate(int $id): void
+    {
+        $this->connection->update('accounts', ['is_active' => 1], ['id' => $id]);
     }
 
     public function delete(int $id): void

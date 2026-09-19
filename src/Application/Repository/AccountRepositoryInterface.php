@@ -24,7 +24,7 @@ interface AccountRepositoryInterface
      * Returns all accounts the given user is a member of (any role).
      * @return list<Account>
      */
-    public function findByUserId(string $userId, ?string $search = null, ?AccountKind $type = null, int $limit = 100, int $offset = 0): array;
+    public function findByUserId(string $userId, ?string $search = null, ?AccountKind $type = null, int $limit = 100, int $offset = 0, bool $includeInactive = false, ?TeamRole $role = null, ?bool $active = null): array;
 
     /**
      * Returns all accounts (system-admin view).
@@ -39,6 +39,8 @@ interface AccountRepositoryInterface
     public function updateOrganizationDetails(int $id, string $name, ?string $customerNumber, ?string $externalReference): void;
 
     public function deactivate(int $id): void;
+
+    public function activate(int $id): void;
 
     public function delete(int $id): void;
 
