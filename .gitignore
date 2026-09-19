@@ -13,7 +13,6 @@ node_modules/
 .phpunit.cache/
 .php-cs-fixer.cache
 build/
-dist/
 coverage/
 # Runtime / generated files
 cache/

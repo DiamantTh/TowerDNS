@@ -70,7 +70,6 @@
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "rector":  "rector process",
         "rector-check": "rector process --dry-run",
-        "release:build": "@php bin/build-release.php",
         "analyse": "@phpstan",
         "check":   ["@lint", "@cs-check", "@rector-check", "@analyse", "@test"]
     },

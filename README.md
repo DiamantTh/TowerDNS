@@ -87,18 +87,18 @@ composer install
 composer check       # lint + phpstan + phpunit
 npm install
 npm run check
-npm run build        # produktionsfertige Assets -> httpdocs/assets/
+npm run build        # Frontend-Assets -> httpdocs/assets/
 ```
 
-Die gebauten Assets können später mit einem Release ausgeliefert werden; auf
-dem Zielsystem ist deshalb kein Node.js erforderlich. Mezzio liefert Seitendaten und
+Der Frontend-Build wird für die lokale Anwendung und die Entwicklungsprüfung
+nach `httpdocs/assets/` geschrieben. Mezzio liefert Seitendaten und
 CSRF-geschuetzte Endpunkte; Svelte rendert die gesamte Anwendung.
 
-Eine technische Vorbereitung für spätere Release-Erstellung, Shared Hosting,
-sicheren DocumentRoot und Browser-Installation steht in
-[docs/INSTALLATION.md](docs/INSTALLATION.md). Ein reproduzierbares Release
-Artefakt kann mit `TOWERDNS_VERSION=0.0.0-dev npm run release:build`
-erzeugt werden (Composer und Node.js werden nur auf dem Build-Rechner benötigt).
+Technische Voraussetzungen, der sichere DocumentRoot, der Browser-Installer
+und der Betrieb auf PHP-FPM bzw. klassischem Shared Hosting sind in
+[docs/INSTALLATION.md](docs/INSTALLATION.md) beschrieben. Die Anleitung
+unterscheidet zwischen dem Entwicklungscheckout und einem späteren, außerhalb
+dieses Repositories zu erstellenden Deployment-Paket.
 
 ## Kommandozeile
 

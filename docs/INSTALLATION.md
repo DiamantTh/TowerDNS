@@ -1,11 +1,10 @@
 # TowerDNS installieren und betreiben
 
-Diese Anleitung beschreibt die technische Vorbereitung für ein späteres
-TowerDNS-Release auf Shared Hosting sowie den Betrieb mit PHP-FPM. Ein
-konkretes Release oder eine allgemeine Hosting-Zertifizierung ist damit nicht
-verbunden. Ein späteres Release enthält
-bereits den Composer-Autoloader und die kompilierten Browser-Assets. Auf dem
-Zielhost sind deshalb weder Composer noch Node.js erforderlich.
+Diese Anleitung beschreibt die technischen Voraussetzungen und den aktuellen
+Installationsweg von TowerDNS. Der Repository-Checkout ist für Entwicklung
+und Tests ausgelegt; eine spätere Distribution kann außerhalb des Repositories
+über einen CI/CD-Workflow erstellt werden. Dieses Repository enthält keine
+eigene Release-Paketierung.
 
 ## Voraussetzungen
 
@@ -26,7 +25,7 @@ Verbindungsparameter sind in der [DBAL-Dokumentation](https://www.doctrine-proje
 beschrieben. Der Installer bietet alle drei Treiber an, die automatisierten
 Tests in diesem Repository verwenden SQLite. Live-Tests gegen MySQL/MariaDB
 und PostgreSQL sind nicht Teil des lokalen Testlaufs und müssen vor einem
-Produktiv-Rollout mit der Provider-Datenbank geprüft werden.
+Rollout mit der Provider-Datenbank geprüft werden.
 
 Der PHP-Prozess benötigt Schreibrechte für die privaten Verzeichnisse
 `configs/`, `cache/`, `data/` und `logs/`. `data/` wird bei SQLite auch für die
@@ -37,64 +36,64 @@ Shell-Zugriff, Root-Rechte und dauerhaft laufende Worker sind für den normalen
 Webbetrieb nicht erforderlich. SMTP ist optional; ohne Mailer-Konfiguration
 können keine Einladungs- oder Reset-E-Mails zugestellt werden.
 
-## Release bauen
+## Entwicklungscheckout
 
-Auf dem Entwicklungs- oder Build-Rechner:
+Für lokale Entwicklung werden Composer- und Node.js-Abhängigkeiten benötigt:
 
 ```sh
+composer install
 npm ci
-TOWERDNS_VERSION=0.0.0-dev npm run release:build
+npm run frontend:check
+composer check
 ```
 
-Der Build führt den Vite-Produktionsbuild aus und ruft anschließend
-`php bin/build-release.php` auf. Das Skript installiert mit
-`composer install --no-dev --prefer-dist --optimize-autoloader` nur
-Produktionsabhängigkeiten und erzeugt `dist/towerdns-<version>.zip`.
-Diese Composer-Optionen entsprechen dem empfohlenen Deployment-Ablauf in der
-[offiziellen Composer-Dokumentation](https://getcomposer.org/doc/03-cli.md).
+`npm run build` erzeugt die für den Browser benötigten Frontend-Assets unter
+`httpdocs/assets/`. Dieser normale Entwicklungsbuild erzeugt keine Distribution.
+Der Checkout enthält absichtlich keine eigene Paketierungs- oder
+Veröffentlichungslogik.
 
-Die Versionsnummer kommt aus `TOWERDNS_VERSION` oder aus `--version=...`. Für einen
-lokalen Build ohne `sodium` kann vorübergehend
-`--ignore-platform-req=ext-sodium` verwendet werden; ein solches Archiv darf
-nicht als Produktionsrelease verteilt werden. Produktionsbuilds müssen alle
-Plattformanforderungen erfüllen.
+## Webroot und Dateisystem
 
-Ein Release enthält unter anderem:
+Der öffentliche DocumentRoot muss auf `httpdocs/` zeigen. Öffentlich benötigt
+werden dort nur der Front-Controller, Installer-Einstieg, Favicon und die
+gebauten Assets. `src/`, `modules/`, `templates/`, `translations/`, `vendor/`,
+`configs/`, `data/`, `cache/`, `logs/`, `tests/` und `install/` müssen außerhalb
+des öffentlichen Webroots liegen oder vom Webserver zuverlässig gesperrt sein.
 
-* `httpdocs/` mit `index.php`, `install.php`, `.htaccess`, Favicon und gebauten
-  Assets,
-* `src/`, `modules/`, `templates/`, `translations/`, Theme-Manifeste und
-  `install/`,
-* `vendor/` mit Produktionsabhängigkeiten,
-* `bin/towerdns`, `LICENSE` und diese Anleitung.
+Für Apache liegt eine defensive `.htaccess` in `httpdocs/`. Bei Nginx muss der
+Provider eine `try_files`-Weiterleitung auf `index.php` und den Schutz der
+nichtöffentlichen Pfade konfigurieren. Wenn ein Hosting-Panel keinen frei
+wählbaren DocumentRoot und keine sichere Regel zum Abschotten privater
+Verzeichnisse bietet, ist eine reine FTP-Installation nicht sicher
+unterstützbar. Das komplette Repository öffentlich abzulegen und einzelne
+Dateien nur per Rewrite zu verstecken ist kein gleichwertiger Ersatz.
 
-Nicht enthalten sind Git-Metadaten, Tests, Node-Module, Theme-Quellcode,
-Entwicklungsdateien, Composer-Dateien, lokale Konfigurationen, Logs, Cache,
-Datenbanken, Backups, Schlüssel und Zugangsdaten. Die gebauten Dateien unter
-`httpdocs/assets/` sind absichtlich Teil des Archivs.
+Mezzio geht ebenfalls von einem separaten öffentlichen Verzeichnis aus; siehe
+die [Standalone-Dokumentation](https://docs.mezzio.dev/mezzio/v1/getting-started/standalone/)
+und den Hinweis zu Basis-Pfaden bei Unterverzeichnissen in der
+[Mezzio-Dokumentation](https://docs.mezzio.dev/mezzio/v3/cookbook/using-a-base-path/).
 
-## Shared Hosting ohne SSH, Composer oder Node.js
+## Browser-Installer
 
-1. Ein fertiges ZIP-Release herunterladen und lokal entpacken.
-2. Den gesamten Release-Ordner per FTP/SFTP oder Hosting-Dateimanager in den
-   privaten Webspace hochladen.
-3. Den **DocumentRoot ausschließlich auf `release/httpdocs`** setzen. Die
-   Verzeichnisse `src/`, `vendor/`, `configs/`, `data/`, `logs/` und `install/`
-   müssen außerhalb des öffentlichen Verzeichnisses bleiben.
-4. Beim Hosting-Provider PHP 8.4+ und den benötigten PDO-Treiber aktivieren
-   und eine Datenbank samt Benutzer anlegen.
-5. `https://example.org/install.php` aufrufen und Datenbank-, Admin-,
-   Domain- und Providerdaten eingeben.
-6. Nach erfolgreicher Einrichtung mit dem gewählten Admin-Konto anmelden und
-   die vorgeschlagenen Mail- und Sicherheitsoptionen prüfen.
+Der Installer ist unter `httpdocs/install.php` erreichbar und führt durch die
+Prüfung von PHP, Pflicht-Erweiterungen, Schreibrechten und dem gewählten PDO-
+Treiber. Für eine Installation werden Datenbankzugang, ein erstes
+Administratorkonto sowie die erforderlichen System- und Providerdaten benötigt.
 
-Der Installer legt die Konfiguration atomar an, erstellt das Schema und schreibt
-`configs/.installed` außerhalb des DocumentRoots. Der erste Browserzugriff
-initialisiert den Installer-Token für die laufende Session; ein späterer Zugriff
-aus einer anderen Session kann ohne diesen Dateisystem-Token nicht fortfahren.
-Nach dem Abschluss kann der Installer über den Button entfernt werden. Ein
-erneuter Aufruf erkennt die persistente Installationsmarke und startet keine
+Konfigurationen werden über `AtomicConfigurationWriter` atomar geschrieben;
+der `FreshInstallBootstrapper` erstellt das Schema und den ersten Benutzer mit
+seinem persönlichen Account. Der Installationszustand wird außerhalb des
+DocumentRoots in `configs/.installed` gespeichert. Der erste Browserzugriff
+initialisiert den Installer-Token für die laufende Session. Nach erfolgreichem
+Abschluss ist der Installer gesperrt; ein erneuter Aufruf startet keine
 Neuinstallation.
+
+Abgebrochene Läufe bleiben wiederholbar, solange die Installation nicht
+abgeschlossen wurde. Datenbankfehler werden protokolliert, aber nicht mit
+Zugangsdaten oder rohen Exception-Texten im Browser ausgegeben. Bei einem
+Fehler werden Konfiguration und Installationsmarke nicht als erfolgreich
+abgeschlossen gespeichert.
+
 Bei älteren Installationen ohne diese Marke werden die drei vollständigen
 Bootstrap-Dateien `configs/config.local.toml`, `configs/database.toml` und
 `configs/providers.toml` nur dann als kompatibler Abschlusszustand erkannt,
@@ -102,48 +101,45 @@ wenn der alte Installer bereits entfernt wurde. Solange `install/` vorhanden
 ist, bleibt ein abgebrochener Lauf mit denselben Dateien erneut versuchbar; die
 Dateien werden dabei nicht verändert.
 
-Wenn ein Hosting-Panel keinen frei wählbaren DocumentRoot und keine sichere
-Regel zum Abschotten privater Verzeichnisse bietet, ist eine reine FTP-
-Installation nicht sicher unterstützbar. Das komplette Repository öffentlich
-abzulegen und einzelne Dateien nur per Rewrite zu verstecken ist kein
-gleichwertiger Ersatz. Für Apache liegt eine defensive `.htaccess` im
-DocumentRoot; bei Nginx muss der Provider eine `try_files`-Weiterleitung auf
-`index.php` und den Schutz nichtöffentlicher Pfade konfigurieren. Mezzio geht
-ebenfalls von einem separaten öffentlichen Verzeichnis aus; siehe die
-[Standalone-Dokumentation](https://docs.mezzio.dev/mezzio/v1/getting-started/standalone/)
-und den Hinweis zu Basis-Pfaden bei Unterverzeichnissen in der
-[Mezzio-Dokumentation](https://docs.mezzio.dev/mezzio/v3/cookbook/using-a-base-path/).
+## Shared Hosting und PHP-FPM
 
-## Webinstaller und Fehlerfälle
+Auf klassischem Shared Hosting sind PHP 8.4+, der passende PDO-Treiber,
+Schreibrechte für die privaten Verzeichnisse und ein auf `httpdocs/` gesetzter
+DocumentRoot erforderlich. Composer, Node.js, SSH, Root-Rechte und dauerhafte
+Worker werden zur Laufzeit nicht benötigt, müssen aber für einen
+Repository-Checkout während der Entwicklung vorhanden sein. Ein Provider kann
+stattdessen ein vorbereitetes Deployment-Verzeichnis bereitstellen; dessen
+Erstellung ist nicht Bestandteil der Anwendung.
 
-Der Installer prüft PHP, Pflicht-Erweiterungen, Schreibrechte und den gewählten
-PDO-Treiber, bevor er den jeweiligen Schritt zulässt. Datenbankfehler werden
-protokolliert, aber nicht mit Zugangsdaten oder rohen Exception-Texten im
-Browser ausgegeben. Fehlende Erweiterungen, nicht beschreibbare Verzeichnisse,
-ungültige Datenbankdaten und verlorene Wizard-Sessions können korrigiert und
-erneut versucht werden.
+Der typische Ablauf auf einem geeigneten Hosting-Paket ist:
 
-Das Administratorpasswort wird nach dem Speichern nicht in der Erfolgsseite,
-Session-Ausgabe oder einem Log angezeigt. Bei einem Fehler werden keine
-Konfigurationsdateien als Erfolg markiert. Die Schemaerzeugung ist additiv und
-idempotent; bereits vorhandene Benutzer, Konten und Ressourcen werden nicht
-überschrieben.
+1. TowerDNS-Dateien in den privaten Webspace übertragen und den DocumentRoot
+   auf `httpdocs/` setzen.
+2. Beim Hosting-Provider PHP 8.4+ und den benötigten PDO-Treiber aktivieren und
+   eine Datenbank samt Benutzer anlegen.
+3. `https://example.org/install.php` aufrufen und die Zugangsdaten eingeben.
+4. Nach erfolgreicher Einrichtung mit dem gewählten Admin-Konto anmelden und
+   Mail- und Sicherheitseinstellungen prüfen.
 
-## Updates und Backups
+Bei PHP-FPM wird `httpdocs/` als Nginx- oder Apache-DocumentRoot konfiguriert;
+private Verzeichnisse liegen daneben und gehören dem PHP-FPM-Benutzer. HTTPS,
+OPcache, restriktive Dateirechte und eine externe Datenbanksicherung werden
+empfohlen. Ein Cronjob ist für den normalen Request-Betrieb nicht notwendig.
 
-Vor einem Update Datenbank, `configs/*.toml` (einschließlich des
+## Updates, Schema und Backups
+
+Vor Änderungen Datenbank, `configs/*.toml` (einschließlich des
 Verschlüsselungsschlüssels) und bei SQLite die Datei unter `data/` sichern.
-Neue Releases sollten in ein neues privates Verzeichnis entpackt werden. Die
-gesicherten Konfigurationen und Laufzeitdaten werden übernommen und der
-DocumentRoot anschließend auf das neue `httpdocs/` umgeschaltet.
+Bestehende Installationen dürfen nicht durch einen normalen Request neu
+initialisiert werden.
 
 Der normale Anwendungsstart führt keine Schemaänderungen aus. `SchemaManager`
 wird beim Fresh-Install und in den entsprechenden Installations-/Testpfaden
 explizit aufgerufen. TowerDNS enthält derzeit keine allgemeine, versionierte
-Doctrine-Migrationsverwaltung; bestehende Installationen benötigen für spätere
-Schemaänderungen daher einen ausdrücklich geplanten Upgrade-Schritt mit
-Datenbankdump. Eine vorhandene Installation wird beim normalen Request niemals
-still mit einem frischen Schema überschrieben.
+Doctrine-Migrationsverwaltung; spätere Schemaänderungen benötigen daher einen
+ausdrücklich geplanten Upgrade-Schritt mit Datenbankdump. Eine vorhandene
+Installation wird beim normalen Request niemals still mit einem frischen
+Schema überschrieben.
 
 ## Einladungsregistrierung
 
@@ -157,31 +153,9 @@ geprüft. Bestehende Benutzer melden sich zunächst an und nehmen die Einladung
 anschließend an. Abgelaufene, widerrufene, bereits verwendete oder an eine
 andere E-Mail-Adresse gebundene Tokens werden abgewiesen.
 
-## PHP-FPM/VPS und lokale Entwicklung
+## Prüfgrenzen
 
-Bei PHP-FPM wird `httpdocs/` als Nginx- oder Apache-DocumentRoot konfiguriert;
-private Verzeichnisse liegen daneben und gehören dem PHP-FPM-Benutzer. HTTPS,
-OPcache, restriktive Dateirechte und eine externe Datenbanksicherung werden
-empfohlen. Ein Cronjob ist für den normalen Request-Betrieb nicht notwendig.
-
-Lokal sind Composer- und Node.js-Entwicklungsabhängigkeiten erforderlich:
-
-```sh
-composer install
-npm ci
-npm run frontend:check
-composer check
-```
-
-Die optionale Artefaktprüfung ist auf PHP 8.4+ mit den Pflicht-Erweiterungen und
-einer funktionierenden Composer-/Node-Toolchain ausgelegt. In einer Sandbox ohne
-`sodium` kann der Anwendungstest weiterlaufen, aber ein echter
-Produktions-Composer-Check bleibt zu Recht rot; dieses Umgebungsdefizit darf
-nicht als Produktionskompatibilität gewertet werden.
-
-## Aktuelle Prüfgrenzen
-
-Automatisiert werden SQLite-Schema, Installer-nahe PHP-Pfade, Anwendungstests,
+Automatisiert werden SQLite-Schema, installer-nahe PHP-Pfade, Anwendungstests,
 statische Analysen und die Frontend-Assets geprüft. Ein echter Browserlauf auf
 jedem Shared-Hosting-Panel, SMTP-Zustellung sowie Live-Verbindungen zu
 MySQL/MariaDB und PostgreSQL sind Umgebungs- bzw. Providerprüfungen und müssen

@@ -6,7 +6,6 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "build": "vite build",
-    "release:build": "npm run build && php bin/build-release.php",
     "dev": "vite build --watch",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "typecheck": "tsc --noEmit",
