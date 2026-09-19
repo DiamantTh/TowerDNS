@@ -176,7 +176,8 @@ final readonly class SchemaManager
     {
         return $candidate->getUnqualifiedForeignTableName() === $expected->getUnqualifiedForeignTableName()
             && $candidate->getLocalColumns()                === $expected->getLocalColumns()
-            && $candidate->getForeignColumns()              === $expected->getForeignColumns();
+            && $candidate->getForeignColumns()              === $expected->getForeignColumns()
+            && strtoupper((string) $candidate->onDelete())  === strtoupper((string) $expected->onDelete());
     }
 
     public function schemaIsCurrent(): bool
