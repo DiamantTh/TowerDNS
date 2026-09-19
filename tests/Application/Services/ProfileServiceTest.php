@@ -8,6 +8,7 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Services\ProfileService;
 use TowerDNS\Application\Theme\ThemeManager;
+use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
@@ -108,5 +109,44 @@ final class ProfileServiceTest extends TestCase
         self::assertFalse($inactive->active);
         self::assertCount(1, $users->findAll('inactive@', false));
         self::assertCount(2, $users->findAll(null, null));
+    }
+
+    public function testAdministrativeSearchFiltersByAccountRoleAndPaginatesServerSide(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        new SchemaManager($connection)->createTablesIfNotExist();
+        $users = new DbalUserRepository($connection, new SystemClock());
+        $users->create('account-search-a', 'alice@example.test', 'hash');
+        $users->create('account-search-b', 'bob@example.test', 'hash');
+
+        $connection->insert('accounts', [
+            'name'          => 'Example Hosting',
+            'slug'          => 'example-hosting',
+            'owner_user_id' => 'account-search-a',
+            'account_type'  => 'organization',
+            'is_active'     => true,
+            'created_at'    => '2026-09-19 00:00:00',
+        ]);
+        $accountId = (int) $connection->lastInsertId();
+        $connection->insert('account_memberships', [
+            'account_id' => $accountId,
+            'user_id'    => 'account-search-a',
+            'role'       => TeamRole::OWNER->value,
+            'created_at' => '2026-09-19 00:00:00',
+        ]);
+        $connection->insert('account_memberships', [
+            'account_id' => $accountId,
+            'user_id'    => 'account-search-b',
+            'role'       => TeamRole::DNS_MANAGER->value,
+            'created_at' => '2026-09-19 00:00:00',
+        ]);
+
+        $editors = $users->findAll(null, true, 50, 0, 'Example Hosting', TeamRole::DNS_MANAGER);
+        self::assertCount(1, $editors);
+        self::assertSame('bob@example.test', $editors[0]->email);
+
+        $page = $users->findAll(null, true, 1, 1);
+        self::assertCount(1, $page);
+        self::assertSame('bob@example.test', $page[0]->email);
     }
 }
