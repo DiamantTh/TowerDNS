@@ -73,7 +73,7 @@ final readonly class SchemaMigrationManager
             }
         }
 
-        $schemaCurrent = $schema->schemaIsCurrent() && $unknownVersions === [];
+        $schemaCurrent = $issues === [] && $unknownVersions === [];
 
         return new SchemaMigrationStatus(
             $metadataInitialized,
@@ -137,13 +137,15 @@ final readonly class SchemaMigrationManager
     private function baseline(array $available): void
     {
         $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
-        foreach ($available as $migration) {
-            $this->connection->insert(self::METADATA_TABLE, [
-                'version'        => (string) $migration->getVersion(),
-                'executed_at'    => $now,
-                'execution_time' => 0,
-            ]);
-        }
+        $this->connection->transactional(function () use ($available, $now): void {
+            foreach ($available as $migration) {
+                $this->connection->insert(self::METADATA_TABLE, [
+                    'version'        => (string) $migration->getVersion(),
+                    'executed_at'    => $now,
+                    'execution_time' => 0,
+                ]);
+            }
+        });
     }
 
     private function metadataTableExists(): bool
