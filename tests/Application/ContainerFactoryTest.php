@@ -41,7 +41,7 @@ final class ContainerFactoryTest extends TestCase
             $root . '/configs/database.toml',
             sprintf(
                 "[database]\ndriver = \"pdo_sqlite\"\n\n[database.sqlite]\npath = \"%s\"\n",
-                addcslashes($database, "\\\""),
+                addcslashes($database, '\\"'),
             ),
         );
 
