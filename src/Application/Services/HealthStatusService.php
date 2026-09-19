@@ -164,7 +164,7 @@ final readonly class HealthStatusService
             if ($path === null) {
                 continue;
             }
-            if (!is_dir($path) && !mkdir($path, 0o750, true) && !is_dir($path)) {
+            if (!is_dir($path)) {
                 return false;
             }
             if (!is_writable($path)) {
@@ -195,17 +195,12 @@ final readonly class HealthStatusService
             return false;
         }
 
-        foreach (['users', 'accounts', 'account_memberships', 'provider_accounts', 'managed_zones'] as $table) {
-            try {
-                $exists = $this->connection->createSchemaManager()->tablesExist([$table]);
-                if (!$exists) {
-                    return false;
-                }
-            } catch (\Throwable) {
-                return false;
-            }
+        try {
+            return $this->connection->createSchemaManager()->tablesExist([
+                'users', 'accounts', 'account_memberships', 'provider_accounts', 'managed_zones',
+            ]);
+        } catch (\Throwable) {
+            return false;
         }
-
-        return true;
     }
 }

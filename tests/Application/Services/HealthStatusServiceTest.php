@@ -84,4 +84,17 @@ final class HealthStatusServiceTest extends TestCase
         self::assertFalse($status['checks']['config']['ok']);
         self::assertStringNotContainsString('secret-value', $payload);
     }
+
+    public function testHealthChecksDoNotCreateMissingRuntimeDirectories(): void
+    {
+        $base = sys_get_temp_dir() . '/towerdns-health-no-side-effects-' . bin2hex(random_bytes(8));
+        mkdir($base . '/configs', 0o750, true);
+
+        $service = new HealthStatusService(projectRoot: $base);
+        $service->check();
+
+        self::assertDirectoryDoesNotExist($base . '/data');
+        self::assertDirectoryDoesNotExist($base . '/cache/ratelimit');
+        self::assertDirectoryDoesNotExist($base . '/logs');
+    }
 }

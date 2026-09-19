@@ -34,8 +34,10 @@ final readonly class SchemaManager
     public function __construct(private Connection $connection) {}
 
     /**
-     * Creates every application table that does not yet exist.
-     * Safe to call on every boot — existing tables are never touched.
+     * Creates every application table that does not yet exist during a
+     * controlled installation or maintenance operation. Existing tables are
+     * never dropped; legacy profile/account columns may be added explicitly
+     * when this method is run against an older installation.
      */
     public function createTablesIfNotExist(): void
     {
@@ -747,9 +749,19 @@ final readonly class SchemaManager
                 $this->connection->insert('account_resource_limits', ['account_id' => $personalId, 'max_zones' => null, 'max_members' => null, 'max_provider_accounts' => null]);
             }
         }
-        try {
-            $this->connection->executeStatement('CREATE UNIQUE INDEX uq_accounts_personal_user ON accounts (personal_user_id)');
-        } catch (\Throwable) {
+        $hasPersonalUserIndex = false;
+        foreach ($manager->listTableIndexes('accounts') as $index) {
+            if (strtolower($index->getName()) === 'uq_accounts_personal_user') {
+                $hasPersonalUserIndex = true;
+                break;
+            }
+        }
+        if (!$hasPersonalUserIndex) {
+            try {
+                $this->connection->executeStatement('CREATE UNIQUE INDEX uq_accounts_personal_user ON accounts (personal_user_id)');
+            } catch (\Throwable $exception) {
+                throw new \RuntimeException('Cannot enforce one personal account per user.', 0, $exception);
+            }
         }
     }
 }

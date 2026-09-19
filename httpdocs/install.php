@@ -12,4 +12,20 @@ declare(strict_types=1);
  * Der Installer prüft selbst, ob er bereits gesperrt ist (Marker außerhalb
  * von install/ oder der Legacy-Lockdatei).
  */
-require dirname(__DIR__) . '/install/index.php';
+$projectRoot = dirname(__DIR__);
+$installer   = $projectRoot . '/install/index.php';
+
+if (!is_file($installer)) {
+    require_once $projectRoot . '/src/Infrastructure/Installation/InstallationState.php';
+
+    if (\TowerDNS\Infrastructure\Installation\InstallationState::isLocked($projectRoot)) {
+        header('Location: /', true, 302);
+        exit;
+    }
+
+    http_response_code(503);
+    echo 'TowerDNS installer is unavailable.';
+    exit;
+}
+
+require $installer;

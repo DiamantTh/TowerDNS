@@ -20,6 +20,7 @@ use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
+use TowerDNS\Infrastructure\Installation\InstallationState;
 use TowerDNS\Infrastructure\Provider\DNSProviderFactory;
 
 /**
@@ -51,7 +52,7 @@ final class InstallCommand extends Command
         $markerFile = $cfgDir . '/.installed';
 
         // ── Already installed? ────────────────────────────────────────────
-        if (is_file($markerFile) || file_exists($lockFile)) {
+        if (InstallationState::isLocked($this->projectRoot)) {
             $io->error([
                 'TowerDNS is already installed.',
                 'Remove the installation marker and lock only when a deliberate reinstall is intended.',
@@ -287,9 +288,8 @@ final class InstallCommand extends Command
         $io->success([
             'Installation successful!',
             'Admin username : ' . $adminUsername,
-            'Admin password : ' . $adminPass,
             '',
-            'Write down the password now — it will not be shown again.',
+            'Use the administrator password chosen during setup; it is not shown again.',
             'Remove the install/ directory for security:  rm -rf install/',
         ]);
 

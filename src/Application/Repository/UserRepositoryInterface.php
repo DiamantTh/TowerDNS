@@ -22,6 +22,14 @@ interface UserRepositoryInterface
     public function findByIdForAdministration(string $id): ?User;
 
     /**
+     * Administrative bulk lookup that also returns inactive users.
+     *
+     * @param list<string> $ids
+     * @return array<string, User> keyed by user ID
+     */
+    public function findByIdsForAdministration(array $ids): array;
+
+    /**
      * Loads a user by e-mail address.
      * Returns null when no user with that address exists.
      */

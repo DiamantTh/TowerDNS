@@ -319,10 +319,13 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $members = array_map(function (\TowerDNS\Domain\Account\AccountMembership $membership): array {
-            $member = $this->users->findByIdForAdministration($membership->userId);
+        $memberships = $this->accounts->findMemberships($accountId);
+        $memberIds   = array_map(static fn(\TowerDNS\Domain\Account\AccountMembership $membership): string => $membership->userId, $memberships);
+        $users       = $this->users->findByIdsForAdministration($memberIds);
+        $members     = array_map(static function (\TowerDNS\Domain\Account\AccountMembership $membership) use ($users): array {
+            $member = $users[$membership->userId] ?? null;
             return ['id' => $membership->id, 'userId' => $membership->userId, 'email' => $member instanceof User ? $member->email : $membership->userId, 'displayName' => $member instanceof User ? $member->displayName : null, 'role' => $membership->role->value, 'createdAt' => $membership->createdAt];
-        }, $this->accounts->findMemberships($accountId));
+        }, $memberships);
         $invitations = array_map(static fn(\TowerDNS\Domain\Account\AccountInvitation $invitation): array => [
             'id'        => $invitation->id,
             'email'     => $invitation->email,

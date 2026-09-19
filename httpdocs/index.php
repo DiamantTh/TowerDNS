@@ -6,21 +6,24 @@ declare(strict_types=1);
 
 define('PROJECT_ROOT', dirname(__DIR__));
 
+require_once PROJECT_ROOT . '/src/Infrastructure/Installation/InstallationState.php';
+
 // The marker lives outside the public document root and survives removal of
 // the installer directory after a successful setup. Keep the legacy lock as
 // a compatibility fallback for older installations.
-if (!is_file(PROJECT_ROOT . '/configs/.installed')
-    && !is_file(PROJECT_ROOT . '/install/.lock')
-    && !(!is_dir(PROJECT_ROOT . '/install')
-        && is_file(PROJECT_ROOT . '/configs/config.local.toml')
-        && is_file(PROJECT_ROOT . '/configs/database.toml')
-        && is_file(PROJECT_ROOT . '/configs/providers.toml'))
-) {
+if (!\TowerDNS\Infrastructure\Installation\InstallationState::isLocked(PROJECT_ROOT)) {
     header('Location: /install.php', true, 302);
     exit;
 }
 
-require PROJECT_ROOT . '/vendor/autoload.php';
+$autoload = PROJECT_ROOT . '/vendor/autoload.php';
+if (!is_file($autoload)) {
+    http_response_code(503);
+    echo 'TowerDNS application dependencies are unavailable.';
+    exit;
+}
+
+require $autoload;
 
 $container = \TowerDNS\Application\ContainerFactory::create(PROJECT_ROOT);
 

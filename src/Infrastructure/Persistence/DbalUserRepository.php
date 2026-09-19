@@ -55,6 +55,33 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return is_array($raw) ? $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id'])) : null;
     }
 
+    public function findByIdsForAdministration(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids, static fn(mixed $id): bool => is_string($id) && $id !== '')));
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = $this->connection->fetchAllAssociative(
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE id IN (?)',
+            [$ids],
+            [ArrayParameterType::STRING],
+        );
+        if ($rows === []) {
+            return [];
+        }
+
+        $loadedIds   = array_map(static fn(array $row): string => (string) $row['id'], $rows);
+        $rolesByUser = $this->loadRolesForUsers($loadedIds);
+        $users       = [];
+        foreach ($rows as $row) {
+            $id         = (string) $row['id'];
+            $users[$id] = $this->hydrate($row, $rolesByUser[$id] ?? []);
+        }
+
+        return $users;
+    }
+
     public function findByEmail(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(

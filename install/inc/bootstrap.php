@@ -19,6 +19,8 @@ define('TOKEN_FILE', INSTALL_DIR . '/.install_token');
 define('INSTALLER_ENTRY', basename((string) ($_SERVER['SCRIPT_NAME'] ?? 'install.php')));
 define('VENDOR_OK', is_dir(PROJECT_ROOT . '/vendor') && is_file(PROJECT_ROOT . '/vendor/autoload.php'));
 
+require_once PROJECT_ROOT . '/src/Infrastructure/Installation/InstallationState.php';
+
 // ── Session ────────────────────────────────────────────────────────────────
 if (session_status() === PHP_SESSION_NONE) {
     session_name('towerdns_installer');
@@ -84,16 +86,5 @@ function checkInstallerToken(): bool
 
 function installationIsLocked(): bool
 {
-    // Older successful installs removed install/ during cleanup before the
-    // persistent marker existed. A complete bootstrap configuration is a
-    // backwards-compatible final-state fallback for those installations. Do
-    // not use that fallback while the installer is still present: a failed
-    // run may have written all three files before the marker could be saved,
-    // and must remain retryable.
-    return is_file(INSTALLATION_MARKER)
-        || is_file(LOCK_FILE)
-        || (!is_dir(INSTALL_DIR)
-            && is_file(PROJECT_ROOT . '/configs/config.local.toml')
-            && is_file(PROJECT_ROOT . '/configs/database.toml')
-            && is_file(PROJECT_ROOT . '/configs/providers.toml'));
+    return TowerDNS\Infrastructure\Installation\InstallationState::isLocked(PROJECT_ROOT);
 }
