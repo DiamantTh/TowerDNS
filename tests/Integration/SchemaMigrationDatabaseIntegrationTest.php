@@ -10,6 +10,8 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
+use TowerDNS\Infrastructure\Persistence\SchemaMigrationLock;
+use TowerDNS\Infrastructure\Persistence\SchemaMigrationLockedException;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
 
@@ -157,6 +159,34 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             };
             $this->assertThrowsDatabaseException($duplicate, $backend);
         });
+    }
+
+    public function testMigrationLockSerializesTwoDatabaseConnections(): void
+    {
+        foreach ($this->configuredBackends() as $backend) {
+            $first  = $this->connect($backend);
+            $second = $this->connect($backend);
+            $path   = sys_get_temp_dir() . '/towerdns-lock-' . $backend . '-' . bin2hex(random_bytes(6)) . '.lock';
+            $handle = new SchemaMigrationLock($first, $path)->acquire();
+
+            try {
+                $secondHandle = null;
+                $blocked      = false;
+                try {
+                    $secondHandle = new SchemaMigrationLock($second, $path)->acquire();
+                } catch (SchemaMigrationLockedException) {
+                    $blocked = true;
+                } finally {
+                    $secondHandle?->release();
+                }
+                self::assertTrue($blocked, $backend);
+            } finally {
+                $handle->release();
+                $first->close();
+                $second->close();
+                @unlink($path);
+            }
+        }
     }
 
     /** @param callable(string, Connection): void $scenario */
