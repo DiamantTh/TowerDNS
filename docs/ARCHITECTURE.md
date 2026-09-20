@@ -2,7 +2,7 @@
 
 ## Ziel
 
-TowerDNS ist ein DNS-Management-Panel mit gemeinsamer Kernlogik und austauschbaren, capability-orientierten Provider-Adaptern. Es ist der offizielle technische Nachfolger von [desec-manager](https://github.com/DiamantTh/desec-manager); deSEC ist nur noch ein Provider unter mehreren.
+TowerDNS ist ein eigenständiges DNS-Management-Panel mit gemeinsamer Kernlogik und austauschbaren, capability-orientierten Provider-Adaptern. Das frühere desec-manager-Projekt war unvollständig und ist weder Architektur- noch Funktionsreferenz; konkrete Codeherkunft ist unter [Projektgeschichte](PROJECT_HISTORY.md) dokumentiert.
 
 ## Layer-Modell
 
@@ -10,42 +10,29 @@ TowerDNS ist ein DNS-Management-Panel mit gemeinsamer Kernlogik und austauschbar
 src/
   Domain/         kanonische DNS-, RBAC- und Account-Modelle
   Application/    Workflows, Validierung, Capabilities, Rechtepruefung, Services
-  Infrastructure/ Provider-Adapter, HTTP-Handler, Persistenz, Console
+  Infrastructure/ HTTP-Handler, Persistenz, Console, Provider-Komposition
+modules/            isolierte Provider-Module und deren API-Adapter
 ```
 
 1. **Infrastructure/Http** enthaelt die PSR-15-Handler (Mezzio). Handler delegieren ausschliesslich an Application-Services und kennen keine Provider-spezifischen Endpunkte.
-2. **Application** orchestriert Workflows, normalisiert Eingaben (`DnsNameValidator`, `RecordValidator`), prueft Rechte zentral (`AuthorizationService`) und prueft Provider-Faehigkeiten (`Capability` + `ProviderCapabilitySet`).
-3. **Domain** stellt das kanonische DNS-Modell (`Zone`, `Record`, `RecordType`, `DnssecProfile`, `DnssecState`), das RBAC-Modell (`User`, `Role`, `Permission`) und das Account-Modell (`Account`, `AccountMembership`, `ZoneMembership`, `AuditLogEntry`).
-4. **Infrastructure/Provider** kapselt jede externe API in einem eigenen Adapter unter `src/Infrastructure/Provider/<Provider>/`.
-5. **Infrastructure/Persistence** implementiert alle Repository-Interfaces per Doctrine DBAL. `SchemaManager` enthält die kanonische Tabellenbeschreibung; `SchemaMigrationManager` führt kontrollierte Doctrine-Migrationen ausschließlich bei Installation oder ausdrücklich ausgelöstem Upgrade aus.
+2. **Application** orchestriert DNS-Abläufe über `ManagedZoneDNSService`, normalisiert Eingaben (`DNSNameValidator`, `RecordValidator`), prüft Rechte und Account-Scope und erzwingt die deklarierten Provider-Capabilities.
+3. **Domain** stellt DNS- und RRset-Wertmodelle (`Zone`, `Record`, `DNSRecordType`, `Rrset`, `DNSSECProfile`, `DNSSECState`), RBAC-Modelle und Account-gebundene Ressourcen bereit.
+4. **modules/** kapselt externe Provider-APIs. Module deklarieren Zugangsdaten und bilden provider-spezifische Unterschiede ab; `ProviderModuleRegistry` und Factorys registrieren bzw. instanziieren sie.
+5. **Infrastructure/Persistence** implementiert Repository-Interfaces per Doctrine DBAL. `SchemaManager` bleibt Grundlage für den Legacy-/Fresh-Install-Übergang; versionierte Doctrine-Migrationen sind der kontrollierte Updatepfad.
 
 ## Provider-Registry
 
-Provider werden ueber `TowerDNS\Application\Provider\ProviderRegistry` injiziert. Anwendungs-Services (z. B. `DnsManagementService`) waehlen den Provider pro Aufruf ueber dessen stabile ID (`desec`, `powerdns`, `cloudflare`, `inwx`). Es gibt keine harte Kopplung an einen einzelnen Anbieter.
+Provider werden über Module und die `ProviderRegistry` bzw. accountbezogene Provider-Factorys bereitgestellt. `ProviderAccount` speichert eine verschlüsselte, account-eigene Verbindung; systemweite Provider-Konfiguration bleibt davon getrennt. Workflows wählen Adapter über stabile Provider-IDs, nicht über direkt injizierte Einzelanbieter.
 
 ## Capability-orientiertes Modell
 
-Provider werden nicht auf einen kleinsten gemeinsamen Nenner reduziert. Jeder Adapter deklariert in seiner `capabilityMap()`, welche `Capability::*`-Konstanten er liefert. `DnsManagementService` lehnt Workflows ab, fuer die ein Provider keine Capability deklariert (`CapabilityException`).
+Provider werden nicht auf einen kleinsten gemeinsamen Nenner reduziert. Jeder Adapter deklariert in seiner `capabilityMap()`, welche `Capability::*`-Konstanten er liefert. DNS-Workflows lehnen Operationen ab, für die der ausgewählte Provider keine passende Capability anbietet. Die aktuelle Matrix steht in [PROVIDER_CAPABILITIES.md](PROVIDER_CAPABILITIES.md).
 
-Beispiele:
-- `zone.create`, `zone.delete`
-- `record.create`, `record.update`, `record.comment`
-- `dnssec.status.read`, `dnssec.auto_managed`
-- `dnssec.action.execute`, `dnssec.key.list`, `dnssec.key.rollover`
-- `provider.credentials.manage`
+Beispiele: Zonen- und Record-CRUD, Record-Kommentare, DNSSEC-Status und -Aktionen, Schlüsselzugriff sowie Zugangsdatenverwaltung. Adapter werden nicht als vollständig austauschbar oder gleich funktionsreich vorausgesetzt.
 
 ## DNSSEC
 
-DNSSEC ist Teil des Domain-Modells (`DnssecProfile`, `DnssecState`) und kein optionales Add-on:
-
-| Provider   | DNSSEC-Charakteristik                                                                                  |
-|------------|--------------------------------------------------------------------------------------------------------|
-| deSEC      | vollautomatisch verwaltet (`dnssec.auto_managed = true`), nur Status- und DS-Lesezugriff               |
-| PowerDNS   | direkt steuerbar via `cryptokeys`-API: enable/disable, key add/remove, activate/deactivate (Rollover) |
-| Cloudflare | provider-managed, aber per API ein-/ausschaltbar; DS-Auslesung moeglich                                |
-| INWX       | DS-Submission und Schluesselsicht auf Registry-Ebene moeglich                                          |
-
-Workflows fragen `DnssecProfile::$features` ab, um pro Zone passende Aktionen anzubieten.
+DNSSEC-Status ist Teil des Domain-Modells. Sichtbare manuelle Aktionen werden aus der tatsächlichen Capability abgeleitet; der konkrete Status- und Aktionsumfang ist in der [Provider-Matrix](PROVIDER_CAPABILITIES.md#dnssec) dokumentiert.
 
 ## Rechtepruefung
 
@@ -63,10 +50,10 @@ Rechte werden zentral in der Application-Schicht (`AuthorizationService`) anhand
 
 Neuen Provider hinzufuegen:
 
-1. Neuen Namespace `TowerDNS\Infrastructure\Provider\<Name>` anlegen.
-2. Adapter-Klasse `<Name>Provider extends AbstractDnsProvider` erstellen und `capabilityMap()` deklarieren.
-3. `DnsProviderInterface` implementieren.
-4. Adapter-Instanz beim Bootstrap an die `ProviderRegistry` uebergeben.
+1. Ein Provider-Modul in `modules/<Provider>/` ergänzen, das `ProviderModuleInterface` implementiert.
+2. Zugangsdaten und Benutzer-/Systemkonfiguration in `ProviderDefinition` beschreiben.
+3. Adapter auf `DNSProviderInterface` aufbauen und nur tatsächlich vorhandene Funktionen in `capabilityMap()` deklarieren.
+4. Provider-API-Aufrufe mit isolierten simulierten Antworten testen und die Matrix aktualisieren.
 
 ## Sicherheits-Subsystem
 

@@ -1,6 +1,6 @@
 {
     "name": "towerdns/towerdns",
-    "description": "Providerunabhaengiges, DNS-zentriertes Management-Panel mit Capability-orientierter Provider-Abstraktion (deSEC, PowerDNS, Cloudflare, INWX). Technischer Nachfolger von desec-manager.",
+    "description": "Self-hosted, provider-neutral DNS management panel with capability-aware provider adapters.",
     "type": "project",
     "license": "AGPL-3.0-or-later",
     "keywords": ["dns", "dnssec", "desec", "powerdns", "cloudflare", "inwx", "panel", "multi-provider", "mezzio", "laminas"],

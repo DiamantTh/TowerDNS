@@ -173,7 +173,14 @@ final readonly class ManagedZoneDNSService
     public function dnssecProfile(User $user, int $accountId, int $managedZoneId): DNSSECProfile
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::DNSSEC_STATUS_READ, Capability::DNSSEC_STATUS_READ);
-        return $provider->getDnssecProfile($zone->providerZoneId);
+        $profile           = $provider->getDnssecProfile($zone->providerZoneId);
+
+        return new DNSSECProfile(
+            $profile->zoneId,
+            $profile->state,
+            [...$profile->features, 'manual_actions' => $provider->capabilities()->supports(Capability::DNSSEC_ACTION_EXECUTE)],
+            $profile->metadata,
+        );
     }
 
     /** @param array<string, scalar|array<array-key, scalar>|null> $payload */

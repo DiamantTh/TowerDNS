@@ -16,6 +16,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
+use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
@@ -27,6 +28,11 @@ final class PowerDNSProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */
     private array $requests = [];
+
+    public function testDoesNotAdvertiseZoneUpdatesWithoutAnUpdateOperation(): void
+    {
+        self::assertFalse($this->provider([])->capabilities()->supports(Capability::ZONE_UPDATE));
+    }
 
     public function testCreatesRecordWithExtendOnSupportedServers(): void
     {

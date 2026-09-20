@@ -26,7 +26,7 @@ final readonly class GoogleCloudDNSModule implements ProviderModuleInterface
     {
         return new ProviderDefinition(GoogleCloudDNSProvider::ID, 'Google Cloud DNS', true, [
             'project_id'           => ['input' => 'google_cloud_dns_project_id', 'label' => 'module.googleclouddns.credentials.project-id.label', 'required' => true, 'secret' => false],
-            'service_account_json' => ['input' => 'google_cloud_dns_service_account_json', 'label' => 'module.googleclouddns.credentials.service-account-json.label', 'required' => true, 'secret' => true],
+            'service_account_json' => ['input' => 'google_cloud_dns_service_account_json', 'label' => 'module.googleclouddns.credentials.service-account-json.label', 'required' => true, 'secret' => true, 'type' => 'textarea'],
         ]);
     }
 

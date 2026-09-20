@@ -41,15 +41,19 @@ final readonly class ProviderAccountManagementService
         $account = $this->account($accountId);
         $this->permissions->assertCanManageProviderAccounts($account->id, $actor);
 
-        $types = [];
+        $types       = [];
+        $definitions = [];
         foreach ($this->schemas->definitions() as $id => $definition) {
             if ($definition['user_managed']) {
-                $types[] = $id;
+                $types[]          = $id;
+                $definitions[$id] = $definition;
             }
         }
         sort($types, SORT_STRING);
 
-        return new ProviderAccountListing($account, $this->providerAccounts->findByAccountId($accountId), $types);
+        ksort($definitions, SORT_STRING);
+
+        return new ProviderAccountListing($account, $this->providerAccounts->findByAccountId($accountId), $types, $definitions);
     }
 
     /**

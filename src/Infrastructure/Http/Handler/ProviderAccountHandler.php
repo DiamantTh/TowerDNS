@@ -163,13 +163,14 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         $flashSuccess = $request->getQueryParams()['success'] ?? null;
 
         return new HtmlResponse($this->renderer->render('app::provider_accounts/list', [
-            'user'         => $user,
-            'account'      => $listing->account,
-            'providers'    => $listing->providerAccounts,
-            'allowedTypes' => $listing->allowedTypes,
-            'csrfToken'    => $csrfToken,
-            'error'        => is_string($flashError) ? $flashError : null,
-            'success'      => is_string($flashSuccess) ? $flashSuccess : null,
+            'user'                => $user,
+            'account'             => $listing->account,
+            'providers'           => $listing->providerAccounts,
+            'allowedTypes'        => $listing->allowedTypes,
+            'providerDefinitions' => $listing->providerDefinitions,
+            'csrfToken'           => $csrfToken,
+            'error'               => is_string($flashError) ? $flashError : null,
+            'success'             => is_string($flashSuccess) ? $flashSuccess : null,
         ]));
     }
 

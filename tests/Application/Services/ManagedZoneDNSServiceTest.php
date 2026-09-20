@@ -30,6 +30,44 @@ use TowerDNS\Domain\DNS\Zone;
 
 final class ManagedZoneDNSServiceTest extends TestCase
 {
+    public function testDnssecProfileReflectsProviderActionCapability(): void
+    {
+        $managed = new ManagedZone(7, 42, 9, 'provider-zone', 'example.test', '2026-09-17 12:00:00');
+        $zones   = $this->createMock(ManagedZoneRepositoryInterface::class);
+        $zones->method('findByIdForAccount')->with(7, 42)->willReturn($managed);
+
+        $providerAccounts = $this->createMock(ProviderAccountRepositoryInterface::class);
+        $providerAccounts->method('findById')->with(9)->willReturn(new ProviderAccount(9, 42, 'fake', 'Fake', 'ciphertext', 3, true, '2026-09-17 12:00:00'));
+
+        $provider = $this->createMock(DNSProviderInterface::class);
+        $provider->method('capabilities')->willReturn(new ProviderCapabilitySet([
+            Capability::DNSSEC_STATUS_READ    => true,
+            Capability::DNSSEC_ACTION_EXECUTE => false,
+        ]));
+        $provider->method('getDnssecProfile')->with('provider-zone')->willReturn(
+            new DNSSECProfile('provider-zone', DNSSECState::SIGNED, ['manual_actions' => true]),
+        );
+
+        $factory = $this->createMock(AccountProviderFactoryInterface::class);
+        $factory->method('buildProvider')->with(self::isInstanceOf(ProviderAccount::class))->willReturn($provider);
+
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('getEffectiveRole')->with(42, 'user')->willReturn(TeamRole::DNS_MANAGER);
+        $permissions = new PermissionService(
+            $accounts,
+            $this->createMock(ZoneMembershipRepositoryInterface::class),
+            new AuthorizationService(new RbacPermissionChecker()),
+            new RbacPermissionChecker(),
+            $zones,
+        );
+        $service = new ManagedZoneDNSService($permissions, $accounts, $zones, $providerAccounts, $factory);
+
+        $profile = $service->dnssecProfile(new User('user', 'user@example.test'), 42, 7);
+
+        self::assertSame(DNSSECState::SIGNED, $profile->state);
+        self::assertFalse($profile->features['manual_actions']);
+    }
+
     public function testMutationsAreBlockedForInactiveAccounts(): void
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);

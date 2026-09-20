@@ -16,6 +16,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
+use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Module\netcup\NetcupAPIClient;
@@ -25,6 +26,11 @@ final class NetcupProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */
     private array $requests = [];
+
+    public function testDoesNotAdvertiseZoneUpdatesWithoutAnUpdateOperation(): void
+    {
+        self::assertFalse($this->provider([])->capabilities()->supports(Capability::ZONE_UPDATE));
+    }
 
     public function testCreatesTlsaWithoutDiscardingOtherNetcupRecords(): void
     {

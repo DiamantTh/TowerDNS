@@ -56,7 +56,7 @@ final class INWXProvider extends AbstractDNSProvider
             Capability::ZONE_READ   => true,
             Capability::ZONE_CREATE => true,
             Capability::ZONE_DELETE => true,
-            Capability::ZONE_UPDATE => true,
+            Capability::ZONE_UPDATE => false,
 
             Capability::RECORD_LIST    => true,
             Capability::RECORD_CREATE  => true,

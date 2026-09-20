@@ -14,6 +14,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 
@@ -52,6 +53,8 @@ final readonly class DNSSECHandler implements RequestHandlerInterface
             $profile = $this->dns->dnssecProfile($user, $accountId, $zoneId);
         } catch (AuthorizationException) {
             return $this->render($user, $accountId, $zoneId, null, $csrfToken, $this->translator->translate('dnssec.error.read-denied'), 403);
+        } catch (CapabilityException) {
+            return $this->render($user, $accountId, $zoneId, null, $csrfToken, null, 200);
         } catch (\Throwable) {
             return $this->render($user, $accountId, $zoneId, null, $csrfToken, $this->translator->translate('dnssec.error.read-failed'), 500);
         }

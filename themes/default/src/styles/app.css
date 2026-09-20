@@ -184,6 +184,13 @@
     .resource-card, .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid var(--color-surface-200); border-radius: var(--radius-container); padding: 1rem; }
     html.dark .resource-card, html.dark .setting-row { border-color: var(--color-surface-700); }
     .resource-title { font-size: 1.05rem; font-weight: 700; }
+    .provider-card { align-items: flex-start; }
+    .provider-card__summary { display: grid; min-width: 0; gap: .25rem; overflow-wrap: anywhere; }
+    .provider-card__actions { display: grid; min-width: min(100%, 20rem); gap: .75rem; }
+    .provider-card details > summary { cursor: pointer; font-weight: 650; }
+    .provider-card details > summary:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: 3px; }
+    .rdata-values { max-width: 40rem; }
+    .rdata-value { display: block; overflow-wrap: anywhere; white-space: pre-wrap; }
     .status { display: inline-flex; margin-left: .6rem; border-radius: 999px; background: var(--color-warning-200); color: var(--color-warning-900); padding: .15rem .5rem; font-size: .7rem; font-weight: 750; }
     .status.active { background: var(--color-success-200); color: var(--color-success-900); }
     .inline-form { display: flex; align-items: end; gap: .5rem; margin-bottom: 1rem; }

@@ -1,40 +1,30 @@
 # TowerDNS
 
-TowerDNS ist ein providerunabhaengiges, DNS-zentriertes Management-Panel und der offizielle technische Nachfolger von desec-manager.
-
-## Vorgaenger und Migration
-
-Vorgaengerprojekt:
-- Selfhosted: https://git.diath.systems/DiamantTh/desec-manager
-- GitHub: https://github.com/DiamantTh/desec-manager
-
-Das bisherige Projekt desec-manager dient als Migrationsbasis. Die Weiterentwicklung erfolgt ausschliesslich in diesem Repository.
+TowerDNS ist eine eigenständige, self-hosted DNS-Verwaltungsanwendung. Ein gemeinsamer Anwendungskern verwaltet Accounts, Zonen und DNS-Records und bindet DNS-Provider über capability-geprüfte Adapter an.
 
 ## Zielbild
 
 TowerDNS ist kein reiner Wrapper fuer einen einzelnen Anbieter. Das Projekt stellt eine gemeinsame Kernlogik fuer DNS-Verwaltung bereit und bindet Provider ueber eine abstrahierte, capability-orientierte Schnittstelle an.
 
 Schwerpunkte:
-- Verwaltung von Zonen, Records, TTL, Kommentaren, Tags und Metadaten
-- Striktes Rollen- und Rechtesystem mit zentraler Pruefung in der Application-Schicht
-- DNSSEC als eigener fachlicher Bereich, nicht als Sonderbehandlung am Rand
-- Provideradapter fuer deSEC, PowerDNS, Cloudflare, INWX und Netcup CCP DNS
+- Verwaltung von Account-gebundenen DNS-Zonen und RRsets
+- TTL- und RDATA-Validierung vor Provider-Mutationen
+- Rollen- und Rechtesystem mit zentraler Prüfung in der Application-Schicht
+- DNSSEC-Status und nur die Aktionen, die der jeweilige Adapter tatsächlich unterstützt
+- getrennte Provider-Verbindungen pro Account sowie systemweite Provider-Konfiguration
 
 ## Architektur
 
 Layer:
-- UI: einheitliche Oberflaeche ohne direkte Anbieterlogik
-- Application/Core: providerneutrale Workflows, Validierung, Normalisierung und Rechtepruefung
-- Provider-Abstraktion: gemeinsamer Vertrag und capability-orientiertes Modell
-- Provider-Implementierungen: deSEC, PDNS, Cloudflare, INWX und Netcup als getrennte Adapter
-- Domain-Modell: kanonische Darstellung von DNS-Objekten inklusive DNSSEC
+- UI: Svelte 5, TypeScript und Tailwind; keine Provider-API-Aufrufe aus dem Browser
+- Application: providerneutrale Workflows, Eingabevalidierung und Berechtigungsprüfung
+- Provider-Verträge: gemeinsame Interfaces und Capability-Modell
+- Provider-Module: getrennte Adapter und anbieterbezogene Eingabe-/Credential-Schemata
+- Domain: Account-gebundene Ressourcen sowie DNS-, RRset- und DNSSEC-Wertmodelle
 
 ## DNSSEC-Grundsatz
 
-DNSSEC wird fachlich vollstaendig modelliert:
-- Provider mit einfacher/automatischer DNSSEC-Abwicklung werden korrekt abgebildet
-- Provider mit direkter DNSSEC-Steuerung bleiben detailliert steuerbar
-- PowerDNS DNSSEC-Funktionen werden direkt an die PDNS-API angebunden
+Der DNSSEC-Umfang ist providerabhängig. TowerDNS zeigt den Status, wenn ein Adapter ihn anbietet, und bietet manuelle Aktionen nur an, wenn dessen Capability dies erlaubt. Automatische DNSSEC-Verwaltung, DS-Daten und Schlüsseloperationen sind nicht bei jedem Provider verfügbar.
 
 ## Rollen und Rechte
 
@@ -47,15 +37,13 @@ Rechtepruefungen sind zentral im Core und nicht nur in der UI.
 
 ## Technische Basis
 
-TowerDNS uebernimmt den Stack des Vorgaengerprojekts desec-manager und entwickelt ihn provider-neutral weiter:
-
 - PHP >= 8.4, Composer (PSR-4 unter `TowerDNS\`)
 - HTTP-Schicht: Mezzio (PSR-15) + FastRoute + PHP-DI
 - UI-Renderer: Svelte-Anwendungsshell mit sicherem JSON-Bootstrap (ohne Twig)
 - Sessions/CSRF: `mezzio-session`, `mezzio-session-ext`, `mezzio-csrf`
 - Validierung/Filter/Inputs: Laminas (`laminas-filter`, `laminas-validator`, `laminas-inputfilter`, `laminas-i18n`)
 - RBAC-Bibliothek: `laminas/laminas-permissions-rbac` (eigene Permission/Role-Domain dazu)
-- Persistenz: Doctrine DBAL (^3.7) wie in desec-manager
+- Persistenz und kontrollierte Schema-Upgrades: Doctrine DBAL 3 und Doctrine Migrations
 - HTTP-Clients: Guzzle 7
 - Logging/Telemetrie: Monolog 3, Sentry 4
 - Caching: Symfony Cache, PSR Simple Cache
@@ -63,22 +51,16 @@ TowerDNS uebernimmt den Stack des Vorgaengerprojekts desec-manager und entwickel
 - Authentifizierung: WebAuthn (`web-auth/webauthn-lib`), TOTP (`spomky-labs/otphp`), Passwortpruefung (`bjeavons/zxcvbn-php`)
 - Frontend: Skeleton 5 + Svelte 5 + Tailwind CSS 4 + Vite 6 + TypeScript
 - Tests/Statisch: PHPUnit 11, PHPStan 2 (Level 8)
-- Saubere Layer-Struktur unter `src/Domain`, `src/Application`, `src/Infrastructure`, `src/UI`
+- Provider-Module unter `modules/`; Kern-Layer unter `src/Domain`, `src/Application` und `src/Infrastructure`
 
 ## Aktueller Stand
 
-- providerneutrales Vertragsmodell mit `ProviderRegistry` und `Capability`-Konstanten
-- kanonisches DNS- und DNSSEC-Modell (`Zone`, `Record`, `DnssecProfile`, `DnssecState`)
-- RBAC mit zentraler Durchsetzung im `DnsManagementService` (Permission + Capability)
-- Eingabevalidierung mit IDN-Normalisierung (`DnsNameValidator`) und Record-Pruefung (`RecordValidator`)
-- deSEC-Adapter funktional aus desec-manager portiert (`DeSECApiClient`, `DeSECProvider`)
-- PowerDNS-Adapter inkl. nativer DNSSEC-Steuerung (`cryptokeys`-API)
-- Netcup-CCP-DNS-Adapter fuer explizit konfigurierte Legacy-DNS-Zonen; er
-  arbeitet wegen Netcups Vollersetzungs-API konservativ als Read-Modify-Write
-  und unterstützt damit auch TLSA-Records
-- Cloudflare- und INWX-Adapter als Skelette mit korrekt deklarierten Capabilities
-- PHPUnit- und PHPStan-Konfiguration (Level 8), erste Tests fuer Validierung und Service
-- AGPL-3.0-or-later, durchgaengig SPDX-Header in allen PHP-Dateien
+- providerneutrale Workflows über `ManagedZoneDNSService`, Provider-Factory und Capability-Prüfungen
+- Account-gebundene Zonen, Provider-Verbindungen und serverseitige Session-/CSRF-geschützte Verwaltungsseiten
+- Record- und RRset-Operationen mit providerseitigem Read-back für RRset-Ersetzungen
+- Provideradapter unterschiedlicher Reifegrade; siehe [Provider-Funktionsmatrix](docs/PROVIDER_CAPABILITIES.md)
+- automatisierte PHPUnit-Tests für DNS-Validierung und simulierte Provider-API-Antworten
+- AGPL-3.0-or-later; konkrete Codeherkunft ist in [docs/PROJECT_HISTORY.md](docs/PROJECT_HISTORY.md) festgehalten
 
 ## Entwicklung
 
@@ -141,14 +123,9 @@ Theme erben (`system`) oder eines der installierten Themes auswaehlen.
 Weiterfuehrende Dokumentation:
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [docs/RBAC.md](docs/RBAC.md)
-- [docs/MIGRATION_FROM_DESEC_MANAGER.md](docs/MIGRATION_FROM_DESEC_MANAGER.md)
-
-## Naechste Schritte
-
-- Cloudflare- und INWX-Adapter ausimplementieren
-- Persistenz fuer Provider-Konfigurationen, User und Rollen anbinden
-- HTTP-/UI-Layer auf den Application-Services aufsetzen
-- Importpfad aus desec-manager-Datenbestaenden bereitstellen
+- [docs/PROVIDER_CAPABILITIES.md](docs/PROVIDER_CAPABILITIES.md)
+- [docs/ui-examples/README.md](docs/ui-examples/README.md)
+- [docs/PROJECT_HISTORY.md](docs/PROJECT_HISTORY.md)
 
 ## Lizenz
 
@@ -156,4 +133,4 @@ GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later), siehe [LICE
 
 SPDX-Identifier: `AGPL-3.0-or-later`.
 
-TowerDNS ist der technische Nachfolger von desec-manager und uebernimmt dessen Copyleft-Charakter konsequent: Wer eine modifizierte Version als Netzwerkdienst betreibt, muss den entsprechenden Quellcode den Nutzern zugaenglich machen (AGPL §13).
+Die Lizenzbedingungen und die Herkunft einzelner übernommener Bestandteile sind in [LICENSE](LICENSE) und [docs/PROJECT_HISTORY.md](docs/PROJECT_HISTORY.md) beschrieben.

@@ -48,6 +48,10 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
         try {
             $zones            = $this->dns->list($user, $accountId);
             $providerAccounts = $this->dns->availableProviderAccounts($user, $accountId);
+            $providerNames    = [];
+            foreach ($providerAccounts as $providerAccount) {
+                $providerNames[$providerAccount->id] = $providerAccount->name;
+            }
         } catch (AuthorizationException) {
             return new HtmlResponse(
                 $this->renderer->render('app::zones/list', [
@@ -55,6 +59,7 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
                     'accountId'        => $accountId,
                     'managedZones'     => [],
                     'providerAccounts' => [],
+                    'providerNames'    => [],
                     'csrfToken'        => $csrfToken,
                     'error'            => $this->translator->translate('http.error.forbidden'),
                 ]),
@@ -70,6 +75,7 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
                 'accountId'        => $accountId,
                 'managedZones'     => $zones,
                 'providerAccounts' => $providerAccounts,
+                'providerNames'    => $providerNames,
                 'csrfToken'        => $csrfToken,
                 'error'            => is_string($flashError) ? $flashError : null,
             ]),

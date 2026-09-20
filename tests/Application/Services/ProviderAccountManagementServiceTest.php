@@ -77,6 +77,10 @@ final class ProviderAccountManagementServiceTest extends TestCase
         );
 
         self::assertSame(['example', 'second-example'], $listing->allowedTypes);
+        self::assertSame(['example', 'second-example'], array_keys($listing->providerDefinitions));
+        self::assertSame('Example', $listing->providerDefinitions['example']['label']);
+        self::assertSame('token', $listing->providerDefinitions['example']['credentials']['token']['input']);
+        self::assertArrayNotHasKey('system-only', $listing->providerDefinitions);
     }
 
     public function testReplaceRejectsAProviderAccountFromAnotherTenant(): void

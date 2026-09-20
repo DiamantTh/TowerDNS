@@ -57,7 +57,7 @@ final class NetcupProvider extends AbstractDNSProvider
             Capability::ZONE_LIST                   => true,
             Capability::ZONE_READ                   => true,
             Capability::ZONE_CREATE                 => false,
-            Capability::ZONE_UPDATE                 => true,
+            Capability::ZONE_UPDATE                 => false,
             Capability::ZONE_DELETE                 => false,
             Capability::RECORD_LIST                 => true,
             Capability::RECORD_CREATE               => true,
