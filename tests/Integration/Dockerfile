@@ -1,7 +1,7 @@
 # Optional development image for the database integration environment.
 # TowerDNS does not require Docker or Podman at runtime.
 
-FROM node:22-bookworm-slim AS frontend
+FROM node:22-trixie-slim AS frontend
 WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
@@ -11,7 +11,7 @@ RUN npm run build
 
 FROM docker.io/library/composer:2 AS composer-bin
 
-FROM php:8.4-cli-bookworm AS dependencies
+FROM php:8.4-cli-trixie AS dependencies
 COPY --from=composer-bin /usr/bin/composer /usr/bin/composer
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libicu-dev libonig-dev libpq-dev libsqlite3-dev unzip \
@@ -21,7 +21,7 @@ WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader --no-scripts
 
-FROM php:8.4-apache-bookworm
+FROM php:8.4-apache-trixie
 ENV APACHE_DOCUMENT_ROOT=/var/www/html/httpdocs
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libicu-dev libonig-dev libpq-dev libsqlite3-dev \
