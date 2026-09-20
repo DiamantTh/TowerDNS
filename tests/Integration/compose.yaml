@@ -1,4 +1,6 @@
 services:
+  # The database-only setup is used by the PHPUnit integration tests.
+  # The optional app profile adds an Apache/PHP development container.
   mariadb:
     image: docker.io/library/mariadb:11.4
     environment:
@@ -29,3 +31,41 @@ services:
       interval: 2s
       timeout: 3s
       retries: 20
+
+  app:
+    profiles: ["app"]
+    build:
+      context: ../..
+      dockerfile: tests/Integration/Dockerfile
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      TOWERDNS_ENCRYPTION_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      TOWERDNS_DB_DRIVER: pdo_mysql
+      TOWERDNS_DB_HOST: mariadb
+      TOWERDNS_DB_PORT: 3306
+      TOWERDNS_DB_NAME: towerdns_test
+      TOWERDNS_DB_USER: towerdns_app
+      TOWERDNS_DB_PASSWORD: towerdns_app
+      DB_PASSWORD: towerdns_app
+    ports:
+      - "127.0.0.1:18080:80"
+    volumes:
+      - towerdns_app_config:/var/www/html/configs
+      - towerdns_app_data:/var/www/html/data
+      - towerdns_app_logs:/var/www/html/logs
+      - towerdns_app_cache:/var/www/html/cache
+    healthcheck:
+      test: ["CMD-SHELL", "php -r '$$s = @fsockopen(\"127.0.0.1\", 80); exit($$s === false ? 1 : 0);'"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  towerdns_app_config:
+  towerdns_app_data:
+  towerdns_app_logs:
+  towerdns_app_cache:
