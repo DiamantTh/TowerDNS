@@ -321,10 +321,15 @@ function processStep2(): array
 }
 
 // ── View ───────────────────────────────────────────────────────────────────
-$themes = getAvailableThemes();
+/** @param string[] $errors */
+function renderStep2(array $errors): void
+{
+    global $displayStep, $pageTitle, $showProgress, $stepLabels;
 
-ob_start();
-?>
+    $themes = getAvailableThemes();
+
+    ob_start();
+    ?>
 <h2 class="title is-5"><?= e(t('step2.heading')) ?></h2>
 <p class="mb-4 has-text-grey is-size-7"><?= e(t('step2.subheading')) ?></p>
 
@@ -695,6 +700,7 @@ toggleProvider('<?= $pid ?>');
 <?php endforeach; ?>
 </script>
 <?php
-$_step_content = ob_get_clean();
+    $_step_content = ob_get_clean();
 
-require INSTALL_DIR . '/inc/views/layout.php';
+    require INSTALL_DIR . '/inc/views/layout.php';
+}

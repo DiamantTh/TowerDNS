@@ -40,6 +40,25 @@ values before first startup. Because the configuration is persisted in a
 named volume, remove that volume with `down -v` before switching an existing
 app volume to a different database target.
 
+### Disposable web-installer HTTP test
+
+The complete browser-facing installation flow against MariaDB is covered by
+an isolated Compose test:
+
+```sh
+sh tests/Integration/web-installer-http-test.sh
+```
+
+It builds the optional `webinstaller` profile from the current checkout,
+follows the installer redirects and forms with a cookie jar, verifies CSRF
+rejection and completion, and checks the installation marker and generated
+administrator, personal account, organization membership, and resource limits.
+The script creates a dynamically named Compose project and deletes only that
+project's containers and volumes on exit; it never removes the normal `app`
+development volumes. PostgreSQL and SQLite retain their repository-level
+integration tests; their full HTTP installer flows are intentionally outside
+this MariaDB-specific test.
+
 The MariaDB account is scoped to the existing test database. PostgreSQL uses
 the `towerdns_app` role created by `postgres-init.sql`; it cannot create
 databases. No production credentials are used. When the optional profile is

@@ -268,13 +268,18 @@ function processStep3(): array
 }
 
 // ── View (Bestätigung) ─────────────────────────────────────────────────────
-$db        = $_SESSION['install_db']        ?? [];
-$admin     = $_SESSION['install_admin']     ?? [];
-$app       = $_SESSION['install_app']       ?? [];
-$providers = $_SESSION['install_providers'] ?? [];
+/** @param string[] $errors */
+function renderStep3(array $errors): void
+{
+    global $displayStep, $pageTitle, $showProgress, $stepLabels;
 
-ob_start();
-?>
+    $db        = $_SESSION['install_db']        ?? [];
+    $admin     = $_SESSION['install_admin']     ?? [];
+    $app       = $_SESSION['install_app']       ?? [];
+    $providers = $_SESSION['install_providers'] ?? [];
+
+    ob_start();
+    ?>
 <h2 class="title is-5"><?= e(t('step3.heading')) ?></h2>
 <p class="mb-4 has-text-grey is-size-7"><?= e(t('step3.subheading')) ?></p>
 
@@ -350,6 +355,7 @@ ob_start();
     <a href="<?= e(INSTALLER_ENTRY) ?>?back=1" class="button is-light is-medium">← <?= e(t('nav.back')) ?></a>
 </div>
 <?php
-$_step_content = ob_get_clean();
+    $_step_content = ob_get_clean();
 
-require INSTALL_DIR . '/inc/views/layout.php';
+    require INSTALL_DIR . '/inc/views/layout.php';
+}

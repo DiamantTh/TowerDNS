@@ -30,19 +30,24 @@ function processStep1(): void
 }
 
 // ── View ───────────────────────────────────────────────────────────────────
-$reqs        = getRequirements();
-$allRequired = true;
-foreach ($reqs as $req) {
-    if ($req['required'] && !$req['ok']) {
-        $allRequired = false;
-        break;
+/** @param string[] $errors */
+function renderStep1(array $errors): void
+{
+    global $displayStep, $pageTitle, $showProgress, $stepLabels;
+
+    $reqs        = getRequirements();
+    $allRequired = true;
+    foreach ($reqs as $req) {
+        if ($req['required'] && !$req['ok']) {
+            $allRequired = false;
+            break;
+        }
     }
-}
 
-$vendorMissing = !VENDOR_OK;
+    $vendorMissing = !VENDOR_OK;
 
-ob_start();
-?>
+    ob_start();
+    ?>
 <h2 class="subtitle is-5 mb-4"><?= e(t('step1.subheading')) ?></h2>
 
 <?php if ($vendorMissing): ?>
@@ -108,6 +113,7 @@ ob_start();
     </div>
 </form>
 <?php
-$_step_content = ob_get_clean();
+    $_step_content = ob_get_clean();
 
-require INSTALL_DIR . '/inc/views/layout.php';
+    require INSTALL_DIR . '/inc/views/layout.php';
+}

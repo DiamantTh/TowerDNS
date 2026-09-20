@@ -75,7 +75,8 @@ if (!VENDOR_OK) {
     $stepLabels   = [t('steps.s1'), t('steps.s2'), t('steps.s3')];
     $pageTitle    = 'TowerDNS — ' . t('layout.title');
     $errors       = [];
-    require INSTALL_DIR . '/inc/step1.php';
+    require_once INSTALL_DIR . '/inc/step1.php';
+    renderStep1($errors);
     exit;
 }
 
@@ -168,17 +169,17 @@ switch ($currentStep) {
     case 3:
         $errors = $step3Errors;
         require_once INSTALL_DIR . '/inc/step3.php';
-        // step3.php setzt $_step_content und ruft layout.php auf
+        renderStep3($errors);
         break;
 
     case 2:
         $errors = $step2Errors;
         require_once INSTALL_DIR . '/inc/step2.php';
-        // step2.php setzt $_step_content und ruft layout.php auf
+        renderStep2($errors);
         break;
 
     default:
         require_once INSTALL_DIR . '/inc/step1.php';
-        // step1.php setzt $_step_content und ruft layout.php auf
+        renderStep1($errors);
         break;
 }
