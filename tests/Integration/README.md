@@ -43,11 +43,13 @@ app volume to a different database target.
 ### Disposable web-installer HTTP test
 
 The complete browser-facing installation, login, dashboard, and logout flow is
-covered against MariaDB and PostgreSQL by the same isolated Compose test:
+covered against MariaDB, PostgreSQL, and SQLite by the same isolated Compose
+test:
 
 ```sh
 sh tests/Integration/web-installer-http-test.sh mariadb
 sh tests/Integration/web-installer-http-test.sh postgresql
+sh tests/Integration/web-installer-http-test.sh sqlite
 ```
 
 The database argument defaults to `mariadb`, preserving the original command.
@@ -60,12 +62,17 @@ personal active-account scope and dashboard bootstrap, and checks
 CSRF-protected logout and post-logout access control. Each run creates a
 dynamically named Compose project and deletes only that project's containers
 and volumes on exit; it never removes the normal `app` development volumes.
-The database checks use the MariaDB service or the restricted `towerdns_app`
-PostgreSQL role created by `postgres-init.sql`. SQLite retains its
-repository-level integration tests; a full SQLite HTTP installer flow remains
-outside this test.
+The MariaDB service and restricted `towerdns_app` PostgreSQL role are used for
+their respective runs. SQLite stores its test file at
+`/var/www/html/data/towerdns-webinstaller.sqlite` inside the run's dedicated
+`webinstaller_data` volume, outside the public document root. The SQLite run
+checks application-user access and foreign-key enforcement, restarts the app
+container, then verifies the installed user and personal account remain in the
+database. The dynamically named Compose project cleanup removes only that
+run's volumes; it does not touch normal development volumes.
 
-The MariaDB account is scoped to the existing test database. PostgreSQL uses
-the `towerdns_app` role created by `postgres-init.sql`; it cannot create
-databases. No production credentials are used. When the optional profile is
-not needed, start only the database services as shown above.
+The MariaDB account is scoped to the test database. PostgreSQL uses the
+`towerdns_app` role created by `postgres-init.sql`; it cannot create databases.
+The SQLite run has no server credentials. No production credentials are used.
+When the optional profile is not needed, start only the database services as
+shown above.

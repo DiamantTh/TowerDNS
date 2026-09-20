@@ -2,9 +2,9 @@
 
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Runs a real, disposable MariaDB or PostgreSQL installation through the HTTP
-# wizard. This stays outside PHPUnit: it exercises Apache, sessions, CSRF, the
-# installer token, and Compose as well as PHP application code.
+# Runs a real, disposable MariaDB, PostgreSQL, or SQLite installation through
+# the HTTP wizard. This stays outside PHPUnit: it exercises Apache, sessions,
+# CSRF, the installer token, and Compose as well as PHP application code.
 
 set -eu
 
@@ -19,6 +19,7 @@ case "$database" in
         db_name=towerdns_test
         db_user=towerdns_app
         db_pass=towerdns_app
+        db_path=
         pdo_driver=mysql
         db_host_field=db_host
         db_port_field=db_port
@@ -33,6 +34,7 @@ case "$database" in
         db_name=towerdns_test
         db_user=towerdns_app
         db_pass=towerdns_app
+        db_path=
         pdo_driver=pgsql
         db_host_field=pg_host
         db_port_field=pg_port
@@ -40,8 +42,23 @@ case "$database" in
         db_user_field=pg_user
         db_pass_field=pg_pass
         ;;
+    sqlite)
+        db_driver=pdo_sqlite
+        pdo_driver=sqlite
+        db_host=
+        db_port=
+        db_name=
+        db_user=
+        db_pass=
+        db_path=/var/www/html/data/towerdns-webinstaller.sqlite
+        db_host_field=db_host
+        db_port_field=db_port
+        db_name_field=db_name
+        db_user_field=db_user
+        db_pass_field=db_pass
+        ;;
     *)
-        printf 'Unsupported web-installer test database: %s (use mariadb or postgresql).\n' "$database" >&2
+        printf 'Unsupported web-installer test database: %s (use mariadb, postgresql, or sqlite).\n' "$database" >&2
         exit 2
         ;;
 esac
@@ -164,6 +181,7 @@ step2_post_code=$("$curl_bin" --silent --show-error --max-time 60 \
     --data "$db_name_field=$db_name" \
     --data "$db_user_field=$db_user" \
     --data "$db_pass_field=$db_pass" \
+    --data-urlencode "db_sqlite_path=$db_path" \
     --data 'admin_user=webadmin' \
     --data 'admin_email=webadmin@example.test' \
     --data-urlencode "admin_pass=$admin_password" \
@@ -198,11 +216,12 @@ podman exec "$container_id" sh -ceu '
     test "$(stat -c %a /var/www/html/install/.install_token)" = 600
     grep -q "\[providers.desec\]" /var/www/html/configs/providers.toml
 '
-personal_account_id=$(podman exec "$container_id" php -r '
-    [$driver, $host, $port, $database, $username, $password] = array_slice($argv, 1);
+personal_account_id=$(podman exec --user www-data "$container_id" php -r '
+    [$driver, $host, $port, $database, $username, $password, $path] = array_slice($argv, 1);
     $dsn = match ($driver) {
         "mysql" => "mysql:host=$host;port=$port;dbname=$database;charset=utf8mb4",
         "pgsql" => "pgsql:host=$host;port=$port;dbname=$database",
+        "sqlite" => "sqlite:$path",
         default => throw new RuntimeException("unsupported PDO driver"),
     };
     $pdo = new PDO($dsn, $username, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
@@ -226,7 +245,58 @@ personal_account_id=$(podman exec "$container_id" php -r '
     $limits = (int) $limitsQuery->fetchColumn();
     if ($personalMembership !== 1 || $organization !== 1 || $limits !== 2) { throw new RuntimeException("installed account invariants failed"); }
     echo $personalId;
-' "$pdo_driver" "$db_host" "$db_port" "$db_name" "$db_user" "$db_pass")
+' "$pdo_driver" "$db_host" "$db_port" "$db_name" "$db_user" "$db_pass" "${db_path:-}")
+
+if [ "$database" = sqlite ]; then
+    data_mount=$(podman inspect --format '{{range .Mounts}}{{if eq .Destination "/var/www/html/data"}}{{.Type}} {{.Name}}{{end}}{{end}}' "$container_id")
+    case "$data_mount" in
+        'volume '*) ;;
+        *) fail 'SQLite data directory is not backed by the isolated Compose volume.' ;;
+    esac
+
+    podman exec --user www-data "$container_id" php -r '
+        $path = $argv[1];
+        $realPath = realpath($path);
+        $publicPath = realpath("/var/www/html/httpdocs");
+        if ($realPath === false || $publicPath === false || str_starts_with($realPath, $publicPath . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException("SQLite database is missing or inside the public document root");
+        }
+        if (!is_file($realPath) || !is_readable($realPath) || !is_writable($realPath) || !is_writable(dirname($realPath))) {
+            throw new RuntimeException("SQLite database or its parent directory is not accessible to the application user");
+        }
+
+        require "/var/www/html/vendor/autoload.php";
+        $container = TowerDNS\Application\ContainerFactory::create("/var/www/html");
+        $connection = $container->get(Doctrine\DBAL\Connection::class);
+        if ((int) $connection->fetchOne("PRAGMA foreign_keys") !== 1) {
+            throw new RuntimeException("SQLite foreign-key enforcement is disabled for the application connection");
+        }
+        $databaseInfo = $connection->fetchAssociative("PRAGMA database_list");
+        $databaseFile = is_array($databaseInfo) ? (string) ($databaseInfo["file"] ?? "") : "";
+        if ($databaseFile !== $realPath) {
+            throw new RuntimeException("Application connection does not use the installed SQLite database file");
+        }
+    ' "$db_path"
+
+    podman restart "$container_id" >/dev/null
+    for attempt in $(seq 1 60); do
+        if "$curl_bin" --silent --show-error --max-time 2 --output /dev/null "$base_url/"; then
+            break
+        fi
+        [ "$attempt" -lt 60 ] || fail 'webinstaller service did not recover after restart.'
+        sleep 1
+    done
+    podman exec --user www-data "$container_id" php -r '
+        $pdo = new PDO("sqlite:" . $argv[1], null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        $user = $pdo->prepare("SELECT COUNT(*) FROM users WHERE email = ?");
+        $user->execute(["webadmin@example.test"]);
+        $personal = $pdo->prepare("SELECT COUNT(*) FROM accounts WHERE account_type = ? AND personal_user_id = ?");
+        $personal->execute(["personal", $pdo->query("SELECT id FROM users WHERE email = " . $pdo->quote("webadmin@example.test"))->fetchColumn()]);
+        if ((int) $user->fetchColumn() !== 1 || (int) $personal->fetchColumn() !== 1) {
+            throw new RuntimeException("SQLite installation data did not survive the container restart");
+        }
+    ' "$db_path"
+fi
 
 # Svelte forms are created from the server-authorized JSON bootstrap. Exercise
 # the login handler with its real session and CSRF state rather than merely
