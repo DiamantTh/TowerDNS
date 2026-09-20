@@ -9,6 +9,7 @@ namespace TowerDNS\Module\GoogleCloudDNS;
 
 use Google\Client as GoogleClient;
 use Google\Service\Dns;
+use GuzzleHttp\Client as HttpClient;
 use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Module\ModuleManifest;
 use TowerDNS\Application\Module\ModuleType;
@@ -44,6 +45,7 @@ final readonly class GoogleCloudDNSModule implements ProviderModuleInterface
         $client = new GoogleClient();
         $client->setAuthConfig($serviceAccount);
         $client->setScopes(['https://www.googleapis.com/auth/ndev.clouddns.readwrite']);
+        $client->setHttpClient(new HttpClient(['timeout' => 30, 'connect_timeout' => 5]));
 
         return new GoogleCloudDNSProvider(new Dns($client), (string) $credentials['project_id']);
     }

@@ -27,4 +27,32 @@ final class DnsNameValidatorTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         DNSNameValidator::normalise('');
     }
+
+    public function testRecordOwnersAreNormalizedRelativeToTheirZone(): void
+    {
+        self::assertSame('', DNSNameValidator::normaliseRecordOwner('@', 'Example.org.'));
+        self::assertSame('', DNSNameValidator::normaliseRecordOwner('example.org.', 'example.org'));
+        self::assertSame('www', DNSNameValidator::normaliseRecordOwner('WWW.Example.org.', 'example.org'));
+        self::assertSame('_dmarc._domainkey', DNSNameValidator::normaliseRecordOwner('_dmarc._domainkey', 'example.org'));
+    }
+
+    public function testAbsoluteRecordOwnerOutsideItsZoneIsRejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        DNSNameValidator::normaliseRecordOwner('other.example.net.', 'example.org');
+    }
+
+    public function testMalformedRecordOwnerIsRejected(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        DNSNameValidator::normaliseRecordOwner('www..example', 'example.org');
+    }
+
+    public function testWildcardRecordOwnerMustBeTheFirstLabel(): void
+    {
+        self::assertSame('*.api', DNSNameValidator::normaliseRecordOwner('*.api', 'example.org'));
+
+        $this->expectException(\InvalidArgumentException::class);
+        DNSNameValidator::normaliseRecordOwner('www.*', 'example.org');
+    }
 }

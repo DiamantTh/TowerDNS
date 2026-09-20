@@ -7,6 +7,7 @@ namespace TowerDNS\Application\Services;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\DNSProviderInterface;
+use TowerDNS\Application\Contracts\ProviderConstraintProviderInterface;
 use TowerDNS\Application\Contracts\RrsetProviderInterface;
 use TowerDNS\Application\DNS\RdataCanonicalizer;
 use TowerDNS\Application\DNS\RrsetComparator;
@@ -47,19 +48,32 @@ final readonly class ManagedZoneDNSService
         if (!$zone->active || $zone->id === '') {
             throw new \RuntimeException('Provider returned an invalid zone.');
         }
+        $id = null;
         try {
             $id = $this->managedZones->create($accountId, $providerAccountId, $zone->id, DNSNameValidator::normalise($zone->name), new \DateTimeImmutable()->format('Y-m-d H:i:s'));
+
+            $managed = $this->managedZones->findById($id);
+            if (!$managed instanceof ManagedZone) {
+                throw new \RuntimeException('Managed zone persistence failed.');
+            }
         } catch (\Throwable $e) {
+            $providerZoneDeleted = false;
             try {
                 $provider->deleteZone($zone->id);
+                $providerZoneDeleted = true;
             } catch (\Throwable) { /* provider reconciliation remains possible */
             }
+
+            if ($providerZoneDeleted && is_int($id)) {
+                try {
+                    $this->managedZones->delete($id);
+                } catch (\Throwable) { /* local reconciliation remains possible */
+                }
+            }
+
             throw $e;
         }
-        $managed = $this->managedZones->findById($id);
-        if (!$managed instanceof ManagedZone) {
-            throw new \RuntimeException('Managed zone persistence failed.');
-        }
+
         return $managed;
     }
 
@@ -109,8 +123,10 @@ final readonly class ManagedZoneDNSService
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_CREATE, Capability::RECORD_CREATE);
         $this->assertAccountActive($accountId);
         RecordValidator::assertTtl($record->ttl);
-        RecordValidator::assertContent($record->type, $record->content);
-        return $provider->createRecord($this->forProviderZone($record, $zone->providerZoneId));
+        $this->assertProviderTtl($provider, $record->ttl);
+        $owner   = DNSNameValidator::normaliseRecordOwner($record->name, $zone->canonicalName);
+        $content = RecordValidator::normaliseContent($record->type, $record->content);
+        return $provider->createRecord($this->forProviderZone($record, $zone->providerZoneId, $owner, $content));
     }
 
     public function updateRecord(User $user, int $accountId, int $managedZoneId, Record $record): Record
@@ -118,8 +134,10 @@ final readonly class ManagedZoneDNSService
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_UPDATE, Capability::RECORD_UPDATE);
         $this->assertAccountActive($accountId);
         RecordValidator::assertTtl($record->ttl);
-        RecordValidator::assertContent($record->type, $record->content);
-        return $provider->updateRecord($this->forProviderZone($record, $zone->providerZoneId));
+        $this->assertProviderTtl($provider, $record->ttl);
+        $owner   = DNSNameValidator::normaliseRecordOwner($record->name, $zone->canonicalName);
+        $content = RecordValidator::normaliseContent($record->type, $record->content);
+        return $provider->updateRecord($this->forProviderZone($record, $zone->providerZoneId, $owner, $content));
     }
 
     public function findRecordForUpdate(User $user, int $accountId, int $managedZoneId, string $recordId): ?Record
@@ -145,10 +163,13 @@ final readonly class ManagedZoneDNSService
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_UPDATE, Capability::RECORD_UPDATE);
         $this->assertAccountActive($accountId);
         RecordValidator::assertTtl($rrset->ttl);
-        foreach ($rrset->rdata as $rdata) {
-            RdataCanonicalizer::canonicalize($rrset->type, $rdata);
-        }
-        $expected = new Rrset($zone->providerZoneId, $rrset->ownerName, $rrset->type, $rrset->ttl, $rrset->rdata, $rrset->providerIdentity, $rrset->metadata);
+        $this->assertProviderTtl($provider, $rrset->ttl);
+        $owner = DNSNameValidator::normaliseRecordOwner($rrset->ownerName, $zone->canonicalName);
+        $rdata = array_values(array_unique(array_map(
+            static fn(string $value): string => RdataCanonicalizer::canonicalize($rrset->type, $value),
+            $rrset->rdata,
+        )));
+        $expected = new Rrset($zone->providerZoneId, $owner, $rrset->type, $rrset->ttl, $rdata, $rrset->providerIdentity, $rrset->metadata);
         $observed = $this->rrsets($provider)->replaceRrset($expected);
         if (!RrsetComparator::equals($expected, $observed)) {
             throw new \RuntimeException('Provider read-back does not match the written RRset.');
@@ -161,6 +182,7 @@ final readonly class ManagedZoneDNSService
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_DELETE, Capability::RECORD_DELETE);
         $this->assertAccountActive($accountId);
         $recordType = DNSRecordType::parse($type);
+        $ownerName  = DNSNameValidator::normaliseRecordOwner($ownerName, $zone->canonicalName);
         $rrsets     = $this->rrsets($provider);
         $rrsets->deleteRrset($zone->providerZoneId, $ownerName, $recordType->presentation);
         foreach ($rrsets->listRrsets($zone->providerZoneId) as $rrset) {
@@ -233,8 +255,20 @@ final readonly class ManagedZoneDNSService
         return $provider;
     }
 
-    private function forProviderZone(Record $record, string $providerZoneId): Record
+    private function forProviderZone(Record $record, string $providerZoneId, string $ownerName, string $content): Record
     {
-        return new Record($record->id, $providerZoneId, $record->name, $record->type, $record->ttl, $record->content, $record->comment, $record->metadata);
+        return new Record($record->id, $providerZoneId, $ownerName, $record->type, $record->ttl, $content, $record->comment, $record->metadata);
+    }
+
+    private function assertProviderTtl(DNSProviderInterface $provider, int $ttl): void
+    {
+        if (!$provider instanceof ProviderConstraintProviderInterface) {
+            return;
+        }
+
+        $minimum = $provider->constraints()->details['minimum_ttl'] ?? null;
+        if (is_int($minimum) && $ttl < $minimum) {
+            throw new \InvalidArgumentException(sprintf('This provider requires a TTL of at least %d seconds.', $minimum));
+        }
     }
 }

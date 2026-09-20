@@ -9,6 +9,9 @@ use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Contracts\ProviderCapabilitySet;
+use TowerDNS\Application\Contracts\ProviderConstraintProfile;
+use TowerDNS\Application\Contracts\ProviderConstraintProviderInterface;
+use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
@@ -149,5 +152,228 @@ final class ManagedZoneDNSServiceTest extends TestCase
         $service->createRecord(new User('user', 'user@example.test'), 42, 7, new Record('', 'untrusted-zone', 'www', RecordType::A, 300, '192.0.2.1'));
 
         self::assertSame('same-external-id', $provider->created?->zoneId);
+    }
+
+    public function testRecordMutationRejectsOutOfZoneAbsoluteOwnerNames(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::RECORD_CREATE => true]);
+        $service  = $this->serviceForZone($provider);
+
+        try {
+            $service->createRecord(
+                new User('owner', 'owner@example.test'),
+                42,
+                7,
+                new Record('', '', 'other.example.net.', RecordType::A, 300, '192.0.2.10'),
+            );
+            self::fail('An out-of-zone absolute owner name should be rejected.');
+        } catch (\InvalidArgumentException) {
+            self::assertSame([], $provider->createdRecords);
+        }
+    }
+
+    public function testRecordMutationNormalizesOwnerAndRdataBeforeProviderCall(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::RECORD_CREATE => true]);
+        $service  = $this->serviceForZone($provider);
+
+        $service->createRecord(
+            new User('owner', 'owner@example.test'),
+            42,
+            7,
+            new Record('', '', 'WWW.Example.org.', RecordType::AAAA, 300, '2001:0DB8:0:0::1'),
+        );
+
+        self::assertCount(1, $provider->createdRecords);
+        self::assertSame('provider-zone', $provider->createdRecords[0]->zoneId);
+        self::assertSame('www', $provider->createdRecords[0]->name);
+        self::assertSame('2001:db8::1', $provider->createdRecords[0]->content);
+    }
+
+    public function testManipulatedAccountAndManagedZoneIdsCannotCrossTenantScope(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::RECORD_CREATE => true]);
+        $service  = $this->serviceForZone($provider);
+
+        try {
+            $service->createRecord(
+                new User('owner', 'owner@example.test'),
+                99,
+                7,
+                new Record('', '', 'www', RecordType::A, 300, '192.0.2.10'),
+            );
+            self::fail('A managed zone must be resolved inside the supplied account.');
+        } catch (\DomainException) {
+            self::assertSame([], $provider->createdRecords);
+        }
+    }
+
+    public function testInactiveProviderAccountAndUnsupportedOperationAreRejectedBeforeMutation(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::RECORD_CREATE => true]);
+        $service  = $this->serviceForZone($provider, providerActive: false);
+        try {
+            $service->createRecord(new User('owner', 'owner@example.test'), 42, 7, new Record('', '', 'www', RecordType::A, 300, '192.0.2.10'));
+            self::fail('An inactive provider account must not perform DNS operations.');
+        } catch (\DomainException) {
+            self::assertSame([], $provider->createdRecords);
+        }
+
+        $unsupported = new RecordingDNSProvider([Capability::RECORD_CREATE => false]);
+        $service     = $this->serviceForZone($unsupported);
+        try {
+            $service->createRecord(new User('owner', 'owner@example.test'), 42, 7, new Record('', '', 'www', RecordType::A, 300, '192.0.2.10'));
+            self::fail('An unsupported provider operation must be blocked.');
+        } catch (CapabilityException) {
+            self::assertSame([], $unsupported->createdRecords);
+        }
+    }
+
+    public function testProviderAccountFromAnotherTenantIsRejectedBeforeMutation(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::RECORD_CREATE => true]);
+        $service  = $this->serviceForZone($provider, providerAccountTenant: 99);
+
+        try {
+            $service->createRecord(new User('owner', 'owner@example.test'), 42, 7, new Record('', '', 'www', RecordType::A, 300, '192.0.2.10'));
+            self::fail('A provider account from another tenant must never be used for DNS mutations.');
+        } catch (\DomainException) {
+            self::assertSame([], $provider->createdRecords);
+        }
+    }
+
+    public function testProviderTtlConstraintIsEnforcedBeforeTheMutation(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::RECORD_CREATE => true], ['minimum_ttl' => 60]);
+        $service  = $this->serviceForZone($provider);
+
+        try {
+            $service->createRecord(new User('owner', 'owner@example.test'), 42, 7, new Record('', '', 'www', RecordType::A, 30, '192.0.2.10'));
+            self::fail('The provider minimum TTL must be enforced by the application service.');
+        } catch (\InvalidArgumentException) {
+            self::assertSame([], $provider->createdRecords);
+        }
+    }
+
+    public function testProviderZoneIsCompensatedWhenLocalPersistenceReadbackFails(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::ZONE_CREATE => true]);
+        $user     = new User('owner', 'owner@example.test');
+
+        $zones = $this->createMock(ManagedZoneRepositoryInterface::class);
+        $zones->expects(self::once())->method('create')->willReturn(17);
+        $zones->expects(self::once())->method('findById')->with(17)->willReturn(null);
+        $zones->expects(self::once())->method('delete')->with(17);
+
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Example', 'example', 'owner', true, '2026-09-17 00:00:00'));
+        $accounts->method('getEffectiveRole')->with(42, 'owner')->willReturn(TeamRole::OWNER);
+
+        $providerAccount  = new ProviderAccount(9, 42, 'fake', 'Fake', 'ciphertext', 3, true, '2026-09-17 12:00:00');
+        $providerAccounts = $this->createMock(ProviderAccountRepositoryInterface::class);
+        $providerAccounts->method('findById')->with(9)->willReturn($providerAccount);
+
+        $factory = $this->createMock(AccountProviderFactoryInterface::class);
+        $factory->method('buildProvider')->with($providerAccount)->willReturn($provider);
+
+        $rbac        = new RbacPermissionChecker();
+        $permissions = new PermissionService($accounts, $this->createMock(ZoneMembershipRepositoryInterface::class), new AuthorizationService($rbac), $rbac, $zones);
+        $service     = new ManagedZoneDNSService($permissions, $accounts, $zones, $providerAccounts, $factory);
+
+        try {
+            $service->create($user, 42, 9, 'example.org');
+            self::fail('A failed local read-back must fail the zone creation operation.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Managed zone persistence failed.', $exception->getMessage());
+            self::assertSame(['provider-zone'], $provider->deletedZones);
+        }
+    }
+
+    private function serviceForZone(RecordingDNSProvider $provider, bool $providerActive = true, int $providerAccountTenant = 42): ManagedZoneDNSService
+    {
+        $zone  = new ManagedZone(7, 42, 9, 'provider-zone', 'example.org', '2026-09-17 12:00:00');
+        $zones = $this->createMock(ManagedZoneRepositoryInterface::class);
+        $zones->method('findByIdForAccount')->willReturnCallback(static fn(int $id, int $accountId): ?ManagedZone => $id === $zone->id && $accountId === $zone->accountId ? $zone : null);
+
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->willReturnCallback(static fn(int $id): ?Account => $id === 42 ? new Account(42, 'Example', 'example', 'owner', true, '2026-09-17 00:00:00') : null);
+        $accounts->method('getEffectiveRole')->willReturn(TeamRole::OWNER);
+
+        $providerAccount  = new ProviderAccount(9, $providerAccountTenant, 'fake', 'Fake', 'ciphertext', 3, $providerActive, '2026-09-17 12:00:00');
+        $providerAccounts = $this->createMock(ProviderAccountRepositoryInterface::class);
+        $providerAccounts->method('findById')->willReturnCallback(static fn(int $id): ?ProviderAccount => $id === $providerAccount->id ? $providerAccount : null);
+
+        $factory = $this->createMock(AccountProviderFactoryInterface::class);
+        $factory->method('buildProvider')->willReturn($provider);
+
+        $rbac        = new RbacPermissionChecker();
+        $permissions = new PermissionService($accounts, $this->createMock(ZoneMembershipRepositoryInterface::class), new AuthorizationService($rbac), $rbac, $zones);
+        return new ManagedZoneDNSService($permissions, $accounts, $zones, $providerAccounts, $factory);
+    }
+}
+
+/** Small provider spy for application-service behavior tests. */
+final class RecordingDNSProvider implements DNSProviderInterface, ProviderConstraintProviderInterface
+{
+    /** @var list<Record> */
+    public array $createdRecords = [];
+
+    /** @var list<string> */
+    public array $deletedZones = [];
+
+    /** @param array<string, bool> $capabilities
+     *  @param array<string, scalar|list<string>> $constraintDetails
+     */
+    public function __construct(private readonly array $capabilities, private readonly array $constraintDetails = []) {}
+
+    public function id(): string
+    {
+        return 'fake';
+    }
+    public function displayName(): string
+    {
+        return 'Fake';
+    }
+    public function capabilities(): ProviderCapabilitySet
+    {
+        return new ProviderCapabilitySet($this->capabilities);
+    }
+    public function constraints(): ProviderConstraintProfile
+    {
+        return new ProviderConstraintProfile('test', 'immediate', false, $this->constraintDetails);
+    }
+    public function listZones(): array
+    {
+        return [];
+    }
+    public function createZone(string $zoneName): Zone
+    {
+        return new Zone('provider-zone', $zoneName, 'fake', true);
+    }
+    public function deleteZone(string $zoneId): void
+    {
+        $this->deletedZones[] = $zoneId;
+    }
+    public function listRecords(string $zoneId): array
+    {
+        return [];
+    }
+    public function createRecord(Record $record): Record
+    {
+        $this->createdRecords[] = $record;
+        return $record;
+    }
+    public function updateRecord(Record $record): Record
+    {
+        return $record;
+    }
+    public function deleteRecord(string $zoneId, string $recordId): void {}
+    public function getDnssecProfile(string $zoneId): DNSSECProfile
+    {
+        return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
+    }
+    public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
+    {
+        return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
     }
 }

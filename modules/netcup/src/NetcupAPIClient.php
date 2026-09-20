@@ -41,6 +41,7 @@ final readonly class NetcupAPIClient
         $this->http = $http ?? new Client([
             'base_uri'    => $endpoint,
             'timeout'     => 30,
+            'connect_timeout' => 5,
             'http_errors' => false,
         ]);
     }

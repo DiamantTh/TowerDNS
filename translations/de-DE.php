@@ -400,6 +400,7 @@ return [
     'zone-members.error.revoke-failed'          => 'Die Zonenmitgliedschaft konnte nicht entfernt werden.',
     'zone-members.error.unknown-action'         => 'Die angeforderte Aktion wird nicht unterstützt.',
     'rrset.error.rdata-required'                => 'Ein RRset benötigt mindestens einen RDATA-Wert.',
+    'rrset.error.invalid-input'                 => 'Name, TTL oder RDATA ist für diese Zone oder diesen Provider ungültig.',
     'rrset.error.write-denied'                  => 'Keine Berechtigung zum Schreiben von RRsets.',
     'rrset.error.save-failed'                   => 'RRset konnte nicht gespeichert werden.',
     'rrset.error.delete-denied'                 => 'Keine Berechtigung zum Löschen von RRsets.',

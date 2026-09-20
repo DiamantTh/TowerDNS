@@ -33,6 +33,7 @@ final class PowerDNSAPIClient
         $this->http = $http ?? new Client([
             'base_uri'    => rtrim($baseUrl, '/') . '/',
             'timeout'     => 30,
+            'connect_timeout' => 5,
             'http_errors' => true,
         ]);
     }
@@ -78,7 +79,7 @@ final class PowerDNSAPIClient
             $options = [RequestOptions::HEADERS => [
                 'X-API-Key' => $this->apiKey,
                 'Accept'    => 'application/json',
-            ]];
+            ], RequestOptions::ALLOW_REDIRECTS => false];
             if ($data !== null) {
                 $options[RequestOptions::JSON] = $data;
             }

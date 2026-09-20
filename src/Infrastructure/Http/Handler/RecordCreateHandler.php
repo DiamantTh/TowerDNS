@@ -56,6 +56,8 @@ final readonly class RecordCreateHandler implements RequestHandlerInterface
             $this->audit->recordRecordCreate($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $managedZoneId, $created->name, $created->type->value);
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('records.error.create-denied')));
+        } catch (\InvalidArgumentException) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('records.error.invalid-input')));
         } catch (\Throwable) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('records.error.create-failed')));
         }

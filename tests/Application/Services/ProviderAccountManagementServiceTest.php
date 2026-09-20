@@ -98,6 +98,22 @@ final class ProviderAccountManagementServiceTest extends TestCase
         );
     }
 
+    public function testBlankReplacementCredentialDoesNotOverwriteStoredCredentials(): void
+    {
+        $providers = $this->createMock(ProviderAccountRepositoryInterface::class);
+        $providers->method('findById')->willReturn(new ProviderAccount(9, 42, 'example', 'Primary', 'existing-ciphertext', 3, true, '2026-09-15 00:00:00'));
+        $providers->expects(self::never())->method('replaceCredentials');
+
+        $this->expectException(ProviderAccountException::class);
+        $this->expectExceptionMessage(ProviderAccountException::CREDENTIALS_INCOMPLETE);
+        $this->service($this->accounts(), $providers)->replaceCredentials(
+            new User('member', 'member@example.test'),
+            42,
+            9,
+            ['token' => ''],
+        );
+    }
+
     /** @return MockObject&AccountRepositoryInterface */
     private function accounts(): AccountRepositoryInterface
     {

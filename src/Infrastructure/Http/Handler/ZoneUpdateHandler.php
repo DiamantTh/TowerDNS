@@ -56,6 +56,8 @@ final readonly class ZoneUpdateHandler implements RequestHandlerInterface
             $this->audit->recordRecordUpdate($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $zoneId, $record->name, $record->type->value);
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('records.error.update-denied')));
+        } catch (\InvalidArgumentException) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('records.error.invalid-input')));
         } catch (\Throwable) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('records.error.update-failed')));
         }

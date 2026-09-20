@@ -400,6 +400,7 @@ return [
     'zone-members.error.revoke-failed'          => 'Could not remove the zone membership.',
     'zone-members.error.unknown-action'         => 'The requested action is not supported.',
     'rrset.error.rdata-required'                => 'An RRset needs at least one RDATA value.',
+    'rrset.error.invalid-input'                 => 'The name, TTL or RDATA is invalid for this zone or provider.',
     'rrset.error.write-denied'                  => 'You do not have permission to write RRsets.',
     'rrset.error.save-failed'                   => 'Could not save the RRset.',
     'rrset.error.delete-denied'                 => 'You do not have permission to delete RRsets.',

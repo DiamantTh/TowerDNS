@@ -9,6 +9,7 @@ namespace TowerDNS\Module\Cloudflare;
 
 use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ProviderConstraintProfile;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSSECProfile;
@@ -80,6 +81,16 @@ final class CloudflareProvider extends AbstractDNSProvider
 
             Capability::PROVIDER_CREDENTIALS_MANAGE => true,
         ];
+    }
+
+    public function constraints(): ProviderConstraintProfile
+    {
+        return new ProviderConstraintProfile(
+            'read_modify_write',
+            'immediate',
+            false,
+            ['minimum_ttl' => 60],
+        );
     }
 
     // ── Zone operations ───────────────────────────────────────────────────────

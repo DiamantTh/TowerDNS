@@ -44,6 +44,8 @@ final readonly class RrsetReplaceHandler implements RequestHandlerInterface
             $this->audit->recordRecordUpdate($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $zoneId, $written->ownerName, $written->type->presentation);
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.write-denied')));
+        } catch (\InvalidArgumentException) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.invalid-input')));
         } catch (\Throwable) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.save-failed')));
         }

@@ -34,6 +34,17 @@ final class PowerDNSProviderTest extends TestCase
         self::assertFalse($this->provider([])->capabilities()->supports(Capability::ZONE_UPDATE));
     }
 
+    public function testDoesNotForwardApiKeyAcrossProviderRedirects(): void
+    {
+        $provider = $this->provider([
+            new Response(302, ['Location' => 'https://attacker.invalid/collect'], '{}'),
+        ]);
+
+        self::assertSame([], $provider->listZones());
+        self::assertCount(1, $this->requests);
+        self::assertSame('test-api-key', $this->requests[0]->getHeaderLine('X-API-Key'));
+    }
+
     public function testCreatesRecordWithExtendOnSupportedServers(): void
     {
         $provider = $this->provider([

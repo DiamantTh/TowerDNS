@@ -55,4 +55,64 @@ final class DNSNameValidator
             return false;
         }
     }
+
+    /**
+     * Validate and normalize an RR owner relative to a managed zone.
+     *
+     * TowerDNS passes relative owner names to provider adapters. Accepting an
+     * absolute name is useful when editing existing records, but it must be
+     * inside the selected zone; otherwise adapters can disagree about whether
+     * an out-of-zone FQDN is relative or absolute.
+     */
+    public static function normaliseRecordOwner(string $owner, string $zoneName): string
+    {
+        $owner = trim($owner);
+        $zone  = self::normalise($zoneName);
+
+        if ($owner === '' || $owner === '@') {
+            return '';
+        }
+
+        $absolute = str_ends_with($owner, '.');
+        if ($absolute && str_ends_with($owner, '..')) {
+            throw new \InvalidArgumentException('Ungültiger DNS-Record-Name.');
+        }
+        $owner = rtrim($owner, '.');
+
+        if (function_exists('idn_to_ascii')) {
+            $ascii = idn_to_ascii($owner, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
+            if ($ascii === false) {
+                throw new \InvalidArgumentException('Ungültiger DNS-Record-Name.');
+            }
+            $owner = $ascii;
+        }
+
+        $owner = strtolower($owner);
+        if ($owner === $zone) {
+            return '';
+        }
+
+        $suffix = '.' . $zone;
+        if (str_ends_with($owner, $suffix)) {
+            $owner = substr($owner, 0, -strlen($suffix));
+        } elseif ($absolute) {
+            throw new \InvalidArgumentException('Der absolute DNS-Record-Name liegt außerhalb der verwalteten Zone.');
+        }
+
+        $labels = explode('.', $owner);
+        foreach ($labels as $index => $label) {
+            if ($label === '*' && $index !== 0) {
+                throw new \InvalidArgumentException('Ein Wildcard-Label ist nur am Anfang eines DNS-Record-Namens zulässig.');
+            }
+            if (strlen($label) > 63 || preg_match('/^(?:\\*|[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)$/D', $label) !== 1) {
+                throw new \InvalidArgumentException('Ungültiger DNS-Record-Name.');
+            }
+        }
+
+        if (strlen($owner . '.' . $zone) > 253) {
+            throw new \InvalidArgumentException('DNS-Record-Name überschreitet die maximale Länge.');
+        }
+
+        return $owner;
+    }
 }

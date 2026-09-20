@@ -28,6 +28,11 @@ final class CloudflareProviderTest extends TestCase
         self::assertFalse($this->provider([])->capabilities()->supports(Capability::ZONE_UPDATE));
     }
 
+    public function testDeclaresItsMinimumRecordTtlInsteadOfSilentlyRoundingIt(): void
+    {
+        self::assertSame(60, $this->provider([])->constraints()->details['minimum_ttl']);
+    }
+
     public function testReplaceRrsetUpdatesTtlAndReadsBack(): void
     {
         $provider = $this->provider([

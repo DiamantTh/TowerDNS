@@ -38,6 +38,7 @@ final class ClouDNSAPIClient
             $response = $this->http->request('POST', 'https://api.cloudns.net/dns/' . $operation . '.json', [
                 'form_params'     => [$this->authType => $this->authId, 'auth-password' => $this->authPassword] + $parameters,
                 'timeout'         => 30,
+                'connect_timeout' => 5,
                 'http_errors'     => false,
                 'allow_redirects' => false,
                 'verify'          => true,

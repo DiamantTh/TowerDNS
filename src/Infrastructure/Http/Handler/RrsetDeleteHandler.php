@@ -39,6 +39,8 @@ final readonly class RrsetDeleteHandler implements RequestHandlerInterface
             $this->audit->recordRecordDelete($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $zoneId, $owner, $type);
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.delete-denied')));
+        } catch (\InvalidArgumentException) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.invalid-input')));
         } catch (\Throwable) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.delete-failed')));
         }

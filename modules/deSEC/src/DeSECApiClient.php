@@ -47,6 +47,7 @@ final readonly class DeSECApiClient
         $this->http = $http ?? new Client([
             'base_uri'    => $baseUrl,
             'timeout'     => 30,
+            'connect_timeout' => 5,
             'http_errors' => true,
         ]);
 

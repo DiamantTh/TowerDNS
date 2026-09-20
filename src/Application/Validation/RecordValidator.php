@@ -36,11 +36,16 @@ final class RecordValidator
 
     public static function assertContent(RecordType $type, string $content): void
     {
+        self::normaliseContent($type, $content);
+    }
+
+    public static function normaliseContent(RecordType $type, string $content): string
+    {
         $content = trim($content);
         if ($content === '') {
             throw new \InvalidArgumentException('Record-Content darf nicht leer sein.');
         }
 
-        RdataCanonicalizer::canonicalize(DNSRecordType::parse($type->value), $content);
+        return RdataCanonicalizer::canonicalize(DNSRecordType::parse($type->value), $content);
     }
 }
