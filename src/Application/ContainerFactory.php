@@ -45,8 +45,10 @@ use Mezzio\Session\SessionMiddlewareFactory;
 use Mezzio\Session\SessionPersistenceInterface;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Clock\ClockInterface;
+use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 use Psr\SimpleCache\CacheInterface;
 use Symfony\Component\Cache\Adapter\FilesystemAdapter;
 use Symfony\Component\Cache\Psr16Cache;
@@ -485,9 +487,11 @@ final class ContainerFactory
             ResponseInterface::class => \DI\factory(
                 static fn(\Psr\Container\ContainerInterface $c): callable => (new ResponseFactoryFactory())($c)
             ),
-            ServerRequestInterface::class => \DI\factory(
+            ResponseFactoryInterface::class => \DI\autowire(\Laminas\Diactoros\ResponseFactory::class),
+            ServerRequestInterface::class   => \DI\factory(
                 static fn(\Psr\Container\ContainerInterface $c): callable => (new ServerRequestFactoryFactory())($c)
             ),
+            StreamFactoryInterface::class => \DI\autowire(\Laminas\Diactoros\StreamFactory::class),
 
             // ── Mezzio: emitter & runner ──────────────────────────────────────
             EmitterInterface::class => \DI\factory(

@@ -11,7 +11,10 @@ set -eu
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 compose_file="$script_dir/compose.yaml"
 test_project="towerdns-webinstaller-e2e-$$"
-base_url="http://127.0.0.1:18081"
+# Keep the request host aligned with the domain entered in the installer. A
+# session cookie configured for localhost is intentionally not sent to the
+# distinct 127.0.0.1 host.
+base_url="http://localhost:18081"
 temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/towerdns-webinstaller-e2e.XXXXXX")
 cookie_jar="$temporary_dir/cookies.txt"
 headers_file="$temporary_dir/headers.txt"
@@ -39,13 +42,24 @@ trap cleanup EXIT HUP INT TERM
 
 fail() {
     printf 'Web-installer HTTP test failed: %s\n' "$1" >&2
-    [ -f "$body_file" ] && sed -n '1,80p' "$body_file" >&2
+    [ -f "$body_file" ] && head -c 4096 "$body_file" >&2
+    printf '\n' >&2
+    if [ -n "${container_id:-}" ]; then
+        podman exec "$container_id" sh -c 'tail -n 100 /var/log/apache2/error.log 2>/dev/null || true' >&2 || true
+    fi
+    compose --profile webinstaller logs --no-color webinstaller >&2 || true
     exit 1
 }
 
 csrf_token() {
     token=$(sed -n 's/.*name="csrf_token" value="\([^"]*\)".*/\1/p' "$1" | head -n 1)
     [ -n "$token" ] || fail 'CSRF token was not rendered.'
+    printf '%s' "$token"
+}
+
+bootstrap_csrf_token() {
+    token=$(sed -n 's/.*"csrfToken":"\([^"]*\)".*/\1/p' "$1" | head -n 1)
+    [ -n "$token" ] || fail 'CSRF token was not provided in the page bootstrap.'
     printf '%s' "$token"
 }
 
@@ -158,6 +172,81 @@ podman exec "$container_id" php -r '
     $limits = (int) $pdo->query("SELECT COUNT(*) FROM account_resource_limits l JOIN accounts a ON a.id = l.account_id WHERE a.personal_user_id = " . $pdo->quote($userId) . " OR a.name = \"TowerDNS Web Installer E2E\"")->fetchColumn();
     if ($personal !== 1 || $organization !== 1 || $limits !== 2) { throw new RuntimeException("installed account invariants failed"); }
 '
+
+personal_account_id=$(podman exec "$container_id" php -r '
+    $pdo = new PDO("mysql:host=mariadb;port=3306;dbname=towerdns_test;charset=utf8mb4", "towerdns_app", "towerdns_app", [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $id = $pdo->query("SELECT a.id FROM accounts a JOIN users u ON u.id = a.personal_user_id WHERE u.email = \"webadmin@example.test\" AND a.account_type = \"personal\"")->fetchColumn();
+    if ($id === false) { throw new RuntimeException("personal account is missing"); }
+    echo $id;
+')
+
+# Svelte forms are created from the server-authorized JSON bootstrap. Exercise
+# the login handler with its real session and CSRF state rather than merely
+# checking that the login route returns a page.
+login_code=$(request_get '/login')
+[ "$login_code" = '200' ] || fail "login form returned HTTP $login_code"
+grep -q '"page":"login"' "$body_file" || fail 'login page bootstrap was not rendered.'
+grep -q 'id="towerdns-page" type="application/json"' "$body_file" || fail 'login page did not provide the Svelte bootstrap.'
+login_csrf=$(bootstrap_csrf_token "$body_file")
+
+invalid_login_code=$("$curl_bin" --silent --show-error --max-time 30 \
+    --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+    --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+    --request POST --data 'email=webadmin@example.test' --data 'password=incorrect-password' \
+    --data-urlencode "csrf_token=$login_csrf" "$base_url/login")
+[ "$invalid_login_code" = '401' ] || fail "invalid credentials returned HTTP $invalid_login_code"
+grep -q '"page":"login"' "$body_file" || fail 'invalid login did not return the login page.'
+login_csrf=$(bootstrap_csrf_token "$body_file")
+
+login_post_code=$("$curl_bin" --silent --show-error --max-time 60 \
+    --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+    --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+    --request POST --data 'email=webadmin@example.test' --data-urlencode "password=$admin_password" \
+    --data-urlencode "csrf_token=$login_csrf" "$base_url/login")
+[ "$login_post_code" = '302' ] || fail "valid credentials returned HTTP $login_post_code"
+grep -qi '^location: /[[:space:]]*$' "$headers_file" || fail 'successful login did not redirect to the dashboard.'
+
+dashboard_code=$(request_get '/')
+[ "$dashboard_code" = '200' ] || fail "dashboard returned HTTP $dashboard_code after login"
+grep -q '"page":"dashboard"' "$body_file" || fail 'dashboard bootstrap was not rendered.'
+grep -q '"email":"webadmin@example.test"' "$body_file" || fail 'dashboard bootstrap did not contain the authenticated administrator.'
+grep -q '<script src="/assets/theme-init.bundle.js"></script>' "$body_file" || fail 'dashboard did not reference the theme asset.'
+grep -q '<script type="module" src="/assets/app.bundle.js"></script>' "$body_file" || fail 'dashboard did not reference the application asset.'
+dashboard_csrf=$(bootstrap_csrf_token "$body_file")
+if grep -q '"page":"login"' "$body_file"; then
+    fail 'dashboard response still rendered the login page.'
+fi
+
+zones_code=$(request_get '/zones')
+[ "$zones_code" = '200' ] || fail "active-account zone view returned HTTP $zones_code"
+grep -q "\"accountId\":$personal_account_id" "$body_file" || fail 'active account was not resolved to the administrator personal account.'
+grep -q '"managedZones":\[\]' "$body_file" || fail 'the fresh personal account unexpectedly exposed managed zones.'
+
+invalid_logout_code=$("$curl_bin" --silent --show-error --max-time 30 \
+    --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+    --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+    --request POST --data 'csrf_token=invalid' "$base_url/logout")
+[ "$invalid_logout_code" = '400' ] || fail "invalid logout CSRF returned HTTP $invalid_logout_code"
+grep -q 'Invalid request' "$body_file" || fail 'invalid logout CSRF did not return an explicit error.'
+
+dashboard_code=$(request_get '/')
+[ "$dashboard_code" = '200' ] || fail 'invalid logout CSRF unexpectedly ended the authenticated session.'
+dashboard_csrf=$(bootstrap_csrf_token "$body_file")
+
+logout_code=$("$curl_bin" --silent --show-error --max-time 30 \
+    --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+    --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+    --request POST --data-urlencode "csrf_token=$dashboard_csrf" "$base_url/logout")
+[ "$logout_code" = '302' ] || fail "logout returned HTTP $logout_code"
+grep -qi '^location: /login[[:space:]]*$' "$headers_file" || fail 'logout did not redirect to login.'
+
+post_logout_dashboard_code=$(request_get '/')
+[ "$post_logout_dashboard_code" = '302' ] || fail "dashboard was accessible after logout with HTTP $post_logout_dashboard_code"
+grep -qi '^location: /login[[:space:]]*$' "$headers_file" || fail 'dashboard did not redirect to login after logout.'
+
+post_logout_login_code=$(request_get '/login')
+[ "$post_logout_login_code" = '200' ] || fail "login form returned HTTP $post_logout_login_code after logout"
+grep -q '"page":"login"' "$body_file" || fail 'login page bootstrap was not restored after logout.'
 
 locked_code=$(request_get '/install.php')
 [ "$locked_code" = '403' ] || fail "locked installer returned HTTP $locked_code"

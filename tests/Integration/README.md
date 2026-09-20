@@ -53,6 +53,9 @@ It builds the optional `webinstaller` profile from the current checkout,
 follows the installer redirects and forms with a cookie jar, verifies CSRF
 rejection and completion, and checks the installation marker and generated
 administrator, personal account, organization membership, and resource limits.
+It then signs in with that administrator, verifies the personal active-account
+scope and dashboard bootstrap, and checks CSRF-protected logout and
+post-logout access control.
 The script creates a dynamically named Compose project and deletes only that
 project's containers and volumes on exit; it never removes the normal `app`
 development volumes. PostgreSQL and SQLite retain their repository-level

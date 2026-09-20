@@ -8,12 +8,26 @@ declare(strict_types=1);
 namespace TowerDNS\Tests\Application;
 
 use Doctrine\DBAL\Connection;
+use Mezzio\Router\Middleware\ImplicitHeadMiddleware;
+use Mezzio\Router\Middleware\ImplicitOptionsMiddleware;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseFactoryInterface;
+use Psr\Http\Message\StreamFactoryInterface;
 use TowerDNS\Application\ContainerFactory;
 use TowerDNS\Application\Services\WebAuthnService;
 
 final class ContainerFactoryTest extends TestCase
 {
+    public function testProvidesThePsr17StreamFactoryRequiredByTheHttpPipeline(): void
+    {
+        $container = ContainerFactory::create(dirname(__DIR__, 2));
+
+        self::assertInstanceOf(StreamFactoryInterface::class, $container->get(StreamFactoryInterface::class));
+        self::assertInstanceOf(ResponseFactoryInterface::class, $container->get(ResponseFactoryInterface::class));
+        self::assertInstanceOf(ImplicitHeadMiddleware::class, $container->get(ImplicitHeadMiddleware::class));
+        self::assertInstanceOf(ImplicitOptionsMiddleware::class, $container->get(ImplicitOptionsMiddleware::class));
+    }
+
     public function testWebAuthnUsesTheDomainWrittenByBothInstallers(): void
     {
         $root = sys_get_temp_dir() . '/towerdns-container-' . bin2hex(random_bytes(8));

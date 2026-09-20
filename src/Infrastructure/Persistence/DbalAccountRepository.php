@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Persistence;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\AccountKind;
@@ -49,9 +50,11 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
     {
         $conditions = ['am.user_id = ?'];
         $params     = [$userId];
+        $types      = [ParameterType::STRING];
         if ($active !== null) {
             $conditions[] = 'a.is_active = ?';
-            $params[]     = $active ? 1 : 0;
+            $params[]     = $active;
+            $types[]      = ParameterType::BOOLEAN;
         } elseif (!$includeInactive) {
             $conditions[] = 'a.is_active = 1';
         }
@@ -62,23 +65,32 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
             $params[]     = $term;
             $params[]     = $term;
             $params[]     = $term;
+            $types[]      = ParameterType::STRING;
+            $types[]      = ParameterType::STRING;
+            $types[]      = ParameterType::STRING;
+            $types[]      = ParameterType::STRING;
         }
         if ($type instanceof AccountKind) {
             $conditions[] = 'a.account_type = ?';
             $params[]     = $type->value;
+            $types[]      = ParameterType::STRING;
         }
         if ($role instanceof TeamRole) {
             $conditions[] = 'am.role = ?';
             $params[]     = $role->value;
+            $types[]      = ParameterType::STRING;
         }
         $params[] = max(1, min($limit, 500));
         $params[] = max(0, $offset);
+        $types[]  = ParameterType::INTEGER;
+        $types[]  = ParameterType::INTEGER;
         $rows     = $this->connection->fetchAllAssociative(
             'SELECT a.* FROM accounts a
              JOIN account_memberships am ON am.account_id = a.id
              WHERE ' . implode(' AND ', $conditions) . '
              ORDER BY a.name ASC LIMIT ? OFFSET ?',
             $params,
+            $types,
         );
         return array_map($this->hydrate(...), $rows);
     }

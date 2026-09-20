@@ -63,14 +63,22 @@ final readonly class SessionSecurity
 
     public function authenticatedUserId(SessionInterface $session): ?string
     {
-        $userId        = $session->get('user_id');
+        $userId = $session->get('user_id');
+
+        // Anonymous sessions legitimately contain CSRF tokens, password-reset
+        // state, or an invitation flow. Do not clear that state merely because
+        // no authenticated identity has been established yet.
+        if (!is_string($userId) || $userId === '') {
+            return null;
+        }
+
         $authenticated = $session->get('authenticated_at');
         $lastActivity  = $session->get('last_activity_at');
         $now           = $this->now();
 
-        if (!is_string($userId) || $userId === '' || !is_int($authenticated) || !is_int($lastActivity)
-                                || $authenticated < $now - self::AUTH_ABSOLUTE_TIMEOUT_SECONDS
-                                || $lastActivity  < $now - self::AUTH_IDLE_TIMEOUT_SECONDS) {
+        if (!is_int($authenticated) || !is_int($lastActivity)
+                                    || $authenticated < $now - self::AUTH_ABSOLUTE_TIMEOUT_SECONDS
+                                    || $lastActivity  < $now - self::AUTH_IDLE_TIMEOUT_SECONDS) {
             $this->invalidate($session);
             return null;
         }

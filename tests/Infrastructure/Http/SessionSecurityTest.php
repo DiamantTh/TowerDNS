@@ -42,6 +42,14 @@ final class SessionSecurityTest extends TestCase
         self::assertSame([], $session->toArray());
     }
 
+    public function testAnonymousSessionStateIsPreserved(): void
+    {
+        $session = new Session(['__csrf' => 'csrf-token']);
+
+        self::assertNull(new SessionSecurity($this->clock(1000))->authenticatedUserId($session));
+        self::assertSame('csrf-token', $session->get('__csrf'));
+    }
+
     public function testPendingMfaExpiresAndCannotBecomeAnAuthenticatedSession(): void
     {
         $session  = new Session([]);
