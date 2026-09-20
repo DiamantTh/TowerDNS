@@ -2,15 +2,50 @@
 
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-# Runs a real, disposable MariaDB installation through the HTTP wizard. This
-# intentionally stays outside PHPUnit: it exercises Apache, sessions, CSRF,
-# the installer token, and Compose as well as PHP application code.
+# Runs a real, disposable MariaDB or PostgreSQL installation through the HTTP
+# wizard. This stays outside PHPUnit: it exercises Apache, sessions, CSRF, the
+# installer token, and Compose as well as PHP application code.
 
 set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 compose_file="$script_dir/compose.yaml"
-test_project="towerdns-webinstaller-e2e-$$"
+database=${1:-mariadb}
+case "$database" in
+    mariadb)
+        db_driver=pdo_mysql
+        db_host=mariadb
+        db_port=3306
+        db_name=towerdns_test
+        db_user=towerdns_app
+        db_pass=towerdns_app
+        pdo_driver=mysql
+        db_host_field=db_host
+        db_port_field=db_port
+        db_name_field=db_name
+        db_user_field=db_user
+        db_pass_field=db_pass
+        ;;
+    postgresql)
+        db_driver=pdo_pgsql
+        db_host=postgres
+        db_port=5432
+        db_name=towerdns_test
+        db_user=towerdns_app
+        db_pass=towerdns_app
+        pdo_driver=pgsql
+        db_host_field=pg_host
+        db_port_field=pg_port
+        db_name_field=pg_name
+        db_user_field=pg_user
+        db_pass_field=pg_pass
+        ;;
+    *)
+        printf 'Unsupported web-installer test database: %s (use mariadb or postgresql).\n' "$database" >&2
+        exit 2
+        ;;
+esac
+test_project="towerdns-webinstaller-${database}-e2e-$$"
 # Keep the request host aligned with the domain entered in the installer. A
 # session cookie configured for localhost is intentionally not sent to the
 # distinct 127.0.0.1 host.
@@ -70,7 +105,7 @@ request_get() {
         "$base_url$1"
 }
 
-printf '%s\n' "Starting disposable Compose project $test_project …"
+printf '%s\n' "Starting disposable $database Compose project $test_project …"
 # Build the checked-out source before starting. Podman's content-addressed
 # cache keeps unchanged dependency layers fast while invalidating COPY layers
 # when application source changes.
@@ -123,12 +158,12 @@ step2_post_code=$("$curl_bin" --silent --show-error --max-time 60 \
     --request POST \
     --data 'action=step2' \
     --data-urlencode "csrf_token=$step2_csrf" \
-    --data 'db_driver=pdo_mysql' \
-    --data 'db_host=mariadb' \
-    --data 'db_port=3306' \
-    --data 'db_name=towerdns_test' \
-    --data 'db_user=towerdns_app' \
-    --data 'db_pass=towerdns_app' \
+    --data "db_driver=$db_driver" \
+    --data "$db_host_field=$db_host" \
+    --data "$db_port_field=$db_port" \
+    --data "$db_name_field=$db_name" \
+    --data "$db_user_field=$db_user" \
+    --data "$db_pass_field=$db_pass" \
     --data 'admin_user=webadmin' \
     --data 'admin_email=webadmin@example.test' \
     --data-urlencode "admin_pass=$admin_password" \
@@ -163,22 +198,35 @@ podman exec "$container_id" sh -ceu '
     test "$(stat -c %a /var/www/html/install/.install_token)" = 600
     grep -q "\[providers.desec\]" /var/www/html/configs/providers.toml
 '
-podman exec "$container_id" php -r '
-    $pdo = new PDO("mysql:host=mariadb;port=3306;dbname=towerdns_test;charset=utf8mb4", "towerdns_app", "towerdns_app", [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    $userId = (string) $pdo->query("SELECT id FROM users WHERE email = \"webadmin@example.test\"")->fetchColumn();
-    if ($userId === "") { throw new RuntimeException("installed administrator is missing"); }
-    $personal = (int) $pdo->query("SELECT COUNT(*) FROM accounts a JOIN account_memberships m ON m.account_id = a.id WHERE a.account_type = \"personal\" AND a.personal_user_id = " . $pdo->quote($userId) . " AND a.owner_user_id = " . $pdo->quote($userId) . " AND m.user_id = " . $pdo->quote($userId) . " AND m.role = \"owner\"")->fetchColumn();
-    $organization = (int) $pdo->query("SELECT COUNT(*) FROM accounts a JOIN account_memberships m ON m.account_id = a.id WHERE a.account_type = \"organization\" AND a.name = \"TowerDNS Web Installer E2E\" AND m.user_id = " . $pdo->quote($userId) . " AND m.role = \"owner\"")->fetchColumn();
-    $limits = (int) $pdo->query("SELECT COUNT(*) FROM account_resource_limits l JOIN accounts a ON a.id = l.account_id WHERE a.personal_user_id = " . $pdo->quote($userId) . " OR a.name = \"TowerDNS Web Installer E2E\"")->fetchColumn();
-    if ($personal !== 1 || $organization !== 1 || $limits !== 2) { throw new RuntimeException("installed account invariants failed"); }
-'
-
 personal_account_id=$(podman exec "$container_id" php -r '
-    $pdo = new PDO("mysql:host=mariadb;port=3306;dbname=towerdns_test;charset=utf8mb4", "towerdns_app", "towerdns_app", [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-    $id = $pdo->query("SELECT a.id FROM accounts a JOIN users u ON u.id = a.personal_user_id WHERE u.email = \"webadmin@example.test\" AND a.account_type = \"personal\"")->fetchColumn();
-    if ($id === false) { throw new RuntimeException("personal account is missing"); }
-    echo $id;
-')
+    [$driver, $host, $port, $database, $username, $password] = array_slice($argv, 1);
+    $dsn = match ($driver) {
+        "mysql" => "mysql:host=$host;port=$port;dbname=$database;charset=utf8mb4",
+        "pgsql" => "pgsql:host=$host;port=$port;dbname=$database",
+        default => throw new RuntimeException("unsupported PDO driver"),
+    };
+    $pdo = new PDO($dsn, $username, $password, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+    $userQuery = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+    $userQuery->execute(["webadmin@example.test"]);
+    $userId = (string) $userQuery->fetchColumn();
+    if ($userId === "") { throw new RuntimeException("installed administrator is missing"); }
+    $personalQuery = $pdo->prepare("SELECT id FROM accounts WHERE account_type = ? AND personal_user_id = ? AND owner_user_id = ?");
+    $personalQuery->execute(["personal", $userId, $userId]);
+    $personalIds = $personalQuery->fetchAll(PDO::FETCH_COLUMN);
+    if (count($personalIds) !== 1) { throw new RuntimeException("personal account is missing or not unique"); }
+    $personalId = $personalIds[0];
+    $membershipQuery = $pdo->prepare("SELECT COUNT(*) FROM account_memberships WHERE account_id = ? AND user_id = ? AND role = ?");
+    $membershipQuery->execute([$personalId, $userId, "owner"]);
+    $personalMembership = (int) $membershipQuery->fetchColumn();
+    $organizationQuery = $pdo->prepare("SELECT COUNT(*) FROM accounts a JOIN account_memberships m ON m.account_id = a.id WHERE a.account_type = ? AND a.name = ? AND m.user_id = ? AND m.role = ?");
+    $organizationQuery->execute(["organization", "TowerDNS Web Installer E2E", $userId, "owner"]);
+    $organization = (int) $organizationQuery->fetchColumn();
+    $limitsQuery = $pdo->prepare("SELECT COUNT(*) FROM account_resource_limits l JOIN accounts a ON a.id = l.account_id WHERE a.personal_user_id = ? OR a.name = ?");
+    $limitsQuery->execute([$userId, "TowerDNS Web Installer E2E"]);
+    $limits = (int) $limitsQuery->fetchColumn();
+    if ($personalMembership !== 1 || $organization !== 1 || $limits !== 2) { throw new RuntimeException("installed account invariants failed"); }
+    echo $personalId;
+' "$pdo_driver" "$db_host" "$db_port" "$db_name" "$db_user" "$db_pass")
 
 # Svelte forms are created from the server-authorized JSON bootstrap. Exercise
 # the login handler with its real session and CSRF state rather than merely
@@ -252,4 +300,4 @@ locked_code=$(request_get '/install.php')
 [ "$locked_code" = '403' ] || fail "locked installer returned HTTP $locked_code"
 grep -q 'Installer locked' "$body_file" || fail 'installer was not locked after successful installation.'
 
-printf '%s\n' 'Web-installer HTTP integration test passed.'
+printf '%s\n' "Web-installer HTTP integration test passed for $database."

@@ -38,7 +38,7 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
     {
         $this->connection->executeStatement(
             'INSERT INTO api_keys (user_id, name, api_key, created_at, is_active)
-             VALUES (?, ?, ?, ?, 1)',
+             VALUES (?, ?, ?, ?, TRUE)',
             [$userId, $name, $keyHash, $createdAt],
         );
 
@@ -48,7 +48,7 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
     public function revoke(int $id, string $userId): bool
     {
         $affected = $this->connection->executeStatement(
-            'UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ? AND is_active = 1',
+            'UPDATE api_keys SET is_active = FALSE WHERE id = ? AND user_id = ? AND is_active = TRUE',
             [$id, $userId],
         );
 
@@ -58,7 +58,7 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
     public function findActiveByHash(string $keyHash): ?array
     {
         $row = $this->connection->fetchAssociative(
-            'SELECT id, user_id FROM api_keys WHERE api_key = ? AND is_active = 1',
+            'SELECT id, user_id FROM api_keys WHERE api_key = ? AND is_active = TRUE',
             [$keyHash],
         );
 

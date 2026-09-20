@@ -35,7 +35,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findById(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE id = ? AND active = 1',
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE id = ? AND active = TRUE',
             [$id],
         );
 
@@ -85,7 +85,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findByEmail(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE email = ? AND active = 1',
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE email = ? AND active = TRUE',
             [$email],
         );
 
@@ -109,7 +109,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function fetchPasswordHash(string $email): ?string
     {
         $hash = $this->connection->fetchOne(
-            'SELECT password_hash FROM users WHERE email = ? AND active = 1',
+            'SELECT password_hash FROM users WHERE email = ? AND active = TRUE',
             [$email],
         );
 
@@ -229,7 +229,10 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $conditions = [];
         $params     = [];
         if ($active !== null) {
-            $conditions[] = $active ? 'active = 1' : "(active = 0 OR active = '')";
+            // SQLite may materialize DBAL's boolean FALSE as an empty string;
+            // NOT keeps that legacy representation and native SQL booleans
+            // on MariaDB/PostgreSQL consistent without comparing unlike types.
+            $conditions[] = $active ? 'active = TRUE' : 'NOT active';
         }
         if ($search !== null && trim($search) !== '') {
             $conditions[] = '(email LIKE ? OR display_name LIKE ? OR first_name LIKE ? OR last_name LIKE ?)';
@@ -285,13 +288,13 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
 
     public function countActiveUsersWithRole(string $roleId): int
     {
-        return (int) $this->connection->fetchOne('SELECT COUNT(*) FROM users u JOIN user_roles ur ON ur.user_id = u.id WHERE u.active = 1 AND ur.role_id = ?', [$roleId]);
+        return (int) $this->connection->fetchOne('SELECT COUNT(*) FROM users u JOIN user_roles ur ON ur.user_id = u.id WHERE u.active = TRUE AND ur.role_id = ?', [$roleId]);
     }
 
     public function invalidateApiKeys(string $userId): int
     {
         return (int) $this->connection->executeStatement(
-            'UPDATE api_keys SET is_active = 0 WHERE user_id = ? AND is_active = 1',
+            'UPDATE api_keys SET is_active = FALSE WHERE user_id = ? AND is_active = TRUE',
             [$userId],
         );
     }

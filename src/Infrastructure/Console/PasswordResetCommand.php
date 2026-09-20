@@ -125,7 +125,7 @@ final class PasswordResetCommand extends Command
         $revokedCount = 0;
         if (!$keepKeys) {
             $revokedCount = (int) $conn->executeStatement(
-                'UPDATE api_keys SET is_active = 0 WHERE user_id = ? AND is_active = 1',
+                'UPDATE api_keys SET is_active = FALSE WHERE user_id = ? AND is_active = TRUE',
                 [$userId],
             );
         }

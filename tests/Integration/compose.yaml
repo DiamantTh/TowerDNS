@@ -73,6 +73,8 @@ services:
     depends_on:
       mariadb:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:18081:80"
     volumes:

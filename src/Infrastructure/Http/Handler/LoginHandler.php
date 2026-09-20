@@ -184,7 +184,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         $user = $this->users->findByEmail($email);
         if (!$user instanceof \TowerDNS\Domain\Auth\User) {
             // Account disabled between hash-fetch and user-load (race), or
-            // findByEmail's active=1 guard excluded it.
+            // findByEmail's active guard excluded it.
             $this->audit->recordLoginFailed($request, $email);
             return $this->translator->translate('auth.error.invalid-credentials');
         }

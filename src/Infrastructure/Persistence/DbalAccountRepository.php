@@ -56,7 +56,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
             $params[]     = $active;
             $types[]      = ParameterType::BOOLEAN;
         } elseif (!$includeInactive) {
-            $conditions[] = 'a.is_active = 1';
+            $conditions[] = 'a.is_active = TRUE';
         }
         if ($search !== null && trim($search) !== '') {
             $conditions[] = '(a.name LIKE ? OR a.slug LIKE ? OR a.customer_number LIKE ? OR a.external_reference LIKE ?)';
@@ -117,7 +117,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
                 'personal_user_id'   => $personalUserId,
                 'customer_number'    => $customerNumber,
                 'external_reference' => $externalReference,
-                'is_active'          => 1,
+                'is_active'          => true,
                 'created_at'         => $createdAt,
             ]);
             $id = (int) $this->connection->lastInsertId();
@@ -157,12 +157,12 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
 
     public function deactivate(int $id): void
     {
-        $this->connection->update('accounts', ['is_active' => 0], ['id' => $id]);
+        $this->connection->update('accounts', ['is_active' => false], ['id' => $id]);
     }
 
     public function activate(int $id): void
     {
-        $this->connection->update('accounts', ['is_active' => 1], ['id' => $id]);
+        $this->connection->update('accounts', ['is_active' => true], ['id' => $id]);
     }
 
     public function delete(int $id): void

@@ -45,7 +45,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
     {
         $rows = $this->connection->fetchAllAssociative(
             'SELECT * FROM provider_accounts
-             WHERE account_id = ? AND provider_type = ? AND is_active = 1
+             WHERE account_id = ? AND provider_type = ? AND is_active = TRUE
              ORDER BY name ASC',
             [$accountId, $providerType]
         );
@@ -66,7 +66,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
             'name'                  => $name,
             'credentials_encrypted' => $credentialsEncrypted,
             'credentials_version'   => $credentialsVersion,
-            'is_active'             => 1,
+            'is_active'             => true,
             'created_at'            => $createdAt,
         ]);
         return (int) $this->connection->lastInsertId();
@@ -110,7 +110,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
     {
         $this->connection->update(
             'provider_accounts',
-            ['is_active' => 0],
+            ['is_active' => false],
             ['id' => $id, 'account_id' => $accountId]
         );
     }
