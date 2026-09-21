@@ -106,6 +106,10 @@ final class PowerDNSAPIClient
             throw new ProviderRequestException('PowerDNS API-Aufruf fehlgeschlagen: ' . $e->getMessage(), (int) $e->getCode(), $e);
         }
 
+        if ($response->getStatusCode() >= 300 && $response->getStatusCode() < 400) {
+            throw new ProviderRequestException(sprintf('PowerDNS API returned an unexpected redirect response (HTTP %d).', $response->getStatusCode()), $response->getStatusCode());
+        }
+
         if (!$decode) {
             return null;
         }

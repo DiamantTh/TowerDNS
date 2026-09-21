@@ -16,6 +16,7 @@ use Psr\Http\Message\RequestInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
+use TowerDNS\Module\Cloudflare\CloudflareAPIException;
 use TowerDNS\Module\Cloudflare\CloudflareProvider;
 
 final class CloudflareProviderTest extends TestCase
@@ -48,6 +49,21 @@ final class CloudflareProviderTest extends TestCase
         self::assertSame(600, $observed->ttl);
         self::assertSame('PATCH', $this->requests[2]->getMethod());
         self::assertSame('/client/v4/zones/zone-1/dns_records/record-1', $this->requests[2]->getUri()->getPath());
+    }
+
+    public function testApiTokenIsNotForwardedAcrossRedirects(): void
+    {
+        $provider = $this->provider([
+            new Response(307, ['Location' => 'https://attacker.invalid/collect']),
+            $this->json(['result' => []]),
+        ]);
+
+        try {
+            $provider->listZones();
+            self::fail('A provider redirect must not be followed with an authenticated request.');
+        } catch (CloudflareAPIException) {
+            self::assertCount(1, $this->requests);
+        }
     }
 
     /** @param list<Response> $responses */

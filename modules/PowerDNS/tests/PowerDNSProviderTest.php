@@ -17,6 +17,7 @@ use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
@@ -40,9 +41,13 @@ final class PowerDNSProviderTest extends TestCase
             new Response(302, ['Location' => 'https://attacker.invalid/collect'], '{}'),
         ]);
 
-        self::assertSame([], $provider->listZones());
-        self::assertCount(1, $this->requests);
-        self::assertSame('test-api-key', $this->requests[0]->getHeaderLine('X-API-Key'));
+        try {
+            $provider->listZones();
+            self::fail('An unexpected API redirect must not be treated as a successful empty zone list.');
+        } catch (ProviderRequestException) {
+            self::assertCount(1, $this->requests);
+            self::assertSame('test-api-key', $this->requests[0]->getHeaderLine('X-API-Key'));
+        }
     }
 
     public function testCreatesRecordWithExtendOnSupportedServers(): void

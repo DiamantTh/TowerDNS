@@ -10,6 +10,8 @@ configs/*.toml
 configs/config.php
 node_modules/
 .svelte-kit/
+storybook-static/
+debug-storybook.log
 .phpunit.cache/
 .php-cs-fixer.cache
 build/

@@ -225,9 +225,16 @@ final readonly class DeSECApiClient
     private function performHttpRequest(string $method, string $endpoint, array $options): ResponseInterface
     {
         $this->rateLimiter?->hit();
+        // Keep the API token bound to the configured deSEC origin.
+        $options[RequestOptions::ALLOW_REDIRECTS] = false;
 
         try {
-            return $this->http->request($method, $endpoint, $options);
+            $response = $this->http->request($method, $endpoint, $options);
+            if ($response->getStatusCode() >= 300 && $response->getStatusCode() < 400) {
+                throw new DeSECApiException(sprintf('deSEC API returned an unexpected redirect response (HTTP %d).', $response->getStatusCode()), $response->getStatusCode());
+            }
+
+            return $response;
         } catch (BadResponseException $e) {
             $status = $e->getResponse()->getStatusCode();
             if ($status === 429) {

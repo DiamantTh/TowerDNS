@@ -16,6 +16,7 @@ use Psr\Http\Message\RequestInterface;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Module\DeSEC\DeSECApiClient;
+use TowerDNS\Module\DeSEC\DeSECApiException;
 use TowerDNS\Module\DeSEC\DeSECProvider;
 
 final class DeSECProviderTest extends TestCase
@@ -35,6 +36,21 @@ final class DeSECProviderTest extends TestCase
         self::assertSame(['3 1 1 aabb'], $result->rdata);
         self::assertSame('PATCH', $this->requests[0]->getMethod());
         self::assertSame('/example.org/rrsets/_443._tcp/TLSA/', $this->requests[0]->getUri()->getPath());
+    }
+
+    public function testApiTokenIsNotForwardedAcrossRedirects(): void
+    {
+        $provider = $this->provider([
+            new Response(307, ['Location' => 'https://attacker.invalid/collect']),
+            $this->json([]),
+        ]);
+
+        try {
+            $provider->listZones();
+            self::fail('An unexpected API redirect must be reported as a provider failure.');
+        } catch (DeSECApiException) {
+            self::assertCount(1, $this->requests);
+        }
     }
 
     /** @param list<Response> $responses */

@@ -42,9 +42,10 @@ app volume to a different database target.
 
 ### Disposable web-installer HTTP test
 
-The complete browser-facing installation, login, dashboard, and logout flow is
-covered against MariaDB, PostgreSQL, and SQLite by the same isolated Compose
-test:
+The complete HTTP installation, login, dashboard, and logout flow is covered
+against MariaDB, PostgreSQL, and SQLite by the same isolated Compose test. It
+uses `curl` with a cookie jar against the Apache/PHP container, not a graphical
+browser automation framework:
 
 ```sh
 sh tests/Integration/web-installer-http-test.sh mariadb

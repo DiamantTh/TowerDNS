@@ -20,6 +20,7 @@ use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Module\netcup\NetcupAPIClient;
+use TowerDNS\Module\netcup\NetcupAPIException;
 use TowerDNS\Module\netcup\NetcupProvider;
 
 final class NetcupProviderTest extends TestCase
@@ -74,6 +75,21 @@ final class NetcupProviderTest extends TestCase
 
         $this->expectExceptionMessage('nicht im konfigurierten Zone-Allowlist');
         $provider->listRecords('not-example.org');
+    }
+
+    public function testCredentialBearingLoginBodyIsNotForwardedAcrossRedirects(): void
+    {
+        $provider = $this->provider([
+            new Response(307, ['Location' => 'https://attacker.invalid/collect']),
+            $this->response(['apisessionid' => 'must-not-be-requested']),
+        ]);
+
+        try {
+            $provider->listRecords('example.org');
+            self::fail('A credential-bearing login request must not follow redirects.');
+        } catch (NetcupAPIException) {
+            self::assertCount(1, $this->requests);
+        }
     }
 
     /** @param list<Response> $responses */

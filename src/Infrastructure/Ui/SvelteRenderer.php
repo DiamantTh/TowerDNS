@@ -37,7 +37,7 @@ final class SvelteRenderer implements TemplateRendererInterface
         $page        = str_starts_with($name, 'app::') ? substr($name, 5) : $name;
         $payload     = [
             'page'   => $page,
-            'props'  => $this->normalize($data),
+            'props'  => $this->normalize($data, $page),
             'themes' => array_map(static fn(\TowerDNS\Application\Theme\Theme $theme): array => $theme->toArray(), array_values($this->themes->getAvailable())),
             'theme'  => $activeTheme->toArray(),
             'debug'  => $this->debug,
@@ -75,10 +75,49 @@ final class SvelteRenderer implements TemplateRendererInterface
         $this->defaults[$templateName][$param] = $value;
     }
 
-    private function normalize(mixed $value): mixed
+    private function normalize(mixed $value, string $page, bool $userList = false): mixed
     {
         if ($value === null || is_scalar($value)) {
             return $value;
+        }
+        if ($value instanceof User) {
+            $user = [
+                'id'          => $value->id,
+                'email'       => $value->email,
+                'displayName' => $value->displayName,
+                'theme'       => $value->theme,
+                'language'    => $value->language,
+                'locale'      => $value->locale,
+                'timezone'    => $value->timezone,
+            ];
+
+            if (!$userList) {
+                $user['roles'] = $this->normalize($value->roles, $page);
+            }
+
+            if ($page === 'profile/index') {
+                $user += [
+                    'firstName'      => $value->firstName,
+                    'lastName'       => $value->lastName,
+                    'alternateEmail' => $value->alternateEmail,
+                    'phone'          => $value->phone,
+                    'mobile'         => $value->mobile,
+                    'street'         => $value->street,
+                    'street2'        => $value->street2,
+                    'postalCode'     => $value->postalCode,
+                    'city'           => $value->city,
+                    'region'         => $value->region,
+                    'country'        => $value->country,
+                    'lastLoginAt'    => $value->lastLoginAt,
+                    'createdAt'      => $value->createdAt,
+                ];
+            }
+
+            if (in_array($page, ['iam/users', 'iam/user_edit'], true)) {
+                $user['active'] = $value->active;
+            }
+
+            return $user;
         }
         if ($value instanceof \BackedEnum) {
             return $value->value;
@@ -116,12 +155,13 @@ final class SvelteRenderer implements TemplateRendererInterface
                 if (is_string($key) && in_array($key, ['source', 'credentialsEncrypted', 'tokenHash', 'password_hash'], true)) {
                     continue;
                 }
-                $normalized[$key] = $this->normalize($item);
+                $isUserList       = $userList || ($page === 'iam/users' && $key === 'users');
+                $normalized[$key] = $this->normalize($item, $page, $isUserList);
             }
             return $normalized;
         }
         if (is_object($value)) {
-            return $this->normalize(get_object_vars($value));
+            return $this->normalize(get_object_vars($value), $page, $userList);
         }
         return null;
     }

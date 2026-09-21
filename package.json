@@ -9,14 +9,19 @@
     "dev": "vite build --watch",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "frontend:check": "npm run check && npm run typecheck && npm run build"
+    "frontend:check": "npm run check && npm run typecheck && npm run build",
+    "storybook": "storybook dev --host 127.0.0.1 --port 6006 --no-open --no-version-updates --disable-telemetry",
+    "storybook:typecheck": "svelte-check --tsconfig ./tsconfig.storybook.json && tsc --noEmit --project tsconfig.storybook.json",
+    "storybook:check": "npm run storybook:typecheck && storybook build --test --output-dir storybook-static --disable-telemetry"
   },
   "devDependencies": {
     "@skeletonlabs/skeleton": "^5.0.0",
     "@skeletonlabs/skeleton-svelte": "^5.0.0",
+    "@storybook/svelte-vite": "10.6.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/zxcvbn": "^4.4.4",
+    "storybook": "10.6.0",
     "svelte": "^5.57.0",
     "svelte-check": "^4.0.0",
     "tailwindcss": "^4.3.3",

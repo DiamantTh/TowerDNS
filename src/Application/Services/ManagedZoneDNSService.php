@@ -11,6 +11,7 @@ use TowerDNS\Application\Contracts\ProviderConstraintProviderInterface;
 use TowerDNS\Application\Contracts\RrsetProviderInterface;
 use TowerDNS\Application\DNS\RdataCanonicalizer;
 use TowerDNS\Application\DNS\RrsetComparator;
+use TowerDNS\Application\DTO\RrsetListPage;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
@@ -118,6 +119,28 @@ final readonly class ManagedZoneDNSService
         return $this->rrsets($provider)->listRrsets($zone->providerZoneId);
     }
 
+    public function rrsetListPage(User $user, int $accountId, int $managedZoneId): RrsetListPage
+    {
+        [$zone, $provider]           = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_READ, Capability::RECORD_LIST);
+        $rrsets                      = $this->rrsets($provider)->listRrsets($zone->providerZoneId);
+        $account                     = $this->accounts->findById($accountId);
+        $accountActive               = $account instanceof \TowerDNS\Domain\Account\Account && $account->isActive;
+        $providerSupportsRrsetWrites = $provider instanceof RrsetProviderInterface;
+
+        return new RrsetListPage(
+            $zone->canonicalName,
+            $rrsets,
+            $accountActive
+                && $providerSupportsRrsetWrites
+                && $provider->capabilities()->supports(Capability::RECORD_UPDATE)
+                && $this->permissions->authorizeManagedZone($user, Permission::RECORD_UPDATE, $accountId, $managedZoneId),
+            $accountActive
+                && $providerSupportsRrsetWrites
+                && $provider->capabilities()->supports(Capability::RECORD_DELETE)
+                && $this->permissions->authorizeManagedZone($user, Permission::RECORD_DELETE, $accountId, $managedZoneId),
+        );
+    }
+
     public function createRecord(User $user, int $accountId, int $managedZoneId, Record $record): Record
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_CREATE, Capability::RECORD_CREATE);
@@ -133,6 +156,7 @@ final readonly class ManagedZoneDNSService
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_UPDATE, Capability::RECORD_UPDATE);
         $this->assertAccountActive($accountId);
+        $this->assertRecordBelongsToZone($provider, $zone->providerZoneId, $record->id);
         RecordValidator::assertTtl($record->ttl);
         $this->assertProviderTtl($provider, $record->ttl);
         $owner   = DNSNameValidator::normaliseRecordOwner($record->name, $zone->canonicalName);
@@ -155,6 +179,7 @@ final readonly class ManagedZoneDNSService
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_DELETE, Capability::RECORD_DELETE);
         $this->assertAccountActive($accountId);
+        $this->assertRecordBelongsToZone($provider, $zone->providerZoneId, $recordId);
         $provider->deleteRecord($zone->providerZoneId, $recordId);
     }
 
@@ -253,6 +278,22 @@ final readonly class ManagedZoneDNSService
             throw new \TowerDNS\Application\Exception\CapabilityException('Provider does not support RRset operations.');
         }
         return $provider;
+    }
+
+    /** Ensure provider-native IDs belong to the already account-scoped zone. */
+    private function assertRecordBelongsToZone(DNSProviderInterface $provider, string $providerZoneId, string $recordId): void
+    {
+        if (!$provider->capabilities()->supports(Capability::RECORD_LIST)) {
+            throw new \TowerDNS\Application\Exception\CapabilityException('Provider record listing is required to verify the record scope.');
+        }
+
+        foreach ($provider->listRecords($providerZoneId) as $record) {
+            if ($record->id === $recordId) {
+                return;
+            }
+        }
+
+        throw new \DomainException('Record not found in this managed zone.');
     }
 
     private function forProviderZone(Record $record, string $providerZoneId, string $ownerName, string $content): Record

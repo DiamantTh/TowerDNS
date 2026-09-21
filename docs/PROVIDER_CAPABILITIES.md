@@ -25,6 +25,16 @@ every provider supporting every DNS record type or atomic changes.
 | netcup CCP DNS | List/read only | Yes | No | Zones must be explicitly present in the configured allow-list; no zone create/delete through this adapter |
 | Google Cloud DNS | List/read/create/delete | Yes | No | DNSSEC status read only; no action/key/DS management exposed |
 
+## Test coverage
+
+Dedicated mocked API/provider tests exist for deSEC, Cloudflare, PowerDNS,
+INWX, OVHcloud, ClouDNS, and netcup. Google Cloud DNS currently has no
+adapter-specific provider test suite; the existing factory test only checks
+that the module can be instantiated. Its capability row above describes the
+source implementation, not equivalent test-backed confidence. Validate the
+Google adapter against a disposable Cloud DNS project before relying on it for
+managed production zones.
+
 ## DNSSEC
 
 | Adapter | Status | Automatic/provider-managed | Enable/disable | Key list | Rollover | DS data |

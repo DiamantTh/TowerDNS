@@ -257,6 +257,8 @@ final class CloudflareAPIClient
                 'Authorization' => 'Bearer ' . $this->apiToken,
                 'Content-Type'  => 'application/json',
             ],
+            // DNS credentials must never be replayed to a redirect target.
+            RequestOptions::ALLOW_REDIRECTS => false,
         ];
 
         if ($query !== []) {
@@ -279,6 +281,10 @@ final class CloudflareAPIClient
             throw new CloudflareAPIException('Cloudflare-API-Fehler: ' . $msg, $e->getCode(), $e);
         } catch (GuzzleException $e) {
             throw new CloudflareAPIException('Cloudflare-Verbindungsfehler: ' . $e->getMessage(), 0, $e);
+        }
+
+        if ($response->getStatusCode() >= 300 && $response->getStatusCode() < 400) {
+            throw new CloudflareAPIException(sprintf('Cloudflare API returned an unexpected redirect response (HTTP %d).', $response->getStatusCode()), $response->getStatusCode());
         }
 
         if (!$decode) {

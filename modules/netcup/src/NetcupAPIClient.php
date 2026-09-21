@@ -122,9 +122,15 @@ final readonly class NetcupAPIClient
             $response = $this->http->request('POST', '', [
                 RequestOptions::HEADERS => ['Accept' => 'application/json'],
                 RequestOptions::JSON    => ['action' => $action, 'param' => $params],
+                // The POST body contains customer and API credentials.
+                RequestOptions::ALLOW_REDIRECTS => false,
             ]);
         } catch (GuzzleException $e) {
             throw new NetcupAPIException('Netcup API-Aufruf fehlgeschlagen: ' . $e->getMessage(), 0, $e);
+        }
+
+        if ($response->getStatusCode() < 200 || $response->getStatusCode() >= 300) {
+            throw new NetcupAPIException(sprintf('Netcup API returned an unexpected HTTP status (%d).', $response->getStatusCode()), $response->getStatusCode());
         }
 
         /** @var mixed $decoded */
@@ -134,7 +140,7 @@ final readonly class NetcupAPIClient
         }
 
         $status = (int) ($decoded['statuscode'] ?? 0);
-        if ($response->getStatusCode() >= 400 || $status !== 2000) {
+        if ($status !== 2000) {
             $message = (string) ($decoded['longmessage'] ?? $decoded['shortmessage'] ?? 'Unbekannter Fehler');
             throw new NetcupAPIException(sprintf('Netcup API %s fehlgeschlagen (%d): %s', $action, $status, $message));
         }

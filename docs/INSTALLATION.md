@@ -22,10 +22,15 @@ zusätzlich der passende PDO-Treiber installiert sein:
 
 Doctrine DBAL verwendet genau diese PDO-Treiber; die unterstützten Treiber und
 Verbindungsparameter sind in der [DBAL-Dokumentation](https://www.doctrine-project.org/projects/doctrine-dbal/en/3.3/reference/configuration.html)
-beschrieben. Der Installer bietet alle drei Treiber an, die automatisierten
-Tests in diesem Repository verwenden SQLite. Live-Tests gegen MySQL/MariaDB
-und PostgreSQL sind nicht Teil des lokalen Testlaufs und müssen vor einem
-Rollout mit der Provider-Datenbank geprüft werden.
+beschrieben. Der Installer bietet alle drei Treiber an. Die Migrationstests
+verwenden immer eine temporäre SQLite-Datenbank und können zusätzlich gegen
+MariaDB 11.4 und PostgreSQL 16 in der optionalen Containerumgebung laufen. Das
+HTTP-Integrationstestsystem durchläuft Installation, Login, Dashboard und
+Logout separat mit allen drei Datenbanken; die genauen Aufrufe und Grenzen
+stehen in [`tests/Integration/README.md`](../tests/Integration/README.md).
+MariaDB wird dabei tatsächlich getestet, nicht Oracle MySQL. Diese Container-
+Tests ersetzen weder einen Test auf dem konkreten Hosting-Paket noch Tests
+gegen echte Provider-APIs.
 
 Der PHP-Prozess benötigt Schreibrechte für die privaten Verzeichnisse
 `configs/`, `cache/`, `data/` und `logs/`. `data/` wird bei SQLite auch für die
@@ -136,6 +141,16 @@ Verschlüsselungsschlüssels) und bei SQLite die Datei unter `data/` sichern.
 Bestehende Installationen dürfen nicht durch einen normalen Request neu
 initialisiert werden.
 
+TowerDNS stellt derzeit keinen eigenen Backup-/Restore-Assistenten bereit;
+Backups und Wiederherstellung erfolgen mit den Werkzeugen des gewählten
+Datenbanksystems. Ein Restore ist nur mit der dazugehörigen
+`configs/config.local.toml` samt ursprünglichem `security.encryption_key`
+vollständig. Nach Wiederherstellung Datenbank und Konfiguration gemeinsam
+einspielen und vor einem Schema-Upgrade `towerdns:schema:validate` ausführen.
+Bei fehlendem Schlüssel keinen Ersatzschlüssel erzeugen: bereits verschlüsselte
+Provider-Zugangsdaten und TOTP-Secrets wären damit nicht mehr entschlüsselbar.
+Details stehen unter [Backup, Restore und Key Recovery](ARCHITECTURE.md#backup-restore-und-key-recovery).
+
 Der normale Anwendungsstart führt keine Schemaänderungen aus. Der
 `FreshInstallBootstrapper` und der CLI-Installer rufen den versionierten
 `SchemaMigrationManager` ausdrücklich auf. Eine vorhandene Installation kann
@@ -162,11 +177,16 @@ ausgeführt werden, sofern die konkrete Datenbank-DDL keinen manuellen Restore
 erfordert.
 
 Doctrine DBAL und Doctrine Migrations abstrahieren die unterstützten PDO-
-Treiber. Die automatisierte Migrationsmatrix prüft SQLite immer und kann
-MariaDB sowie PostgreSQL über die wegwerfbare Containerumgebung unter
-`tests/Integration/` zuschalten. Die dort dokumentierten Testdatenbanken sind
-keine Laufzeitvoraussetzung für TowerDNS und ersetzen keine Validierung mit der
-tatsächlichen Hosting-Datenbank.
+Treiber. Der vorhandene Migrations-Integrationstest läuft immer mit SQLite und
+kann zusätzlich für MariaDB und PostgreSQL konfiguriert werden. Die optionale
+Compose-Konfiguration pinnt dafür MariaDB 11.4 und PostgreSQL 16. Der
+vorhandene HTTP-E2E-Test durchläuft den kompletten Webinstaller-/Login-/
+Dashboard-/Logout-Ablauf mit SQLite, MariaDB und PostgreSQL. Dabei sendet der
+Test echte HTTP-Anfragen an den Apache/PHP-Testcontainer; er ist aber kein
+grafischer Browser- oder Hostinganbieter-Test. Die genauen Aufrufe stehen in
+[`tests/Integration/README.md`](../tests/Integration/README.md).
+Die Testdatenbanken und Container sind keine Laufzeitvoraussetzung für TowerDNS
+und ersetzen keine Validierung mit der tatsächlichen Hosting-Datenbank.
 
 ## Einladungsregistrierung
 
@@ -182,8 +202,22 @@ andere E-Mail-Adresse gebundene Tokens werden abgewiesen.
 
 ## Prüfgrenzen
 
-Automatisiert werden SQLite-Schema, installer-nahe PHP-Pfade, Anwendungstests,
-statische Analysen und die Frontend-Assets geprüft. Ein echter Browserlauf auf
-jedem Shared-Hosting-Panel, SMTP-Zustellung sowie Live-Verbindungen zu
-MySQL/MariaDB und PostgreSQL sind Umgebungs- bzw. Providerprüfungen und müssen
-vor dem jeweiligen Rollout separat bestätigt werden.
+Der automatisierte Testbestand umfasst Anwendungstests, statische Analysen,
+Frontend-Assets, Migrationen mit SQLite sowie optional MariaDB 11.4 und
+PostgreSQL 16 und den vollständigen HTTP-Installations-/Login-/Dashboard-/
+Logout-Ablauf mit allen drei Datenbanken. Das HTTP-E2E verwendet `curl` gegen
+den isolierten Apache/PHP-Container, keine grafische Browserautomation. Nicht
+abgedeckt sind reale Shared-Hosting-Panels und deren Dateirechte/PHP-FPM-
+Konfiguration, SMTP-Zustellung, produktive Datenbanken oder Live-Provider-
+Anfragen. Oracle MySQL ist kein eigenständiges Integrationsziel.
+
+[`DatabaseConfigurationRestoreIntegrationTest`](../tests/Integration/DatabaseConfigurationRestoreIntegrationTest.php)
+ergänzt eine isolierte dateibasierte SQLite-Prüfung: Sie sichert eine
+geschlossene Testdatenbank zusammen mit der Konfiguration, führt eine bekannte
+Schema-Aktualisierung aus und stellt anschließend beide Dateien wieder her.
+Geprüft werden danach
+Passwort-Hash, Accounts, Owner-Memberships, Limits, Zone und die Entschlüsselung
+eines Test-Credentials mit dem wiederhergestellten Schlüssel. Das ist kein
+Test eines Live-Backups bei gleichzeitig laufender Anwendung; native Backup-
+und Restore-Verfahren für MariaDB/PostgreSQL sowie ein HTTP-Login nach Restore
+sind damit ebenfalls nicht validiert.

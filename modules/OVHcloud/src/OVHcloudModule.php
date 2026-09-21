@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Module\OVHcloud;
 
+use GuzzleHttp\Client;
 use Ovh\Api;
 use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Module\ModuleManifest;
@@ -38,6 +39,11 @@ final readonly class OVHcloudModule implements ProviderModuleInterface
             (string) $credentials['application_secret'],
             (string) ($credentials['endpoint'] ?? 'ovh-eu'),
             (string) $credentials['consumer_key'],
+            new Client([
+                'timeout'         => 30,
+                'connect_timeout' => 5,
+                'allow_redirects' => false,
+            ]),
         ));
     }
 }

@@ -45,7 +45,11 @@ final readonly class GoogleCloudDNSModule implements ProviderModuleInterface
         $client = new GoogleClient();
         $client->setAuthConfig($serviceAccount);
         $client->setScopes(['https://www.googleapis.com/auth/ndev.clouddns.readwrite']);
-        $client->setHttpClient(new HttpClient(['timeout' => 30, 'connect_timeout' => 5]));
+        $client->setHttpClient(new HttpClient([
+            'timeout'         => 30,
+            'connect_timeout' => 5,
+            'allow_redirects' => false,
+        ]));
 
         return new GoogleCloudDNSProvider(new Dns($client), (string) $credentials['project_id']);
     }

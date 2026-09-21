@@ -1,0 +1,9 @@
+{
+    "extends": "./tsconfig.json",
+    "include": [
+        ".storybook/preview.ts",
+        "storybook/**/*.ts",
+        "storybook/**/*.svelte",
+        "themes/default/src/**/*"
+    ]
+}

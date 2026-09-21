@@ -217,6 +217,7 @@ return [
     'rrset.column.ttl'                          => 'TTL (seconds)',
     'rrset.column.rdata'                        => 'Values',
     'rrset.column.actions'                      => 'Actions',
+    'rrset.action-unavailable'                  => 'Writing this RRset is unavailable for the current account or provider.',
     'page.record-edit.title'                    => 'Edit DNS record',
     'page.dnssec.title'                         => 'DNSSEC',
     'field.content'                             => 'Content',
