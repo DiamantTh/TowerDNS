@@ -1,17 +1,24 @@
 import type { Decorator, Preview } from '@storybook/svelte-vite';
 import DataTableExample from '../storybook/fixtures/DataTableExample.svelte';
 import DnsRecordsPageExample from '../storybook/fixtures/DnsRecordsPageExample.svelte';
+import DnsZonesPageExample from '../storybook/fixtures/DnsZonesPageExample.svelte';
 import FeatureExample from '../storybook/fixtures/FeatureExample.svelte';
+import AppShellExample from '../storybook/fixtures/AppShellExample.svelte';
 import '../themes/default/src/styles/app.css';
+import '../storybook/ux-palettes.css';
+import { uxPaletteById, uxPalettes, type UxPaletteId } from '../storybook/ux-palettes';
 
 const withTowerEnvironment: Decorator = (storyFn, context) => {
     const root = document.documentElement;
+    const paletteId = String(context.globals.towerPalette ?? 'slate-hybrid') as UxPaletteId;
+    const palette = uxPaletteById[paletteId] ?? uxPaletteById['slate-hybrid'];
     root.dataset.theme = String(context.globals.towerTheme ?? 'cerberus');
+    root.dataset.towerPalette = palette.id;
     root.lang = String(context.globals.towerLanguage ?? 'en-GB');
-    root.classList.toggle('dark', context.globals.colorMode === 'dark');
+    root.classList.toggle('dark', palette.forceDark || context.globals.colorMode === 'dark');
 
     const story = storyFn();
-    if (story.Component === DataTableExample || story.Component === FeatureExample || story.Component === DnsRecordsPageExample) {
+    if (story.Component === DataTableExample || story.Component === FeatureExample || story.Component === DnsRecordsPageExample || story.Component === DnsZonesPageExample || story.Component === AppShellExample) {
         return {
             ...story,
             props: { ...story.props, language: String(context.globals.towerLanguage ?? 'en-GB') },
@@ -33,6 +40,15 @@ const preview: Preview = {
                     { value: 'modern', title: 'Modern' },
                     { value: 'terminus', title: 'Terminus' },
                 ],
+                dynamicTitle: true,
+            },
+        },
+        towerPalette: {
+            description: 'TowerDNS UX palette preview; Storybook-only token overrides',
+            toolbar: {
+                title: 'UX palette',
+                icon: 'paintbrush',
+                items: uxPalettes.map((palette) => ({ value: palette.id, title: `${palette.code} · ${palette.name}` })),
                 dynamicTitle: true,
             },
         },
@@ -63,6 +79,7 @@ const preview: Preview = {
     },
     initialGlobals: {
         towerTheme: 'cerberus',
+        towerPalette: 'slate-hybrid',
         colorMode: 'light',
         towerLanguage: 'en-GB',
         viewport: { value: 'towerDesktop', isRotated: false },

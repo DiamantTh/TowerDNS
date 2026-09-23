@@ -1,0 +1,49 @@
+/* Storybook-only token overrides. Product themes and user preferences are never changed. */
+:root[data-tower-palette] {
+    --color-root-bg-light: var(--tower-background);
+    --color-root-bg-dark: var(--tower-background);
+    --typo-base--color-light: var(--tower-text);
+    --typo-base--color-dark: var(--tower-text);
+    --color-surface-50: var(--tower-panel);
+    --color-surface-100: color-mix(in oklab, var(--tower-panel) 92%, var(--tower-background));
+    --color-surface-200: color-mix(in oklab, var(--tower-border) 55%, var(--tower-panel));
+    --color-surface-300: var(--tower-border);
+    --color-surface-400: color-mix(in oklab, var(--tower-muted) 65%, var(--tower-panel));
+    --color-surface-500: var(--tower-muted);
+    --color-surface-600: var(--tower-muted);
+    --color-surface-700: color-mix(in oklab, var(--tower-navigation) 76%, var(--tower-panel));
+    --color-surface-800: color-mix(in oklab, var(--tower-navigation) 88%, var(--tower-panel));
+    --color-surface-900: var(--tower-workspace);
+    --color-surface-950: var(--tower-navigation);
+    --color-primary-300: color-mix(in oklab, var(--tower-primary) 50%, white);
+    --color-primary-400: color-mix(in oklab, var(--tower-primary) 72%, white);
+    --color-primary-500: var(--tower-focus);
+    --color-primary-600: var(--tower-primary);
+    --color-primary-700: var(--tower-primary-hover);
+    --color-primary-800: color-mix(in oklab, var(--tower-primary-hover) 78%, black);
+    --color-primary-contrast-600: #ffffff;
+    --color-success-200: color-mix(in oklab, var(--tower-success) 21%, var(--tower-panel));
+    --color-success-500: var(--tower-success);
+    --color-success-600: var(--tower-success);
+    --color-success-900: color-mix(in oklab, var(--tower-success) 68%, var(--tower-text));
+    --color-success-contrast-600: #ffffff;
+    --color-warning-200: color-mix(in oklab, var(--tower-warning) 20%, var(--tower-panel));
+    --color-warning-500: var(--tower-warning);
+    --color-warning-900: color-mix(in oklab, var(--tower-warning) 68%, var(--tower-text));
+    --color-warning-contrast-500: #1d160d;
+    --color-error-200: color-mix(in oklab, var(--tower-danger) 18%, var(--tower-panel));
+    --color-error-500: var(--tower-danger);
+    --color-error-600: var(--tower-danger);
+    --color-error-900: color-mix(in oklab, var(--tower-danger) 68%, var(--tower-text));
+    --color-error-contrast-600: #ffffff;
+    --color-secondary-500: var(--tower-info);
+    --color-secondary-contrast-500: #ffffff;
+}
+
+:root[data-tower-palette='forest-light'] { --tower-background: #edf5ee; --tower-navigation: #153a2e; --tower-workspace: #f7fbf7; --tower-panel: #ffffff; --tower-text: #16342a; --tower-muted: #557468; --tower-primary: #2f7a55; --tower-primary-hover: #226143; --tower-focus: #49a674; --tower-border: #c7dbcf; --tower-success: #2f8c62; --tower-warning: #b8791d; --tower-danger: #bd3d3d; --tower-info: #2d6f8d; }
+:root[data-tower-palette='amber-light'] { --tower-background: #f6efe3; --tower-navigation: #362819; --tower-workspace: #fffaf2; --tower-panel: #fffdf8; --tower-text: #33271d; --tower-muted: #756553; --tower-primary: #a66318; --tower-primary-hover: #7e4910; --tower-focus: #d08a2e; --tower-border: #e2cfb5; --tower-success: #397557; --tower-warning: #bc780d; --tower-danger: #b5343b; --tower-info: #386e8e; }
+:root[data-tower-palette='slate-hybrid'] { --tower-background: #e9eff2; --tower-navigation: #1f2d39; --tower-workspace: #f4f7f8; --tower-panel: #fbfcfc; --tower-text: #1b2a35; --tower-muted: #5a6a75; --tower-primary: #1f6d88; --tower-primary-hover: #18566d; --tower-focus: #4d9fb8; --tower-border: #c5d0d7; --tower-success: #2b7f68; --tower-warning: #aa741e; --tower-danger: #b33a44; --tower-info: #316f9c; }
+:root[data-tower-palette='oled-ocean-dark'] { color-scheme: dark; --tower-background: #07141c; --tower-navigation: #081018; --tower-workspace: #0a1b26; --tower-panel: #102735; --tower-text: #e4f1f5; --tower-muted: #9bb5bd; --tower-primary: #20a6c7; --tower-primary-hover: #157e9a; --tower-focus: #67d8ef; --tower-border: #214454; --tower-success: #31b484; --tower-warning: #d69b38; --tower-danger: #e05c66; --tower-info: #4ba9e8; }
+:root[data-tower-palette='nordic-hybrid'] { --tower-background: #e7eef3; --tower-navigation: #172b3b; --tower-workspace: #f6f9fb; --tower-panel: #ffffff; --tower-text: #152836; --tower-muted: #597080; --tower-primary: #337d9c; --tower-primary-hover: #265f78; --tower-focus: #67acc7; --tower-border: #c7d5de; --tower-success: #347b63; --tower-warning: #ad771f; --tower-danger: #b4434b; --tower-info: #347ca6; }
+
+.sb-show-main.sb-main-padded { background: var(--tower-background, var(--color-root-bg-light)); }
