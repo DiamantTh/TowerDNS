@@ -37,11 +37,11 @@
     <nav class="navbar app-shell__nav" aria-label="TowerDNS">
         <div class="navbar-brand">
             <a class="navbar-item brand" href="/">TowerDNS</a>
-            <button class="navbar-burger" aria-label={t('navigation.menu')} aria-expanded={menu} onclick={() => onToggleMenu(!menu)}>
+            <button type="button" class="navbar-burger" aria-label={t('navigation.menu')} aria-controls="towerdns-primary-navigation" aria-expanded={menu} onclick={() => onToggleMenu(!menu)}>
                 <span></span><span></span><span></span>
             </button>
         </div>
-        <div class:open={menu} class="navbar-menu">
+        <div id="towerdns-primary-navigation" class:open={menu} class="navbar-menu">
             <div class="navbar-start">
                 <a class="navbar-item" href="/zones">{t('navigation.zones')}</a>
                 <a class="navbar-item" href="/accounts">{t('navigation.accounts')}</a>
