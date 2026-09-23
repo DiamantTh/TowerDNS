@@ -17,6 +17,10 @@ export const PersonalContext: Story = {
     args: { accountLabel: 'Taylor Example · Personal account' },
 };
 
+export const LongOrganizationName: Story = {
+    args: { accountLabel: 'Example Hosting and Managed DNS Services for Northern Europe Ltd.' },
+};
+
 export const German: Story = {
     args: { language: 'de-DE' },
 };

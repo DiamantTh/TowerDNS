@@ -23,6 +23,17 @@ type Story = StoryObj<typeof meta>;
 
 export const DNSRecordValues: Story = {};
 
+export const ManyRows: Story = {
+    args: {
+        rows: Array.from({ length: 30 }, (_, index) => ({
+            owner: index === 0 ? `${'long-subdomain.'.repeat(5)}example.test` : `host-${String(index + 1).padStart(2, '0')}.example.test`,
+            type: index % 3 === 0 ? 'TXT' : index % 3 === 1 ? 'AAAA' : 'A',
+            ttl: 300 + index * 60,
+            rdata: index % 3 === 0 ? `v=spf1 include:mail-${index}.example.test ~all ${'synthetic-long-value '.repeat(5)}` : index % 3 === 1 ? '2001:db8:1200:beef:0000:0000:0000:0042' : `203.0.113.${index + 1}`,
+        })),
+    },
+};
+
 export const Empty: Story = {
     args: { rows: [], action: null },
 };
