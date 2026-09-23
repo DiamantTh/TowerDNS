@@ -49,7 +49,7 @@ export const RestrictedProviderCapabilities: Story = {
 };
 
 export const German: Story = {
-    args: { language: 'de-DE' },
+    globals: { towerLanguage: 'de-DE' },
 };
 
 export const PhoneViewport: Story = {

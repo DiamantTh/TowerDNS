@@ -18,7 +18,7 @@ export const EmptyAccount: Story = {
     args: { page: { ...exampleDnsZonesPage, providerAccounts: [], providerNames: {}, managedZones: [] } },
 };
 
-export const German: Story = { args: { language: 'de-DE' } };
+export const German: Story = { globals: { towerLanguage: 'de-DE' } };
 
 export const PhoneViewport: Story = {
     globals: { viewport: { value: 'towerPhone', isRotated: false } },

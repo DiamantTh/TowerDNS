@@ -15,5 +15,5 @@ type Story = StoryObj<typeof meta>;
 export const Dashboard: Story = {};
 export const ProviderAccounts: Story = { args: { view: 'providerAccounts' } };
 export const AccountMembers: Story = { args: { view: 'accountMembers' } };
-export const GermanDashboard: Story = { args: { language: 'de-DE' } };
+export const GermanDashboard: Story = { globals: { towerLanguage: 'de-DE' } };
 export const PhoneProviders: Story = { args: { view: 'providerAccounts' }, globals: { viewport: { value: 'towerPhone', isRotated: false } } };
