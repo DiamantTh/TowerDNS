@@ -14,9 +14,18 @@ npm run storybook
 ```
 
 It binds to `127.0.0.1:6006`. Use the Storybook toolbar to switch the Skeleton
-theme, light/dark mode, fixture language, and preview viewport. The current
-stories are under **TowerDNS / Shared** (data table, feature card, notice) and
-**TowerDNS / DNS** (the existing record-set page).
+theme, UX palette, light/dark mode, fixture language, and preview viewport.
+The stories are under **TowerDNS / Shared**, **TowerDNS / DNS**,
+**TowerDNS / Layout**, and **TowerDNS / UX previews**. They include real
+AppShell, dashboard, provider-account and account-member views. All server
+bootstrap values are synthetic and credentials are omitted.
+
+The **UX palette** toolbar changes Storybook-only tokens, independently of the
+Skeleton-theme toolbar. It provides Forest Light, Amber Light, Slate Hybrid,
+OLED Ocean Dark and Nordic Hybrid. Hybrid variants intentionally retain a
+dark navigation surface with lighter working panels; they are not aliases for
+the regular dark-mode control. The palette-token story shows the exact HEX
+values used by each direction.
 
 To run a production-style Storybook compile check without touching the normal
 web assets:
@@ -25,7 +34,9 @@ web assets:
 npm run storybook:check
 ```
 
-That command writes only to the ignored `storybook-static/` directory. The
+That command writes only to the ignored `storybook-static/` directory. It can
+be served as an access-controlled, static development preview when needed,
+but must never be placed in the public TowerDNS `httpdocs/` runtime. The
 normal `npm run build` continues to write the application bundle to
 `httpdocs/assets/`.
 

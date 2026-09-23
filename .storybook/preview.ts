@@ -4,6 +4,7 @@ import DnsRecordsPageExample from '../storybook/fixtures/DnsRecordsPageExample.s
 import DnsZonesPageExample from '../storybook/fixtures/DnsZonesPageExample.svelte';
 import FeatureExample from '../storybook/fixtures/FeatureExample.svelte';
 import AppShellExample from '../storybook/fixtures/AppShellExample.svelte';
+import ApplicationPageExample from '../storybook/fixtures/ApplicationPageExample.svelte';
 import '../themes/default/src/styles/app.css';
 import '../storybook/ux-palettes.css';
 import { uxPaletteById, uxPalettes, type UxPaletteId } from '../storybook/ux-palettes';
@@ -18,7 +19,7 @@ const withTowerEnvironment: Decorator = (storyFn, context) => {
     root.classList.toggle('dark', palette.forceDark || context.globals.colorMode === 'dark');
 
     const story = storyFn();
-    if (story.Component === DataTableExample || story.Component === FeatureExample || story.Component === DnsRecordsPageExample || story.Component === DnsZonesPageExample || story.Component === AppShellExample) {
+    if (story.Component === DataTableExample || story.Component === FeatureExample || story.Component === DnsRecordsPageExample || story.Component === DnsZonesPageExample || story.Component === AppShellExample || story.Component === ApplicationPageExample) {
         return {
             ...story,
             props: { ...story.props, language: String(context.globals.towerLanguage ?? 'en-GB') },

@@ -1,5 +1,7 @@
 # TowerDNS UI examples
 
+## A. Original implementation screenshots
+
 These six images are screenshots of the current Svelte application, rendered
 with the repository's `SvelteRenderer` and built frontend assets. The example
 rows, zone names, addresses, users, and provider-connection labels are
@@ -27,6 +29,40 @@ selected page and receives only that page's bootstrap data.
 Provider coverage and known operation limits are documented in
 [`../PROVIDER_CAPABILITIES.md`](../PROVIDER_CAPABILITIES.md).
 
-New concept screenshots are stored separately in `proposals/` and explicitly
-mark proposed UI changes and synthetic metrics. They do not describe current
-application functionality.
+## B. Older static UX proposals
+
+Local files in `proposals/` are earlier, static reference material. They are
+kept separate from application source and are not evidence of implemented
+features. They may contain deliberately synthetic metrics or layout ideas.
+
+## C. Runnable Storybook UX preview
+
+The component workshop is the runnable comparison environment. It renders the
+real TowerDNS Svelte components, including `AppShell`, dashboard, zone list,
+RRset page, provider-account management, and account-member management with
+synthetic, secrets-free bootstrap data.
+
+```sh
+npm ci
+npm run storybook
+```
+
+The toolbar selects the normal Skeleton theme, language, viewport and one of
+the Storybook-only UX palettes: **02 Forest Light**, **03 Amber Light**,
+**05 Slate Hybrid**, **06 OLED Ocean Dark**, or **Nordic Hybrid**. The palette
+token story lists the exact HEX values. The variants deliberately run over the
+same real components so that tables, long RDATA values, forms, statuses and
+responsive layouts can be compared directly.
+
+`npm run storybook:check` creates an ignored `storybook-static/` directory.
+It is suitable for a local or access-controlled development preview with only
+the committed fixtures. It must not be copied into `httpdocs/`, and it does
+not contain production credentials, live DNS data or application
+configuration.
+
+## D. Productive application
+
+Only the normal Svelte bundle under `httpdocs/assets/` is part of the running
+TowerDNS application. Storybook palettes are workshop-only token overrides:
+they do not alter stored user themes, locale, active-account selection,
+dashboard settings or any server-side authorization.
