@@ -13,6 +13,12 @@ Install the development dependencies with `npm ci`, then start the workshop:
 npm run storybook
 ```
 
+The project allowlist permits only the version-pinned `esbuild@0.25.12`
+postinstall script. That script selects and validates esbuild's optional
+platform binary; it is required for the reviewed frontend toolchain install.
+Review further install scripts individually with `npm install-scripts ls`;
+do not approve all scripts as a group.
+
 It binds to `127.0.0.1:6006`. Use the Storybook toolbar to switch the Skeleton
 theme, UX palette, light/dark mode, fixture language, and preview viewport.
 The stories are under **TowerDNS / Shared**, **TowerDNS / DNS**,
