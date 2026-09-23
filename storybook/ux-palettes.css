@@ -47,3 +47,18 @@
 :root[data-tower-palette='nordic-hybrid'] { --tower-background: #e7eef3; --tower-navigation: #172b3b; --tower-workspace: #f6f9fb; --tower-panel: #ffffff; --tower-text: #152836; --tower-muted: #597080; --tower-primary: #337d9c; --tower-primary-hover: #265f78; --tower-focus: #67acc7; --tower-border: #c7d5de; --tower-success: #347b63; --tower-warning: #ad771f; --tower-danger: #b4434b; --tower-info: #347ca6; }
 
 .sb-show-main.sb-main-padded { background: var(--tower-background, var(--color-root-bg-light)); }
+
+.storybook-preview-notice {
+    position: fixed;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    z-index: 1000;
+    width: min(34rem, calc(100vw - 2rem));
+    margin: 0;
+    box-shadow: 0 8px 28px color-mix(in oklab, var(--tower-navigation, #000) 24%, transparent);
+}
+
+.storybook-preview-notice:focus-visible {
+    outline: 3px solid var(--tower-focus, var(--color-primary-500));
+    outline-offset: 3px;
+}

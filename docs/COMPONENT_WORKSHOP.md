@@ -23,8 +23,9 @@ It binds to `127.0.0.1:6006`. Use the Storybook toolbar to switch the Skeleton
 theme, UX palette, light/dark mode, fixture language, and preview viewport.
 The stories are under **TowerDNS / Shared**, **TowerDNS / DNS**,
 **TowerDNS / Layout**, and **TowerDNS / UX previews**. They include real
-AppShell, dashboard, provider-account and account-member views. All server
-bootstrap values are synthetic and credentials are omitted.
+AppShell, dashboard, DNS, provider-account, account/member, user, role,
+profile, settings and login views. All server bootstrap values are synthetic
+and credentials are omitted.
 
 The **UX palette** toolbar changes Storybook-only tokens, independently of the
 Skeleton-theme toolbar. It provides Forest Light, Amber Light, Slate Hybrid,
@@ -64,3 +65,25 @@ responsibility and is not tested by the workshop.
 The fixtures are deliberately limited to component states that the current
 components can render. They do not imply that every story has a distinct
 production workflow or that a provider operation is functional.
+
+### Preview navigation and actions
+
+The Storybook preview has no Mezzio backend. Links to represented views
+(dashboard, DNS zones and RRsets, provider accounts, accounts and members,
+users, roles, profile, system settings, and login) open the matching story in
+the Storybook manager. The root link opens the dashboard except from the login
+story, where it returns to that login preview. Unrepresented internal views
+(such as account detail, profile subpages, provider-wide credentials and
+schema) show an accessible notice rather than a 404. Mapped links also remain
+inside Storybook when opened in another tab/window. Form submissions,
+programmatic form submits, TowerDNS-route fetches, and all state-changing
+`fetch` requests are blocked with a visible demo notice. The preview does not
+emulate server authorization or mutate fixture data. These guards are imported
+only by `.storybook/preview.ts`; productive routes and actions keep their
+normal behaviour.
+
+The Storybook viewport selector includes phone widths, a 640 CSS-pixel view
+representing a 1280px desktop at 200% zoom, tablet breakpoints, and desktop /
+ultrawide sizes. The productive shell switches to its keyboard-operable
+collapsed navigation below 1100px; wide DNS tables keep horizontal scrolling
+inside their own table container rather than widening the document.
