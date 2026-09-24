@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Persistence;
 
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\ParameterType;
 use Psr\Clock\ClockInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\UserPreferences;
@@ -254,12 +255,18 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             $conditions[] = 'EXISTS (SELECT 1 FROM account_memberships am WHERE am.user_id = users.id AND am.role = ?)';
             $params[]     = $membershipRole->value;
         }
-        $where    = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
+        $where = $conditions === [] ? '' : ' WHERE ' . implode(' AND ', $conditions);
+        // MariaDB/PostgreSQL require numeric LIMIT/OFFSET bindings; DBAL's
+        // default string binding turns the user administration page into a 500.
+        $types    = array_fill(0, count($params), ParameterType::STRING);
         $params[] = max(1, min($limit, 500));
         $params[] = max(0, $offset);
+        $types[]  = ParameterType::INTEGER;
+        $types[]  = ParameterType::INTEGER;
         $rows     = $this->connection->fetchAllAssociative(
             'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users' . $where . ' ORDER BY email LIMIT ? OFFSET ?',
             $params,
+            $types,
         );
 
         if ($rows === []) {

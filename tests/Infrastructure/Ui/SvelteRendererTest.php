@@ -9,6 +9,7 @@ namespace TowerDNS\Tests\Infrastructure\Ui;
 use Laminas\I18n\Translator\Translator;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Auth\ActionGroupDefinition;
+use TowerDNS\Application\PageUrls;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Auth\PermissionDefinition;
@@ -34,6 +35,14 @@ final class SvelteRendererTest extends TestCase
         self::assertStringContainsString('provider_accounts', $html);
         self::assertStringNotContainsString('secret-ciphertext', $html);
         self::assertStringNotContainsString('serialized-public-key', $html);
+        self::assertSame('/records.php?account={account}&zone={zone}', $this->bootstrap($html)['urls']['records']);
+    }
+
+    public function testPathPreferenceChangesOnlyUrlTemplates(): void
+    {
+        $renderer = new SvelteRenderer(new ThemeManager(dirname(__DIR__, 3)), urls: new PageUrls('path'));
+        $html     = $renderer->render('app::dashboard', ['user' => new User('user', 'person@example.test')]);
+        self::assertSame('/roles', $this->bootstrap($html)['urls']['roles']);
     }
 
     public function testRendererExposesBuiltInRoleMarkerWithoutCallingItSystemScope(): void
@@ -111,6 +120,13 @@ final class SvelteRendererTest extends TestCase
         self::assertSame('Rolle „DNS Manager“ wurde angelegt.', $this->interpolate($translator->translate('roles.success.created'), ['name' => 'DNS Manager']));
         self::assertSame('2 Rollen', $this->interpolate($translator->translatePlural('roles.count', 'roles.count', 2), ['count' => '2']));
         self::assertSame('Save', $translator->translate('common.save', 'default', 'fr-FR'));
+    }
+
+    /** @return array<string, mixed> */
+    private function bootstrap(string $html): array
+    {
+        self::assertSame(1, preg_match('~<script id="towerdns-page" type="application/json">(.*?)</script>~s', $html, $matches));
+        return json_decode($matches[1] ?? '', true, 512, JSON_THROW_ON_ERROR);
     }
 
     /** @param array<string, string> $parameters */

@@ -21,6 +21,7 @@ use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\LocaleMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\OwnProfileMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\PhpEntryPointMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 
 final class Pipeline
@@ -46,6 +47,8 @@ final class Pipeline
 
         // Authenticate user from session — sets User attribute on every request
         $app->pipe(AuthenticationMiddleware::class);
+        // Normalize physical page URLs before path-sensitive security middleware.
+        $app->pipe(PhpEntryPointMiddleware::class);
         $app->pipe(OwnProfileMiddleware::class);
         $app->pipe(LocaleMiddleware::class);
 

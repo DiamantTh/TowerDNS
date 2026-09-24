@@ -11,6 +11,7 @@ use Mezzio\Application;
 use TowerDNS\Infrastructure\Http\Handler\AccountHandler;
 use TowerDNS\Infrastructure\Http\Handler\AccountInvitationHandler;
 use TowerDNS\Infrastructure\Http\Handler\ActiveAccountHandler;
+use TowerDNS\Infrastructure\Http\Handler\AdminOverviewHandler;
 use TowerDNS\Infrastructure\Http\Handler\AdminSwitchHandler;
 use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
@@ -78,6 +79,7 @@ final class Routes
 
         // ── Dashboard ─────────────────────────────────────────────────────────
         $app->get('/', [RequireAuthMiddleware::class, DashboardHandler::class], 'dashboard');
+        $app->get('/admin', [RequireAuthMiddleware::class, AdminOverviewHandler::class], 'admin.overview');
 
         // ── Profile ───────────────────────────────────────────────────────────
         $app->get('/profile', [RequireAuthMiddleware::class, ProfileHandler::class], 'profile');

@@ -1,8 +1,5 @@
 <?php
 
-// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) 2026 TowerDNS contributors
-
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/src/Infrastructure/Http/http-entrypoint.php';

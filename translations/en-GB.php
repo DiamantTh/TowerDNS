@@ -137,6 +137,8 @@ return [
     'navigation.settings'                       => 'Settings',
     'navigation.schema'                          => 'Database schema',
     'navigation.providers'                      => 'Providers',
+    'navigation.admin'                          => 'Administration',
+    'navigation.admin-switch'                   => 'Administrative user switch',
     'theme.label'                               => 'Colour scheme',
     'theme.light'                               => 'Light',
     'theme.dark'                                => 'Dark',
