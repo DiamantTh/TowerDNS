@@ -1,11 +1,16 @@
-Options -Indexes
+Options -Indexes -MultiViews
 DirectoryIndex index.php
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    # Only these virtual PHP pages may reach the shared front controller.
+    # QSA preserves resource parameters; END prevents a second rewrite pass.
+    RewriteRule ^(login|admin|users|roles|accounts|zones|records|dnssec|profile|settings)\.php$ index.php?entry=$1 [END,QSA]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule \.php$ - [R=404,END]
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^ index.php [L]
+    RewriteRule ^ index.php [END]
 </IfModule>
 
 <FilesMatch "^\.">

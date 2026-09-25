@@ -2,11 +2,11 @@
     import Field from './Field.svelte';
     import Page from './Page.svelte';
     import { useI18n } from '../lib/i18n';
-    import type { DnsZonesPageProps } from '../lib/bootstrap';
+    import { pageUrl, type DnsZonesPageProps, type PageUrlTemplates } from '../lib/bootstrap';
 
-    let { page }: { page: DnsZonesPageProps } = $props();
+    let { page, urls }: { page: DnsZonesPageProps; urls?: PageUrlTemplates } = $props();
     const t = useI18n();
-    const enc = (value: string | number): string => encodeURIComponent(String(value));
+    const url = (name: string, parameters: Record<string, string | number>) => pageUrl(urls, name, parameters);
 
     const confirmDelete = (event: SubmitEvent, name: string): void => {
         if (!confirm(t('zones.confirm-delete', { name }))) event.preventDefault();
@@ -21,7 +21,7 @@
                     <h2 class="subtitle">{t('zones.create')}</h2>
                     <p class="muted">{t('zones.provider')}</p>
                 </div>
-                <form class="inline-form" method="post" action={`/accounts/${enc(page.accountId)}/zones`}>
+                <form class="inline-form" method="post" action={url('accountZones', { account: page.accountId })}>
                     <input type="hidden" name="csrf_token" value={page.csrfToken}>
                     <Field label={t('zones.provider')}>
                         <select class="input" name="provider_account_id" required>
@@ -44,10 +44,10 @@
             {@const providerName = page.providerNames[String(zone.providerAccountId)]}
             <article class="resource-card zone-card">
                 <div class="zone-card__summary">
-                    <a class="resource-title" href={`/accounts/${enc(page.accountId)}/zones/${enc(zone.id)}`}>{zone.canonicalName}</a>
+                    <a class="resource-title" href={url('records', { account: page.accountId, zone: zone.id })}>{zone.canonicalName}</a>
                     {#if providerName}<span class="status">{t('zones.provider')}: {providerName}</span>{:else}<span class="status">{t('zones.provider-connection-unavailable')}</span>{/if}
                 </div>
-                <form method="post" action={`/accounts/${enc(page.accountId)}/zones/${enc(zone.id)}/delete`} onsubmit={(event) => confirmDelete(event, zone.canonicalName)}>
+                <form method="post" action={url('zoneDelete', { account: page.accountId, zone: zone.id })} onsubmit={(event) => confirmDelete(event, zone.canonicalName)}>
                     <input type="hidden" name="csrf_token" value={page.csrfToken}>
                     <button class="button is-small is-danger">{t('common.delete')}</button>
                 </form>

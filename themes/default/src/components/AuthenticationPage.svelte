@@ -3,7 +3,7 @@
     import Notice from './Notice.svelte';
     import Strength from './Strength.svelte';
     import { useI18n } from '../lib/i18n';
-    import type { AuthenticationPageData, AuthenticationPageName } from '../lib/bootstrap';
+    import { pageUrl, type PageUrlTemplates, type AuthenticationPageData, type AuthenticationPageName } from '../lib/bootstrap';
 
     type SerializedCredentialDescriptor = { id: string; type: PublicKeyCredentialType; transports?: AuthenticatorTransport[] };
     type SerializedRequestOptions = Omit<PublicKeyCredentialRequestOptions, 'challenge' | 'allowCredentials'> & {
@@ -12,7 +12,8 @@
     };
     type FinishResponse = { error?: unknown; redirect?: unknown };
 
-    let { page, data }: { page: AuthenticationPageName; data: AuthenticationPageData } = $props();
+    let { page, data, urls }: { page: AuthenticationPageName; data: AuthenticationPageData; urls?: PageUrlTemplates } = $props();
+    const url = (name: string) => pageUrl(urls, name);
     let score = $state<number | null>(null);
     let busy = $state(false);
     let passkeyError = $state('');
@@ -73,7 +74,7 @@
                 throw new Error(typeof body.error === 'string' ? body.error : t('auth.error.login-failed'));
             }
 
-            window.location.href = typeof body.redirect === 'string' ? body.redirect : '/';
+            window.location.href = typeof body.redirect === 'string' ? body.redirect : url('dashboard');
         } catch (cause) {
             passkeyError = cause instanceof Error ? cause.message : t('auth.error.login-failed');
             busy = false;
@@ -83,15 +84,15 @@
 
 {#if page === 'login_webauthn'}
     <section class="auth-card box">
-        <a class="wordmark" href="/">TowerDNS</a>
+        <a class="wordmark" href={url('dashboard')}>TowerDNS</a>
         <h1 class="title is-4">{t('auth.login-with-passkey')}</h1>
         {#if data.error || passkeyError}<Notice kind="danger" text={data.error || passkeyError} />{/if}
         <button class:loading={busy} class="button is-primary is-fullwidth" onclick={loginWithPasskey}>{t('auth.use-passkey')}</button>
-        <div class="auth-links"><a href="/login">{t('auth.other-login-method')}</a></div>
+        <div class="auth-links"><a href={url('login')}>{t('auth.other-login-method')}</a></div>
     </section>
 {:else}
     <section class="auth-card box">
-        <a class="wordmark" href="/">TowerDNS</a>
+        <a class="wordmark" href={url('dashboard')}>TowerDNS</a>
         <h1 class="title is-4">
             {page === 'login' ? t('auth.welcome-back') : page === 'forgot_password' ? t('auth.forgot-password') : page === 'reset_password' ? t('auth.new-password') : t('auth.two-factor')}
         </h1>
@@ -99,7 +100,7 @@
         {#if data.sent}
             <Notice kind="success" text={t('auth.reset-email-sent')} />
         {:else}
-            <form method="post" action={page === 'login' ? '/login' : page === 'forgot_password' ? '/password/forgot' : page === 'reset_password' ? '/password/reset' : '/login/totp'}>
+            <form method="post" action={page === 'login' ? url('login') : page === 'forgot_password' ? '/password/forgot' : page === 'reset_password' ? '/password/reset' : '/login/totp'}>
                 <input type="hidden" name="csrf_token" value={data.csrfToken ?? ''}>
                 {#if data.token}<input type="hidden" name="token" value={data.token}>{/if}
                 {#if page === 'login' || page === 'forgot_password'}
@@ -121,7 +122,7 @@
             </form>
         {/if}
         <div class="auth-links">
-            <a href={page === 'login' ? '/password/forgot' : '/login'}>
+            <a href={page === 'login' ? '/password/forgot' : url('login')}>
                 {page === 'login' ? t('auth.forgot-password-question') : t('auth.back-to-login')}
             </a>
         </div>

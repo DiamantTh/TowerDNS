@@ -12,6 +12,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\Middleware\OwnProfileMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\VirtualPhpPageMiddleware;
 
 final class OwnProfileMiddlewareTest extends TestCase
 {
@@ -35,5 +36,29 @@ final class OwnProfileMiddlewareTest extends TestCase
             ->withAttribute(User::class, new User('actor', 'actor@example.test'));
         self::assertSame(204, $middleware->process($own, $next)->getStatusCode());
         self::assertSame(204, $middleware->process(new ServerRequest()->withUri(new \Laminas\Diactoros\Uri('/profile')), $next)->getStatusCode());
+    }
+
+    public function testVirtualProfileEntryUsesTheSameImpersonationGuard(): void
+    {
+        $request = new ServerRequest()->withUri(new \Laminas\Diactoros\Uri('/profile.php'))
+            ->withQueryParams(['entry' => 'profile'])
+            ->withAttribute('actor_user', new User('actor', 'actor@example.test'))
+            ->withAttribute(User::class, new User('effective', 'effective@example.test'));
+        $next = new class implements RequestHandlerInterface {
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return new EmptyResponse(204);
+            }
+        };
+        $profile  = new OwnProfileMiddleware();
+        $pipeline = new readonly class ($profile, $next) implements RequestHandlerInterface {
+            public function __construct(private OwnProfileMiddleware $profile, private RequestHandlerInterface $next) {}
+
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                return $this->profile->process($request, $this->next);
+            }
+        };
+        self::assertSame(403, new VirtualPhpPageMiddleware()->process($request, $pipeline)->getStatusCode());
     }
 }

@@ -3,13 +3,13 @@
     import type { ThemeBootstrap, UserBootstrap } from '../../themes/default/src/lib/bootstrap';
 
     type Language = 'en-GB' | 'de-DE';
-    type PageKind = 'dashboard' | 'providerAccounts' | 'accountMembers' | 'accounts' | 'users' | 'roles' | 'profile' | 'settings' | 'login';
+    type PageKind = 'dashboard' | 'admin' | 'providerAccounts' | 'accountMembers' | 'accounts' | 'users' | 'roles' | 'profile' | 'settings' | 'login';
     type Props = { view?: PageKind; language?: Language };
     let { view = 'dashboard', language = 'en-GB' }: Props = $props();
 
     const catalog: Record<Language, Record<string, string>> = {
         'en-GB': {
-            'navigation.skip-to-content': 'Skip to content', 'navigation.menu': 'Open navigation', 'navigation.zones': 'DNS zones', 'navigation.accounts': 'Accounts', 'navigation.users': 'Users', 'navigation.roles': 'Roles', 'navigation.settings': 'Settings', 'navigation.schema': 'Schema', 'navigation.providers': 'Providers',
+            'navigation.skip-to-content': 'Skip to content', 'navigation.menu': 'Open navigation', 'navigation.zones': 'DNS zones', 'navigation.accounts': 'Accounts', 'navigation.users': 'Users', 'navigation.roles': 'Roles', 'navigation.settings': 'Settings', 'navigation.schema': 'Schema', 'navigation.providers': 'Providers', 'navigation.admin': 'Administration', 'navigation.admin-switch': 'Administrative user switch',
             'theme.label': 'Theme', 'theme.dark': 'Dark', 'theme.light': 'Light', 'auth.logout': 'Log out', 'common.open': 'Open', 'common.delete': 'Delete', 'common.remove': 'Remove', 'common.save': 'Save', 'common.edit': 'Edit',
             'page.dashboard.title': 'Dashboard', 'dashboard.welcome': 'Welcome back, {name}', 'dashboard.zones.title': 'DNS zones', 'dashboard.zones.text': 'Manage account-scoped DNS zones.', 'dashboard.accounts.title': 'Accounts', 'dashboard.accounts.text': 'Review personal and organization access.', 'dashboard.security.title': 'Security', 'dashboard.security.text': 'Manage your sign-in settings.',
             'providers.account-connections': 'Provider accounts', 'providers.connection-create': 'Add provider account', 'providers.credentials-replace': 'Replace credentials', 'providers.credentials-replace-hint': 'Leave existing credentials unchanged until the replacement is submitted.', 'providers.confirm-deactivate': 'Deactivate {name}?', 'providers.connection-deactivate': 'Deactivate', 'providers.none-configured': 'No provider accounts configured.',
@@ -24,7 +24,7 @@
             'auth.welcome-back': 'Welcome back', 'auth.login': 'Sign in', 'auth.forgot-password-question': 'Forgot your password?', 'auth.forgot-password': 'Reset password',
         },
         'de-DE': {
-            'navigation.skip-to-content': 'Zum Inhalt springen', 'navigation.menu': 'Navigation öffnen', 'navigation.zones': 'DNS-Zonen', 'navigation.accounts': 'Konten', 'navigation.users': 'Benutzer', 'navigation.roles': 'Rollen', 'navigation.settings': 'Einstellungen', 'navigation.schema': 'Schema', 'navigation.providers': 'Provider',
+            'navigation.skip-to-content': 'Zum Inhalt springen', 'navigation.menu': 'Navigation öffnen', 'navigation.zones': 'DNS-Zonen', 'navigation.accounts': 'Konten', 'navigation.users': 'Benutzer', 'navigation.roles': 'Rollen', 'navigation.settings': 'Einstellungen', 'navigation.schema': 'Schema', 'navigation.providers': 'Provider', 'navigation.admin': 'Administration', 'navigation.admin-switch': 'Administrativer Benutzerwechsel',
             'theme.label': 'Theme', 'theme.dark': 'Dunkel', 'theme.light': 'Hell', 'auth.logout': 'Abmelden', 'common.open': 'Öffnen', 'common.delete': 'Löschen', 'common.remove': 'Entfernen', 'common.save': 'Speichern', 'common.edit': 'Bearbeiten',
             'page.dashboard.title': 'Übersicht', 'dashboard.welcome': 'Willkommen zurück, {name}', 'dashboard.zones.title': 'DNS-Zonen', 'dashboard.zones.text': 'DNS-Zonen im gewählten Konto verwalten.', 'dashboard.accounts.title': 'Konten', 'dashboard.accounts.text': 'Persönliche und Organisationszugriffe prüfen.', 'dashboard.security.title': 'Sicherheit', 'dashboard.security.text': 'Anmeldeeinstellungen verwalten.',
             'providers.account-connections': 'Provider-Konten', 'providers.connection-create': 'Provider-Konto hinzufügen', 'providers.credentials-replace': 'Zugangsdaten ersetzen', 'providers.credentials-replace-hint': 'Bestehende Zugangsdaten bleiben bis zum Absenden unverändert.', 'providers.confirm-deactivate': '{name} deaktivieren?', 'providers.connection-deactivate': 'Deaktivieren', 'providers.none-configured': 'Keine Provider-Konten konfiguriert.',
@@ -46,7 +46,7 @@
         roles: [{ id: 'administrator', name: 'Administrator', isBuiltIn: true, permissions: ['user.manage', 'role.manage', 'system.settings.manage', 'system.schema.manage', 'provider.config.manage'] }],
     });
     const base = $derived({ user, csrfToken: 'storybook-fixture-only-not-a-valid-token' });
-    const bootstrapData = $derived(view === 'dashboard' ? base : view === 'login' ? { ...base, user: null, currentUser: null, error: null } : view === 'providerAccounts' ? {
+    const bootstrapData = $derived(view === 'dashboard' ? base : view === 'admin' ? { ...base, areas: [{ key: 'navigation.users', href: '/users.php' }, { key: 'navigation.roles', href: '/roles.php' }, { key: 'navigation.settings', href: '/settings.php' }] } : view === 'login' ? { ...base, user: null, currentUser: null, error: null } : view === 'providerAccounts' ? {
         ...base, account: { id: 107, name: 'Example Hosting' }, allowedTypes: ['desec'], providerDefinitions: { desec: { label: 'deSEC', user_managed: true, credentials: { token: { input: 'token', label: 'API token', required: true, secret: true } } } },
         providers: [{ id: 21, name: 'Primary DNS', providerType: 'desec', isActive: true }], error: null, success: null,
     } : view === 'accountMembers' ? {
@@ -75,8 +75,9 @@
     } : view === 'settings' ? {
         ...base, fields: { app_name: 'TowerDNS', app_hostname: 'tower.example.test', theme_name: 'cerberus', app_force_https: true, app_debug: false, pwd_min_length: 16, pwd_min_score: 3, mailer_dsn: 'smtp://mail.example.test', mailer_from_address: 'dns@example.test' }, error: null, success: null,
     } : base);
-    const bootPage = $derived(view === 'providerAccounts' ? 'provider_accounts/list' : view === 'accountMembers' ? 'accounts/members' : view === 'accounts' ? 'accounts/list' : view === 'users' ? 'iam/users' : view === 'roles' ? 'iam/roles' : view === 'profile' ? 'profile/index' : view === 'settings' ? 'settings' : view === 'login' ? 'login' : 'dashboard');
-    const boot = $derived({ page: bootPage, props: bootstrapData, themes, theme: themes[0], debug: false, i18n: { locale: language, messages: catalog[language] } });
+    const bootPage = $derived(view === 'providerAccounts' ? 'provider_accounts/list' : view === 'accountMembers' ? 'accounts/members' : view === 'accounts' ? 'accounts/list' : view === 'users' ? 'iam/users' : view === 'roles' ? 'iam/roles' : view === 'profile' ? 'profile/index' : view === 'settings' ? 'settings' : view === 'login' ? 'login' : view === 'admin' ? 'admin' : 'dashboard');
+    const urls = { dashboard: '/index.php', login: '/login.php', admin: '/admin.php', zones: '/zones.php', accounts: '/accounts.php', account: '/accounts.php?id={id}', accountMembers: '/accounts.php?id={id}&view=members', accountProviders: '/accounts.php?id={id}&view=providers', users: '/users.php', user: '/users.php?id={id}', roles: '/roles.php', role: '/roles.php?id={id}', profile: '/profile.php', settings: '/settings.php', schema: '/settings.php?view=schema', accountZones: '/zones.php?account={account}', zoneDelete: '/zones.php?account={account}&zone={zone}&action=delete', records: '/records.php?account={account}&zone={zone}', rrsetReplace: '/records.php?account={account}&zone={zone}&action=replace', rrsetDelete: '/records.php?account={account}&zone={zone}&action=delete-rrset&owner={owner}&type={type}', dnssec: '/dnssec.php?account={account}&zone={zone}' };
+    const boot = $derived({ page: bootPage, props: bootstrapData, themes, theme: themes[0], debug: false, urls, i18n: { locale: language, messages: catalog[language] } });
 </script>
 
 <App {boot} />

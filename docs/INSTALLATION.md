@@ -59,15 +59,19 @@ Veröffentlichungslogik.
 
 ## Webroot und Dateisystem
 
-Der öffentliche DocumentRoot muss auf `httpdocs/` zeigen. Öffentlich benötigt
-werden dort nur der Front-Controller, Installer-Einstieg, Favicon und die
-gebauten Assets. `src/`, `modules/`, `templates/`, `translations/`, `vendor/`,
-`configs/`, `data/`, `cache/`, `logs/`, `tests/` und `install/` müssen außerhalb
-des öffentlichen Webroots liegen oder vom Webserver zuverlässig gesperrt sein.
+Der öffentliche DocumentRoot muss auf `httpdocs/` zeigen. Für die
+Anwendung liegen dort nur `index.php` als Front-Controller und `install.php`
+als separater Installer; Favicon und gebaute Assets werden direkt ausgeliefert.
+`src/`, `modules/`, `templates/`, `translations/`, `vendor/`, `configs/`,
+`data/`, `cache/`, `logs/`, `tests/` und `install/` bleiben außerhalb des
+öffentlichen Webroots.
 
-Für Apache liegt eine defensive `.htaccess` in `httpdocs/`. Bei Nginx muss der
-Provider eine `try_files`-Weiterleitung auf `index.php` und den Schutz der
-nichtöffentlichen Pfade konfigurieren. Wenn ein Hosting-Panel keinen frei
+Die virtuellen `.php`-Seiten benötigen auf Apache `mod_rewrite` und die
+mitgelieferte `.htaccess`; auf Nginx eine entsprechende interne Weiterleitung
+zu `index.php`. Ohne diese Webserverregeln sind nur `index.php` und
+`install.php` direkt erreichbar. Falls der Hoster `Options` in `.htaccess`
+nicht erlaubt, müssen `-Indexes` und `-MultiViews` im VirtualHost gesetzt
+und die `Options`-Zeile aus `.htaccess` entfernt werden. Wenn ein Hosting-Panel keinen frei
 wählbaren DocumentRoot und keine sichere Regel zum Abschotten privater
 Verzeichnisse bietet, ist eine reine FTP-Installation nicht sicher
 unterstützbar. Das komplette Repository öffentlich abzulegen und einzelne
@@ -77,6 +81,87 @@ Mezzio geht ebenfalls von einem separaten öffentlichen Verzeichnis aus; siehe
 die [Standalone-Dokumentation](https://docs.mezzio.dev/mezzio/v1/getting-started/standalone/)
 und den Hinweis zu Basis-Pfaden bei Unterverzeichnissen in der
 [Mezzio-Dokumentation](https://docs.mezzio.dev/mezzio/v3/cookbook/using-a-base-path/).
+
+## PHP-Seiten und Routing
+
+`index.php` ist der einzige Front-Controller der normalen Anwendung;
+`install.php` bleibt der separate Installer. Browseradressen wie `/roles.php`
+sind virtuelle Seiten: Apache oder Nginx leitet sie intern an `index.php`
+weiter und ergänzt den internen Bereichsparameter `entry`. Die Browseradresse
+bleibt unverändert. Mezzio ordnet die Anfrage den vorhandenen Handlern zu;
+Session, CSRF und Berechtigungen gelten auch für die virtuellen Adressen.
+
+Die bevorzugte Ausgabe verwendet standardmäßig PHP-Adressen. Beispiele:
+
+| Bereich | Adresse |
+| --- | --- |
+| Dashboard | `/index.php` |
+| Rollenliste / Rolle | `/roles.php`, `/roles.php?id=42` |
+| Benutzerliste / Benutzer | `/users.php`, `/users.php?id=123` |
+| Account / Mitglieder / Provider | `/accounts.php?id=107`, `&view=members`, `&view=providers` |
+| Zonen eines Accounts | `/zones.php?account=107` |
+| Records / DNSSEC einer Zone | `/records.php?account=107&zone=21`, `/dnssec.php?account=107&zone=21` |
+
+`zones.php?account=107&zone=21` zeigt ebenfalls die Records dieser Zone.
+Die Zahlen sind nur Beispiele. IDs, Account-Zugehörigkeit und Rechte werden
+weiterhin serverseitig geprüft. Query-Parameter sind keine Autorisierung.
+Technische Unteraktionen (etwa WebAuthn, Einladungen und einzelne
+Provider-Credential-Operationen) verwenden weiterhin ihre Mezzio-Pfadrouten.
+POST und CSRF bleiben für Schreibaktionen erforderlich. Alte Pfadrouten wie
+`/roles/{id}` und `/accounts/{account}/zones/{zone}` bleiben kompatibel.
+
+Betreiber können in `configs/config.local.toml` unter `[app]` optional
+`url_style = "path"` setzen, damit TowerDNS Pfadrouten als bevorzugte Links
+und Redirects ausgibt. Der Standard `php` benötigt keinen zusätzlichen
+Konfigurationseintrag. Beide Varianten verwenden dieselben Mezzio-Handler und
+Berechtigungsprüfungen. Die `.htaccess` schreibt nur bekannte virtuelle
+`.php`-Seiten intern zu `index.php?entry=<bereich>` um und leitet bestehende
+Pfadrouten ebenfalls an den Front-Controller. Die ursprüngliche URL und
+ihre Ressourcenparameter bleiben erhalten. Ein browserseitig gesetztes oder
+doppeltes `entry` wird verworfen; unbekannte `.php`-Namen liefern 404.
+Physische Assets werden direkt ausgeliefert. Sie verhindert Directory-Listings und Apache
+MultiViews. Auf Shared Hosting kann eine nicht erlaubte `Options`-Direktive
+einen HTTP-500-Fehler verursachen; dann muss der Provider diese beiden
+Einstellungen im VirtualHost setzen und die Zeile aus `.htaccess` entfernen.
+
+Für Nginx/PHP-FPM ist beispielsweise folgende Struktur passend (Pfade und
+Socket an die eigene Umgebung anpassen):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name dns.example.org;
+    root /srv/towerdns/httpdocs;
+    index index.php;
+
+    location / {
+        try_files $uri $uri/ /index.php$is_args$args;
+    }
+
+    location ~ ^/(?<towerdns_page>login|admin|users|roles|accounts|zones|records|dnssec|profile|settings)\.php$ {
+        rewrite ^ /index.php?entry=$towerdns_page last;
+    }
+
+    location ~ ^/(index|install)\.php$ {
+        try_files $uri =404;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+    }
+
+    location ~ \.php$ { return 404; }
+    location ~ /\. { deny all; }
+}
+```
+
+TLS-Zertifikat, HTTPS-Redirect und weitere Hostvorgaben müssen separat
+konfiguriert werden. Private Verzeichnisse liegen **oberhalb** des Nginx-Root.
+Die interne Weiterleitung muss die ursprüngliche `REQUEST_URI` für die
+Prüfung des sichtbaren Seitennamens erhalten. Nginx ergänzt vorhandene
+Query-Parameter beim gezeigten Rewrite; `entry` bleibt ausschließlich ein
+interner Routinghinweis. Storybook ist nur eine lokale Vorschau; dort werden bekannte PHP-Links
+auf synthetische Stories gelenkt und schreibende Aktionen abgefangen. Es ist
+kein Ersatz für den PHP-Router und gehört nicht in `httpdocs/`.
 
 ## Browser-Installer
 

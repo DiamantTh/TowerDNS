@@ -47,7 +47,7 @@ Rechtepruefungen sind zentral im Core und nicht nur in der UI.
 - HTTP-Clients: Guzzle 7
 - Logging/Telemetrie: Monolog 3, Sentry 4
 - Caching: Symfony Cache, PSR Simple Cache
-- CLI/Mailer/Konfig: Symfony Console, Symfony Mailer, `yosymfony/toml`
+- CLI/Mailer/Konfig: Symfony Console, Symfony Mailer, `devium/toml`
 - Authentifizierung: WebAuthn (`web-auth/webauthn-lib`), TOTP (`spomky-labs/otphp`), Passwortpruefung (`bjeavons/zxcvbn-php`)
 - Frontend: Skeleton 5 + Svelte 5 + Tailwind CSS 4 + Vite 6 + TypeScript
 - Tests/Statisch: PHPUnit 11, PHPStan 2 (Level 8)
@@ -75,6 +75,14 @@ npm run build        # Frontend-Assets -> httpdocs/assets/
 Der Frontend-Build wird für die lokale Anwendung und die Entwicklungsprüfung
 nach `httpdocs/assets/` geschrieben. Mezzio liefert Seitendaten und
 CSRF-geschuetzte Endpunkte; Svelte rendert die gesamte Anwendung.
+
+Die Hauptseiten verwenden sichtbare PHP-Adressen wie `/index.php`, `/zones.php`,
+`/records.php?account=107&zone=21` und `/profile.php`. Nur `index.php` ist
+der physische Front-Controller; die übrigen Seiten werden intern dorthin
+umgeschrieben und von Mezzio verarbeitet. Bisherige Pfadrouten bleiben
+erreichbar. Details zu
+Query-Parametern, optionalen Kurz-URLs und Webserverregeln stehen in der
+[Installationsanleitung](docs/INSTALLATION.md#php-seiten-und-routing).
 
 Technische Voraussetzungen, der sichere DocumentRoot, der Browser-Installer
 und der Betrieb auf PHP-FPM bzw. klassischem Shared Hosting sind in

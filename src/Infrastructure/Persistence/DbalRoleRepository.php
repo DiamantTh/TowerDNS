@@ -75,7 +75,7 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
                 $this->connection->insert('roles', [
                     'id'         => $role->id,
                     'name'       => $role->name,
-                    'is_system'  => false,
+                    'is_system'  => 0,
                     'created_at' => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
                 ]);
             } else {
