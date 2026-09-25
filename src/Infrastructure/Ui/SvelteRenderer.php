@@ -10,7 +10,6 @@ namespace TowerDNS\Infrastructure\Ui;
 use Laminas\I18n\Translator\Translator;
 use Laminas\I18n\Translator\TranslatorInterface;
 use Mezzio\Template\TemplateRendererInterface;
-use TowerDNS\Application\PageUrls;
 use TowerDNS\Application\Services\SupportedLocales;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Account\ProviderAccount;
@@ -27,7 +26,6 @@ final class SvelteRenderer implements TemplateRendererInterface
         private readonly ThemeManager $themes,
         private readonly bool $debug = false,
         private readonly ?TranslatorInterface $translator = null,
-        private readonly PageUrls $urls = new PageUrls(),
     ) {}
 
     public function render(string $name, array|object $params = []): string
@@ -43,7 +41,6 @@ final class SvelteRenderer implements TemplateRendererInterface
             'themes' => array_map(static fn(\TowerDNS\Application\Theme\Theme $theme): array => $theme->toArray(), array_values($this->themes->getAvailable())),
             'theme'  => $activeTheme->toArray(),
             'debug'  => $this->debug,
-            'urls'   => $this->urls->templates(),
             'i18n'   => [
                 'locale'   => $this->locale(),
                 'messages' => $this->clientMessages(),

@@ -13,7 +13,6 @@ type Story = StoryObj<typeof meta>;
 
 /** Real App.svelte with a synthetic, secrets-free server bootstrap. */
 export const Dashboard: Story = {};
-export const Administration: Story = { args: { view: 'admin' } };
 export const ProviderAccounts: Story = { args: { view: 'providerAccounts' } };
 export const AccountMembers: Story = { args: { view: 'accountMembers' } };
 export const Accounts: Story = { args: { view: 'accounts' } };

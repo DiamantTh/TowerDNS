@@ -167,7 +167,6 @@ final class ContainerFactory
         };
 
         $appConf  = $loadToml('config.local.toml');
-        $pageUrls = new PageUrls(($appConf['app']['url_style'] ?? 'php') === 'path' ? 'path' : 'php');
         $dbConf   = $loadToml('database.toml');
         $provConf = $loadToml('providers.toml');
 
@@ -212,10 +211,6 @@ final class ContainerFactory
                     ],
                 ],
             ],
-            PageUrls::class                                                         => $pageUrls,
-            \TowerDNS\Infrastructure\Http\Middleware\PhpEntryPointMiddleware::class => \DI\factory(
-                static fn(): \TowerDNS\Infrastructure\Http\Middleware\PhpEntryPointMiddleware => new \TowerDNS\Infrastructure\Http\Middleware\PhpEntryPointMiddleware($pageUrls)
-            ),
 
             // ── Doctrine DBAL ─────────────────────────────────────────────────
             Connection::class => \DI\factory(static function () use ($dbConf, $projectRoot): Connection {
@@ -593,7 +588,6 @@ final class ContainerFactory
                     $themeManager,
                     $debug,
                     $c->get(TranslatorInterface::class),
-                    $pageUrls,
                 )
             ),
 
