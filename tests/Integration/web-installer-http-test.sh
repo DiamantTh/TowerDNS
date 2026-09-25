@@ -301,7 +301,11 @@ fi
 # Svelte forms are created from the server-authorized JSON bootstrap. Exercise
 # the login handler with its real session and CSRF state rather than merely
 # checking that the login route returns a page.
-login_code=$(request_get '/login')
+protected_code=$(request_get '/users.php')
+[ "$protected_code" = '302' ] || fail "direct users.php bypassed authentication with HTTP $protected_code"
+grep -qi '^location: /login.php' "$headers_file" || fail 'direct users.php did not redirect to the PHP login page.'
+
+login_code=$(request_get '/login.php')
 [ "$login_code" = '200' ] || fail "login form returned HTTP $login_code"
 grep -q '"page":"login"' "$body_file" || fail 'login page bootstrap was not rendered.'
 grep -q 'id="towerdns-page" type="application/json"' "$body_file" || fail 'login page did not provide the Svelte bootstrap.'
@@ -311,7 +315,7 @@ invalid_login_code=$("$curl_bin" --silent --show-error --max-time 30 \
     --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
     --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
     --request POST --data 'email=webadmin@example.test' --data 'password=incorrect-password' \
-    --data-urlencode "csrf_token=$login_csrf" "$base_url/login")
+    --data-urlencode "csrf_token=$login_csrf" "$base_url/login.php")
 [ "$invalid_login_code" = '401' ] || fail "invalid credentials returned HTTP $invalid_login_code"
 grep -q '"page":"login"' "$body_file" || fail 'invalid login did not return the login page.'
 login_csrf=$(bootstrap_csrf_token "$body_file")
@@ -320,11 +324,11 @@ login_post_code=$("$curl_bin" --silent --show-error --max-time 60 \
     --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
     --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
     --request POST --data 'email=webadmin@example.test' --data-urlencode "password=$admin_password" \
-    --data-urlencode "csrf_token=$login_csrf" "$base_url/login")
+    --data-urlencode "csrf_token=$login_csrf" "$base_url/login.php")
 [ "$login_post_code" = '302' ] || fail "valid credentials returned HTTP $login_post_code"
-grep -qi '^location: /[[:space:]]*$' "$headers_file" || fail 'successful login did not redirect to the dashboard.'
+grep -qi '^location: /index.php[[:space:]]*$' "$headers_file" || fail 'successful login did not redirect to the PHP dashboard.'
 
-dashboard_code=$(request_get '/')
+dashboard_code=$(request_get '/index.php')
 [ "$dashboard_code" = '200' ] || fail "dashboard returned HTTP $dashboard_code after login"
 grep -q '"page":"dashboard"' "$body_file" || fail 'dashboard bootstrap was not rendered.'
 grep -q '"email":"webadmin@example.test"' "$body_file" || fail 'dashboard bootstrap did not contain the authenticated administrator.'
@@ -335,10 +339,32 @@ if grep -q '"page":"login"' "$body_file"; then
     fail 'dashboard response still rendered the login page.'
 fi
 
-zones_code=$(request_get '/zones')
+zones_code=$(request_get '/zones.php')
 [ "$zones_code" = '200' ] || fail "active-account zone view returned HTTP $zones_code"
 grep -q "\"accountId\":$personal_account_id" "$body_file" || fail 'active account was not resolved to the administrator personal account.'
 grep -q '"managedZones":\[\]' "$body_file" || fail 'the fresh personal account unexpectedly exposed managed zones.'
+
+# All physical page files use the same authenticated Mezzio pipeline. Old
+# path routes remain available through Apache rewrite for existing bookmarks.
+for page in admin users roles accounts profile settings; do
+    page_code=$(request_get "/$page.php")
+    [ "$page_code" = '200' ] || fail "$page.php returned HTTP $page_code"
+done
+account_zones_code=$(request_get "/zones.php?account=$personal_account_id")
+[ "$account_zones_code" = '200' ] || fail "account-scoped PHP zone URL returned HTTP $account_zones_code"
+grep -q "\"accountId\":$personal_account_id" "$body_file" || fail 'account parameter was not preserved.'
+bad_id_code=$(request_get '/roles.php?id=../../settings')
+[ "$bad_id_code" = '400' ] || fail "invalid role ID returned HTTP $bad_id_code"
+duplicate_id_code=$(request_get '/accounts.php?id=1&id=2')
+[ "$duplicate_id_code" = '400' ] || fail "duplicate account ID returned HTTP $duplicate_id_code"
+missing_zone_code=$(request_get "/records.php?account=$personal_account_id")
+[ "$missing_zone_code" = '400' ] || fail "missing record zone returned HTTP $missing_zone_code"
+unknown_role_code=$(request_get '/roles.php?id=does-not-exist')
+[ "$unknown_role_code" = '404' ] || fail "unknown role returned HTTP $unknown_role_code"
+legacy_roles_code=$(request_get '/roles')
+[ "$legacy_roles_code" = '200' ] || fail "existing /roles URL returned HTTP $legacy_roles_code"
+asset_code=$(request_get '/assets/app.bundle.js')
+[ "$asset_code" = '200' ] || fail "application asset returned HTTP $asset_code"
 
 invalid_logout_code=$("$curl_bin" --silent --show-error --max-time 30 \
     --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
@@ -347,7 +373,7 @@ invalid_logout_code=$("$curl_bin" --silent --show-error --max-time 30 \
 [ "$invalid_logout_code" = '400' ] || fail "invalid logout CSRF returned HTTP $invalid_logout_code"
 grep -q 'Invalid request' "$body_file" || fail 'invalid logout CSRF did not return an explicit error.'
 
-dashboard_code=$(request_get '/')
+dashboard_code=$(request_get '/index.php')
 [ "$dashboard_code" = '200' ] || fail 'invalid logout CSRF unexpectedly ended the authenticated session.'
 dashboard_csrf=$(bootstrap_csrf_token "$body_file")
 
@@ -356,18 +382,35 @@ logout_code=$("$curl_bin" --silent --show-error --max-time 30 \
     --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
     --request POST --data-urlencode "csrf_token=$dashboard_csrf" "$base_url/logout")
 [ "$logout_code" = '302' ] || fail "logout returned HTTP $logout_code"
-grep -qi '^location: /login[[:space:]]*$' "$headers_file" || fail 'logout did not redirect to login.'
+grep -qi '^location: /login.php[[:space:]]*$' "$headers_file" || fail 'logout did not redirect to the PHP login page.'
 
-post_logout_dashboard_code=$(request_get '/')
+post_logout_dashboard_code=$(request_get '/index.php')
 [ "$post_logout_dashboard_code" = '302' ] || fail "dashboard was accessible after logout with HTTP $post_logout_dashboard_code"
-grep -qi '^location: /login[[:space:]]*$' "$headers_file" || fail 'dashboard did not redirect to login after logout.'
+grep -qi '^location: /login.php[[:space:]]*$' "$headers_file" || fail 'dashboard did not redirect to the PHP login page after logout.'
 
-post_logout_login_code=$(request_get '/login')
+post_logout_login_code=$(request_get '/login.php')
 [ "$post_logout_login_code" = '200' ] || fail "login form returned HTTP $post_logout_login_code after logout"
 grep -q '"page":"login"' "$body_file" || fail 'login page bootstrap was not restored after logout.'
 
 locked_code=$(request_get '/install.php')
 [ "$locked_code" = '403' ] || fail "locked installer returned HTTP $locked_code"
 grep -q 'Installer locked' "$body_file" || fail 'installer was not locked after successful installation.'
+
+if [ "$database" = mariadb ]; then
+    # Test the preferred physical URLs independently of Apache mod_rewrite.
+    # This changes only the disposable webinstaller container.
+    podman exec "$container_id" a2dismod rewrite >/dev/null
+    podman exec "$container_id" apache2ctl -k graceful >/dev/null
+    for attempt in $(seq 1 30); do
+        direct_code=$(request_get '/login.php')
+        [ "$direct_code" = '200' ] && break
+        [ "$attempt" -lt 30 ] || fail "login.php did not recover without mod_rewrite (HTTP $direct_code)"
+        sleep 1
+    done
+    direct_asset_code=$(request_get '/assets/app.bundle.js')
+    [ "$direct_asset_code" = '200' ] || fail "assets were unavailable without mod_rewrite (HTTP $direct_asset_code)"
+    old_route_code=$(request_get '/roles')
+    [ "$old_route_code" = '404' ] || fail "extensionless /roles unexpectedly worked without mod_rewrite (HTTP $old_route_code)"
+fi
 
 printf '%s\n' "Web-installer HTTP integration test passed for $database."

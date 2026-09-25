@@ -63,6 +63,11 @@ personal active-account scope and dashboard bootstrap, and checks
 CSRF-protected logout and post-logout access control. Each run creates a
 dynamically named Compose project and deletes only that project's containers
 and volumes on exit; it never removes the normal `app` development volumes.
+The same HTTP run also checks the physical PHP page entrypoints, parameter
+validation, authentication redirects, a legacy path route, and asset delivery.
+The MariaDB run temporarily disables Apache `mod_rewrite` in its disposable
+container to verify that direct PHP pages and assets remain reachable without
+rewriting; only legacy extensionless routes then require rewrite support.
 The MariaDB service and restricted `towerdns_app` PostgreSQL role are used for
 their respective runs. SQLite stores its test file at
 `/var/www/html/data/towerdns-webinstaller.sqlite` inside the run's dedicated

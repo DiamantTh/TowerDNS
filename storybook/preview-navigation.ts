@@ -1,6 +1,19 @@
 type StoryLink = { matches: (url: URL) => boolean; storyId: string };
 
 const storyLinks: StoryLink[] = [
+    { matches: (url) => url.pathname === '/index.php', storyId: 'towerdns-ux-previews-application-pages--dashboard' },
+    { matches: (url) => url.pathname === '/admin.php' || url.pathname === '/admin', storyId: 'towerdns-ux-previews-application-pages--administration' },
+    { matches: (url) => url.pathname === '/zones.php' && url.searchParams.has('account') && url.searchParams.has('zone'), storyId: 'towerdns-dns-record-sets-page--multiple-rrsets' },
+    { matches: (url) => url.pathname === '/records.php' && url.searchParams.has('account') && url.searchParams.has('zone'), storyId: 'towerdns-dns-record-sets-page--multiple-rrsets' },
+    { matches: (url) => url.pathname === '/zones.php' && !url.searchParams.has('zone'), storyId: 'towerdns-dns-zone-list--provider-and-zones' },
+    { matches: (url) => url.pathname === '/accounts.php' && url.searchParams.get('view') === 'providers', storyId: 'towerdns-ux-previews-application-pages--provider-accounts' },
+    { matches: (url) => url.pathname === '/accounts.php' && url.searchParams.get('view') === 'members', storyId: 'towerdns-ux-previews-application-pages--account-members' },
+    { matches: (url) => url.pathname === '/accounts.php' && !url.searchParams.has('id'), storyId: 'towerdns-ux-previews-application-pages--accounts' },
+    { matches: (url) => url.pathname === '/users.php' && !url.searchParams.has('id'), storyId: 'towerdns-ux-previews-application-pages--users' },
+    { matches: (url) => url.pathname === '/roles.php' && !url.searchParams.has('id'), storyId: 'towerdns-ux-previews-application-pages--roles' },
+    { matches: (url) => url.pathname === '/profile.php', storyId: 'towerdns-ux-previews-application-pages--profile' },
+    { matches: (url) => url.pathname === '/settings.php' && !url.searchParams.has('view'), storyId: 'towerdns-ux-previews-application-pages--system-settings' },
+    { matches: (url) => url.pathname === '/login.php', storyId: 'towerdns-ux-previews-application-pages--login' },
     { matches: (url) => url.pathname === '/' || url.pathname === '/dashboard', storyId: 'towerdns-ux-previews-application-pages--dashboard' },
     { matches: (url) => url.pathname === '/zones' || /^\/accounts\/\d+\/zones\/?$/.test(url.pathname), storyId: 'towerdns-dns-zone-list--provider-and-zones' },
     { matches: (url) => /^\/accounts\/\d+\/zones\/\d+\/?$/.test(url.pathname) || /^\/accounts\/\d+\/zones\/\d+\/rrsets\/?$/.test(url.pathname), storyId: 'towerdns-dns-record-sets-page--multiple-rrsets' },
@@ -14,7 +27,7 @@ const storyLinks: StoryLink[] = [
     { matches: (url) => url.pathname === '/login', storyId: 'towerdns-ux-previews-application-pages--login' },
 ];
 
-const backendPath = /^\/(?:accounts|zones|users|roles|settings|credentials|profile|login|logout|password)(?:\/|$)/;
+const backendPath = /^\/(?:accounts|zones|users|roles|settings|credentials|profile|login|logout|password|admin|records|dnssec)(?:\.php|\/|$)/;
 let installed = false;
 
 function previewNotice(message: string): void {
