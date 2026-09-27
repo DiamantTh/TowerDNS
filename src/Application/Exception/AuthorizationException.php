@@ -7,4 +7,4 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Exception;
 
-final class AuthorizationException extends \RuntimeException {}
+class AuthorizationException extends \RuntimeException {}

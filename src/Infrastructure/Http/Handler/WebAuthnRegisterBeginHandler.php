@@ -17,6 +17,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\SessionSecurity;
 
 /**
  * POST /profile/webauthn/register/begin
@@ -34,6 +35,7 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         private WebAuthnService                       $webAuthn,
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
         private TranslatorInterface                   $translator,
+        private SessionSecurity                        $sessionSecurity,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -60,6 +62,12 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         /** @var User $currentUser */
         $currentUser = $request->getAttribute(User::class);
 
+        $session = $request->getAttribute(SessionInterface::class);
+        assert($session instanceof SessionInterface);
+        if (!$this->sessionSecurity->passwordVerifiedRecently($session, $currentUser->id)) {
+            return new JsonResponse(['error' => $this->translator->translate('auth.error.reauth-required')], 403);
+        }
+
         // Collect existing credential IDs to pass as excludeCredentials.
         $existing   = $this->credentialRepo->findByUserId($currentUser->id);
         $excludeIds = array_column($existing, 'credential_id');
@@ -71,8 +79,6 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
             excludedCredentialIds: $excludeIds,
         );
 
-        $session = $request->getAttribute(SessionInterface::class);
-        assert($session instanceof SessionInterface);
         $session->set('webauthn_register_options', $this->webAuthn->serializeCreationOptions($options));
         $session->set('webauthn_register_name', $name);
 

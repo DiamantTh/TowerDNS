@@ -190,7 +190,9 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
 
     public function setActive(string $userId, bool $active): void
     {
-        $this->connection->update('users', ['active' => $active, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')], ['id' => $userId]);
+        // MariaDB/PDO can bind PHP false as an empty string for a BOOLEAN
+        // column. Persist the portable SQL representation explicitly.
+        $this->connection->update('users', ['active' => $active ? 1 : 0, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')], ['id' => $userId]);
     }
 
     public function updateProfile(string $userId, array $profile): void

@@ -6,7 +6,10 @@ namespace TowerDNS\Application\Services;
 
 use TowerDNS\Application\Contracts\TransactionRunnerInterface;
 use TowerDNS\Application\DTO\AuditContext;
+use TowerDNS\Application\DTO\StepUpAction;
+use TowerDNS\Application\DTO\StepUpProof;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Domain\Auth\Permission;
@@ -24,14 +27,15 @@ final readonly class IamAdministrationService
         private TransactionRunnerInterface $transactions,
         private AuditLogService $audit,
         private UserLifecycleService $lifecycle,
+        private StepUpProofService $stepUpProofs,
     ) {}
 
     /** @param list<string> $roleIds */
-    public function syncRoles(User $effectiveActor, string $userId, array $roleIds, AuditContext $context): void
+    public function syncRoles(User $effectiveActor, string $userId, array $roleIds, AuditContext $context, ?StepUpProof $stepUp = null): void
     {
         $roleIds = array_values(array_unique($roleIds));
-        $this->guardAndAuditDenial($context, 'iam.user.roles.denied', 'user', $userId, ['requested_role_ids' => $roleIds], function () use ($effectiveActor, $userId, $roleIds, $context): void {
-            $this->transactions->run(function () use ($effectiveActor, $userId, $roleIds, $context): void {
+        $this->guardAndAuditDenial($context, 'iam.user.roles.denied', 'user', $userId, ['requested_role_ids' => $roleIds], function () use ($effectiveActor, $userId, $roleIds, $context, $stepUp): void {
+            $this->transactions->run(function () use ($effectiveActor, $userId, $roleIds, $context, $stepUp): void {
                 $this->users->lockSuperadminRoleForMutation();
                 $actor = $this->requireActiveActor($effectiveActor->id);
                 $this->authorization->assert($actor, Permission::USER_MANAGE);
@@ -50,17 +54,18 @@ final readonly class IamAdministrationService
                 }
                 $this->assertPermissionsDelegable($actor, array_values($assigned));
                 $this->assertLastSuperadminRetained($target, $after);
+                $this->assertStepUp($actor, StepUpAction::IAM_USER_ROLES, $userId, $context, $stepUp);
 
                 $this->users->syncRoles($userId, $after);
-                $this->audit->recordWithContext($context, 'iam.user.roles.changed', 'user', $userId, ['role_ids' => $before], ['role_ids' => $after]);
+                $this->audit->recordWithContext($context, 'iam.user.roles.changed', 'user', $userId, ['role_ids' => $before], ['role_ids' => $after], ['step_up_method' => $stepUp?->method]);
             });
         });
     }
 
-    public function saveRole(User $effectiveActor, Role $role, AuditContext $context): void
+    public function saveRole(User $effectiveActor, Role $role, AuditContext $context, ?StepUpProof $stepUp = null): void
     {
-        $this->guardAndAuditDenial($context, 'iam.role.change.denied', 'role', $role->id, ['requested_permission_ids' => $role->getPermissionIds()], function () use ($effectiveActor, $role, $context): void {
-            $this->transactions->run(function () use ($effectiveActor, $role, $context): void {
+        $this->guardAndAuditDenial($context, 'iam.role.change.denied', 'role', $role->id, ['requested_permission_ids' => $role->getPermissionIds()], function () use ($effectiveActor, $role, $context, $stepUp): void {
+            $this->transactions->run(function () use ($effectiveActor, $role, $context, $stepUp): void {
                 $this->users->lockSuperadminRoleForMutation();
                 $actor = $this->requireActiveActor($effectiveActor->id);
                 $this->authorization->assert($actor, Permission::ROLE_MANAGE);
@@ -69,6 +74,13 @@ final readonly class IamAdministrationService
                     throw new AuthorizationException('Built-in roles are immutable.');
                 }
                 $this->assertPermissionsDelegable($actor, [$role]);
+                $this->assertStepUp(
+                    $actor,
+                    $beforeRole instanceof Role ? StepUpAction::IAM_ROLE_SAVE : StepUpAction::IAM_ROLE_CREATE,
+                    $beforeRole instanceof Role ? $role->id : 'new',
+                    $context,
+                    $stepUp,
+                );
                 $this->roles->save($role);
                 $this->audit->recordWithContext(
                     $context,
@@ -77,15 +89,16 @@ final readonly class IamAdministrationService
                     $role->id,
                     $beforeRole instanceof Role ? ['name' => $beforeRole->name, 'permission_ids' => $beforeRole->getPermissionIds()] : null,
                     ['name' => $role->name, 'permission_ids' => $role->getPermissionIds()],
+                    ['step_up_method' => $stepUp?->method],
                 );
             });
         });
     }
 
-    public function deleteRole(User $effectiveActor, string $roleId, AuditContext $context): void
+    public function deleteRole(User $effectiveActor, string $roleId, AuditContext $context, ?StepUpProof $stepUp = null): void
     {
-        $this->guardAndAuditDenial($context, 'iam.role.delete.denied', 'role', $roleId, null, function () use ($effectiveActor, $roleId, $context): void {
-            $this->transactions->run(function () use ($effectiveActor, $roleId, $context): void {
+        $this->guardAndAuditDenial($context, 'iam.role.delete.denied', 'role', $roleId, null, function () use ($effectiveActor, $roleId, $context, $stepUp): void {
+            $this->transactions->run(function () use ($effectiveActor, $roleId, $context, $stepUp): void {
                 $this->users->lockSuperadminRoleForMutation();
                 $actor = $this->requireActiveActor($effectiveActor->id);
                 $this->authorization->assert($actor, Permission::ROLE_MANAGE);
@@ -97,16 +110,17 @@ final readonly class IamAdministrationService
                     throw new AuthorizationException('Built-in roles are immutable.');
                 }
                 $this->assertPermissionsDelegable($actor, [$role]);
+                $this->assertStepUp($actor, StepUpAction::IAM_ROLE_DELETE, $roleId, $context, $stepUp);
                 $this->roles->delete($roleId);
-                $this->audit->recordWithContext($context, 'iam.role.deleted', 'role', $roleId, ['name' => $role->name, 'permission_ids' => $role->getPermissionIds()]);
+                $this->audit->recordWithContext($context, 'iam.role.deleted', 'role', $roleId, ['name' => $role->name, 'permission_ids' => $role->getPermissionIds()], null, ['step_up_method' => $stepUp?->method]);
             });
         });
     }
 
-    public function setUserActive(User $effectiveActor, string $userId, bool $active, AuditContext $context): void
+    public function setUserActive(User $effectiveActor, string $userId, bool $active, AuditContext $context, ?StepUpProof $stepUp = null): void
     {
-        $this->guardAndAuditDenial($context, 'iam.user.status.denied', 'user', $userId, ['active' => $active], function () use ($effectiveActor, $userId, $active, $context): void {
-            $this->transactions->run(function () use ($effectiveActor, $userId, $active, $context): void {
+        $this->guardAndAuditDenial($context, 'iam.user.status.denied', 'user', $userId, ['active' => $active], function () use ($effectiveActor, $userId, $active, $context, $stepUp): void {
+            $this->transactions->run(function () use ($effectiveActor, $userId, $active, $context, $stepUp): void {
                 $this->users->lockSuperadminRoleForMutation();
                 $actor = $this->requireActiveActor($effectiveActor->id);
                 $this->authorization->assert($actor, Permission::USER_MANAGE);
@@ -121,15 +135,16 @@ final readonly class IamAdministrationService
                 if (!$active && $target->active && $this->hasBuiltInSuperadmin($target) && $this->users->countActiveUsersWithRole('superadmin') <= 1) {
                     throw new \DomainException('The last active superadmin cannot be deactivated.');
                 }
+                $this->assertStepUp($actor, StepUpAction::IAM_USER_STATUS, $userId, $context, $stepUp);
                 $this->users->setActive($userId, $active);
-                $this->audit->recordWithContext($context, 'iam.user.status.changed', 'user', $userId, ['active' => $target->active], ['active' => $active]);
+                $this->audit->recordWithContext($context, 'iam.user.status.changed', 'user', $userId, ['active' => $target->active], ['active' => $active], ['step_up_method' => $stepUp?->method]);
             });
         });
     }
 
-    public function deleteUser(User $effectiveActor, string $userId, AuditContext $context): User
+    public function deleteUser(User $effectiveActor, string $userId, AuditContext $context, ?StepUpProof $stepUp = null): User
     {
-        return $this->guardAndAuditDenial($context, 'iam.user.delete.denied', 'user', $userId, null, fn(): User => $this->transactions->run(function () use ($effectiveActor, $userId, $context): User {
+        return $this->guardAndAuditDenial($context, 'iam.user.delete.denied', 'user', $userId, null, fn(): User => $this->transactions->run(function () use ($effectiveActor, $userId, $context, $stepUp): User {
             $this->users->lockSuperadminRoleForMutation();
             $actor = $this->requireActiveActor($effectiveActor->id);
             $this->authorization->assert($actor, Permission::USER_MANAGE);
@@ -144,8 +159,9 @@ final readonly class IamAdministrationService
             if ($target->active && $this->hasBuiltInSuperadmin($target) && $this->users->countActiveUsersWithRole('superadmin') <= 1) {
                 throw new \DomainException('The last active superadmin cannot be deleted.');
             }
+            $this->assertStepUp($actor, StepUpAction::IAM_USER_DELETE, $userId, $context, $stepUp);
             $this->lifecycle->delete($userId);
-            $this->audit->recordWithContext($context, 'iam.user.deleted', 'user', $userId, ['role_ids' => $this->roleIds($target), 'active' => $target->active]);
+            $this->audit->recordWithContext($context, 'iam.user.deleted', 'user', $userId, ['role_ids' => $this->roleIds($target), 'active' => $target->active], null, ['step_up_method' => $stepUp?->method]);
             return $target;
         }));
     }
@@ -220,6 +236,17 @@ final readonly class IamAdministrationService
         return $this->authorization->isBuiltInSuperadmin($user);
     }
 
+    private function assertStepUp(User $actor, string $action, string $targetId, AuditContext $context, ?StepUpProof $proof): void
+    {
+        if (!$this->stepUpProofs->isValid($proof, $actor->id, $action, $targetId, $context->impersonationSessionId)) {
+            throw new StepUpRequiredException($action, $targetId);
+        }
+
+        if (!$this->stepUpProofs->consumeOnce($proof, $actor->id, $action, $targetId, $context->impersonationSessionId)) {
+            throw new AuthorizationException('The step-up proof has already been used.');
+        }
+    }
+
     /** @return list<string> */
     private function roleIds(User $user): array
     {
@@ -235,7 +262,7 @@ final readonly class IamAdministrationService
             return $operation();
         } catch (AuthorizationException|\DomainException $error) {
             $this->audit->recordWithContext($context, $action, $targetType, $targetId, null, null, [
-                'reason'  => $error instanceof AuthorizationException ? 'forbidden' : 'invariant',
+                'reason'  => $error instanceof StepUpRequiredException ? 'step_up_required' : ($error instanceof AuthorizationException ? 'forbidden' : 'invariant'),
                 'attempt' => $attempt,
             ]);
             throw $error;

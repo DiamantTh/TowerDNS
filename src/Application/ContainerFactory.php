@@ -74,6 +74,7 @@ use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
+use TowerDNS\Application\Repository\StepUpProofNonceRepositoryInterface;
 use TowerDNS\Application\Repository\SystemProviderConfigurationStoreInterface;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
@@ -92,6 +93,7 @@ use TowerDNS\Application\Services\PasswordGenerator;
 use TowerDNS\Application\Services\PasswordPolicy;
 use TowerDNS\Application\Services\PasswordResetService;
 use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Application\Services\StepUpProofService;
 use TowerDNS\Application\Services\SupportedLocales;
 use TowerDNS\Application\Services\SystemProviderConfigurationService;
 use TowerDNS\Application\Services\TotpSecretService;
@@ -132,6 +134,7 @@ use TowerDNS\Infrastructure\Persistence\DbalManagedZoneRepository;
 use TowerDNS\Infrastructure\Persistence\DbalPasswordResetTokenRepository;
 use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
+use TowerDNS\Infrastructure\Persistence\DbalStepUpProofNonceRepository;
 use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalTransactionRunner;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
@@ -277,6 +280,7 @@ final class ContainerFactory
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
             PasswordResetTokenRepositoryInterface::class        => \DI\autowire(DbalPasswordResetTokenRepository::class),
             SystemSettingsRepositoryInterface::class            => \DI\autowire(DbalSystemSettingsRepository::class),
+            StepUpProofNonceRepositoryInterface::class          => \DI\autowire(DbalStepUpProofNonceRepository::class),
             SystemProviderConfigurationStoreInterface::class    => \DI\factory(static fn(): TomlSystemProviderConfigurationStore => new TomlSystemProviderConfigurationStore($projectRoot . '/configs/providers.toml')),
             TransactionRunnerInterface::class                   => \DI\autowire(DbalTransactionRunner::class),
 
@@ -289,6 +293,15 @@ final class ContainerFactory
                 return new CredentialService($b64);
             }),
             CredentialEncryptorInterface::class => \DI\get(CredentialService::class),
+            StepUpProofService::class           => \DI\factory(static function (ClockInterface $clock, StepUpProofNonceRepositoryInterface $nonces) use ($appConf): StepUpProofService {
+                $configuredKey = (string) ($appConf['security']['encryption_key'] ?? '');
+                $rawKey        = base64_decode($configuredKey, true);
+                if (!is_string($rawKey) || strlen($rawKey) < 32) {
+                    throw new \RuntimeException('security.encryption_key must decode to at least 32 bytes.');
+                }
+
+                return new StepUpProofService(hash_hkdf('sha256', $rawKey, 32, 'towerdns/step-up-proof/v1'), $clock, $nonces);
+            }),
 
             // ── Multi-Tenant services ─────────────────────────────────────────
             PermissionService::class                  => \DI\autowire(),

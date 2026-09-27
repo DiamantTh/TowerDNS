@@ -173,6 +173,7 @@ final class SvelteRenderer implements TemplateRendererInterface
     {
         $key = match ($page) {
             'login'                                      => 'page.login.title',
+            'security/step_up'                           => 'security.step-up.title',
             'forgot_password'                            => 'page.forgot-password.title',
             'reset_password'                             => 'page.reset-password.title',
             'dashboard'                                  => 'page.dashboard.title',

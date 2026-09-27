@@ -17,7 +17,9 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\DTO\AuditContext;
+use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
@@ -26,6 +28,7 @@ use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Application\Services\PasswordAdministrationService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\StepUpRequestService;
 
 /**
  * GET  /users/{id} — Benutzerdetails + Rollenzuweisung-Formular.
@@ -40,8 +43,8 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         private AuthorizationService      $authz,
         private IamAdministrationService  $iam,
         private PasswordAdministrationService $passwords,
-        private AuditLogService           $audit,
         private TranslatorInterface       $translator,
+        private StepUpRequestService      $stepUpRequests,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -134,7 +137,10 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         if ($action === 'status') {
             try {
                 $active = (string) ($body['active'] ?? '') === '1';
-                $this->iam->setUserActive($currentUser, $targetId, $active, $this->auditContext($request, $currentUser));
+                $proof  = $this->stepUpRequests->consume($request, $currentUser->id, StepUpAction::IAM_USER_STATUS, $targetId);
+                $this->iam->setUserActive($currentUser, $targetId, $active, $this->auditContext($request, $currentUser), $proof);
+            } catch (StepUpRequiredException $required) {
+                return $this->stepUpRequests->challenge($request, $currentUser->id, $required);
             } catch (AuthorizationException) {
                 return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
             } catch (\Throwable) {
@@ -152,14 +158,24 @@ final readonly class UserEditHandler implements RequestHandlerInterface
             $keepKeys    = isset($body['keep_api_keys']);
 
             try {
-                $revokedCount = $this->passwords->setByAdministrator($targetId, $newPassword, $keepKeys);
+                $proof        = $this->stepUpRequests->consume($request, $currentUser->id, StepUpAction::IAM_USER_PASSWORD, $targetId);
+                $revokedCount = $this->passwords->setByAdministrator(
+                    $currentUser,
+                    $targetId,
+                    $newPassword,
+                    $keepKeys,
+                    $this->auditContext($request, $currentUser),
+                    $proof,
+                );
+            } catch (StepUpRequiredException $required) {
+                return $this->stepUpRequests->challenge($request, $currentUser->id, $required);
+            } catch (AuthorizationException) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
             } catch (\InvalidArgumentException) {
                 return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('auth.error.password-policy')));
             } catch (\Throwable) {
                 return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.password-reset-failed')));
             }
-
-            $this->audit->recordPasswordSetByAdministrator($request, $currentUser->id, $targetId, $revokedCount);
             $msg = $this->translator->translate('users.success.password-reset');
             if (!$keepKeys && $revokedCount > 0) {
                 $msg .= ' ' . strtr($this->translator->translate('users.success.api-keys-revoked'), ['{count}' => (string) $revokedCount]);
@@ -178,7 +194,10 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         }
 
         try {
-            $this->iam->syncRoles($currentUser, $targetId, $selectedRoles, $this->auditContext($request, $currentUser));
+            $proof = $this->stepUpRequests->consume($request, $currentUser->id, StepUpAction::IAM_USER_ROLES, $targetId);
+            $this->iam->syncRoles($currentUser, $targetId, $selectedRoles, $this->auditContext($request, $currentUser), $proof);
+        } catch (StepUpRequiredException $required) {
+            return $this->stepUpRequests->challenge($request, $currentUser->id, $required);
         } catch (AuthorizationException) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/user_edit', [

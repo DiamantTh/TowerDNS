@@ -67,6 +67,30 @@ The same HTTP run also checks virtual PHP page URLs without physical wrapper
 files, the Apache rewrite, parameter and forged-entry rejection, authentication
 redirects, a legacy path route, CSRF, and asset delivery. Virtual PHP pages
 require the webserver rewrite; index.php and install.php are physical files.
+For the MariaDB run, the test provisions a synthetic TOTP factor, exercises
+action-bound step-up through the real HTTP/session/CSRF flow, verifies role
+creation and starting an administrator switch are blocked before step-up, and
+then checks the effective identity, target-user permissions, and return to the
+original administrator. The disposable Apache image is asserted to run PHP
+8.4; the host PHP version is not treated as a PHP 8.4 compatibility result.
+This is an automated container test, not validation on a real shared-hosting
+account or with a physical authenticator.
+
+`IamAuthorizationConcurrencyIntegrationTest` uses `pcntl_fork()` and separate
+database connections to race removal of two remaining superadmin role
+assignments and concurrent deactivation of both superadmins. SQLite runs on a
+temporary file. To run the same real multi-process scenarios against the
+disposable Compose server databases, start the database services and set the
+integration variables as shown above, then run:
+
+```sh
+TOWERDNS_DB_INTEGRATION_DATABASES=mariadb,postgresql \
+TOWERDNS_TEST_MARIADB_DSN='mysql://towerdns_app:towerdns_app@127.0.0.1:13306/towerdns_test' \
+TOWERDNS_TEST_POSTGRESQL_DSN='pgsql://towerdns_app:towerdns_app@127.0.0.1:15432/towerdns_test' \
+vendor/bin/phpunit tests/Integration/SchemaMigrationDatabaseIntegrationTest.php \
+  tests/Integration/IamAuthorizationConcurrencyIntegrationTest.php
+```
+
 The MariaDB service and restricted `towerdns_app` PostgreSQL role are used for
 their respective runs. SQLite stores its test file at
 `/var/www/html/data/towerdns-webinstaller.sqlite` inside the run's dedicated

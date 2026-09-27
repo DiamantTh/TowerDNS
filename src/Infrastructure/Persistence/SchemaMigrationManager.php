@@ -29,6 +29,7 @@ final readonly class SchemaMigrationManager
     private const array MIGRATIONS = [
         Migrations\Version20260919000100::class,
         Migrations\Version20260919000200::class,
+        Migrations\Version20260927000100::class,
     ];
 
     public function __construct(

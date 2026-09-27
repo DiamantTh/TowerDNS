@@ -14,10 +14,13 @@ use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\StepUpRequestService;
 
 /**
  * POST /roles/{id}/delete — Rolle löschen.
@@ -30,6 +33,7 @@ final readonly class RoleDeleteHandler implements RequestHandlerInterface
     public function __construct(
         private IamAdministrationService $iam,
         private TranslatorInterface     $translator,
+        private StepUpRequestService    $stepUpRequests,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -61,7 +65,10 @@ final readonly class RoleDeleteHandler implements RequestHandlerInterface
         );
 
         try {
-            $this->iam->deleteRole($currentUser, $roleId, $context);
+            $proof = $this->stepUpRequests->consume($request, $currentUser->id, StepUpAction::IAM_ROLE_DELETE, $roleId);
+            $this->iam->deleteRole($currentUser, $roleId, $context, $proof);
+        } catch (StepUpRequiredException $required) {
+            return $this->stepUpRequests->challenge($request, $currentUser->id, $required);
         } catch (AuthorizationException) {
             return new RedirectResponse('/roles?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
         } catch (\DomainException) {

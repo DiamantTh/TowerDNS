@@ -73,6 +73,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         }
 
         // POST — authenticate
+        $this->sessionSecurity->clearPasswordVerification($session);
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
@@ -195,6 +196,10 @@ final readonly class LoginHandler implements RequestHandlerInterface
             $rehash = password_hash($password, PASSWORD_ARGON2ID, self::ARGON2ID_OPTIONS);
             $this->users->updatePasswordHash($user->id, $rehash);
         }
+
+        // A recent primary-factor verification is required before changing
+        // enrolled authenticators. Keep this server-side marker through MFA.
+        $this->sessionSecurity->markPasswordVerified($session, $user->id);
 
         // Check whether TOTP is configured for this user.
         if ($this->totpSecrets->isEnabled($user->id)) {

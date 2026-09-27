@@ -10,6 +10,9 @@ namespace TowerDNS\Tests\Infrastructure\Http;
 use Mezzio\Session\Session;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
+use TowerDNS\Application\DTO\StepUpAction;
+use TowerDNS\Application\Repository\StepUpProofNonceRepositoryInterface;
+use TowerDNS\Application\Services\StepUpProofService;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
 
 final class SessionSecurityTest extends TestCase
@@ -82,6 +85,73 @@ final class SessionSecurityTest extends TestCase
         self::assertSame([], $session->toArray());
     }
 
+    public function testRecentPasswordVerificationIsBoundToUserAndExpires(): void
+    {
+        $session  = new Session([]);
+        $security = new SessionSecurity($this->clock(1000));
+        $security->markPasswordVerified($session, 'user-1');
+
+        self::assertTrue($security->passwordVerifiedRecently($session, 'user-1'));
+        self::assertFalse($security->passwordVerifiedRecently($session, 'user-2'));
+        self::assertFalse(new SessionSecurity($this->clock(1601))->passwordVerifiedRecently($session, 'user-1'));
+    }
+
+    public function testStepUpProofIsBoundToIntentAndCanBeConsumedOnlyOnce(): void
+    {
+        $session  = new Session([]);
+        $clock    = $this->clock(1000);
+        $security = new SessionSecurity($clock);
+        $proofs   = new StepUpProofService(str_repeat('k', 32), $clock, $this->nonceRepository());
+        $session  = $security->beginStepUp($session, 'user-1', StepUpAction::IAM_USER_ROLES, 'target-1', 'switch-1');
+
+        self::assertNotNull($security->pendingStepUp($session, 'user-1', 'switch-1'));
+        self::assertNull($security->pendingStepUp($session, 'user-1', null));
+        $session = $security->beginStepUp(new Session([]), 'user-1', StepUpAction::IAM_USER_ROLES, 'target-1', 'switch-1');
+
+        $proof = $security->completeStepUp($session, 'user-1', 'switch-1', 'totp', $proofs);
+        self::assertNotNull($proof);
+        self::assertSame('totp', $proof->method);
+        self::assertNull($security->pendingStepUp($session, 'user-1', 'switch-1'));
+
+        self::assertNull($security->consumeStepUpProof($session, 'user-1', StepUpAction::IAM_USER_ROLES, 'target-2', 'switch-1', $proofs));
+        self::assertNull($security->consumeStepUpProof($session, 'user-1', StepUpAction::IAM_USER_ROLES, 'target-1', 'switch-1', $proofs));
+    }
+
+    public function testStepUpProofExpiresAndIsInvalidatedByLogout(): void
+    {
+        $session  = new Session([]);
+        $security = new SessionSecurity($this->clock(1000));
+        $proofs   = new StepUpProofService(str_repeat('k', 32), $this->clock(1000), $this->nonceRepository());
+        $session  = $security->beginStepUp($session, 'user-1', StepUpAction::IAM_USER_STATUS, 'target-1', null);
+        self::assertNotNull($security->completeStepUp($session, 'user-1', null, 'webauthn', $proofs));
+
+        $expired = new SessionSecurity($this->clock(1301))->consumeStepUpProof($session, 'user-1', StepUpAction::IAM_USER_STATUS, 'target-1', null, new StepUpProofService(str_repeat('k', 32), $this->clock(1301), $this->nonceRepository()));
+        self::assertNull($expired);
+
+        $session  = new Session([]);
+        $security = new SessionSecurity($this->clock(1000));
+        $session  = $security->beginStepUp($session, 'user-1', StepUpAction::IAM_USER_STATUS, 'target-1', null);
+        $security->completeStepUp($session, 'user-1', null, 'totp', $proofs);
+        $security->invalidate($session);
+        self::assertSame([], $session->toArray());
+    }
+
+    public function testCompletedStepUpProofSurvivesLookupForMissingPendingIntent(): void
+    {
+        $session   = new Session([]);
+        $clock     = $this->clock(1000);
+        $security  = new SessionSecurity($clock);
+        $proofs    = new StepUpProofService(str_repeat('k', 32), $clock, $this->nonceRepository());
+        $session   = $security->beginStepUp($session, 'user-1', StepUpAction::IAM_USER_ROLES, 'target-1', null);
+        $completed = $security->completeStepUp($session, 'user-1', null, 'totp', $proofs);
+
+        self::assertNotNull($completed);
+        self::assertNull($security->pendingStepUp($session, 'user-1', null));
+        self::assertNotNull($security->availableStepUpProof($session, $proofs));
+        self::assertNotNull($security->consumeStepUpProof($session, 'user-1', StepUpAction::IAM_USER_ROLES, 'target-1', null, $proofs));
+        self::assertNull($security->availableStepUpProof($session, $proofs));
+    }
+
     private function clock(int $timestamp): ClockInterface
     {
         return new readonly class ($timestamp) implements ClockInterface {
@@ -92,5 +162,13 @@ final class SessionSecurityTest extends TestCase
                 return new \DateTimeImmutable()->setTimestamp($this->timestamp);
             }
         };
+    }
+
+    private function nonceRepository(): StepUpProofNonceRepositoryInterface
+    {
+        $nonces = $this->createMock(StepUpProofNonceRepositoryInterface::class);
+        $nonces->method('claim')->willReturn(true);
+
+        return $nonces;
     }
 }

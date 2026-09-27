@@ -16,14 +16,18 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Application\Services\StepUpProofService;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\StepUpRequestService;
 
 /**
  * Admin impersonation (Admin-Switch).
@@ -52,6 +56,8 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         private UserRepositoryInterface                      $users,
         private AccountRepositoryInterface                   $accounts,
         private TranslatorInterface                          $translator,
+        private StepUpRequestService                         $stepUpRequests,
+        private StepUpProofService                            $stepUpProofs,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -158,6 +164,34 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         }
         if ($effectiveAccountId !== null && !$this->accounts->getEffectiveRole($effectiveAccountId, $target->id) instanceof TeamRole) {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.account-not-available')));
+        }
+
+        $stepUpTarget = StepUpAction::adminSwitchTarget($target->id, $effectiveAccountId);
+        $proof        = $this->stepUpRequests->consume($request, $user->id, StepUpAction::ADMIN_SWITCH, $stepUpTarget);
+        if (!$proof instanceof \TowerDNS\Application\DTO\StepUpProof) {
+            $context = AuditLogService::fromHttpRequest($request, $user->id, $user->id);
+            $this->audit->recordWithContext($context, 'admin.switch.step_up_required', 'user', $target->id, null, null, [
+                'account_id' => $effectiveAccountId,
+            ]);
+            return $this->stepUpRequests->challenge(
+                $request,
+                $user->id,
+                new StepUpRequiredException(StepUpAction::ADMIN_SWITCH, $stepUpTarget),
+            );
+        }
+
+        if (!$this->stepUpProofs->consumeOnce($proof, $user->id, StepUpAction::ADMIN_SWITCH, $stepUpTarget, null)) {
+            $this->audit->recordWithContext(
+                AuditLogService::fromHttpRequest($request, $user->id, $user->id),
+                'admin.switch.step_up_replayed',
+                'user',
+                $target->id,
+                null,
+                null,
+                ['account_id' => $effectiveAccountId],
+            );
+
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
         $now       = new \DateTimeImmutable();

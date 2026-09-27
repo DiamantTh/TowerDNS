@@ -17,7 +17,9 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\DTO\AuditContext;
+use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
@@ -26,6 +28,7 @@ use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\StepUpRequestService;
 
 /**
  * GET+POST /roles/{id} — Rolle bearbeiten.
@@ -42,6 +45,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         private ActionGroupRegistry       $actionGroups,
         private IamAdministrationService  $iam,
         private TranslatorInterface       $translator,
+        private StepUpRequestService      $stepUpRequests,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -132,7 +136,10 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         );
 
         try {
-            $this->iam->saveRole($currentUser, $updated, $this->auditContext($request, $currentUser));
+            $proof = $this->stepUpRequests->consume($request, $currentUser->id, StepUpAction::IAM_ROLE_SAVE, $updated->id);
+            $this->iam->saveRole($currentUser, $updated, $this->auditContext($request, $currentUser), $proof);
+        } catch (StepUpRequiredException $required) {
+            return $this->stepUpRequests->challenge($request, $currentUser->id, $required);
         } catch (AuthorizationException) {
             return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('http.error.forbidden'), status: 403);
         } catch (\DomainException) {

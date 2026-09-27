@@ -67,11 +67,11 @@ test_project="towerdns-webinstaller-${database}-e2e-$$"
 # session cookie configured for localhost is intentionally not sent to the
 # distinct 127.0.0.1 host.
 base_url="http://localhost:18081"
-temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/towerdns-webinstaller-e2e.XXXXXX")
-cookie_jar="$temporary_dir/cookies.txt"
-headers_file="$temporary_dir/headers.txt"
-body_file="$temporary_dir/body.html"
-: > "$cookie_jar"
+test_totp_secret='JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'
+temporary_dir=
+cookie_jar=
+headers_file=
+body_file=
 curl_bin=$(command -v curl || true)
 
 if [ -z "$curl_bin" ] && [ -x /usr/sbin/curl ]; then
@@ -87,8 +87,14 @@ compose() {
 }
 
 cleanup() {
+    if [ "${TOWERDNS_KEEP_HTTP_TEST:-0}" = '1' ] && [ -n "${temporary_dir:-}" ]; then
+        printf 'Preserving disposable HTTP test project %s and temporary files at %s for diagnosis.\n' "$test_project" "$temporary_dir" >&2
+        return
+    fi
     compose down -v --remove-orphans >/dev/null 2>&1 || true
-    rm -rf "$temporary_dir"
+    if [ -n "${temporary_dir:-}" ]; then
+        rm -rf "$temporary_dir"
+    fi
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -101,6 +107,12 @@ fail() {
     fi
     compose --profile webinstaller logs --no-color webinstaller >&2 || true
     exit 1
+}
+
+trace_step() {
+    if [ "${TOWERDNS_HTTP_TEST_TRACE:-0}" = '1' ]; then
+        printf '[http-e2e] %s\n' "$1" >&2
+    fi
 }
 
 csrf_token() {
@@ -116,10 +128,83 @@ bootstrap_csrf_token() {
 }
 
 request_get() {
+    [ -d "$temporary_dir" ] || { printf 'HTTP test temporary directory disappeared: %s\n' "$temporary_dir" >&2; return 90; }
     "$curl_bin" --silent --show-error --max-time 120 \
         --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
         --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
         "$base_url$1"
+}
+
+totp_code() {
+    podman exec --user www-data "$container_id" php -r '
+        require "/var/www/html/vendor/autoload.php";
+        $container = TowerDNS\Application\ContainerFactory::create("/var/www/html");
+        $generator = OTPHP\TOTP::createFromSecret($argv[1], $container->get(Psr\Clock\ClockInterface::class));
+        $generator->setDigits(8);
+        $generator->setDigest("sha512");
+        $generator->setPeriod(30);
+        echo $generator->now();
+    ' "$test_totp_secret"
+}
+
+provision_totp() {
+    podman exec --user www-data "$container_id" php -r '
+        require "/var/www/html/vendor/autoload.php";
+        $container = TowerDNS\Application\ContainerFactory::create("/var/www/html");
+        $userId = (string) $container->get(Doctrine\DBAL\Connection::class)->fetchOne("SELECT id FROM users WHERE email = ?", ["webadmin@example.test"]);
+        if ($userId === "") { throw new RuntimeException("test administrator is missing"); }
+        $container->get(TowerDNS\Application\Services\TotpSecretService::class)->enable($userId, $argv[1]);
+    ' "$test_totp_secret"
+}
+
+complete_totp_step_up() {
+    trace_step 'GET step-up challenge'
+    step_up_code=$(request_get '/security/step-up')
+    [ "$step_up_code" = '200' ] || fail "step-up form returned HTTP $step_up_code"
+    grep -Fq '"page":"security\/step_up"' "$body_file" || fail 'step-up form bootstrap was not rendered.'
+    grep -q '"totpAvailable":true' "$body_file" || fail 'the configured TOTP factor was not offered for step-up.'
+    step_up_csrf=$(bootstrap_csrf_token "$body_file")
+    trace_step 'POST invalid CSRF token'
+    wrong_step_up_csrf=$($curl_bin --silent --show-error --max-time 30 \
+        --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+        --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+        --request POST --data 'csrf_token=invalid' --data 'code=00000000' "$base_url/security/step-up/totp")
+    [ "$wrong_step_up_csrf" = '400' ] || fail "invalid step-up CSRF returned HTTP $wrong_step_up_csrf"
+    trace_step 'GET fresh step-up form after CSRF rejection'
+    refreshed_step_up_form=$(request_get '/security/step-up')
+    [ "$refreshed_step_up_form" = '200' ] || fail "step-up form did not recover after invalid CSRF (HTTP $refreshed_step_up_form)"
+    step_up_csrf=$(bootstrap_csrf_token "$body_file")
+
+    current_totp=$(totp_code)
+    current_totp_number=$(printf '%s' "$current_totp" | sed 's/^0*//')
+    [ -n "$current_totp_number" ] || current_totp_number=0
+    wrong_totp=$(printf '%08d' "$(((current_totp_number + 1) % 100000000))")
+    trace_step 'POST invalid TOTP code'
+    wrong_step_up_code=$($curl_bin --silent --show-error --max-time 30 \
+        --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+        --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+        --request POST --data-urlencode "csrf_token=$step_up_csrf" --data-urlencode "code=$wrong_totp" \
+        "$base_url/security/step-up/totp")
+    [ "$wrong_step_up_code" = '401' ] || fail "invalid TOTP step-up returned HTTP $wrong_step_up_code"
+    trace_step 'GET fresh step-up form after invalid TOTP'
+    failed_step_up_page=$(request_get '/security/step-up')
+    [ "$failed_step_up_page" = '200' ] || fail "step-up challenge did not survive a wrong TOTP code (HTTP $failed_step_up_page)"
+    step_up_csrf=$(bootstrap_csrf_token "$body_file")
+
+    current_totp=$(totp_code)
+    trace_step 'POST valid TOTP code'
+    step_up_post=$($curl_bin --silent --show-error --max-time 30 \
+        --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+        --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+        --request POST --data-urlencode "csrf_token=$step_up_csrf" --data-urlencode "code=$current_totp" \
+        "$base_url/security/step-up/totp")
+    [ "$step_up_post" = '302' ] || fail "valid TOTP step-up returned HTTP $step_up_post"
+    grep -qi '^location: /security/step-up?verified=1' "$headers_file" || fail 'TOTP step-up did not redirect to its completed state.'
+
+    trace_step 'GET completed step-up proof'
+    completed_step_up=$(request_get '/security/step-up?verified=1')
+    [ "$completed_step_up" = '200' ] || fail "completed step-up page returned HTTP $completed_step_up ($(sed -n 's/^[Ll]ocation: //p' "$headers_file" | tr -d '\r'))"
+    grep -q '"completed":true' "$body_file" || fail 'completed step-up proof was not visible in the authenticated session.'
 }
 
 printf '%s\n' "Starting disposable $database Compose project $test_project …"
@@ -127,6 +212,11 @@ printf '%s\n' "Starting disposable $database Compose project $test_project …"
 # cache keeps unchanged dependency layers fast while invalidating COPY layers
 # when application source changes.
 compose --profile webinstaller build webinstaller
+temporary_dir=$(mktemp -d "${TMPDIR:-/tmp}/towerdns-webinstaller-e2e.XXXXXX")
+cookie_jar="$temporary_dir/cookies.txt"
+headers_file="$temporary_dir/headers.txt"
+body_file="$temporary_dir/body.html"
+: > "$cookie_jar"
 compose --profile webinstaller up -d
 
 for attempt in $(seq 1 60); do
@@ -210,6 +300,11 @@ container_id=$(podman ps -aq \
     --filter "label=com.docker.compose.project=$test_project" \
     --filter 'label=com.docker.compose.service=webinstaller')
 [ -n "$container_id" ] || fail 'webinstaller container could not be resolved.'
+php_version_id=$(podman exec "$container_id" php -r 'echo PHP_VERSION_ID;')
+if [ "$php_version_id" -lt 80400 ] || [ "$php_version_id" -ge 80500 ]; then
+    fail "the dedicated PHP 8.4 compatibility run used PHP_VERSION_ID=$php_version_id."
+fi
+printf 'HTTP integration is running on PHP %s.\n' "$(podman exec "$container_id" php -r 'echo PHP_VERSION;')"
 podman exec "$container_id" sh -ceu '
     test -f /var/www/html/configs/.installed
     test -f /var/www/html/install/.lock
@@ -343,6 +438,7 @@ zones_code=$(request_get '/zones.php')
 [ "$zones_code" = '200' ] || fail "active-account zone view returned HTTP $zones_code"
 grep -q "\"accountId\":$personal_account_id" "$body_file" || fail 'active account was not resolved to the administrator personal account.'
 grep -q '"managedZones":\[\]' "$body_file" || fail 'the fresh personal account unexpectedly exposed managed zones.'
+provision_totp
 
 # Virtual pages must reach the shared controller with no physical wrappers.
 # Old path routes remain available for existing bookmarks.
@@ -398,7 +494,18 @@ valid_role_code=$("$curl_bin" --silent --show-error --max-time 30 \
     --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
     --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
     --request POST --data 'name=virtual-route-e2e' --data-urlencode "csrf_token=$role_csrf" "$base_url/roles.php")
-[ "$valid_role_code" = '302' ] || fail "valid role POST returned HTTP $valid_role_code"
+[ "$valid_role_code" = '302' ] || fail "role POST without step-up returned HTTP $valid_role_code"
+grep -qi '^location: /security/step-up[[:space:]]*$' "$headers_file" || fail 'role creation did not require an action-bound step-up.'
+[ -z "$(role_lookup virtual-route-e2e)" ] || fail 'role was created before step-up confirmation.'
+complete_totp_step_up
+role_form_code=$(request_get '/roles.php')
+[ "$role_form_code" = '200' ] || fail "role form after step-up returned HTTP $role_form_code"
+role_csrf=$(bootstrap_csrf_token "$body_file")
+valid_role_code=$($curl_bin --silent --show-error --max-time 30 \
+    --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+    --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+    --request POST --data 'name=virtual-route-e2e' --data-urlencode "csrf_token=$role_csrf" "$base_url/roles.php")
+[ "$valid_role_code" = '302' ] || fail "authorized role POST returned HTTP $valid_role_code"
 grep -qi '^location: /roles.php?success=' "$headers_file" || fail 'created role did not redirect to virtual role list.'
 role_id=$(role_lookup virtual-route-e2e)
 [ -n "$role_id" ] || fail 'valid role POST did not persist the role.'
@@ -418,6 +525,58 @@ legacy_roles_code=$(request_get '/roles')
 [ "$legacy_roles_code" = '200' ] || fail "existing /roles URL returned HTTP $legacy_roles_code"
 asset_code=$(request_get '/assets/app.bundle.js')
 [ "$asset_code" = '200' ] || fail "application asset returned HTTP $asset_code"
+
+switch_target_id=$(podman exec --user www-data "$container_id" php -r '
+    require "/var/www/html/vendor/autoload.php";
+    $container = TowerDNS\Application\ContainerFactory::create("/var/www/html");
+    $id = Symfony\Component\Uid\Uuid::v4()->toRfc4122();
+    $container->get(TowerDNS\Application\Services\UserLifecycleService::class)->create(
+        $id,
+        "impersonation-target@example.test",
+        password_hash("synthetic-target-password", PASSWORD_ARGON2ID),
+    );
+    echo $id;
+')
+switch_form_code=$(request_get '/admin/switch')
+[ "$switch_form_code" = '200' ] || fail "admin-switch form returned HTTP $switch_form_code"
+switch_csrf=$(bootstrap_csrf_token "$body_file")
+switch_start_code=$($curl_bin --silent --show-error --max-time 30 \
+    --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+    --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+    --request POST --data-urlencode "csrf_token=$switch_csrf" \
+    --data-urlencode 'reason=isolated HTTP security regression' \
+    --data-urlencode "effective_user_id=$switch_target_id" "$base_url/admin/switch/start")
+[ "$switch_start_code" = '302' ] || fail "admin-switch request without step-up returned HTTP $switch_start_code"
+grep -qi '^location: /security/step-up[[:space:]]*$' "$headers_file" || fail 'starting an admin switch did not require step-up.'
+complete_totp_step_up
+switch_form_code=$(request_get '/admin/switch')
+[ "$switch_form_code" = '200' ] || fail "admin-switch form after step-up returned HTTP $switch_form_code"
+switch_csrf=$(bootstrap_csrf_token "$body_file")
+switch_start_code=$($curl_bin --silent --show-error --max-time 30 \
+    --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+    --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+    --request POST --data-urlencode "csrf_token=$switch_csrf" \
+    --data-urlencode 'reason=isolated HTTP security regression' \
+    --data-urlencode "effective_user_id=$switch_target_id" "$base_url/admin/switch/start")
+[ "$switch_start_code" = '302' ] || fail "admin-switch request with verified step-up returned HTTP $switch_start_code"
+grep -qi '^location: /admin/switch[[:space:]]*$' "$headers_file" || fail 'admin switch did not start after step-up.'
+switched_dashboard=$(request_get '/index.php')
+[ "$switched_dashboard" = '200' ] || fail "effective-user dashboard returned HTTP $switched_dashboard"
+grep -q '"email":"impersonation-target@example.test"' "$body_file" || fail 'dashboard did not use the impersonated user as effective identity.'
+switched_csrf=$(bootstrap_csrf_token "$body_file")
+switched_roles_code=$(request_get '/roles.php')
+[ "$switched_roles_code" = '403' ] || fail "impersonated non-admin reached role administration with HTTP $switched_roles_code"
+switched_dashboard=$(request_get '/index.php')
+[ "$switched_dashboard" = '200' ] || fail "effective-user dashboard returned HTTP $switched_dashboard before ending the switch"
+switched_csrf=$(bootstrap_csrf_token "$body_file")
+switch_end_code=$($curl_bin --silent --show-error --max-time 30 \
+    --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \
+    --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' \
+    --request POST --data-urlencode "csrf_token=$switched_csrf" "$base_url/admin/switch/end")
+[ "$switch_end_code" = '302' ] || fail "admin switch did not end with HTTP $switch_end_code"
+restored_dashboard=$(request_get '/index.php')
+[ "$restored_dashboard" = '200' ] || fail "dashboard after ending switch returned HTTP $restored_dashboard"
+grep -q '"email":"webadmin@example.test"' "$body_file" || fail 'ending the switch did not restore the original superadmin identity.'
 
 invalid_logout_code=$("$curl_bin" --silent --show-error --max-time 30 \
     --cookie "$cookie_jar" --cookie-jar "$cookie_jar" \

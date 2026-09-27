@@ -36,6 +36,7 @@ use TowerDNS\Infrastructure\Http\Handler\RoleListHandler;
 use TowerDNS\Infrastructure\Http\Handler\RrsetDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\RrsetReplaceHandler;
 use TowerDNS\Infrastructure\Http\Handler\SchemaMigrationHandler;
+use TowerDNS\Infrastructure\Http\Handler\StepUpHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpSetupHandler;
@@ -70,6 +71,12 @@ final class Routes
         $app->get('/login/webauthn', WebAuthnAuthHandler::class, 'login.webauthn.form');
         $app->post('/login/webauthn/finish', WebAuthnAuthFinishHandler::class, 'login.webauthn.finish');
         $app->post('/logout', [RequireAuthMiddleware::class, LogoutHandler::class], 'logout');
+
+        // Recent second-factor confirmation for high-impact operations.
+        $app->get('/security/step-up', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.form');
+        $app->post('/security/step-up/totp', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.totp');
+        $app->post('/security/step-up/webauthn/begin', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.webauthn.begin');
+        $app->post('/security/step-up/webauthn/finish', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.webauthn.finish');
 
         // Passwort-Reset (public — kein RequireAuthMiddleware)
         $app->get('/password/forgot', ForgotPasswordHandler::class, 'password.forgot.form');

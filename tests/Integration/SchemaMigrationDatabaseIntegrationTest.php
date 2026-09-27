@@ -10,6 +10,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
+use TowerDNS\Infrastructure\Persistence\DbalStepUpProofNonceRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationLock;
@@ -31,12 +32,12 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $first = $manager->migrate();
             self::assertSame([], $first->pending, $backend);
             self::assertTrue($first->schemaCurrent, $backend);
-            self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles'), $backend);
 
             $second = $manager->migrate();
             self::assertSame([], $second->pending, $backend);
-            self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
 
             $bootstrap = new FreshInstallBootstrapper($connection);
             $result    = $bootstrap->bootstrap(new FreshInstallBootstrapRequest(
@@ -84,7 +85,44 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             self::assertSame($passwordHash, $connection->fetchOne('SELECT password_hash FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('de-DE', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('ciphertext-that-must-survive', $connection->fetchOne('SELECT credentials_encrypted FROM provider_accounts WHERE account_id = ?', [$accountId]), $backend);
-            self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+        });
+    }
+
+    public function testStepUpNonceMigrationUpgradesAnAlreadyBaselinedInstallation(): void
+    {
+        $this->forEachDatabase(function (string $backend, Connection $connection): void {
+            $schema = new SchemaManager($connection);
+            $schema->createTablesIfNotExist();
+            $schema->seedSystemRoles();
+            $schema->seedSystemSettingsDefaults();
+            $userId = '66666666-6666-4666-8666-666666666666';
+            $schema->seedFirstUser($userId, 'step-up-migration@example.test', password_hash('integration-password', PASSWORD_ARGON2ID), 'Step-up migration');
+
+            $manager = $this->manager($connection, $backend);
+            $manager->migrate();
+            $connection->executeStatement('DROP TABLE step_up_proof_nonces');
+            $connection->delete(SchemaMigrationManager::METADATA_TABLE, ['version' => \TowerDNS\Infrastructure\Persistence\Migrations\Version20260927000100::class]);
+
+            $status = $manager->migrate();
+
+            self::assertTrue($status->schemaCurrent, $backend);
+            self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertTrue($connection->createSchemaManager()->tablesExist(['step_up_proof_nonces']), $backend);
+            self::assertSame($userId, $connection->fetchOne('SELECT id FROM users WHERE email = ?', ['step-up-migration@example.test']), $backend);
+        });
+    }
+
+    public function testStepUpNonceClaimIsUniqueAndExpiredRowsCanBePruned(): void
+    {
+        $this->forEachDatabase(function (string $backend, Connection $connection): void {
+            new SchemaMigrationManager($connection, sys_get_temp_dir() . '/towerdns-nonce-' . bin2hex(random_bytes(5)) . '.lock')->migrate();
+            $nonces = new DbalStepUpProofNonceRepository($connection);
+            $nonce  = str_repeat('a', 32);
+
+            self::assertTrue($nonces->claim($nonce, time() - 1), $backend);
+            self::assertTrue($nonces->claim($nonce, time() + 30), $backend);
+            self::assertFalse($nonces->claim($nonce, time() + 30), $backend);
         });
     }
 

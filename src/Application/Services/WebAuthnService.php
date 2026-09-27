@@ -116,8 +116,10 @@ final readonly class WebAuthnService
      *
      * @param list<string> $allowedCredentialIds  Raw bytes of credentials to allow
      */
-    public function createAuthenticationOptions(array $allowedCredentialIds = []): PublicKeyCredentialRequestOptions
-    {
+    public function createAuthenticationOptions(
+        array $allowedCredentialIds = [],
+        string $userVerification = PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_PREFERRED,
+    ): PublicKeyCredentialRequestOptions {
         $allowCredentials = array_map(
             static fn(string $id): PublicKeyCredentialDescriptor => new PublicKeyCredentialDescriptor(
                 PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
@@ -130,7 +132,7 @@ final readonly class WebAuthnService
             challenge: random_bytes(32),
             rpId: $this->rpId,
             allowCredentials: $allowCredentials,
-            userVerification: PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_PREFERRED,
+            userVerification: $userVerification,
             timeout: 60_000,
         );
     }

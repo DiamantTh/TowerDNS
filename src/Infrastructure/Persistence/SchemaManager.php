@@ -54,6 +54,25 @@ final readonly class SchemaManager
         }
     }
 
+    /** Creates the additive step-up nonce table without touching other tables. */
+    public function createStepUpProofNonceTableIfMissing(): void
+    {
+        $schema = $this->connection->createSchemaManager();
+        if (!$schema->tablesExist(['step_up_proof_nonces'])) {
+            $schema->createTable(self::stepUpProofNonceTable());
+        }
+    }
+
+    public static function stepUpProofNonceTable(): Table
+    {
+        $table = new Table('step_up_proof_nonces');
+        $table->addColumn('nonce', Types::STRING, ['length' => 32]);
+        $table->addColumn('expires_at', Types::BIGINT);
+        $table->setPrimaryKey(['nonce']);
+
+        return $table;
+    }
+
     /**
      * Merges the canonical schema into Doctrine's migration schema object.
      * Missing tables, columns, indexes and foreign keys are added only; no
@@ -972,10 +991,13 @@ final readonly class SchemaManager
             'fk_ss_updated_by',
         );
 
+        // step_up_proof_nonces -----------------------------------------------
+        $stepUpProofNonces = self::stepUpProofNonceTable();
+
         return [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $apiKeys,
             $accounts, $resourceLimits, $accMembers, $accountInvitations, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
-            $pwResetTokens, $systemSettings,
+            $pwResetTokens, $systemSettings, $stepUpProofNonces,
         ];
     }
 

@@ -16,12 +16,15 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Symfony\Component\Uid\Uuid;
 use TowerDNS\Application\DTO\AuditContext;
+use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\StepUpRequestService;
 
 /**
  * POST /roles — Neue Rolle anlegen.
@@ -32,6 +35,7 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
         private PermissionRegistry      $permissions,
         private IamAdministrationService $iam,
         private TranslatorInterface     $translator,
+        private StepUpRequestService    $stepUpRequests,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -77,7 +81,10 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
         );
 
         try {
-            $this->iam->saveRole($currentUser, $role, $this->auditContext($request, $currentUser));
+            $proof = $this->stepUpRequests->consume($request, $currentUser->id, StepUpAction::IAM_ROLE_CREATE, 'new');
+            $this->iam->saveRole($currentUser, $role, $this->auditContext($request, $currentUser), $proof);
+        } catch (StepUpRequiredException $required) {
+            return $this->stepUpRequests->challenge($request, $currentUser->id, $required);
         } catch (AuthorizationException) {
             return new RedirectResponse('/roles?error=' . rawurlencode($this->t('http.error.forbidden')));
         } catch (\Throwable) {

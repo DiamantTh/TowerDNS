@@ -21,6 +21,7 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\TotpService;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\SessionSecurity;
 
 /**
  * GET  /profile/totp — show TOTP setup or disable form.
@@ -44,6 +45,7 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         private TotpService               $totp,
         private AuditLogService           $audit,
         private TranslatorInterface       $translator,
+        private SessionSecurity            $sessionSecurity,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -55,6 +57,24 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
         $session = $request->getAttribute(SessionInterface::class);
+
+        // Prevent a stolen authenticated session from silently enrolling a
+        // new factor. Existing TOTP disable requests still require the current
+        // code and are not covered by this enrollment-only gate.
+        if (!$this->secrets->isEnabled($user->id)
+            && (!$session instanceof SessionInterface || !$this->sessionSecurity->passwordVerifiedRecently($session, $user->id))) {
+            return new HtmlResponse($this->renderer->render('app::profile/totp', [
+                'user'            => $user,
+                'totpActive'      => false,
+                'provisioningUri' => null,
+                'secret'          => null,
+                'secretFormatted' => null,
+                'error'           => null,
+                'success'         => null,
+                'reauthRequired'  => true,
+                'csrfToken'       => $guard->generateToken(),
+            ]));
+        }
 
         if ($request->getMethod() === 'GET') {
             return $this->handleGet($user, $session, $guard);

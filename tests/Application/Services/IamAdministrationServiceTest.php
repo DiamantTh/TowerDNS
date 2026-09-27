@@ -11,22 +11,27 @@ use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Contracts\TransactionRunnerInterface;
 use TowerDNS\Application\DTO\AuditContext;
+use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AccountResourceLimitsRepositoryInterface;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
 use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
+use TowerDNS\Application\Repository\StepUpProofNonceRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\IamAdministrationService;
+use TowerDNS\Application\Services\StepUpProofService;
 use TowerDNS\Application\Services\UserLifecycleService;
 use TowerDNS\Domain\Account\AuditLogEntry;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Clock\SystemClock;
 
 final class IamAdministrationServiceTest extends TestCase
 {
@@ -95,13 +100,14 @@ final class IamAdministrationServiceTest extends TestCase
         $effectiveActor = new User('effective-admin', 'effective-admin@example.test', [
             new Role('limited-iam', 'Scoped IAM administrator', [Permission::USER_MANAGE, Permission::ROLE_MANAGE, Permission::RECORD_UPDATE]),
         ]);
-        $target            = new User('target', 'target@example.test');
-        $assigned          = new Role('dns-editor', 'DNS editor', [Permission::RECORD_UPDATE]);
-        [$service, $users] = $this->service($effectiveActor, $target, $assigned, new AuditContext('root', 'effective-admin', impersonationSessionId: 'switch-1'));
+        $target                       = new User('target', 'target@example.test');
+        $assigned                     = new Role('dns-editor', 'DNS editor', [Permission::RECORD_UPDATE]);
+        [$service, $users, , $proofs] = $this->service($effectiveActor, $target, $assigned, new AuditContext('root', 'effective-admin', impersonationSessionId: 'switch-1'));
 
         $users->expects(self::once())->method('syncRoles')->with('target', ['dns-editor']);
 
-        $service->syncRoles($effectiveActor, 'target', ['dns-editor'], new AuditContext('root', 'effective-admin', impersonationSessionId: 'switch-1'));
+        $proof = $proofs->issue('effective-admin', StepUpAction::IAM_USER_ROLES, 'target', 'switch-1', 'totp');
+        $service->syncRoles($effectiveActor, 'target', ['dns-editor'], new AuditContext('root', 'effective-admin', impersonationSessionId: 'switch-1'), $proof);
     }
 
     public function testOriginalSuperadminDoesNotAuthorizeImpersonatedUsersRoleAssignment(): void
@@ -142,6 +148,20 @@ final class IamAdministrationServiceTest extends TestCase
         $service->syncRoles($actor, 'target', ['superadmin'], new AuditContext('actor', 'actor'));
     }
 
+    public function testAuthorizedRoleChangeStillRequiresFreshActionBoundStepUp(): void
+    {
+        $actor = new User('actor', 'actor@example.test', [
+            new Role('role-manager', 'Role manager', [Permission::USER_MANAGE, Permission::ROLE_MANAGE, Permission::RECORD_UPDATE]),
+        ]);
+        $target            = new User('target', 'target@example.test');
+        $assignable        = new Role('dns-editor', 'DNS editor', [Permission::RECORD_UPDATE]);
+        [$service, $users] = $this->service($actor, $target, $assignable);
+        $users->expects(self::never())->method('syncRoles');
+
+        $this->expectException(StepUpRequiredException::class);
+        $service->syncRoles($actor, $target->id, [$assignable->id], new AuditContext('actor', 'actor'));
+    }
+
     public function testNonSuperadminCannotChangeBuiltInSuperadminEvenWithEveryPermission(): void
     {
         $actor = new User('actor', 'actor@example.test', [
@@ -167,7 +187,7 @@ final class IamAdministrationServiceTest extends TestCase
     }
 
     /**
-     * @return array{IamAdministrationService, UserRepositoryInterface&MockObject, RoleRepositoryInterface&MockObject}
+     * @return array{IamAdministrationService, UserRepositoryInterface&MockObject, RoleRepositoryInterface&MockObject, StepUpProofService}
      */
     private function service(User $actor, User $target, Role $candidate, ?AuditContext $context = null): array
     {
@@ -204,7 +224,10 @@ final class IamAdministrationServiceTest extends TestCase
             $this->createMock(ProviderAccountRepositoryInterface::class),
         );
 
-        $service = new IamAdministrationService(
+        $nonces = $this->createMock(StepUpProofNonceRepositoryInterface::class);
+        $nonces->method('claim')->willReturn(true);
+        $stepUpProofs = new StepUpProofService(str_repeat('k', 32), new SystemClock(), $nonces);
+        $service      = new IamAdministrationService(
             $users,
             $roles,
             new AuthorizationService(),
@@ -212,8 +235,9 @@ final class IamAdministrationServiceTest extends TestCase
             $transactions,
             $audit,
             $lifecycle,
+            $stepUpProofs,
         );
 
-        return [$service, $users, $roles];
+        return [$service, $users, $roles, $stepUpProofs];
     }
 }

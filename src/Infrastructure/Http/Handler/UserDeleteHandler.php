@@ -14,10 +14,13 @@ use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\StepUpRequestService;
 
 /**
  * POST /users/{id}/delete — löscht einen Benutzer.
@@ -29,6 +32,7 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
     public function __construct(
         private IamAdministrationService $iam,
         private TranslatorInterface       $translator,
+        private StepUpRequestService      $stepUpRequests,
     ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -60,7 +64,10 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
                 $currentUser->id,
                 impersonationSessionId: $switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession ? $switch->id : null,
             );
-            $target = $this->iam->deleteUser($currentUser, $targetId, $context);
+            $proof  = $this->stepUpRequests->consume($request, $currentUser->id, StepUpAction::IAM_USER_DELETE, $targetId);
+            $target = $this->iam->deleteUser($currentUser, $targetId, $context, $proof);
+        } catch (StepUpRequiredException $required) {
+            return $this->stepUpRequests->challenge($request, $currentUser->id, $required);
         } catch (AuthorizationException) {
             if ($targetId === $currentUser->id) {
                 return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.self-delete-not-allowed')));

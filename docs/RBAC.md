@@ -42,7 +42,9 @@ Während des Switches bestimmen ausschließlich die bei jedem Request neu gelade
 
 Passwortlogin verwendet aktuell Argon2id; gültige ältere Hashes (einschließlich bcrypt) werden beim erfolgreichen Login auf Argon2id aktualisiert. Ein Dummy-Hash reduziert zeitbasierte E-Mail-Enumeration. Bei eingerichteter TOTP- oder WebAuthn-MFA ist die Session zunächst nur MFA-pending und `AuthenticationMiddleware` akzeptiert sie nicht als angemeldet. Login/MFA regeneriert die Session-ID. `SessionSecurity` erzwingt derzeit 60 Minuten Inaktivitäts- und 8 Stunden absolute Laufzeit. Session-Cookies sind `HttpOnly`, `SameSite=Lax`; `Secure` hängt von `force_https` beziehungsweise der Session-Konfiguration ab. Betreiber müssen TLS und eine korrekte Trusted-Proxy-Konfiguration aktivieren, wenn TLS vor PHP terminiert.
 
-TOTP und WebAuthn sind verfügbar, aber aktuell ist keine verpflichtende MFA-/Step-up-Policy für globale privilegierte Rollen nachgewiesen. Sensible IAM-Änderungen erfordern daher derzeit keine erneute MFA-/Passkey-Bestätigung. Das bleibt ein bewusst offener Härtungspunkt, bis ein sicherer Einführungs- und Recovery-Ablauf festgelegt ist; bestehende Installationen werden nicht ungefragt ausgesperrt.
+TOTP und WebAuthn sind verfügbar. Für Benutzer-/Rollenänderungen (einschließlich Rollenvergabe, Status, Löschen und administrativem Passwortsetzen) sowie den Beginn eines Admin-Switches verlangt TowerDNS eine frische, aktions- und zielgebundene Bestätigung mit eingerichtetem TOTP oder Passkey. Für WebAuthn wird User Verification `required` verlangt. Es gibt keinen Passwort- oder UI-Bypass, wenn kein zweiter Faktor eingerichtet ist; der Betreiber muss zunächst über das Profil einen Faktor registrieren. Das Passwort muss dafür innerhalb der letzten zehn Minuten bestätigt worden sein. Step-up-Nachweise sind fünf Minuten gültig und an den effektiven Benutzer, Aktion, Ziel und gegebenenfalls Switch-Kontext gebunden. Eine Datenbank-Nonce-Tabelle stellt die Einmalverwendung auch bei parallel laufenden PHP-Requests sicher. Die Schemaänderung ist Migration `Version20260927000100` und muss vor solchen Aktionen über den kontrollierten Upgrade-Weg ausgeführt sein.
+
+Eine erneute Step-up-Bestätigung wird derzeit bei jeder qualifizierten Aktion verlangt; TowerDNS speichert keine allgemeine „MFA kürzlich bestätigt“-Freigabe, die auf andere Aktionen übertragbar wäre. Die eigentliche Berechtigung und Zielprüfung wird danach weiterhin zentral im Application-Service ausgeführt. Admin-Switch darf nicht unter laufender Impersonation gestartet werden; bei Rollenänderungen im Switch gilt ausschließlich das Recht des effektiven Zielbenutzers.
 
 API-Schlüssel können in Profilseiten erstellt und widerrufen werden; im Source ist derzeit kein eingehender API-Key-Authentifizierungsfluss nachgewiesen. Sie sind daher keine unterstützte API-Authentifizierung. Eine lokale CLI arbeitet innerhalb der Betriebssystem-/Deployment-Vertrauensgrenze und ist kein benutzergebundenes API-Token.
 
@@ -61,7 +63,9 @@ UI-Ausblendung, aktive Account-Auswahl und HTTP-Routen sind keine Sicherheitsgre
 
 ## Offene, konkret begrenzte Punkte
 
-- Keine erzwungene MFA oder Step-up-Bestätigung für privilegierte IAM-Aktionen.
+- Die Mehrprozess-Serialisierung muss auf den tatsächlich eingesetzten MariaDB-/PostgreSQL-Versionen zusätzlich unter paralleler Last ausgeführt werden; PHPUnit führt dafür einen Fork-Test gegen SQLite und gegen explizit konfigurierte Integrationsdatenbanken aus.
+- Passkey-Step-up benötigt einen echten kompatiblen Browser/Authenticator für einen Ende-zu-Ende-Ceremony-Nachweis; automatisierte TOTP-HTTP-Tests und WebAuthn-Options-/Handlerprüfungen ersetzen diesen Hardware-/Browsernachweis nicht.
+- Reale Shared-Hosting-/PHP-FPM-Session- und Proxybedingungen sind nicht durch die lokale Apache-Compose-Umgebung bewiesen.
 - Keine eingehende API-Key-Authentifizierung; Ausgabe/Widerruf der Schlüssel allein stellt keine API bereit.
 - Globale DNS-Seed-Rollen sind aus Kompatibilitätsgründen weiter vorhanden, aber kein Ersatz für scoped TeamRole-Memberships.
-- SQL-/DB-Serialisierung schützt IAM-Änderungen, setzt aber voraus, dass alle privilegienändernden Anwendungspfade über `IamAdministrationService` laufen.
+- Datenbankseitige Step-up-Nonce-Sicherung setzt voraus, dass Schema-Migrationen vor Nutzung der geschützten Aktionen ausgeführt wurden.
