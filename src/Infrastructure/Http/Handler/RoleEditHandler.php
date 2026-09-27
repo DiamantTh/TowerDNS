@@ -16,9 +16,12 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Auth\ActionGroupRegistry;
+use TowerDNS\Application\DTO\AuditContext;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
@@ -37,6 +40,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         private AuthorizationService      $authz,
         private PermissionRegistry        $permissions,
         private ActionGroupRegistry       $actionGroups,
+        private IamAdministrationService  $iam,
         private TranslatorInterface       $translator,
     ) {}
 
@@ -53,17 +57,19 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
         try {
             $this->authz->assert($currentUser, Permission::ROLE_MANAGE);
         } catch (AuthorizationException) {
-            return new HtmlResponse(
-                $this->renderer->render('app::iam/role_edit', [
-                    'user' => $currentUser,
-                    'role' => null,
-                    ...$this->editorData(),
-                    'csrfToken' => $guard->generateToken(),
-                    'error'     => $this->t('http.error.forbidden'),
-                    'success'   => null,
-                ]),
-                403,
-            );
+            if ($request->getMethod() !== 'POST') {
+                return new HtmlResponse(
+                    $this->renderer->render('app::iam/role_edit', [
+                        'user' => $currentUser,
+                        'role' => null,
+                        ...$this->editorData(),
+                        'csrfToken' => $guard->generateToken(),
+                        'error'     => $this->t('http.error.forbidden'),
+                        'success'   => null,
+                    ]),
+                    403,
+                );
+            }
         }
 
         $role = $this->roles->findById($roleId);
@@ -101,10 +107,6 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
             return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('roles.error.invalid-csrf'));
         }
 
-        if ($role->isBuiltIn) {
-            return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('roles.error.built-in-read-only'));
-        }
-
         $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');
 
         if ($name === '') {
@@ -129,12 +131,20 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
             permissions: $permissions,
         );
 
-        $this->roles->save($updated);
+        try {
+            $this->iam->saveRole($currentUser, $updated, $this->auditContext($request, $currentUser));
+        } catch (AuthorizationException) {
+            return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('http.error.forbidden'), status: 403);
+        } catch (\DomainException) {
+            return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('roles.error.save-failed'), status: 409);
+        } catch (\Throwable) {
+            return $this->renderForm($currentUser, $role, $guard->generateToken(), $this->t('roles.error.save-failed'), status: 500);
+        }
 
         return $this->renderForm($currentUser, $updated, $guard->generateToken(), null, $this->t('roles.success.saved'));
     }
 
-    private function renderForm(User $currentUser, ?Role $role, string $csrfToken, ?string $error = null, ?string $success = null): ResponseInterface
+    private function renderForm(User $currentUser, ?Role $role, string $csrfToken, ?string $error = null, ?string $success = null, int $status = 200): ResponseInterface
     {
         return new HtmlResponse(
             $this->renderer->render('app::iam/role_edit', [
@@ -145,6 +155,7 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
                 'error'     => $error,
                 'success'   => $success,
             ]),
+            $status,
         );
     }
 
@@ -160,5 +171,17 @@ final readonly class RoleEditHandler implements RequestHandlerInterface
     private function t(string $key): string
     {
         return $this->translator->translate($key);
+    }
+
+    private function auditContext(ServerRequestInterface $request, User $effectiveUser): AuditContext
+    {
+        $original = $request->getAttribute('actor_user');
+        $switch   = $request->getAttribute('impersonation_session');
+        return AuditLogService::fromHttpRequest(
+            $request,
+            $original instanceof User ? $original->id : $effectiveUser->id,
+            $effectiveUser->id,
+            impersonationSessionId: $switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession ? $switch->id : null,
+        );
     }
 }

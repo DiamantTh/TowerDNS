@@ -7,8 +7,10 @@ namespace TowerDNS\Tests\Integration;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
+use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
+use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationLock;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationLockedException;
@@ -187,6 +189,22 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
                 @unlink($path);
             }
         }
+    }
+
+    public function testIamMutationSerializationPointWorksOnConfiguredDatabases(): void
+    {
+        $this->forEachDatabase(function (string $backend, Connection $connection): void {
+            $schema = new SchemaManager($connection);
+            $schema->createTablesIfNotExist();
+            $schema->seedSystemRoles();
+
+            $repository = new DbalUserRepository($connection, new SystemClock());
+            $connection->transactional(static function () use ($repository): void {
+                $repository->lockSuperadminRoleForMutation();
+            });
+
+            self::assertSame('superadmin', $connection->fetchOne("SELECT id FROM roles WHERE id = 'superadmin'"), $backend);
+        });
     }
 
     /** @param callable(string, Connection): void $scenario */

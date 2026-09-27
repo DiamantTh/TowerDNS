@@ -15,11 +15,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Repository\UserRepositoryInterface;
-use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\IamAdministrationService;
-use TowerDNS\Application\Services\UserLifecycleService;
-use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
 /**
@@ -30,10 +27,7 @@ use TowerDNS\Domain\Auth\User;
 final readonly class UserDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private UserRepositoryInterface $users,
-        private AuthorizationService    $authz,
         private IamAdministrationService $iam,
-        private UserLifecycleService      $lifecycle,
         private TranslatorInterface       $translator,
     ) {}
 
@@ -41,6 +35,9 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
     {
         /** @var User $currentUser */
         $currentUser = $request->getAttribute(User::class);
+        if (!$currentUser instanceof User) {
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.forbidden')));
+        }
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
@@ -52,26 +49,23 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
             return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.invalid-request')));
         }
 
-        try {
-            $this->authz->assert($currentUser, Permission::USER_MANAGE);
-        } catch (AuthorizationException) {
-            return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.forbidden')));
-        }
-
         $targetId = (string) $request->getAttribute('id', '');
 
-        if ($targetId === '' || $targetId === $currentUser->id) {
-            return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.self-delete-not-allowed')));
-        }
-
-        $target = $this->users->findByIdForAdministration($targetId);
-        if (!$target instanceof User) {
-            return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.not-found')));
-        }
-
         try {
-            $this->iam->assertCanDelete($targetId);
-            $this->lifecycle->delete($targetId);
+            $original = $request->getAttribute('actor_user');
+            $switch   = $request->getAttribute('impersonation_session');
+            $context  = AuditLogService::fromHttpRequest(
+                $request,
+                $original instanceof User ? $original->id : $currentUser->id,
+                $currentUser->id,
+                impersonationSessionId: $switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession ? $switch->id : null,
+            );
+            $target = $this->iam->deleteUser($currentUser, $targetId, $context);
+        } catch (AuthorizationException) {
+            if ($targetId === $currentUser->id) {
+                return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.self-delete-not-allowed')));
+            }
+            return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.forbidden')));
         } catch (\Throwable) {
             return new RedirectResponse('/users?error=' . rawurlencode($this->t('users.error.delete-failed')));
         }

@@ -14,6 +14,22 @@ use TowerDNS\Infrastructure\Persistence\SchemaManager;
 
 final class DbalUserRepositoryTest extends TestCase
 {
+    public function testSuperadminMutationLockUsesSeededRoleWithinSqliteTransaction(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $schema     = new SchemaManager($connection);
+        $schema->createTablesIfNotExist();
+        $schema->seedSystemRoles();
+        $repository = new DbalUserRepository($connection, new SystemClock());
+
+        $connection->transactional(static function () use ($repository): void {
+            $repository->lockSuperadminRoleForMutation();
+        });
+
+        self::assertSame('superadmin', $connection->fetchOne("SELECT id FROM roles WHERE id = 'superadmin'"));
+        $connection->close();
+    }
+
     public function testAdministrativeBulkLookupLoadsInactiveUsersAndRoles(): void
     {
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);

@@ -14,13 +14,19 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\PageUrls;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
 /** A permission-filtered directory of existing administrative handlers. */
 final readonly class AdminOverviewHandler implements RequestHandlerInterface
 {
-    public function __construct(private TemplateRendererInterface $renderer, private AuthorizationService $authz, private PageUrls $urls) {}
+    public function __construct(
+        private TemplateRendererInterface $renderer,
+        private AuthorizationService $authz,
+        private PermissionService $permissions,
+        private PageUrls $urls,
+    ) {}
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
@@ -36,11 +42,14 @@ final readonly class AdminOverviewHandler implements RequestHandlerInterface
             ['key' => 'navigation.settings', 'href' => $this->urls->page('settings'), 'permission' => Permission::SYSTEM_SETTINGS_MANAGE],
             ['key' => 'navigation.schema', 'href' => $this->urls->page('schema'), 'permission' => Permission::SYSTEM_SCHEMA_MANAGE],
             ['key' => 'navigation.providers', 'href' => '/credentials', 'permission' => Permission::PROVIDER_CONFIG_MANAGE],
-            ['key' => 'navigation.admin-switch', 'href' => '/admin/switch', 'permission' => Permission::SYSTEM_IMPERSONATION_EXECUTE],
         ] as $area) {
             if ($this->authz->isGranted($user, $area['permission'])) {
                 $areas[] = ['key' => $area['key'], 'href' => $area['href']];
             }
+        }
+
+        if ($this->permissions->canImpersonate($user)) {
+            $areas[] = ['key' => 'navigation.admin-switch', 'href' => '/admin/switch'];
         }
 
         return new HtmlResponse($this->renderer->render('app::admin', ['user' => $user, 'areas' => $areas]));

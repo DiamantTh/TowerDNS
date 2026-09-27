@@ -7,7 +7,11 @@ namespace TowerDNS\Tests\Infrastructure\Http\Handler;
 use Laminas\Diactoros\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\PageUrls;
+use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
+use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
+use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
@@ -20,7 +24,16 @@ final class AdminOverviewHandlerTest extends TestCase
     public function testOnlyGrantedAdministrativeLinksAreBootstrapped(): void
     {
         $renderer = new SvelteRenderer(new ThemeManager(dirname(__DIR__, 4)));
-        $handler  = new AdminOverviewHandler($renderer, new AuthorizationService(), new PageUrls());
+        $handler  = new AdminOverviewHandler(
+            $renderer,
+            new AuthorizationService(),
+            new PermissionService(
+                $this->createMock(AccountRepositoryInterface::class),
+                $this->createMock(ZoneMembershipRepositoryInterface::class),
+                managedZones: $this->createMock(ManagedZoneRepositoryInterface::class),
+            ),
+            new PageUrls(),
+        );
         $user     = new User('operator', 'operator@example.test', [new Role('operator', 'Operator', [Permission::ROLE_MANAGE])]);
         $response = $handler->handle(new ServerRequest()->withAttribute(User::class, $user));
 

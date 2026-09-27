@@ -147,7 +147,7 @@ final readonly class AccountManagementService
 
     public function activate(User $actor, int $accountId): void
     {
-        $this->permissions->assertAccount($actor, Permission::ACCOUNT_UPDATE, $accountId);
+        $this->permissions->assertCanReactivateAccount($accountId, $actor);
 
         $account = $this->accounts->findById($accountId);
         if (!$account instanceof Account) {

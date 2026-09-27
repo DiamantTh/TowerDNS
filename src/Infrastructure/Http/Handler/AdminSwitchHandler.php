@@ -16,11 +16,13 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
 /**
@@ -75,7 +77,15 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         /** @var User $user */
         $user = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
 
-        $this->permissions->assertCanImpersonate($user);
+        if ($request->getAttribute('impersonation_session') !== null) {
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        }
+
+        try {
+            $this->permissions->assertCanImpersonate($user);
+        } catch (AuthorizationException) {
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        }
 
         /** @var CsrfGuardInterface $guard */
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
@@ -102,7 +112,18 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         /** @var User $user */
         $user = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
 
-        $this->permissions->assertCanImpersonate($user);
+        if ($request->getAttribute('impersonation_session') !== null) {
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        }
+
+        try {
+            $this->permissions->assertCanImpersonate($user);
+        } catch (AuthorizationException) {
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        }
+        if ($this->sessions->findActiveForActor($user->id) instanceof \TowerDNS\Domain\Account\AdminImpersonationSession) {
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.already-active')));
+        }
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
@@ -123,19 +144,28 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         if ($reason === '') {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.reason-required')));
         }
+        if ($effectiveUserId === null) {
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.user-not-available')));
+        }
         if ($effectiveUserId === $user->id) {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.self-not-allowed')));
         }
-        if ($effectiveUserId !== null && !($target = $this->users->findById($effectiveUserId)) instanceof User) {
+        if (!($target = $this->users->findById($effectiveUserId)) instanceof User) {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.user-not-available')));
         }
         if ($effectiveAccountId !== null && (!($account = $this->accounts->findById($effectiveAccountId)) instanceof \TowerDNS\Domain\Account\Account || !$account->isActive)) {
+            return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.account-not-available')));
+        }
+        if ($effectiveAccountId !== null && !$this->accounts->getEffectiveRole($effectiveAccountId, $target->id) instanceof TeamRole) {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.account-not-available')));
         }
 
         $now       = new \DateTimeImmutable();
         $expiresAt = $now->modify('+' . self::SESSION_TTL_SECONDS . ' seconds');
         $sessionId = bin2hex(random_bytes(16));
+        /** @var \Mezzio\Session\SessionInterface $session */
+        $session = $request->getAttribute(\Mezzio\Session\SessionInterface::class);
+        $session = $session->regenerate();
 
         try {
             $this->sessions->create(
@@ -157,12 +187,16 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
                 $reason,
             );
         } catch (\Throwable) {
+            try {
+                $this->sessions->end($sessionId, new \DateTimeImmutable()->format('Y-m-d H:i:s'));
+            } catch (\Throwable) {
+                // Keep the outward error generic; an orphaned row expires
+                // after the bounded switch TTL if cleanup also fails.
+            }
             return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.start-failed')));
         }
 
-        // Store session ID in PHP session
-        /** @var \Mezzio\Session\SessionInterface $session */
-        $session = $request->getAttribute(\Mezzio\Session\SessionInterface::class);
+        // Store the session ID only after the session row and audit event exist.
         $session->set(self::SESSION_KEY, $sessionId);
 
         return new RedirectResponse('/admin/switch');
@@ -175,8 +209,6 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         /** @var User $user */
         $user = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
 
-        $this->permissions->assertCanImpersonate($user);
-
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         /** @var array<string, string> $body */
@@ -187,20 +219,23 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
             return new HtmlResponse($this->translator->translate('admin-switch.error.invalid-request'), 400);
         }
 
-        $activeSession = $this->sessions->findActiveForActor($user->id);
+        $activeSession = $request->getAttribute('impersonation_session');
 
-        if (!$activeSession instanceof \TowerDNS\Domain\Account\AdminImpersonationSession) {
+        /** @var \Mezzio\Session\SessionInterface $session */
+        $session = $request->getAttribute(\Mezzio\Session\SessionInterface::class);
+        if (!$activeSession instanceof \TowerDNS\Domain\Account\AdminImpersonationSession
+            || $activeSession->actorUserId      !== $user->id
+            || $session->get(self::SESSION_KEY) !== $activeSession->id) {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.no-active-session')));
         }
 
         $now = new \DateTimeImmutable();
         $this->sessions->end($activeSession->id, $now->format('Y-m-d H:i:s'));
-        $this->audit->recordAdminSwitchEnd($request, $user->id, $activeSession->id);
+        $this->audit->recordAdminSwitchEnd($request, $user->id, $activeSession->id, $activeSession->effectiveUserId);
 
         // Remove from PHP session
-        /** @var \Mezzio\Session\SessionInterface $session */
-        $session = $request->getAttribute(\Mezzio\Session\SessionInterface::class);
         $session->unset(self::SESSION_KEY);
+        $session->regenerate();
 
         return new RedirectResponse('/admin/switch');
     }

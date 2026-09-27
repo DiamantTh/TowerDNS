@@ -21,6 +21,7 @@ use TowerDNS\Application\Exception\ZoneMembershipException;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ZoneMembershipManagementService;
+use TowerDNS\Domain\Account\AdminImpersonationSession;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
@@ -183,6 +184,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         int $managedZoneId,
     ): \TowerDNS\Application\DTO\AuditContext {
         $actor   = $request->getAttribute('actor_user');
+        $switch  = $request->getAttribute('impersonation_session');
         $actorId = $actor instanceof User ? $actor->id : $effectiveUser->id;
 
         return AuditLogService::fromHttpRequest(
@@ -191,6 +193,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
             $effectiveUser->id,
             $accountId,
             (string) $managedZoneId,
+            impersonationSessionId: $switch instanceof AdminImpersonationSession ? $switch->id : null,
         );
     }
 }

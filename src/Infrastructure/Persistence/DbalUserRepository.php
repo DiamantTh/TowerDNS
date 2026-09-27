@@ -298,6 +298,23 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return (int) $this->connection->fetchOne('SELECT COUNT(*) FROM users u JOIN user_roles ur ON ur.user_id = u.id WHERE u.active = TRUE AND ur.role_id = ?', [$roleId]);
     }
 
+    public function lockSuperadminRoleForMutation(): void
+    {
+        // Use the seeded role row as a cross-database serialization point for
+        // all IAM operations which can alter superadmin assignments/status.
+        // SQLite has no SELECT .. FOR UPDATE; a no-op write acquires its
+        // database write lock while the surrounding transaction is active.
+        if ($this->connection->getDatabasePlatform()->getName() === 'sqlite') {
+            $this->connection->executeStatement("UPDATE roles SET name = name WHERE id = 'superadmin'");
+        } else {
+            $this->connection->fetchOne("SELECT id FROM roles WHERE id = 'superadmin' FOR UPDATE");
+        }
+
+        if ($this->connection->fetchOne("SELECT id FROM roles WHERE id = 'superadmin'") === false) {
+            throw new \LogicException('Built-in superadmin role is missing; IAM mutation was not performed.');
+        }
+    }
+
     public function invalidateApiKeys(string $userId): int
     {
         return (int) $this->connection->executeStatement(

@@ -17,6 +17,7 @@ use Laminas\I18n\Translator\Translator;
 use Laminas\I18n\Translator\TranslatorInterface;
 use Laminas\Stratigility\Middleware\ErrorHandler;
 use Laminas\Stratigility\MiddlewarePipe;
+use Mezzio\Authentication\AuthenticationInterface;
 use Mezzio\Container\ApplicationFactory;
 use Mezzio\Container\EmitterFactory;
 use Mezzio\Container\ErrorHandlerFactory;
@@ -325,6 +326,7 @@ final class ContainerFactory
             TotpSecretService::class        => \DI\autowire(),
             ThemeManager::class             => $themeManager,
             AuthenticationMiddleware::class => \DI\autowire(),
+            AuthenticationInterface::class  => \DI\autowire(\TowerDNS\Infrastructure\Http\TowerDNSSessionAuthentication::class),
             LocaleMiddleware::class         => \DI\factory(static fn(\Psr\Container\ContainerInterface $c): LocaleMiddleware => new LocaleMiddleware($c->get(TranslatorInterface::class), SupportedLocales::normalize((string) ($appConf['app']['locale'] ?? '')) ?? SupportedLocales::DEFAULT)),
             RequireAuthMiddleware::class    => \DI\autowire(),
             ClientIpMiddleware::class       => \DI\autowire(),

@@ -41,7 +41,32 @@ final readonly class AuthorizationService
      */
     public function isGranted(User $user, Permission|string $permission): bool
     {
+        if (!$user->active) {
+            return false;
+        }
         $id = $this->permissions->assertKnown($permission);
         return $this->rbac->isGrantedByAny($user->roles, $id, $this->permissions);
+    }
+
+    /** Only the shipped, built-in superadmin role has global operator authority. */
+    public function isBuiltInSuperadmin(User $user): bool
+    {
+        if (!$user->active) {
+            return false;
+        }
+        return array_any($user->roles, fn(\TowerDNS\Domain\Auth\Role $role): bool => $role->isBuiltInSuperadmin());
+    }
+
+    /** @return list<string> Effective currently registered permissions. */
+    public function grantedPermissionIds(User $user): array
+    {
+        $granted = [];
+        foreach ($this->permissions->ids() as $permissionId) {
+            if ($this->isGranted($user, $permissionId)) {
+                $granted[] = $permissionId;
+            }
+        }
+
+        return $granted;
     }
 }

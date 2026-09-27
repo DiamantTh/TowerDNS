@@ -16,6 +16,7 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\DTO\AuditContext;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
@@ -53,21 +54,29 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         /** @var CsrfGuardInterface $guard */
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
+        /** @var array<string, mixed> $body */
+        $body   = (array) ($request->getParsedBody() ?? []);
+        $action = (string) ($body['action'] ?? 'roles');
 
         try {
             $this->authz->assert($currentUser, Permission::USER_MANAGE);
         } catch (AuthorizationException) {
-            return new HtmlResponse(
-                $this->renderer->render('app::iam/user_edit', [
-                    'currentUser' => $currentUser,
-                    'target'      => null,
-                    'allRoles'    => [],
-                    'csrfToken'   => $csrfToken,
-                    'error'       => $this->translator->translate('http.error.forbidden'),
-                    'success'     => null,
-                ]),
-                403,
-            );
+            // Valid, CSRF-protected role/status mutations must reach the IAM
+            // service so it can enforce and audit the denial at the application
+            // boundary. Other user-management actions remain blocked here.
+            if ($request->getMethod() !== 'POST' || !in_array($action, ['roles', 'status'], true)) {
+                return new HtmlResponse(
+                    $this->renderer->render('app::iam/user_edit', [
+                        'currentUser' => $currentUser,
+                        'target'      => null,
+                        'allRoles'    => [],
+                        'csrfToken'   => $csrfToken,
+                        'error'       => $this->translator->translate('http.error.forbidden'),
+                        'success'     => null,
+                    ]),
+                    403,
+                );
+            }
         }
 
         $target = $this->users->findByIdForAdministration($targetId);
@@ -104,16 +113,12 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         }
 
         // POST — sync roles / update display name
-        /** @var array<string, mixed> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
         $raw   = $body['csrf_token'] ?? '';
         $token = is_array($raw) ? (string) ($raw[0] ?? '') : (string) $raw;
 
         if (!$guard->validateToken($token)) {
             return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
         }
-
-        $action = (string) ($body['action'] ?? 'roles');
 
         // ── Anzeigename ────────────────────────────────────────────────────
         if ($action === 'display_name') {
@@ -127,13 +132,11 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         }
 
         if ($action === 'status') {
-            if ($targetId === $currentUser->id && (string) ($body['active'] ?? '') !== '1') {
-                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.self-deactivate')));
-            }
             try {
                 $active = (string) ($body['active'] ?? '') === '1';
-                $this->users->setActive($targetId, $active);
-                $this->audit->record($request, 'user.status.changed', 'user', $targetId, actorUserId: $currentUser->id, after: ['active' => $active]);
+                $this->iam->setUserActive($currentUser, $targetId, $active, $this->auditContext($request, $currentUser));
+            } catch (AuthorizationException) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
             } catch (\Throwable) {
                 return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.save-failed')));
             }
@@ -142,6 +145,9 @@ final readonly class UserEditHandler implements RequestHandlerInterface
 
         // ── Passwort zurücksetzen ─────────────────────────────────────────
         if ($action === 'reset_password') {
+            if ($request->getAttribute('impersonation_session') !== null) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
+            }
             $newPassword = (string) ($body['new_password'] ?? '');
             $keepKeys    = isset($body['keep_api_keys']);
 
@@ -172,8 +178,31 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         }
 
         try {
-            $this->iam->assertCanSyncRoles($targetId, $selectedRoles);
-            $this->users->syncRoles($targetId, $selectedRoles);
+            $this->iam->syncRoles($currentUser, $targetId, $selectedRoles, $this->auditContext($request, $currentUser));
+        } catch (AuthorizationException) {
+            return new HtmlResponse(
+                $this->renderer->render('app::iam/user_edit', [
+                    'currentUser' => $currentUser,
+                    'target'      => $target,
+                    'allRoles'    => $allRoles,
+                    'csrfToken'   => $guard->generateToken(),
+                    'error'       => $this->translator->translate('http.error.forbidden'),
+                    'success'     => null,
+                ]),
+                403,
+            );
+        } catch (\DomainException) {
+            return new HtmlResponse(
+                $this->renderer->render('app::iam/user_edit', [
+                    'currentUser' => $currentUser,
+                    'target'      => $target,
+                    'allRoles'    => $allRoles,
+                    'csrfToken'   => $guard->generateToken(),
+                    'error'       => $this->translator->translate('users.error.roles-save-failed'),
+                    'success'     => null,
+                ]),
+                409,
+            );
         } catch (\Throwable) {
             return new HtmlResponse(
                 $this->renderer->render('app::iam/user_edit', [
@@ -200,6 +229,18 @@ final readonly class UserEditHandler implements RequestHandlerInterface
                 'error'       => null,
                 'success'     => $this->translator->translate('users.success.roles-saved'),
             ]),
+        );
+    }
+
+    private function auditContext(ServerRequestInterface $request, User $effectiveUser): AuditContext
+    {
+        $original = $request->getAttribute('actor_user');
+        $switch   = $request->getAttribute('impersonation_session');
+        return AuditLogService::fromHttpRequest(
+            $request,
+            $original instanceof User ? $original->id : $effectiveUser->id,
+            $effectiveUser->id,
+            impersonationSessionId: $switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession ? $switch->id : null,
         );
     }
 }

@@ -14,6 +14,8 @@ use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\PermissionService;
 use TowerDNS\Application\Services\RbacPermissionChecker;
+use TowerDNS\Domain\Account\Account;
+use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Account\ZoneMembership;
 use TowerDNS\Domain\Auth\Permission;
@@ -105,7 +107,7 @@ final class PermissionServiceTest extends TestCase
         self::assertFalse($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
     }
 
-    public function testExplicitSystemAccountAccessGrantsGlobalAccountAndZoneAccess(): void
+    public function testExplicitSystemAccountAccessIsReadOnlyAndBoundToExistingResources(): void
     {
         $service = $this->serviceFor();
         $user    = new User('operator-1', 'operator@example.test', [
@@ -113,25 +115,37 @@ final class PermissionServiceTest extends TestCase
         ]);
 
         self::assertTrue($service->authorizeAccount($user, Permission::ACCOUNT_READ, 42));
-        self::assertTrue($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
+        self::assertTrue($service->authorizeManagedZone($user, Permission::RECORD_READ, 42, 1));
+        self::assertFalse($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 1));
         self::assertFalse($service->authorizeManagedZone($user, Permission::RECORD_UPDATE, 42, 999));
     }
 
-    public function testImpersonationRequiresItsOwnSystemPermission(): void
+    public function testOnlyTheBuiltInSuperadminCanImpersonate(): void
     {
         $service = $this->serviceFor();
 
         self::assertFalse($service->canImpersonate(new User('iam-1', 'iam@example.test', [
             new Role('iam', 'IAM administrator', [Permission::USER_MANAGE]),
         ])));
-        self::assertTrue($service->canImpersonate(new User('operator-1', 'operator@example.test', [
+        self::assertFalse($service->canImpersonate(new User('operator-1', 'operator@example.test', [
             new Role('operator', 'System operator', [Permission::SYSTEM_IMPERSONATION_EXECUTE]),
+        ])));
+        self::assertFalse($service->canImpersonate(new User('fake-su', 'fake@example.test', [
+            new Role('superadmin', 'Untrusted custom role', [Permission::SYSTEM_IMPERSONATION_EXECUTE]),
+        ])));
+        self::assertTrue($service->canImpersonate(new User('root-1', 'root@example.test', [
+            new Role('superadmin', 'Superadmin', [], isBuiltIn: true),
         ])));
     }
 
     private function serviceFor(?TeamRole $accountRole = null, ?ZoneMembership $zoneMembership = null): PermissionService
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->willReturnCallback(
+            static fn(int $accountId): ?Account => in_array($accountId, [42, 43], true)
+                ? new Account($accountId, 'Test', 'test-' . $accountId, 'user-1', true, '2026-09-13 12:00:00', AccountKind::ORGANIZATION)
+                : null,
+        );
         $accounts->method('getEffectiveRole')->willReturnCallback(
             static fn(int $accountId, string $userId): ?TeamRole => $accountId === 42 && $userId === 'user-1'
                 ? $accountRole

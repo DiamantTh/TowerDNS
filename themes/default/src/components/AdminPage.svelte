@@ -76,7 +76,7 @@
                 <input type="hidden" name="action" value="display_name">
                 <button class="button is-primary">{t('common.save')}</button>
             {:else if page === 'admin/switch'}
-                <Field label={t('field.target-user-id')}><input class="input" name="effective_user_id" /></Field>
+                <Field label={t('field.target-user-id')}><input class="input" name="effective_user_id" required /></Field>
                 <Field label={t('field.reason')}><input class="input" name="reason" /></Field>
                 <button class="button is-danger">{t('common.switch')}</button>
             {/if}

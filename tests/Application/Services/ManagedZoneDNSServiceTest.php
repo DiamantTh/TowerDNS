@@ -58,6 +58,7 @@ final class ManagedZoneDNSServiceTest extends TestCase
         $factory->method('buildProvider')->with(self::isInstanceOf(ProviderAccount::class))->willReturn($provider);
 
         $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Example', 'example', 'user', true, '2026-09-17 00:00:00'));
         $accounts->method('getEffectiveRole')->with(42, 'user')->willReturn(TeamRole::DNS_MANAGER);
         $permissions = new PermissionService(
             $accounts,
@@ -113,7 +114,7 @@ final class ManagedZoneDNSServiceTest extends TestCase
         $permissions = new PermissionService($accounts, $this->createMock(ZoneMembershipRepositoryInterface::class), new AuthorizationService(new RbacPermissionChecker()), new RbacPermissionChecker(), $zones);
         $service     = new ManagedZoneDNSService($permissions, $accounts, $zones, $providerAccounts, $factory);
 
-        $this->expectException(\DomainException::class);
+        $this->expectException(\TowerDNS\Application\Exception\AuthorizationException::class);
         $service->create(new User('user', 'user@example.test'), 42, 9, 'example.test');
     }
 

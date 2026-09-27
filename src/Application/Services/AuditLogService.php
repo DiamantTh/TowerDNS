@@ -45,6 +45,21 @@ final readonly class AuditLogService
         ?array                 $after = null,
         ?array                 $metadata = null,
     ): void {
+        $original  = $request->getAttribute('actor_user');
+        $effective = $request->getAttribute(\TowerDNS\Domain\Auth\User::class);
+        $switch    = $request->getAttribute('impersonation_session');
+        if ($original instanceof \TowerDNS\Domain\Auth\User
+            && $effective instanceof \TowerDNS\Domain\Auth\User
+            && $original->id !== $effective->id) {
+            if ($actorUserId === null || $actorUserId === $effective->id) {
+                $actorUserId = $original->id;
+            }
+            $effectiveUserId ??= $effective->id;
+            if ($impersonationSessionId === null && $switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession) {
+                $impersonationSessionId = $switch->id;
+            }
+        }
+
         $this->recordWithContext(
             self::fromHttpRequest(
                 $request,
@@ -200,9 +215,9 @@ final readonly class AuditLogService
         $this->record($request, 'admin.switch.start', 'impersonation_session', $sessionId, $actorId, $effectiveAccountId, null, null, $sessionId, $effectiveUserId, null, null, ['reason' => $reason]);
     }
 
-    public function recordAdminSwitchEnd(ServerRequestInterface $request, string $actorId, string $sessionId): void
+    public function recordAdminSwitchEnd(ServerRequestInterface $request, string $actorId, string $sessionId, ?string $effectiveUserId = null): void
     {
-        $this->record($request, 'admin.switch.end', 'impersonation_session', $sessionId, $actorId, null, null, null, $sessionId);
+        $this->record($request, 'admin.switch.end', 'impersonation_session', $sessionId, $actorId, null, null, null, $sessionId, $effectiveUserId);
     }
 
     public function recordMemberInvited(ServerRequestInterface $request, string $actorId, int $accountId, string $targetUserId, string $role): void

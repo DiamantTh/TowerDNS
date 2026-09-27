@@ -4,26 +4,241 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Services;
 
+use TowerDNS\Application\Contracts\TransactionRunnerInterface;
+use TowerDNS\Application\DTO\AuditContext;
+use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Domain\Auth\Permission;
+use TowerDNS\Domain\Auth\PermissionRegistry;
+use TowerDNS\Domain\Auth\Role;
+use TowerDNS\Domain\Auth\User;
 
 final readonly class IamAdministrationService
 {
-    public function __construct(private UserRepositoryInterface $users) {}
+    public function __construct(
+        private UserRepositoryInterface $users,
+        private RoleRepositoryInterface $roles,
+        private AuthorizationService $authorization,
+        private PermissionRegistry $permissions,
+        private TransactionRunnerInterface $transactions,
+        private AuditLogService $audit,
+        private UserLifecycleService $lifecycle,
+    ) {}
 
-    public function assertCanDelete(string $userId): void
+    /** @param list<string> $roleIds */
+    public function syncRoles(User $effectiveActor, string $userId, array $roleIds, AuditContext $context): void
     {
-        $user = $this->users->findById($userId);
-        if ($user instanceof \TowerDNS\Domain\Auth\User && in_array('superadmin', array_map(static fn(\TowerDNS\Domain\Auth\Role $role): string => $role->id, $user->roles), true) && $this->users->countActiveUsersWithRole('superadmin') <= 1) {
-            throw new \DomainException('The last active superadmin cannot be deleted.');
+        $roleIds = array_values(array_unique($roleIds));
+        $this->guardAndAuditDenial($context, 'iam.user.roles.denied', 'user', $userId, ['requested_role_ids' => $roleIds], function () use ($effectiveActor, $userId, $roleIds, $context): void {
+            $this->transactions->run(function () use ($effectiveActor, $userId, $roleIds, $context): void {
+                $this->users->lockSuperadminRoleForMutation();
+                $actor = $this->requireActiveActor($effectiveActor->id);
+                $this->authorization->assert($actor, Permission::USER_MANAGE);
+                $this->authorization->assert($actor, Permission::ROLE_MANAGE);
+                $target = $this->users->findByIdForAdministration($userId);
+                if (!$target instanceof User) {
+                    throw new \DomainException('Target user does not exist.');
+                }
+
+                $this->assertTargetWithinActorAuthority($actor, $target);
+                $before   = $this->roleIds($target);
+                $assigned = $this->loadRequestedRoles($roleIds);
+                $after    = array_values(array_map(static fn(Role $role): string => $role->id, $assigned));
+                if (in_array('superadmin', $after, true) && !$this->authorization->isBuiltInSuperadmin($actor)) {
+                    throw new AuthorizationException('Only the built-in superadmin may assign the superadmin role.');
+                }
+                $this->assertPermissionsDelegable($actor, array_values($assigned));
+                $this->assertLastSuperadminRetained($target, $after);
+
+                $this->users->syncRoles($userId, $after);
+                $this->audit->recordWithContext($context, 'iam.user.roles.changed', 'user', $userId, ['role_ids' => $before], ['role_ids' => $after]);
+            });
+        });
+    }
+
+    public function saveRole(User $effectiveActor, Role $role, AuditContext $context): void
+    {
+        $this->guardAndAuditDenial($context, 'iam.role.change.denied', 'role', $role->id, ['requested_permission_ids' => $role->getPermissionIds()], function () use ($effectiveActor, $role, $context): void {
+            $this->transactions->run(function () use ($effectiveActor, $role, $context): void {
+                $this->users->lockSuperadminRoleForMutation();
+                $actor = $this->requireActiveActor($effectiveActor->id);
+                $this->authorization->assert($actor, Permission::ROLE_MANAGE);
+                $beforeRole = $this->roles->findById($role->id);
+                if ($beforeRole?->isBuiltIn || $role->isBuiltIn) {
+                    throw new AuthorizationException('Built-in roles are immutable.');
+                }
+                $this->assertPermissionsDelegable($actor, [$role]);
+                $this->roles->save($role);
+                $this->audit->recordWithContext(
+                    $context,
+                    $beforeRole instanceof Role ? 'iam.role.updated' : 'iam.role.created',
+                    'role',
+                    $role->id,
+                    $beforeRole instanceof Role ? ['name' => $beforeRole->name, 'permission_ids' => $beforeRole->getPermissionIds()] : null,
+                    ['name' => $role->name, 'permission_ids' => $role->getPermissionIds()],
+                );
+            });
+        });
+    }
+
+    public function deleteRole(User $effectiveActor, string $roleId, AuditContext $context): void
+    {
+        $this->guardAndAuditDenial($context, 'iam.role.delete.denied', 'role', $roleId, null, function () use ($effectiveActor, $roleId, $context): void {
+            $this->transactions->run(function () use ($effectiveActor, $roleId, $context): void {
+                $this->users->lockSuperadminRoleForMutation();
+                $actor = $this->requireActiveActor($effectiveActor->id);
+                $this->authorization->assert($actor, Permission::ROLE_MANAGE);
+                $role = $this->roles->findById($roleId);
+                if (!$role instanceof Role) {
+                    return;
+                }
+                if ($role->isBuiltIn) {
+                    throw new AuthorizationException('Built-in roles are immutable.');
+                }
+                $this->assertPermissionsDelegable($actor, [$role]);
+                $this->roles->delete($roleId);
+                $this->audit->recordWithContext($context, 'iam.role.deleted', 'role', $roleId, ['name' => $role->name, 'permission_ids' => $role->getPermissionIds()]);
+            });
+        });
+    }
+
+    public function setUserActive(User $effectiveActor, string $userId, bool $active, AuditContext $context): void
+    {
+        $this->guardAndAuditDenial($context, 'iam.user.status.denied', 'user', $userId, ['active' => $active], function () use ($effectiveActor, $userId, $active, $context): void {
+            $this->transactions->run(function () use ($effectiveActor, $userId, $active, $context): void {
+                $this->users->lockSuperadminRoleForMutation();
+                $actor = $this->requireActiveActor($effectiveActor->id);
+                $this->authorization->assert($actor, Permission::USER_MANAGE);
+                $target = $this->users->findByIdForAdministration($userId);
+                if (!$target instanceof User) {
+                    throw new \DomainException('Target user does not exist.');
+                }
+                if (!$active && $target->id === $actor->id) {
+                    throw new AuthorizationException('An actor cannot deactivate their own account.');
+                }
+                $this->assertTargetWithinActorAuthority($actor, $target);
+                if (!$active && $target->active && $this->hasBuiltInSuperadmin($target) && $this->users->countActiveUsersWithRole('superadmin') <= 1) {
+                    throw new \DomainException('The last active superadmin cannot be deactivated.');
+                }
+                $this->users->setActive($userId, $active);
+                $this->audit->recordWithContext($context, 'iam.user.status.changed', 'user', $userId, ['active' => $target->active], ['active' => $active]);
+            });
+        });
+    }
+
+    public function deleteUser(User $effectiveActor, string $userId, AuditContext $context): User
+    {
+        return $this->guardAndAuditDenial($context, 'iam.user.delete.denied', 'user', $userId, null, fn(): User => $this->transactions->run(function () use ($effectiveActor, $userId, $context): User {
+            $this->users->lockSuperadminRoleForMutation();
+            $actor = $this->requireActiveActor($effectiveActor->id);
+            $this->authorization->assert($actor, Permission::USER_MANAGE);
+            $target = $this->users->findByIdForAdministration($userId);
+            if (!$target instanceof User) {
+                throw new \DomainException('Target user does not exist.');
+            }
+            if ($target->id === $actor->id) {
+                throw new AuthorizationException('An actor cannot delete their own account.');
+            }
+            $this->assertTargetWithinActorAuthority($actor, $target);
+            if ($target->active && $this->hasBuiltInSuperadmin($target) && $this->users->countActiveUsersWithRole('superadmin') <= 1) {
+                throw new \DomainException('The last active superadmin cannot be deleted.');
+            }
+            $this->lifecycle->delete($userId);
+            $this->audit->recordWithContext($context, 'iam.user.deleted', 'user', $userId, ['role_ids' => $this->roleIds($target), 'active' => $target->active]);
+            return $target;
+        }));
+    }
+
+    private function requireActiveActor(string $actorId): User
+    {
+        return $this->users->findById($actorId) ?? throw new AuthorizationException('The effective actor is no longer active.');
+    }
+
+    /**
+     * @param list<string> $roleIds
+     * @return list<Role>
+     */
+    private function loadRequestedRoles(array $roleIds): array
+    {
+        foreach ($roleIds as $roleId) {
+            if ($roleId === '' || strlen($roleId) > 128) {
+                throw new AuthorizationException('Invalid role assignment.');
+            }
+        }
+        $roles = $this->roles->findByIds($roleIds);
+        $found = array_map(static fn(Role $role): string => $role->id, $roles);
+        sort($found);
+        $expected = $roleIds;
+        sort($expected);
+        if ($found !== $expected) {
+            throw new AuthorizationException('Unknown role assignment.');
+        }
+        return $roles;
+    }
+
+    /** @param list<Role> $roles */
+    private function assertPermissionsDelegable(User $actor, array $roles): void
+    {
+        if ($this->authorization->isBuiltInSuperadmin($actor)) {
+            return;
+        }
+        $granted   = array_fill_keys($this->authorization->grantedPermissionIds($actor), true);
+        $requested = [];
+        foreach ($roles as $role) {
+            $requested = [...$requested, ...($role->isBuiltInSuperadmin() ? $this->permissions->ids() : $role->getPermissionIds())];
+        }
+        foreach (array_unique($requested) as $permissionId) {
+            if (!$this->permissions->has($permissionId) || !isset($granted[$permissionId])) {
+                throw new AuthorizationException('The actor cannot delegate permissions they do not hold.');
+            }
         }
     }
 
-    /** @param list<string> $roleIds */
-    public function assertCanSyncRoles(string $userId, array $roleIds): void
+    private function assertTargetWithinActorAuthority(User $actor, User $target): void
     {
-        $user = $this->users->findById($userId);
-        if ($user instanceof \TowerDNS\Domain\Auth\User && in_array('superadmin', array_map(static fn(\TowerDNS\Domain\Auth\Role $role): string => $role->id, $user->roles), true) && !in_array('superadmin', $roleIds, true) && $this->users->countActiveUsersWithRole('superadmin') <= 1) {
+        if ($this->authorization->isBuiltInSuperadmin($actor)) {
+            return;
+        }
+        if ($this->hasBuiltInSuperadmin($target)) {
+            throw new AuthorizationException('Only the built-in superadmin may change another superadmin account.');
+        }
+        $this->assertPermissionsDelegable($actor, $target->roles);
+    }
+
+    /** @param list<string> $newRoleIds */
+    private function assertLastSuperadminRetained(User $target, array $newRoleIds): void
+    {
+        if ($target->active && $this->hasBuiltInSuperadmin($target) && !in_array('superadmin', $newRoleIds, true)
+                            && $this->users->countActiveUsersWithRole('superadmin') <= 1) {
             throw new \DomainException('The last active superadmin must retain the superadmin role.');
+        }
+    }
+
+    private function hasBuiltInSuperadmin(User $user): bool
+    {
+        return $this->authorization->isBuiltInSuperadmin($user);
+    }
+
+    /** @return list<string> */
+    private function roleIds(User $user): array
+    {
+        $ids = array_map(static fn(Role $role): string => $role->id, $user->roles);
+        sort($ids);
+        return $ids;
+    }
+
+    /** @param array<string, mixed>|null $attempt @param callable(): mixed $operation */
+    private function guardAndAuditDenial(AuditContext $context, string $action, string $targetType, string $targetId, ?array $attempt, callable $operation): mixed
+    {
+        try {
+            return $operation();
+        } catch (AuthorizationException|\DomainException $error) {
+            $this->audit->recordWithContext($context, $action, $targetType, $targetId, null, null, [
+                'reason'  => $error instanceof AuthorizationException ? 'forbidden' : 'invariant',
+                'attempt' => $attempt,
+            ]);
+            throw $error;
         }
     }
 }

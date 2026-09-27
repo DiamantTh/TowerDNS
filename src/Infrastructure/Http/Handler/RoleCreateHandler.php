@@ -15,10 +15,10 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Symfony\Component\Uid\Uuid;
+use TowerDNS\Application\DTO\AuditContext;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Repository\RoleRepositoryInterface;
-use TowerDNS\Application\Services\AuthorizationService;
-use TowerDNS\Domain\Auth\Permission;
+use TowerDNS\Application\Services\AuditLogService;
+use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
@@ -29,9 +29,8 @@ use TowerDNS\Domain\Auth\User;
 final readonly class RoleCreateHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private RoleRepositoryInterface $roles,
-        private AuthorizationService    $authz,
         private PermissionRegistry      $permissions,
+        private IamAdministrationService $iam,
         private TranslatorInterface     $translator,
     ) {}
 
@@ -51,12 +50,6 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
 
         if (!$guard->validateToken($token)) {
             return new RedirectResponse('/roles?error=' . rawurlencode($this->t('roles.error.invalid-csrf')));
-        }
-
-        try {
-            $this->authz->assert($currentUser, Permission::ROLE_MANAGE);
-        } catch (AuthorizationException) {
-            return new RedirectResponse('/roles?error=' . rawurlencode($this->t('http.error.forbidden')));
         }
 
         $name = trim(is_string($body['name'] ?? null) ? $body['name'] : '');
@@ -83,7 +76,13 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
             permissions: $permissions,
         );
 
-        $this->roles->save($role);
+        try {
+            $this->iam->saveRole($currentUser, $role, $this->auditContext($request, $currentUser));
+        } catch (AuthorizationException) {
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->t('http.error.forbidden')));
+        } catch (\Throwable) {
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->t('roles.error.save-failed')));
+        }
 
         return new RedirectResponse('/roles?success=' . rawurlencode($this->t('roles.success.created', ['name' => $name])));
     }
@@ -97,5 +96,17 @@ final readonly class RoleCreateHandler implements RequestHandlerInterface
         }
 
         return strtr($this->translator->translate($key), $replacements);
+    }
+
+    private function auditContext(ServerRequestInterface $request, User $effectiveUser): AuditContext
+    {
+        $original = $request->getAttribute('actor_user');
+        $switch   = $request->getAttribute('impersonation_session');
+        return AuditLogService::fromHttpRequest(
+            $request,
+            $original instanceof User ? $original->id : $effectiveUser->id,
+            $effectiveUser->id,
+            impersonationSessionId: $switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession ? $switch->id : null,
+        );
     }
 }

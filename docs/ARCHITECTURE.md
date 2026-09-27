@@ -34,9 +34,13 @@ Beispiele: Zonen- und Record-CRUD, Record-Kommentare, DNSSEC-Status und -Aktione
 
 DNSSEC-Status ist Teil des Domain-Modells. Sichtbare manuelle Aktionen werden aus der tatsächlichen Capability abgeleitet; der konkrete Status- und Aktionsumfang ist in der [Provider-Matrix](PROVIDER_CAPABILITIES.md#dnssec) dokumentiert.
 
-## Rechtepruefung
+## Authentifizierung und Rechtepruefung
 
-Rechte werden zentral in der Application-Schicht (`AuthorizationService`) anhand von `Permission`-Werten geprueft. Jeder oeffentliche Service-Aufruf beginnt mit einer `assert(...)`-Pruefung, bevor Provider oder Domain-Logik beruehrt werden.
+Die Webidentität wird aus der Mezzio-Session durch `TowerDNSSessionAuthentication` ermittelt. Der Adapter implementiert `Mezzio\Authentication\AuthenticationInterface`, delegiert Session-Laufzeit/MFA-Pending an `SessionSecurity` und lädt den aktiven Benutzer einschließlich seiner aktuellen Rollen aus dem Repository. `AuthenticationMiddleware` stellt diesen kanonischen Domain-User zusätzlich als `Mezzio\Authentication\UserInterface` bereit. Im Admin-Switch werden beide Identitätsdarstellungen auf den effektiven Zielbenutzer ausgerichtet; `RequireAuthMiddleware` weist inkonsistente oder fehlende Identitäten zurück.
+
+`AuthorizationService` prüft globale System-Permissions über das vorhandene Laminas-RBAC-Verhalten. `PermissionService` ergänzt Account- und ManagedZone-Scope aus aktiven Accounts und tatsächlichen Memberships. Eine systemweite Account-Sichtbarkeit (`SYSTEM_ACCOUNTS_ACCESS`) gewährt nur ausdrücklich erlaubte Leseoperationen; sie ist kein Schreib-Bypass. `ActiveAccount` ist lediglich Kontext. Die DNS-Application-Services prüfen darüber hinaus Account-/Zonen-Zuordnung und die Capabilities des gewählten ProviderAdapters.
+
+IAM-Mutationen laufen über `IamAdministrationService`: Actor und Ziele werden erneut aus der Datenbank geladen, globale Rollenzuweisungen verlangen `USER_MANAGE` plus `ROLE_MANAGE` und delegierbare Rechte, Built-in-Superadmin-Verwaltung ist auf den echten Built-in-Operator begrenzt. Status-/Rollen-/Löschoperationen schützen den letzten aktiven Superadmin und werden transaktional serialisiert sowie auditiert. Weitere Details und Grenzen stehen in [RBAC.md](RBAC.md).
 
 ## Benutzer, Profil und Accounts
 
@@ -59,7 +63,7 @@ Neuen Provider hinzufuegen:
 
 ### Authentifizierung
 
-- **Passwort** mit bcrypt (`password_hash`), Policy-gesteuert via `PasswordPolicy` (Mindestlaenge, zxcvbn-Score).
+- **Passwort** aktuell mit Argon2id (`password_hash`), Policy-gesteuert via `PasswordPolicy` (Mindestlaenge, zxcvbn-Score). Vorhandene Legacy-Hashes werden beim erfolgreichen Login geprüft und auf Argon2id re-gehasht.
 - **TOTP** (`TotpService`): SHA-512, 8 Stellen, 64-Byte-Secret, Aegis/FreeOTP+-kompatibel. Google Authenticator ist wegen SHA-1-Beschraenkung inkompatibel.
 - **FIDO2/WebAuthn** (`WebAuthnService`): Resident-Key-Support, ES256/RS256, challenge-basierte Login-Ceremony.
 

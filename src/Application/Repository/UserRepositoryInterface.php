@@ -106,6 +106,13 @@ interface UserRepositoryInterface
     public function countActiveUsersWithRole(string $roleId): int;
 
     /**
+     * Serializes IAM mutations on the built-in superadmin role row.
+     * Must be called inside a transaction before counting/removing the last
+     * active superadmin or changing privileged role assignments.
+     */
+    public function lockSuperadminRoleForMutation(): void;
+
+    /**
      * Deactivates all API keys belonging to the given user.
      *
      * Returns the number of deactivated keys.

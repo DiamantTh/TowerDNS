@@ -15,9 +15,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
-use TowerDNS\Application\Repository\RoleRepositoryInterface;
-use TowerDNS\Application\Services\AuthorizationService;
-use TowerDNS\Domain\Auth\Permission;
+use TowerDNS\Application\Services\AuditLogService;
+use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Domain\Auth\User;
 
 /**
@@ -29,8 +28,7 @@ use TowerDNS\Domain\Auth\User;
 final readonly class RoleDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(
-        private RoleRepositoryInterface $roles,
-        private AuthorizationService    $authz,
+        private IamAdministrationService $iam,
         private TranslatorInterface     $translator,
     ) {}
 
@@ -52,18 +50,24 @@ final readonly class RoleDeleteHandler implements RequestHandlerInterface
             return new RedirectResponse('/roles?error=' . rawurlencode($this->translator->translate('roles.error.invalid-csrf')));
         }
 
+        $roleId   = (string) $request->getAttribute('id', '');
+        $original = $request->getAttribute('actor_user');
+        $switch   = $request->getAttribute('impersonation_session');
+        $context  = AuditLogService::fromHttpRequest(
+            $request,
+            $original instanceof User ? $original->id : $currentUser->id,
+            $currentUser->id,
+            impersonationSessionId: $switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession ? $switch->id : null,
+        );
+
         try {
-            $this->authz->assert($currentUser, Permission::ROLE_MANAGE);
+            $this->iam->deleteRole($currentUser, $roleId, $context);
         } catch (AuthorizationException) {
             return new RedirectResponse('/roles?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
-        }
-
-        $roleId = (string) $request->getAttribute('id', '');
-
-        try {
-            $this->roles->delete($roleId);
         } catch (\DomainException) {
             return new RedirectResponse('/roles?error=' . rawurlencode($this->translator->translate('roles.error.built-in-read-only')));
+        } catch (\Throwable) {
+            return new RedirectResponse('/roles?error=' . rawurlencode($this->translator->translate('roles.error.save-failed')));
         }
 
         return new RedirectResponse('/roles?success=' . rawurlencode($this->translator->translate('roles.success.deleted')));

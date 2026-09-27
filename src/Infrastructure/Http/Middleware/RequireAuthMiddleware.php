@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Middleware;
 
 use Laminas\Diactoros\Response\RedirectResponse;
+use Mezzio\Authentication\UserInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -37,9 +38,10 @@ final readonly class RequireAuthMiddleware implements MiddlewareInterface
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $user = $request->getAttribute(User::class);
+        $user     = $request->getAttribute(User::class);
+        $identity = $request->getAttribute(UserInterface::class);
 
-        if (!$user instanceof User) {
+        if (!$user instanceof User || !$identity instanceof UserInterface || $identity->getIdentity() !== $user->id) {
             // JSON clients get a 401 instead of an HTML redirect.
             $accept = $request->getHeaderLine('Accept');
             if (str_contains($accept, 'application/json')) {

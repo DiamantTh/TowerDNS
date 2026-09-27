@@ -45,7 +45,23 @@ final readonly class PermissionService
 
     public function authorizeAccount(User $user, Permission $permission, int $accountId): bool
     {
-        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)) {
+        $account = $this->accounts->findById($accountId);
+        if (!$user->active || !$account instanceof \TowerDNS\Domain\Account\Account || !$account->isActive) {
+            return false;
+        }
+
+        if ($this->authorization->isBuiltInSuperadmin($user)) {
+            return true;
+        }
+
+        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)
+            && in_array($permission, [
+                Permission::ACCOUNT_READ,
+                Permission::ZONE_LIST,
+                Permission::ZONE_READ,
+                Permission::RECORD_READ,
+                Permission::DNSSEC_STATUS_READ,
+            ], true)) {
             return true;
         }
 
@@ -63,12 +79,25 @@ final readonly class PermissionService
     /** Authorize against TowerDNS's internal ManagedZone identity. */
     public function authorizeManagedZone(User $user, Permission $permission, int $accountId, int $managedZoneId): bool
     {
+        $account     = $this->accounts->findById($accountId);
         $managedZone = $this->managedZones?->findByIdForAccount($managedZoneId, $accountId);
-        if (!$managedZone instanceof \TowerDNS\Domain\Account\ManagedZone) {
+        if (!$user->active || !$account instanceof \TowerDNS\Domain\Account\Account || !$account->isActive
+                           || !$managedZone instanceof \TowerDNS\Domain\Account\ManagedZone) {
             return false;
         }
 
-        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)) {
+        if ($this->authorization->isBuiltInSuperadmin($user)) {
+            return true;
+        }
+
+        if ($this->authorization->isGranted($user, Permission::SYSTEM_ACCOUNTS_ACCESS)
+            && in_array($permission, [
+                Permission::ACCOUNT_READ,
+                Permission::ZONE_LIST,
+                Permission::ZONE_READ,
+                Permission::RECORD_READ,
+                Permission::DNSSEC_STATUS_READ,
+            ], true)) {
             return true;
         }
 
@@ -120,6 +149,27 @@ final readonly class PermissionService
         return $this->authorizeAccount($user, Permission::ACCOUNT_UPDATE, $accountId);
     }
 
+    /** Reactivation is the one management action that must remain possible for a disabled organization. */
+    public function canReactivateAccount(int $accountId, User $user): bool
+    {
+        $account = $this->accounts->findById($accountId);
+        if (!$user->active || !$account instanceof \TowerDNS\Domain\Account\Account) {
+            return false;
+        }
+        if ($this->authorization->isBuiltInSuperadmin($user)) {
+            return true;
+        }
+        $role = $this->accounts->getEffectiveRole($accountId, $user->id);
+        return $role instanceof TeamRole && $this->roleGrants($role, Permission::ACCOUNT_UPDATE);
+    }
+
+    public function assertCanReactivateAccount(int $accountId, User $user): void
+    {
+        if (!$this->canReactivateAccount($accountId, $user)) {
+            throw new AuthorizationException(sprintf('Kein Recht zum Reaktivieren von Account %d.', $accountId));
+        }
+    }
+
     public function canManageMembers(int $accountId, User $user): bool
     {
         return $this->authorizeAccount($user, Permission::ACCOUNT_MEMBERS_MANAGE, $accountId);
@@ -152,7 +202,7 @@ final readonly class PermissionService
 
     public function canImpersonate(User $actor): bool
     {
-        return $this->authorizeSystem($actor, Permission::SYSTEM_IMPERSONATION_EXECUTE);
+        return $actor->active && $this->authorization->isBuiltInSuperadmin($actor);
     }
 
     // ── Assertions ──────────────────────────────────────────────────────────

@@ -9,7 +9,9 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\DTO\AuditContext;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
+use TowerDNS\Domain\Account\AdminImpersonationSession;
 use TowerDNS\Domain\Account\AuditLogEntry;
+use TowerDNS\Domain\Auth\User;
 
 final class AuditLogServiceTest extends TestCase
 {
@@ -59,5 +61,25 @@ final class AuditLogServiceTest extends TestCase
         $context = AuditLogService::fromHttpRequest($request, 'actor');
 
         self::assertSame('203.0.113.5', $context->ipAddress);
+    }
+
+    public function testHttpAuditKeepsOriginalAndEffectiveIdentityDuringImpersonation(): void
+    {
+        $repository = $this->createMock(AuditLogRepositoryInterface::class);
+        $repository->expects(self::once())->method('append')->with(
+            self::callback(static fn(AuditLogEntry $entry): bool => $entry->actorUserId === 'admin'
+                && $entry->effectiveUserId                                              === 'target'
+                && $entry->impersonationSessionId                                       === 'switch-1'),
+            self::isType('string'),
+        );
+        $admin   = new User('admin', 'admin@example.test');
+        $target  = new User('target', 'target@example.test');
+        $switch  = new AdminImpersonationSession('switch-1', 'admin', 'target');
+        $request = new ServerRequest()
+            ->withAttribute('actor_user', $admin)
+            ->withAttribute(User::class, $target)
+            ->withAttribute('impersonation_session', $switch);
+
+        new AuditLogService($repository)->record($request, 'zone.record.update', 'record', 'record-1', actorUserId: $target->id);
     }
 }

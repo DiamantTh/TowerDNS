@@ -179,7 +179,11 @@ final readonly class AccountHandler implements RequestHandlerInterface
         }
 
         try {
-            $this->permissions->assertCanManageAccount($accountId, $user);
+            if ($account->isActive) {
+                $this->permissions->assertCanManageAccount($accountId, $user);
+            } elseif (!$this->permissions->canReactivateAccount($accountId, $user)) {
+                throw new AuthorizationException('Account reactivation denied.');
+            }
         } catch (AuthorizationException) {
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
@@ -195,7 +199,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 'user'      => $user,
                 'account'   => $account,
                 'csrfToken' => $csrfToken,
-                'usage'     => $this->resourceUsage->forUser($user, $accountId),
+                'usage'     => $account->isActive ? $this->resourceUsage->forUser($user, $accountId) : null,
                 'error'     => is_string($flashError) ? $flashError : null,
             ]),
         );
@@ -354,7 +358,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
     private function handleMembersPost(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $actor */
-        $actor     = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
+        $actor     = $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('id', 0);
 
         if (!$actor instanceof User) {
@@ -387,7 +391,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             }
             try {
                 $this->memberships->revoke($actor, $accountId, $targetUserId);
-                $this->audit->recordMemberRemoved($request, $actor->id, $accountId, $targetUserId);
+                $this->audit->recordWithContext($this->auditContext($request, $actor, $accountId), 'account.member.remove', 'user', $targetUserId);
             } catch (\Throwable $error) {
                 return $this->errorRedirect($base, $error);
             }
@@ -410,7 +414,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             try {
                 $origin  = $request->getUri()->getScheme() !== '' ? $request->getUri()->getScheme() . '://' . $request->getUri()->getHost() : '';
                 $created = $this->invitations->create($actor, $accountId, $email, $role, $origin);
-                $this->audit->record($request, 'account.invitation.created', 'account_invitation', (string) $created->invitation->id, actorUserId: $actor->id, accountId: $accountId, metadata: ['role' => $role->value, 'mail_delivered' => $created->mailDelivered]);
+                $this->audit->recordWithContext($this->auditContext($request, $actor, $accountId), 'account.invitation.created', 'account_invitation', (string) $created->invitation->id, metadata: ['role' => $role->value, 'mail_delivered' => $created->mailDelivered]);
             } catch (\Throwable $error) {
                 return $this->errorRedirect($base, $error);
             }
@@ -422,7 +426,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             $invitationId = (int) ($body['invitation_id'] ?? 0);
             try {
                 $this->invitations->revoke($actor, $invitationId);
-                $this->audit->record($request, 'account.invitation.revoked', 'account_invitation', (string) $invitationId, actorUserId: $actor->id, accountId: $accountId);
+                $this->audit->recordWithContext($this->auditContext($request, $actor, $accountId), 'account.invitation.revoked', 'account_invitation', (string) $invitationId);
             } catch (\Throwable $error) {
                 return $this->errorRedirect($base, $error);
             }
@@ -436,7 +440,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
             }
             try {
                 $this->memberships->changeRole($actor, $accountId, $targetUserId, $role);
-                $this->audit->record($request, 'account.member.role_changed', 'account_membership', $targetUserId, actorUserId: $actor->id, accountId: $accountId, metadata: ['role' => $role->value]);
+                $this->audit->recordWithContext($this->auditContext($request, $actor, $accountId), 'account.member.role_changed', 'account_membership', $targetUserId, metadata: ['role' => $role->value]);
             } catch (\Throwable $error) {
                 return $this->errorRedirect($base, $error);
             }
@@ -449,7 +453,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
     private function handleOwnershipPost(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $actor */
-        $actor     = $request->getAttribute('actor_user') ?? $request->getAttribute(User::class);
+        $actor     = $request->getAttribute(User::class);
         $accountId = (int) $request->getAttribute('id', 0);
         if (!$actor instanceof User) {
             return new RedirectResponse('/accounts?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
@@ -465,7 +469,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $target = trim((string) ($body['user_id'] ?? ''));
         try {
             $this->ownership->transfer($actor, $accountId, $target);
-            $this->audit->recordAccountOwnershipTransferred($request, $actor->id, $accountId, $target);
+            $this->audit->recordWithContext($this->auditContext($request, $actor, $accountId), 'account.ownership.transfer', 'account', (string) $accountId, after: ['owner_user_id' => $target]);
         } catch (\Throwable $error) {
             return $this->errorRedirect($base, $error);
         }
@@ -490,5 +494,18 @@ final readonly class AccountHandler implements RequestHandlerInterface
             default                                                                                         => 'accounts.error.operation-failed',
         };
         return new RedirectResponse($path . '?error=' . rawurlencode($this->translator->translate($key)));
+    }
+
+    private function auditContext(ServerRequestInterface $request, User $effectiveUser, int $accountId): \TowerDNS\Application\DTO\AuditContext
+    {
+        $original = $request->getAttribute('actor_user');
+        $switch   = $request->getAttribute('impersonation_session');
+        return AuditLogService::fromHttpRequest(
+            $request,
+            $original instanceof User ? $original->id : $effectiveUser->id,
+            $effectiveUser->id,
+            $accountId,
+            impersonationSessionId: $switch instanceof \TowerDNS\Domain\Account\AdminImpersonationSession ? $switch->id : null,
+        );
     }
 }
