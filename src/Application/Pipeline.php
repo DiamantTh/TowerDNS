@@ -19,6 +19,7 @@ use Mezzio\Session\SessionMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\ImpersonationBannerMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\LocaleMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\OwnProfileMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
@@ -54,6 +55,10 @@ final class Pipeline
 
         // CSRF guard — must run after session so token storage is available
         $app->pipe(CsrfMiddleware::class);
+
+        // Keep the effective-identity context visible and make ending a switch
+        // available on every application page, not only on the switch route.
+        $app->pipe(ImpersonationBannerMiddleware::class);
 
         // Route matching
         $app->pipe(RouteMiddleware::class);

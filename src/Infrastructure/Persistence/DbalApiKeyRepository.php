@@ -34,17 +34,6 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
         ], $rows);
     }
 
-    public function create(string $userId, string $name, string $keyHash, string $createdAt): int
-    {
-        $this->connection->executeStatement(
-            'INSERT INTO api_keys (user_id, name, api_key, created_at, is_active)
-             VALUES (?, ?, ?, ?, TRUE)',
-            [$userId, $name, $keyHash, $createdAt],
-        );
-
-        return (int) $this->connection->lastInsertId();
-    }
-
     public function revoke(int $id, string $userId): bool
     {
         $affected = $this->connection->executeStatement(
@@ -53,30 +42,5 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
         );
 
         return $affected > 0;
-    }
-
-    public function findActiveByHash(string $keyHash): ?array
-    {
-        $row = $this->connection->fetchAssociative(
-            'SELECT id, user_id FROM api_keys WHERE api_key = ? AND is_active = TRUE',
-            [$keyHash],
-        );
-
-        if (!is_array($row)) {
-            return null;
-        }
-
-        return [
-            'id'      => (int) $row['id'],
-            'user_id' => (string) $row['user_id'],
-        ];
-    }
-
-    public function touchLastUsed(int $id, string $timestamp): void
-    {
-        $this->connection->executeStatement(
-            'UPDATE api_keys SET last_used = ? WHERE id = ?',
-            [$timestamp, $id],
-        );
     }
 }

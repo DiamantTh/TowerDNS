@@ -46,7 +46,7 @@ TOTP und WebAuthn sind verfügbar. Für Benutzer-/Rollenänderungen (einschließ
 
 Eine erneute Step-up-Bestätigung wird derzeit bei jeder qualifizierten Aktion verlangt; TowerDNS speichert keine allgemeine „MFA kürzlich bestätigt“-Freigabe, die auf andere Aktionen übertragbar wäre. Die eigentliche Berechtigung und Zielprüfung wird danach weiterhin zentral im Application-Service ausgeführt. Admin-Switch darf nicht unter laufender Impersonation gestartet werden; bei Rollenänderungen im Switch gilt ausschließlich das Recht des effektiven Zielbenutzers.
 
-API-Schlüssel können in Profilseiten erstellt und widerrufen werden; im Source ist derzeit kein eingehender API-Key-Authentifizierungsfluss nachgewiesen. Sie sind daher keine unterstützte API-Authentifizierung. Eine lokale CLI arbeitet innerhalb der Betriebssystem-/Deployment-Vertrauensgrenze und ist kein benutzergebundenes API-Token.
+Es gibt derzeit keinen eingehenden TowerDNS-API-Key-Authentifizierungsfluss. Die Profilausgabe erstellt daher keine neuen Schlüssel mehr; bestehende Datensätze bleiben sichtbar und können widerrufen werden, gewähren aber keinen API-Zugriff. Die Datenbankstruktur bleibt zur Erhaltung bestehender Installationen bestehen. Ausgehende DNS-Provider-APIs sind davon unabhängig weiterhin Teil der Provideradapter. Eine lokale CLI arbeitet innerhalb der Betriebssystem-/Deployment-Vertrauensgrenze und ist kein benutzergebundenes API-Token.
 
 ## Provider-Capability und Ablauf
 
@@ -66,6 +66,6 @@ UI-Ausblendung, aktive Account-Auswahl und HTTP-Routen sind keine Sicherheitsgre
 - Die Mehrprozess-Serialisierung muss auf den tatsächlich eingesetzten MariaDB-/PostgreSQL-Versionen zusätzlich unter paralleler Last ausgeführt werden; PHPUnit führt dafür einen Fork-Test gegen SQLite und gegen explizit konfigurierte Integrationsdatenbanken aus.
 - Passkey-Step-up benötigt einen echten kompatiblen Browser/Authenticator für einen Ende-zu-Ende-Ceremony-Nachweis; automatisierte TOTP-HTTP-Tests und WebAuthn-Options-/Handlerprüfungen ersetzen diesen Hardware-/Browsernachweis nicht.
 - Reale Shared-Hosting-/PHP-FPM-Session- und Proxybedingungen sind nicht durch die lokale Apache-Compose-Umgebung bewiesen.
-- Keine eingehende API-Key-Authentifizierung; Ausgabe/Widerruf der Schlüssel allein stellt keine API bereit.
+- Keine eingehende TowerDNS-API-Key-Authentifizierung; bestehende Schlüssel sind inert und nur widerrufbar.
 - Globale DNS-Seed-Rollen sind aus Kompatibilitätsgründen weiter vorhanden, aber kein Ersatz für scoped TeamRole-Memberships.
 - Datenbankseitige Step-up-Nonce-Sicherung setzt voraus, dass Schema-Migrationen vor Nutzung der geschützten Aktionen ausgeführt wurden.

@@ -1,1 +1,1 @@
-<script lang="ts">let {kind,text}:{kind:string,text:string}=$props();</script><div class={`notification is-${kind}`}>{text}</div>
+<script lang="ts">let {kind,text}:{kind:string,text:string}=$props();const urgent=$derived(kind==='danger');</script><div class={`notification is-${kind}`} role={urgent?'alert':'status'} aria-live={urgent?'assertive':'polite'}>{text}</div>

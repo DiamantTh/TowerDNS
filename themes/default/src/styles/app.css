@@ -218,6 +218,11 @@
     .app-context__label { color: var(--color-surface-600); font-size: .72rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
     html.dark .app-context__label { color: var(--color-surface-300); }
     .app-context a { min-width: 0; flex: 1 1 auto; overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+    .impersonation-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1.25rem; border-bottom: 2px solid var(--color-error-600); background: color-mix(in oklab, var(--color-error-500) 16%, var(--color-surface-50)); color: var(--color-surface-950); padding: .75rem clamp(1rem, 4vw, 3rem); }
+    html.dark .impersonation-banner { background: color-mix(in oklab, var(--color-error-700) 38%, var(--color-surface-900)); color: var(--color-surface-50); }
+    .impersonation-banner p { margin: 0; font-weight: 650; }
+    .impersonation-banner form { margin: 0; }
+    .impersonation-banner button:focus-visible { outline: 3px solid var(--color-primary-500); outline-offset: 3px; }
     .page { position: relative; }
     .page-header { border-left: .25rem solid var(--color-primary-500); padding-left: 1rem; }
     .dashboard-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); }
@@ -273,6 +278,8 @@
     }
 
     @media (max-width: 800px) {
+        .impersonation-banner { align-items: stretch; flex-direction: column; }
+        .impersonation-banner button { width: 100%; }
         .columns, .field.is-horizontal, .level { flex-direction: column; align-items: stretch; }
         .column, .column.is-half, .column.is-three-quarters, .column.is-3, .column.is-4, .column.is-6 { flex-basis: auto; width: 100%; }
         .record-filter { grid-template-columns: 1fr; }

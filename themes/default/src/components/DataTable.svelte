@@ -15,7 +15,7 @@
         cols: string[];
         labels: string[];
         csrf?: string;
-        action?: ((row: DataTableRow) => string) | null;
+        action?: ((row: DataTableRow) => string | null) | null;
         actionText?: string;
     } = $props();
 
@@ -30,17 +30,18 @@
     <table class="table">
         <thead>
             <tr>
-                {#each labels as label}<th>{label}</th>{/each}
-                <th></th>
+                {#each labels as label}<th scope="col">{label}</th>{/each}
+                <th scope="col"><span class="sr-only">{t('table.actions')}</span></th>
             </tr>
         </thead>
         <tbody>
             {#each rows as row}
+                {@const actionUrl = action?.(row) ?? null}
                 <tr>
                     {#each cols as column}<td>{cellText(row[column])}</td>{/each}
                     <td>
-                        {#if action}
-                            <form method="post" action={action(row)} onsubmit={ask}>
+                        {#if actionUrl}
+                            <form method="post" action={actionUrl} onsubmit={ask}>
                                 <input type="hidden" name="csrf_token" value={csrf}>
                                 <button class="button is-small is-danger">{actionText}</button>
                             </form>

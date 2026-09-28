@@ -69,7 +69,7 @@
         {:else}
             <pre class="metadata">{JSON.stringify(data.target ?? data.role ?? data.account ?? data.profile ?? {}, null, 2)}</pre>
         {/if}
-        <form class="mt-4" method="post">
+        <form class="mt-4" method="post" action={page === 'admin/switch' ? '/admin/switch/start' : undefined}>
             <input type="hidden" name="csrf_token" value={csrf}>
             {#if data.target}
                 <Field label={t('field.display-name')}><input class="input" name="display_name" value={data.target.displayName ?? ''} /></Field>
@@ -77,7 +77,7 @@
                 <button class="button is-primary">{t('common.save')}</button>
             {:else if page === 'admin/switch'}
                 <Field label={t('field.target-user-id')}><input class="input" name="effective_user_id" required /></Field>
-                <Field label={t('field.reason')}><input class="input" name="reason" /></Field>
+                <Field label={t('field.reason')}><input class="input" name="reason" required /></Field>
                 <button class="button is-danger">{t('common.switch')}</button>
             {/if}
         </form>
