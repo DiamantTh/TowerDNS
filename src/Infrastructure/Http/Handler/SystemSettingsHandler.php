@@ -92,7 +92,9 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
     }
 
     /**
-     * Liest die editierbaren Felder aus der Config-Datei.
+     * Liest die editierbaren Felder aus der Config-Datei und den Runtime-Settings.
+     * SMTP-DSNs koennen Zugangsdaten enthalten und werden daher nie an den Browser
+     * ausgegeben. Ein leeres Feld beim Speichern behaelt eine vorhandene DSN bei.
      *
      * @return array<string, scalar>
      */
@@ -108,6 +110,8 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         // Wir zeigen beide, sofern vorhanden.
         $hostname = (string) ($app['hostname'] ?? $app['domain'] ?? '');
 
+        $mailerDsn = trim((string) ($conf['mailer']['dsn'] ?? 'null://null'));
+
         return [
             'app_name'            => (string) ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
             'app_hostname'        => $hostname,
@@ -116,7 +120,11 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             'theme_name'          => (string) ($thm['name'] ?? 'default'),
             'pwd_min_length'      => (int) $this->settings->get('security.password.min_length', 16),
             'pwd_min_score'       => (int) $this->settings->get('security.password.min_score', 2),
-            'mailer_dsn'          => (string) (($conf['mailer']['dsn'] ?? '') ?: 'null://null'),
+            'hibp_enabled'        => (bool) $this->settings->get('security.password.hibp_enabled', false),
+            'hibp_fail_open'      => (bool) $this->settings->get('security.password.hibp_fail_open', true),
+            'hibp_timeout'        => (float) $this->settings->get('security.password.hibp_timeout', 3.0),
+            'mailer_dsn'          => $mailerDsn === '' || $mailerDsn === 'null://null' ? 'null://null' : '',
+            'mailer_configured'   => $mailerDsn !== '' && $mailerDsn !== 'null://null',
             'mailer_from_address' => (string) ($conf['mailer']['from_address'] ?? ''),
         ];
     }
@@ -144,15 +152,18 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             );
         }
 
-        $appName     = trim((string) ($body['app_name'] ?? ''));
-        $hostname    = trim((string) ($body['app_hostname'] ?? ''));
-        $forceHttps  = isset($body['app_force_https']) && $body['app_force_https'] === '1';
-        $debug       = isset($body['app_debug'])       && $body['app_debug']       === '1';
-        $themeName   = trim((string) ($body['theme_name'] ?? 'default'));
-        $pwdMinLen   = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
-        $pwdMinScore = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
-        $mailerDsn   = trim((string) ($body['mailer_dsn'] ?? 'null://null'));
-        $mailerFrom  = trim((string) ($body['mailer_from_address'] ?? ''));
+        $appName      = trim((string) ($body['app_name'] ?? ''));
+        $hostname     = trim((string) ($body['app_hostname'] ?? ''));
+        $forceHttps   = isset($body['app_force_https']) && $body['app_force_https'] === '1';
+        $debug        = isset($body['app_debug'])       && $body['app_debug']       === '1';
+        $themeName    = trim((string) ($body['theme_name'] ?? 'default'));
+        $pwdMinLen    = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
+        $pwdMinScore  = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
+        $hibpEnabled  = isset($body['hibp_enabled'])   && $body['hibp_enabled']     === '1';
+        $hibpFailOpen = isset($body['hibp_fail_open']) && $body['hibp_fail_open'] === '1';
+        $hibpTimeout  = max(1.0, min(10.0, (float) ($body['hibp_timeout'] ?? 3.0)));
+        $mailerDsn    = trim((string) ($body['mailer_dsn'] ?? ''));
+        $mailerFrom   = trim((string) ($body['mailer_from_address'] ?? ''));
 
         if ($appName === '') {
             $appName = 'TowerDNS';
@@ -178,10 +189,6 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
                 422,
             );
         }
-        if ($mailerDsn === '') {
-            $mailerDsn = 'null://null';
-        }
-
         $conf = $this->loadConfig();
 
         // [app] — schreibe in der Variante, die bereits in der Datei steht,
@@ -219,7 +226,13 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
 
         // [mailer]
         /** @var array<string, mixed> $mailerSection */
-        $mailerSection                 = (array) ($conf['mailer'] ?? []);
+        $mailerSection = (array) ($conf['mailer'] ?? []);
+        if ($mailerDsn === '') {
+            $mailerDsn = trim((string) ($mailerSection['dsn'] ?? 'null://null'));
+        }
+        if ($mailerDsn === '') {
+            $mailerDsn = 'null://null';
+        }
         $mailerSection['dsn']          = $mailerDsn;
         $mailerSection['from_address'] = $mailerFrom;
         $conf['mailer']                = $mailerSection;
@@ -230,8 +243,11 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
 
             // Runtime-Werte (DB)
             $this->settings->setMany([
-                'security.password.min_length' => $pwdMinLen,
-                'security.password.min_score'  => $pwdMinScore,
+                'security.password.min_length'     => $pwdMinLen,
+                'security.password.min_score'      => $pwdMinScore,
+                'security.password.hibp_enabled'   => $hibpEnabled,
+                'security.password.hibp_fail_open' => $hibpFailOpen,
+                'security.password.hibp_timeout'   => $hibpTimeout,
             ], $user->id);
         } catch (\Throwable) {
             return new HtmlResponse(

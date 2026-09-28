@@ -80,6 +80,14 @@
     .select.is-fullwidth, .select.is-fullwidth select { display: block; width: 100%; }
     .checkbox { display: inline-flex; align-items: center; gap: .5rem; }
     .checkbox input { accent-color: var(--color-primary-500); }
+    .settings-options { display: grid; gap: .65rem; margin-top: 1rem; }
+    .settings-options .checkbox { width: fit-content; }
+    .settings-form { display: grid; gap: 1rem; }
+    .settings-section { margin: 0; }
+    .settings-section__header { margin-bottom: 1rem; }
+    .settings-section__header .subtitle { margin-bottom: .25rem; }
+    .settings-section__header .muted { margin: 0; max-width: 70ch; }
+    .settings-section--advanced { border-color: color-mix(in srgb, var(--color-warning-500) 45%, var(--color-surface-300)); }
     .help { margin-top: .35rem; font-size: .8rem; opacity: .7; }
 
     .button { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 2.4rem; border: 1px solid transparent; border-radius: var(--radius-base); background: var(--color-surface-200); color: var(--color-surface-950); padding: .55rem .9rem; font-weight: 650; line-height: 1; text-decoration: none; cursor: pointer; transition: filter .15s, transform .1s; }

@@ -78,7 +78,7 @@ Neuen Provider hinzufuegen:
 | TOML-Config      | DB-Verbindung, `encryption_key`, Hostname, App-Name    |
 | `system_settings`| Passwort-Policy, HIBP-Flags, zukuenftige Runtime-Werte |
 
-TOML enthaelt ausschliesslich Bootstrap-Parameter, die vor jeder DB-Verbindung benoetigt werden. Alle ueber die Admin-UI aenderbaren Einstellungen werden in der Tabelle `system_settings` gespeichert (`DbalSystemSettingsRepository`, per-Request-Cache).
+TOML enthaelt Bootstrap- und Betriebsparameter wie DB-Verbindung, Verschluesselungsschluessel, Hostname, App-Name, Mailer-DSN und das globale Theme. Die Systemeinstellungen zeigen eine kleine, bewusst freigegebene Teilmenge davon. Eine vorhandene Mailer-DSN wird nie wieder an den Browser ausgegeben; ein leeres DSN-Feld behaelt ihren Wert. Laufzeitwerte der Passwort-Policy und HIBP-Integration liegen in `system_settings` (`DbalSystemSettingsRepository`, per-Request-Cache).
 
 ### Backup, Restore und Key Recovery
 

@@ -24,7 +24,10 @@ theme, UX palette, light/dark mode, fixture language, and preview viewport.
 The stories are under **TowerDNS / Shared**, **TowerDNS / DNS**,
 **TowerDNS / Layout**, and **TowerDNS / UX previews**. They include real
 AppShell, dashboard, DNS, provider-account, account/member, user, role,
-profile, settings and login views. All server bootstrap values are synthetic
+profile, settings and login views. The system-settings preview mirrors the
+four productive sections (application, password security, email delivery and
+advanced operation) and deliberately uses a configured-but-redacted mail DSN.
+All server bootstrap values are synthetic
 and credentials are omitted.
 
 `storybook/fixtures/towerdns-installation.ts` is the shared sample
