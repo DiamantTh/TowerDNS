@@ -26,7 +26,7 @@ The stories are under **TowerDNS / Shared**, **TowerDNS / DNS**,
 AppShell, dashboard, DNS, provider-account, account/member, user, role,
 profile, settings and login views. The system-settings preview mirrors the
 four productive sections (application, password security, email delivery and
-advanced operation) and deliberately uses a configured-but-redacted mail DSN.
+advanced operation) and deliberately uses redacted synthetic SMTP credentials.
 All server bootstrap values are synthetic
 and credentials are omitted.
 

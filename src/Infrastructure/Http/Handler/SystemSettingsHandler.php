@@ -110,21 +110,20 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         // Wir zeigen beide, sofern vorhanden.
         $hostname = (string) ($app['hostname'] ?? $app['domain'] ?? '');
 
-        $mailerDsn = trim((string) ($conf['mailer']['dsn'] ?? 'null://null'));
+        $mailer = $this->mailerFields(trim((string) ($conf['mailer']['dsn'] ?? 'null://null')));
 
         return [
-            'app_name'            => (string) ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
-            'app_hostname'        => $hostname,
-            'app_force_https'     => (bool) ($app['force_https'] ?? false),
-            'app_debug'           => (bool) ($app['debug'] ?? false),
-            'theme_name'          => (string) ($thm['name'] ?? 'default'),
-            'pwd_min_length'      => (int) $this->settings->get('security.password.min_length', 16),
-            'pwd_min_score'       => (int) $this->settings->get('security.password.min_score', 2),
-            'hibp_enabled'        => (bool) $this->settings->get('security.password.hibp_enabled', false),
-            'hibp_fail_open'      => (bool) $this->settings->get('security.password.hibp_fail_open', true),
-            'hibp_timeout'        => (float) $this->settings->get('security.password.hibp_timeout', 3.0),
-            'mailer_dsn'          => $mailerDsn === '' || $mailerDsn === 'null://null' ? 'null://null' : '',
-            'mailer_configured'   => $mailerDsn !== '' && $mailerDsn !== 'null://null',
+            'app_name'        => (string) ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
+            'app_hostname'    => $hostname,
+            'app_force_https' => (bool) ($app['force_https'] ?? false),
+            'app_debug'       => (bool) ($app['debug'] ?? false),
+            'theme_name'      => (string) ($thm['name'] ?? 'default'),
+            'pwd_min_length'  => (int) $this->settings->get('security.password.min_length', 16),
+            'pwd_min_score'   => (int) $this->settings->get('security.password.min_score', 2),
+            'hibp_enabled'    => (bool) $this->settings->get('security.password.hibp_enabled', false),
+            'hibp_fail_open'  => (bool) $this->settings->get('security.password.hibp_fail_open', true),
+            'hibp_timeout'    => (float) $this->settings->get('security.password.hibp_timeout', 3.0),
+            ...$mailer,
             'mailer_from_address' => (string) ($conf['mailer']['from_address'] ?? ''),
         ];
     }
@@ -152,18 +151,23 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             );
         }
 
-        $appName      = trim((string) ($body['app_name'] ?? ''));
-        $hostname     = trim((string) ($body['app_hostname'] ?? ''));
-        $forceHttps   = isset($body['app_force_https']) && $body['app_force_https'] === '1';
-        $debug        = isset($body['app_debug'])       && $body['app_debug']       === '1';
-        $themeName    = trim((string) ($body['theme_name'] ?? 'default'));
-        $pwdMinLen    = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
-        $pwdMinScore  = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
-        $hibpEnabled  = isset($body['hibp_enabled'])   && $body['hibp_enabled']     === '1';
-        $hibpFailOpen = isset($body['hibp_fail_open']) && $body['hibp_fail_open'] === '1';
-        $hibpTimeout  = max(1.0, min(10.0, (float) ($body['hibp_timeout'] ?? 3.0)));
-        $mailerDsn    = trim((string) ($body['mailer_dsn'] ?? ''));
-        $mailerFrom   = trim((string) ($body['mailer_from_address'] ?? ''));
+        $appName        = trim((string) ($body['app_name'] ?? ''));
+        $hostname       = trim((string) ($body['app_hostname'] ?? ''));
+        $forceHttps     = isset($body['app_force_https']) && $body['app_force_https'] === '1';
+        $debug          = isset($body['app_debug'])       && $body['app_debug']       === '1';
+        $themeName      = trim((string) ($body['theme_name'] ?? 'default'));
+        $pwdMinLen      = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
+        $pwdMinScore    = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
+        $hibpEnabled    = isset($body['hibp_enabled'])   && $body['hibp_enabled']   === '1';
+        $hibpFailOpen   = isset($body['hibp_fail_open']) && $body['hibp_fail_open'] === '1';
+        $hibpTimeout    = max(1.0, min(10.0, (float) ($body['hibp_timeout'] ?? 3.0)));
+        $mailerEnabled  = isset($body['mailer_enabled']) && $body['mailer_enabled'] === '1';
+        $smtpHost       = trim((string) ($body['smtp_host'] ?? ''));
+        $smtpPort       = max(1, min(65535, (int) ($body['smtp_port'] ?? 587)));
+        $smtpEncryption = (string) ($body['smtp_encryption'] ?? 'starttls');
+        $smtpUsername   = trim((string) ($body['smtp_username'] ?? ''));
+        $smtpPassword   = (string) ($body['smtp_password'] ?? '');
+        $mailerFrom     = trim((string) ($body['mailer_from_address'] ?? ''));
 
         if ($appName === '') {
             $appName = 'TowerDNS';
@@ -224,14 +228,29 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             }
         }
 
-        // [mailer]
+        // [mailer] — DSN bleibt ein internes Symfony-Mailer-Detail. Die UI
+        // verarbeitet ausschliesslich SMTP-Felder und gibt kein Kennwort aus.
         /** @var array<string, mixed> $mailerSection */
-        $mailerSection = (array) ($conf['mailer'] ?? []);
-        if ($mailerDsn === '') {
-            $mailerDsn = trim((string) ($mailerSection['dsn'] ?? 'null://null'));
-        }
-        if ($mailerDsn === '') {
+        $mailerSection  = (array) ($conf['mailer'] ?? []);
+        $existingMailer = $this->mailerFields(trim((string) ($mailerSection['dsn'] ?? 'null://null')));
+        if (($existingMailer['mailer_editable'] ?? false) === false && ($existingMailer['mailer_configured'] ?? false) === true) {
+            // Keep a legacy non-SMTP transport intact; the normal form must not
+            // silently turn sendmail/vendor transports into disabled mail.
+            $mailerDsn = (string) ($mailerSection['dsn'] ?? 'null://null');
+        } elseif (!$mailerEnabled) {
             $mailerDsn = 'null://null';
+        } elseif ($smtpHost === '') {
+            return $this->invalidMailerResponse($user, $csrfToken);
+        } else {
+            $existingPassword = $this->smtpPassword((string) ($mailerSection['dsn'] ?? ''));
+            $smtpUsername     = $smtpUsername !== '' ? $smtpUsername : (string) ($existingMailer['smtp_username'] ?? '');
+            $mailerDsn        = $this->smtpDsn(
+                $smtpHost,
+                $smtpPort,
+                $smtpEncryption,
+                $smtpUsername,
+                $smtpPassword !== '' ? $smtpPassword : $existingPassword,
+            );
         }
         $mailerSection['dsn']          = $mailerDsn;
         $mailerSection['from_address'] = $mailerFrom;
@@ -280,5 +299,80 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         /** @var array<string, mixed> $data */
         $data = (array) Toml::decode($raw, asArray: true);
         return $data;
+    }
+
+    /** @return array<string, scalar> */
+    private function mailerFields(string $dsn): array
+    {
+        if ($dsn === '' || $dsn === 'null://null') {
+            return [
+                'mailer_configured' => false,
+                'mailer_editable'   => true,
+                'mailer_enabled'    => false,
+                'smtp_host'         => '',
+                'smtp_port'         => 587,
+                'smtp_encryption'   => 'starttls',
+                'smtp_username'     => '',
+            ];
+        }
+
+        $parts  = parse_url($dsn);
+        $scheme = is_array($parts) ? strtolower((string) ($parts['scheme'] ?? '')) : '';
+        if (!is_array($parts) || !in_array($scheme, ['smtp', 'smtps'], true) || !isset($parts['host'])) {
+            return [
+                'mailer_configured' => true,
+                'mailer_editable'   => false,
+                'mailer_enabled'    => true,
+                'smtp_host'         => '',
+                'smtp_port'         => 587,
+                'smtp_encryption'   => 'starttls',
+                'smtp_username'     => '',
+            ];
+        }
+
+        parse_str((string) ($parts['query'] ?? ''), $options);
+        $encryption = $scheme === 'smtps'
+            ? 'tls'
+            : (($options['auto_tls'] ?? null) === 'false' ? 'none' : 'starttls');
+
+        return [
+            'mailer_configured' => true,
+            'mailer_editable'   => true,
+            'mailer_enabled'    => true,
+            'smtp_host'         => (string) $parts['host'],
+            'smtp_port'         => (int) ($parts['port'] ?? ($scheme === 'smtps' ? 465 : 587)),
+            'smtp_encryption'   => $encryption,
+            'smtp_username'     => isset($parts['user']) ? rawurldecode((string) $parts['user']) : '',
+        ];
+    }
+
+    private function smtpPassword(string $dsn): string
+    {
+        $parts = parse_url($dsn);
+
+        return is_array($parts) && isset($parts['pass']) ? rawurldecode((string) $parts['pass']) : '';
+    }
+
+    private function smtpDsn(string $host, int $port, string $encryption, string $username, string $password): string
+    {
+        $scheme      = $encryption    === 'tls' ? 'smtps' : 'smtp';
+        $query       = $encryption    === 'none' ? '?auto_tls=false' : ($encryption === 'starttls' ? '?require_tls=true' : '');
+        $credentials = $username === '' ? '' : rawurlencode($username) . ':' . rawurlencode($password) . '@';
+
+        return $scheme . '://' . $credentials . $host . ':' . $port . $query;
+    }
+
+    private function invalidMailerResponse(User $user, string $csrfToken): ResponseInterface
+    {
+        return new HtmlResponse(
+            $this->renderer->render('app::settings', [
+                'user'      => $user,
+                'fields'    => $this->readFields(),
+                'error'     => $this->translator->translate('settings.error.smtp-host-required'),
+                'success'   => null,
+                'csrfToken' => $csrfToken,
+            ]),
+            422,
+        );
     }
 }

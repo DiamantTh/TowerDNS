@@ -16,8 +16,13 @@
         hibp_enabled?: boolean;
         hibp_fail_open?: boolean;
         hibp_timeout?: number;
-        mailer_dsn?: string;
         mailer_configured?: boolean;
+        mailer_editable?: boolean;
+        mailer_enabled?: boolean;
+        smtp_host?: string;
+        smtp_port?: number;
+        smtp_encryption?: string;
+        smtp_username?: string;
         mailer_from_address?: string;
     };
 
@@ -75,10 +80,21 @@
                 <h2 class="subtitle" id="settings-mail-title">{t('settings.mail.title')}</h2>
                 <p class="muted">{t('settings.mail.description')}</p>
             </header>
-            <div class="form-grid">
-                <Field label={t('settings.mailer-dsn')}><input class="input" type="password" autocomplete="off" name="mailer_dsn" value={fields.mailer_dsn ?? ''}><p class="help">{fields.mailer_configured ? t('settings.mailer-dsn.configured') : t('settings.mailer-dsn.help')}</p></Field>
-                <Field label={t('settings.sender')}><input class="input" type="email" name="mailer_from_address" value={fields.mailer_from_address ?? ''}></Field>
-            </div>
+            {#if fields.mailer_editable !== false}
+                <div class="settings-options">
+                    <label class="checkbox"><input type="checkbox" name="mailer_enabled" value="1" checked={fields.mailer_enabled}> {t('settings.mailer.enabled')}</label>
+                </div>
+                <div class="form-grid">
+                    <Field label={t('settings.smtp-host')}><input class="input" name="smtp_host" value={fields.smtp_host ?? ''} autocomplete="off"></Field>
+                    <Field label={t('settings.smtp-port')}><input class="input" type="number" min="1" max="65535" name="smtp_port" value={fields.smtp_port ?? 587}></Field>
+                    <Field label={t('settings.smtp-encryption')}><select class="input" name="smtp_encryption"><option value="starttls" selected={fields.smtp_encryption === 'starttls'}>STARTTLS</option><option value="tls" selected={fields.smtp_encryption === 'tls'}>TLS</option><option value="none" selected={fields.smtp_encryption === 'none'}>{t('settings.smtp-encryption.none')}</option></select></Field>
+                    <Field label={t('settings.smtp-username')}><input class="input" name="smtp_username" value={fields.smtp_username ?? ''} autocomplete="username"></Field>
+                    <Field label={t('settings.smtp-password')}><input class="input" type="password" name="smtp_password" value="" autocomplete="new-password"><p class="help">{fields.mailer_configured ? t('settings.smtp-password.configured') : t('settings.smtp-password.help')}</p></Field>
+                    <Field label={t('settings.sender')}><input class="input" type="email" name="mailer_from_address" value={fields.mailer_from_address ?? ''}></Field>
+                </div>
+            {:else}
+                <Notice kind="info" text={t('settings.mail.legacy-transport')} />
+            {/if}
         </section>
 
         <section class="box settings-section settings-section--advanced" aria-labelledby="settings-operations-title">

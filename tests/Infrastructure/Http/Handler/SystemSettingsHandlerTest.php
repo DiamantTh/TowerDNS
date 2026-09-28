@@ -37,8 +37,11 @@ final class SystemSettingsHandlerTest extends TestCase
                 static function (array $data): bool {
                     $fields = $data['fields'];
 
-                    return $fields['mailer_dsn']        === ''
-                        && $fields['mailer_configured'] === true
+                    return $fields['mailer_configured'] === true
+                        && $fields['mailer_editable']   === true
+                        && $fields['mailer_enabled']    === true
+                        && $fields['smtp_host']         === 'example.test'
+                        && $fields['smtp_username']     === 'operator'
                         && $fields['hibp_enabled']      === true
                         && $fields['hibp_fail_open']    === false
                         && $fields['hibp_timeout']      === 4.5;
@@ -123,7 +126,12 @@ final class SystemSettingsHandlerTest extends TestCase
                     'pwd_min_score'       => '4',
                     'hibp_enabled'        => '1',
                     'hibp_timeout'        => '5',
-                    'mailer_dsn'          => '',
+                    'mailer_enabled'      => '1',
+                    'smtp_host'           => 'smtp.example.test',
+                    'smtp_port'           => '587',
+                    'smtp_encryption'     => 'starttls',
+                    'smtp_username'       => '',
+                    'smtp_password'       => '',
                     'mailer_from_address' => 'dns@example.test',
                 ])
                 ->withAttribute(User::class, $user)
@@ -133,7 +141,7 @@ final class SystemSettingsHandlerTest extends TestCase
 
             self::assertSame(302, $response->getStatusCode());
             self::assertSame('/settings?success=saved', $response->getHeaderLine('Location'));
-            self::assertStringContainsString('smtp://operator:secret@example.test', (string) file_get_contents($configPath));
+            self::assertStringContainsString('smtp://operator:secret@smtp.example.test:587?require_tls=true', (string) file_get_contents($configPath));
         } finally {
             @unlink($configPath);
         }
