@@ -14,6 +14,7 @@
 /* TowerDNS component layer. Svelte owns the markup while Skeleton supplies
    themes, design tokens and interactive component primitives. */
 @layer components {
+    *, *::before, *::after { box-sizing: border-box; }
     html { min-height: 100%; scroll-behavior: smooth; }
     body { min-height: 100vh; margin: 0; background: var(--color-root-bg-light); color: var(--typo-base--color-light); }
     html.dark body { background: var(--color-root-bg-dark); color: var(--typo-base--color-dark); }
@@ -65,7 +66,7 @@
     .level { justify-content: space-between; }
     .level-right { margin-left: auto; }
 
-    .field { margin-bottom: 1rem; }
+    .field { min-width: 0; margin-bottom: 1rem; }
     .field.is-grouped, .field.has-addons, .buttons { display: flex; align-items: end; flex-wrap: wrap; gap: .5rem; }
     .field.is-horizontal { display: flex; gap: 1rem; }
     .field-label { flex: 0 0 10rem; }
@@ -292,5 +293,12 @@
         .column, .column.is-half, .column.is-three-quarters, .column.is-3, .column.is-4, .column.is-6 { flex-basis: auto; width: 100%; }
         .record-filter { grid-template-columns: 1fr; }
         .inline-form, .resource-card, .setting-row { align-items: stretch; flex-direction: column; }
+    }
+
+    @media (max-width: 440px) {
+        .page { width: min(100% - 1.25rem, 76rem); }
+        .box, .card-content { padding: 1rem; }
+        .form-grid { grid-template-columns: minmax(0, 1fr); }
+        .settings-options { gap: .75rem; }
     }
 }
