@@ -27,6 +27,17 @@ AppShell, dashboard, DNS, provider-account, account/member, user, role,
 profile, settings and login views. All server bootstrap values are synthetic
 and credentials are omitted.
 
+`storybook/fixtures/towerdns-installation.ts` is the shared sample
+installation. It connects the same fake users, built-in/custom roles,
+membership roles, zone-only read grant, personal and organisation accounts,
+provider connection states, zones, and RRsets across the stories. It uses only
+`example.test`, documentation address ranges, and the explicit placeholder
+`storybook-fixture-only-not-a-valid-token`. Provider labels are display data;
+Storybook neither contains credentials nor contacts a provider. The DNS and
+application-page stories expose empty, typical, large-list, long-value,
+restricted/read-only, error, and MFA step-up states where the real component
+already supports them.
+
 The **UX palette** toolbar changes Storybook-only tokens, independently of the
 Skeleton-theme toolbar. It provides Forest Light, Amber Light, Slate Hybrid,
 OLED Ocean Dark and Nordic Hybrid. Hybrid variants intentionally retain a
@@ -65,6 +76,10 @@ responsibility and is not tested by the workshop.
 The fixtures are deliberately limited to component states that the current
 components can render. They do not imply that every story has a distinct
 production workflow or that a provider operation is functional.
+
+The active administrative user-switch banner is rendered by the PHP response
+middleware, rather than by a Svelte component. It is therefore covered by the
+HTTP/middleware regression tests, not emulated as a separate Storybook copy.
 
 ### Preview navigation and actions
 

@@ -1,4 +1,12 @@
 import type { DnsRecordsPageProps, DnsRrsetBootstrap } from '../../themes/default/src/lib/bootstrap';
+import {
+    fixtureCsrfToken,
+    fixtureLongTxtRrsets,
+    fixtureManyRrsets,
+    fixtureRrsets,
+    fixtureAccounts,
+    fixtureManagedZones,
+} from './towerdns-installation';
 
 export type FixtureLanguage = 'en-GB' | 'de-DE';
 
@@ -35,17 +43,9 @@ export const dnsRecordsMessages: Record<FixtureLanguage, Record<string, string>>
     },
 };
 
-const recordType = (presentation: string, code: number): DnsRrsetBootstrap['type'] => ({
-    presentation,
-    code,
-    isKnown: true,
-});
-
-export const exampleRrsets: DnsRrsetBootstrap[] = [
-    { ownerName: 'example.test', type: recordType('A', 1), ttl: 300, rdata: ['203.0.113.42', '203.0.113.43'] },
-    { ownerName: 'mail.example.test', type: recordType('AAAA', 28), ttl: 900, rdata: ['2001:db8::25'] },
-    { ownerName: 'example.test', type: recordType('MX', 15), ttl: 3600, rdata: ['10 mail.example.test.'] },
-];
+export const exampleRrsets = fixtureRrsets;
+export const longTxtRrsets = fixtureLongTxtRrsets;
+export const manyRrsets = fixtureManyRrsets;
 
 export function createDnsRecordsPage(options: {
     error?: string | null;
@@ -55,10 +55,10 @@ export function createDnsRecordsPage(options: {
     rrsets?: DnsRrsetBootstrap[];
 } = {}): DnsRecordsPageProps {
     return {
-        accountId: 107,
-        managedZoneId: 841,
-        managedZoneName: 'example.test',
-        csrfToken: 'storybook-fixture-only-not-a-valid-token',
+        accountId: fixtureAccounts.northwind.id,
+        managedZoneId: fixtureManagedZones[0].id,
+        managedZoneName: fixtureManagedZones[0].canonicalName,
+        csrfToken: fixtureCsrfToken,
         error: options.error ?? null,
         success: null,
         canReplaceRrsets: options.canReplaceRrsets ?? true,
@@ -66,13 +66,3 @@ export function createDnsRecordsPage(options: {
         rrsets: options.rrsets ?? exampleRrsets,
     };
 }
-
-export const longTxtRrsets: DnsRrsetBootstrap[] = [{
-    ownerName: '_policy.example.test',
-    type: recordType('TXT', 16),
-    ttl: 3600,
-    rdata: [
-        `v=spf1 ${'include:mail.example.test '.repeat(8)}~all`,
-        `verification=${'synthetic-value-'.repeat(12)}`,
-    ],
-}];

@@ -1,13 +1,11 @@
 import type { DnsZonesPageProps } from '../../themes/default/src/lib/bootstrap';
+import { fixtureAccounts, fixtureCsrfToken, fixtureManagedZones, fixtureProviderNames, northwindProviderAccounts } from './towerdns-installation';
 
 export const exampleDnsZonesPage: DnsZonesPageProps = {
-    accountId: 107,
-    csrfToken: 'storybook-fixture-only-not-a-valid-token',
+    accountId: fixtureAccounts.northwind.id,
+    csrfToken: fixtureCsrfToken,
     error: null,
-    providerAccounts: [{ id: 21, name: 'Synthetic DNS provider' }],
-    providerNames: { '21': 'Synthetic DNS provider' },
-    managedZones: [
-        { id: 841, canonicalName: 'example.test', providerAccountId: 21 },
-        { id: 842, canonicalName: 'long-example-name.internal.example.test', providerAccountId: 21 },
-    ],
+    providerAccounts: northwindProviderAccounts,
+    providerNames: fixtureProviderNames,
+    managedZones: fixtureManagedZones,
 };

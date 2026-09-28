@@ -42,6 +42,13 @@ real TowerDNS Svelte components, including `AppShell`, dashboard, zone list,
 RRset page, provider-account management, and account-member management with
 synthetic, secrets-free bootstrap data.
 
+The shared synthetic installation links the same sample users, roles, account
+memberships, provider states, zones and RRsets between stories. It includes
+empty, typical, large-list, long-value, restricted/read-only, error and MFA
+step-up states wherever the current productive component can render them.
+All IDs, CSRF values and provider labels are invalid fixture values only; no
+Storybook action calls TowerDNS or an external provider.
+
 ```sh
 npm ci
 npm run storybook

@@ -26,7 +26,7 @@ export const German: Story = {
 };
 
 export const LimitedNavigation: Story = {
-    args: { permissionSet: [] },
+    args: { permissionSet: [], restricted: true },
     parameters: { docs: { description: { story: 'Navigation is derived from the supplied role permissions; hiding links never replaces server-side authorization.' } } },
 };
 

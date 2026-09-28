@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import DnsRecordsPageExample from '../fixtures/DnsRecordsPageExample.svelte';
-import { createDnsRecordsPage, longTxtRrsets } from '../fixtures/dns-records';
+import { createDnsRecordsPage, longTxtRrsets, manyRrsets } from '../fixtures/dns-records';
 
 const meta = {
     title: 'TowerDNS/DNS/Record sets page',
@@ -31,6 +31,10 @@ export const ProviderError: Story = {
 
 export const LongTxtValues: Story = {
     args: { page: createDnsRecordsPage({ rrsets: longTxtRrsets }) },
+};
+
+export const ManyItems: Story = {
+    args: { page: createDnsRecordsPage({ rrsets: manyRrsets }) },
 };
 
 /** Server-derived availability is displayed here; this fixture is not authorization. */
