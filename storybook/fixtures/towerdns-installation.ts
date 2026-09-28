@@ -125,6 +125,13 @@ export const fixtureManyManagedZones: DnsZoneBootstrap[] = [
     })),
 ];
 
+/** Display data for the existing DNSSEC page; no provider call is possible from Storybook. */
+export const fixtureDnssecProfiles = {
+    active: { zoneId: fixtureManagedZones[0].id, state: 'active', features: { manual_actions: true } },
+    inactive: { zoneId: fixtureManagedZones[1].id, state: 'inactive', features: { manual_actions: true } },
+    unsupported: { zoneId: fixtureManagedZones[3].id, state: 'unknown', features: { manual_actions: false } },
+} as const;
+
 export const fixtureRrsets: DnsRrsetBootstrap[] = [
     { ownerName: 'northwind.example.test', type: recordType('A', 1), ttl: 300, rdata: ['203.0.113.42', '203.0.113.43'] },
     { ownerName: 'northwind.example.test', type: recordType('AAAA', 28), ttl: 900, rdata: ['2001:db8:100::42'] },

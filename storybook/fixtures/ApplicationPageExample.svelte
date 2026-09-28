@@ -1,11 +1,11 @@
 <script lang="ts">
     import App from '../../themes/default/src/app/App.svelte';
     import type { ThemeBootstrap, UserBootstrap } from '../../themes/default/src/lib/bootstrap';
-    import { fixtureAccounts, fixtureCsrfToken, fixtureManyUsers, fixtureProviderAccounts, fixtureRoles, fixtureUsers } from './towerdns-installation';
+    import { fixtureAccounts, fixtureCsrfToken, fixtureDnssecProfiles, fixtureManagedZones, fixtureManyUsers, fixtureProviderAccounts, fixtureRoles, fixtureUsers } from './towerdns-installation';
 
     type Language = 'en-GB' | 'de-DE';
-    type PageKind = 'dashboard' | 'admin' | 'providerAccounts' | 'accountMembers' | 'accounts' | 'users' | 'roles' | 'profile' | 'settings' | 'login' | 'stepUp';
-    type Scenario = 'typical' | 'restricted' | 'manyItems' | 'error' | 'stepUpComplete';
+    type PageKind = 'dashboard' | 'admin' | 'providerAccounts' | 'accountMembers' | 'accounts' | 'users' | 'roles' | 'profile' | 'settings' | 'login' | 'stepUp' | 'dnssec';
+    type Scenario = 'typical' | 'restricted' | 'manyItems' | 'error' | 'stepUpComplete' | 'dnssecInactive' | 'dnssecUnsupported';
     type Props = { view?: PageKind; language?: Language; scenario?: Scenario };
     let { view = 'dashboard', language = 'en-GB', scenario = 'typical' }: Props = $props();
 
@@ -25,6 +25,7 @@
             'page.settings.title': 'System settings', 'settings.application-name': 'Application name', 'settings.hostname': 'Hostname', 'settings.force-https': 'Force HTTPS', 'settings.debug': 'Debug mode', 'settings.password-min-length': 'Minimum password length', 'settings.password-min-score': 'Minimum password strength', 'settings.mailer-dsn': 'Mailer DSN', 'settings.sender': 'Sender address',
             'auth.welcome-back': 'Welcome back', 'auth.login': 'Sign in', 'auth.forgot-password-question': 'Forgot your password?', 'auth.forgot-password': 'Reset password',
             'security.step-up.title': 'Additional confirmation required', 'security.step-up.description': 'Confirm this sensitive action with an enrolled second factor. You will need to submit the original action again afterwards.', 'security.step-up.complete-title': 'Confirmation successful', 'security.step-up.complete-text': 'This proof is limited to the requested action and expires shortly.', 'security.step-up.verified': 'Second factor confirmed.', 'security.step-up.resubmit-hint': 'The earlier change was not submitted automatically. Return and deliberately submit the form again.', 'security.step-up.return': 'Return to the action', 'security.step-up.confirm-totp': 'Confirm with TOTP', 'security.step-up.confirm-passkey': 'Confirm with passkey', 'security.step-up.no-factor': 'No second factor is enrolled.', 'security.step-up.enrollment-hint': 'Set up TOTP or a passkey in the profile.', 'security.step-up.failed': 'The confirmation failed.', 'field.authenticator-code': 'Authenticator code', 'passkey.error.no-authenticator-response': 'No response from the authenticator.',
+            'page.dnssec.title': 'DNSSEC', 'dnssec.status': 'Status', 'dnssec.actions': 'Actions', 'dnssec.actions-unavailable': 'Provider actions are unavailable.', 'dnssec.unavailable': 'DNSSEC is not supported by this provider.', 'dnssec.state.active': 'Active', 'dnssec.state.inactive': 'Inactive', 'dnssec.state.unknown': 'Unavailable',
         },
         'de-DE': {
             'navigation.skip-to-content': 'Zum Inhalt springen', 'navigation.menu': 'Navigation öffnen', 'navigation.zones': 'DNS-Zonen', 'navigation.accounts': 'Konten', 'navigation.users': 'Benutzer', 'navigation.roles': 'Rollen', 'navigation.settings': 'Einstellungen', 'navigation.schema': 'Schema', 'navigation.providers': 'Provider', 'navigation.admin': 'Administration', 'navigation.admin-switch': 'Administrativer Benutzerwechsel',
@@ -41,6 +42,7 @@
             'page.settings.title': 'Systemeinstellungen', 'settings.application-name': 'Anwendungsname', 'settings.hostname': 'Hostname', 'settings.force-https': 'HTTPS erzwingen', 'settings.debug': 'Debug-Modus', 'settings.password-min-length': 'Passwort-Mindestlänge', 'settings.password-min-score': 'Mindeststärke des Passworts', 'settings.mailer-dsn': 'Mailer-DSN', 'settings.sender': 'Absenderadresse',
             'auth.welcome-back': 'Willkommen zurück', 'auth.login': 'Anmelden', 'auth.forgot-password-question': 'Passwort vergessen?', 'auth.forgot-password': 'Passwort zurücksetzen',
             'security.step-up.title': 'Sicherheitsbestätigung erforderlich', 'security.step-up.description': 'Bestätige diese sensible Aktion mit einem eingerichteten zweiten Faktor. Danach musst du die ursprüngliche Aktion erneut absenden.', 'security.step-up.complete-title': 'Bestätigung erfolgreich', 'security.step-up.complete-text': 'Der Nachweis gilt nur für die angeforderte Aktion und läuft nach kurzer Zeit ab.', 'security.step-up.verified': 'Zweiter Faktor bestätigt.', 'security.step-up.resubmit-hint': 'Die vorherige Änderung wurde nicht automatisch ausgeführt. Kehre zurück und sende das Formular bewusst erneut ab.', 'security.step-up.return': 'Zur Aktion zurückkehren', 'security.step-up.confirm-totp': 'Mit TOTP bestätigen', 'security.step-up.confirm-passkey': 'Mit Passkey bestätigen', 'security.step-up.no-factor': 'Kein zweiter Faktor ist eingerichtet.', 'security.step-up.enrollment-hint': 'Richte TOTP oder einen Passkey im Profil ein.', 'security.step-up.failed': 'Die Sicherheitsbestätigung ist fehlgeschlagen.', 'field.authenticator-code': 'Authenticator-Code', 'passkey.error.no-authenticator-response': 'Keine Antwort vom Authenticator.',
+            'page.dnssec.title': 'DNSSEC', 'dnssec.status': 'Status', 'dnssec.actions': 'Aktionen', 'dnssec.actions-unavailable': 'Provider-Aktionen sind nicht verfügbar.', 'dnssec.unavailable': 'DNSSEC wird von diesem Provider nicht unterstützt.', 'dnssec.state.active': 'Aktiv', 'dnssec.state.inactive': 'Inaktiv', 'dnssec.state.unknown': 'Nicht verfügbar',
         },
     };
     const themes: ThemeBootstrap[] = [{ name: 'cerberus', displayName: 'Cerberus', description: 'Synthetic fixture theme', skeletonTheme: 'cerberus' }];
@@ -73,8 +75,14 @@
         ...base, fields: { app_name: 'TowerDNS', app_hostname: 'tower.example.test', theme_name: 'cerberus', app_force_https: true, app_debug: false, pwd_min_length: 16, pwd_min_score: 3, mailer_dsn: 'smtp://mail.example.test', mailer_from_address: 'dns@example.test' }, error: scenario === 'error' ? 'Synthetic settings validation error.' : null, success: null,
     } : view === 'stepUp' ? {
         ...base, completed: scenario === 'stepUpComplete', returnUrl: '/roles.php?id=fixture-dns-manager', totpAvailable: true, passkeyAvailable: true, error: scenario === 'error' ? 'Synthetic confirmation error.' : null,
+    } : view === 'dnssec' ? {
+        ...base,
+        accountId: fixtureAccounts.northwind.id,
+        managedZoneId: scenario === 'dnssecInactive' ? fixtureManagedZones[1].id : scenario === 'dnssecUnsupported' ? fixtureManagedZones[3].id : fixtureManagedZones[0].id,
+        profile: scenario === 'dnssecInactive' ? fixtureDnssecProfiles.inactive : scenario === 'dnssecUnsupported' ? fixtureDnssecProfiles.unsupported : fixtureDnssecProfiles.active,
+        error: null, success: null,
     } : base);
-    const bootPage = $derived(view === 'providerAccounts' ? 'provider_accounts/list' : view === 'accountMembers' ? 'accounts/members' : view === 'accounts' ? 'accounts/list' : view === 'users' ? 'iam/users' : view === 'roles' ? 'iam/roles' : view === 'profile' ? 'profile/index' : view === 'settings' ? 'settings' : view === 'login' ? 'login' : view === 'stepUp' ? 'security/step_up' : view === 'admin' ? 'admin' : 'dashboard');
+    const bootPage = $derived(view === 'providerAccounts' ? 'provider_accounts/list' : view === 'accountMembers' ? 'accounts/members' : view === 'accounts' ? 'accounts/list' : view === 'users' ? 'iam/users' : view === 'roles' ? 'iam/roles' : view === 'profile' ? 'profile/index' : view === 'settings' ? 'settings' : view === 'login' ? 'login' : view === 'stepUp' ? 'security/step_up' : view === 'dnssec' ? 'zones/dnssec' : view === 'admin' ? 'admin' : 'dashboard');
     const urls = { dashboard: '/index.php', login: '/login.php', admin: '/admin.php', zones: '/zones.php', accounts: '/accounts.php', account: '/accounts.php?id={id}', accountMembers: '/accounts.php?id={id}&view=members', accountProviders: '/accounts.php?id={id}&view=providers', users: '/users.php', user: '/users.php?id={id}', roles: '/roles.php', role: '/roles.php?id={id}', profile: '/profile.php', settings: '/settings.php', schema: '/settings.php?view=schema', accountZones: '/zones.php?account={account}', zoneDelete: '/zones.php?account={account}&zone={zone}&action=delete', records: '/records.php?account={account}&zone={zone}', rrsetReplace: '/records.php?account={account}&zone={zone}&action=replace', rrsetDelete: '/records.php?account={account}&zone={zone}&action=delete-rrset&owner={owner}&type={type}', dnssec: '/dnssec.php?account={account}&zone={zone}' };
     const boot = $derived({ page: bootPage, props: bootstrapData, themes, theme: themes[0], debug: false, urls, i18n: { locale: language, messages: catalog[language] } });
 </script>
