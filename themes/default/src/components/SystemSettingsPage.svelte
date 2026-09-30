@@ -53,7 +53,7 @@
                 <Field label={t('field.theme')}><select class="input" name="theme_name">{#each themes as theme}<option value={theme.name} selected={theme.name === fields.theme_name}>{theme.displayName}</option>{/each}</select></Field>
             </div>
             <div class="settings-options">
-                <label class="checkbox"><input type="checkbox" name="app_force_https" value="1" checked={fields.app_force_https}> {t('settings.force-https')}</label>
+                <div class="settings-option"><input id="settings-force-https" type="checkbox" name="app_force_https" value="1" checked={fields.app_force_https}><label for="settings-force-https">{t('settings.force-https')}</label></div>
                 <p class="help">{t('settings.force-https.help')}</p>
             </div>
         </section>
@@ -69,8 +69,8 @@
                 <Field label={t('settings.hibp.timeout')}><input class="input" type="number" min="1" max="10" step="0.5" name="hibp_timeout" value={fields.hibp_timeout ?? 3}></Field>
             </div>
             <div class="settings-options">
-                <label class="checkbox"><input type="checkbox" name="hibp_enabled" value="1" checked={fields.hibp_enabled}> {t('settings.hibp.enabled')}</label>
-                <label class="checkbox"><input type="checkbox" name="hibp_fail_open" value="1" checked={fields.hibp_fail_open}> {t('settings.hibp.fail-open')}</label>
+                <div class="settings-option"><input id="settings-hibp-enabled" type="checkbox" name="hibp_enabled" value="1" checked={fields.hibp_enabled}><label for="settings-hibp-enabled">{t('settings.hibp.enabled')}</label></div>
+                <div class="settings-option"><input id="settings-hibp-fail-open" type="checkbox" name="hibp_fail_open" value="1" checked={fields.hibp_fail_open}><label for="settings-hibp-fail-open">{t('settings.hibp.fail-open')}</label></div>
                 <p class="help">{t('settings.hibp.help')}</p>
             </div>
         </section>
@@ -82,7 +82,7 @@
             </header>
             {#if fields.mailer_editable !== false}
                 <div class="settings-options">
-                    <label class="checkbox"><input type="checkbox" name="mailer_enabled" value="1" checked={fields.mailer_enabled}> {t('settings.mailer.enabled')}</label>
+                    <div class="settings-option"><input id="settings-mailer-enabled" type="checkbox" name="mailer_enabled" value="1" checked={fields.mailer_enabled}><label for="settings-mailer-enabled">{t('settings.mailer.enabled')}</label></div>
                 </div>
                 <div class="form-grid">
                     <Field label={t('settings.smtp-host')}><input class="input" name="smtp_host" value={fields.smtp_host ?? ''} autocomplete="off"></Field>
@@ -104,7 +104,7 @@
             </header>
             <div class="settings-options">
                 <Notice kind="warning" text={t('settings.debug.warning')} />
-                <label class="checkbox"><input type="checkbox" name="app_debug" value="1" checked={fields.app_debug}> {t('settings.debug')}</label>
+                <div class="settings-option"><input id="settings-debug" type="checkbox" name="app_debug" value="1" checked={fields.app_debug}><label for="settings-debug">{t('settings.debug')}</label></div>
             </div>
         </section>
 

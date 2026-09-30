@@ -159,9 +159,7 @@ konfiguriert werden. Private Verzeichnisse liegen **oberhalb** des Nginx-Root.
 Die interne Weiterleitung muss die ursprüngliche `REQUEST_URI` für die
 Prüfung des sichtbaren Seitennamens erhalten. Nginx ergänzt vorhandene
 Query-Parameter beim gezeigten Rewrite; `entry` bleibt ausschließlich ein
-interner Routinghinweis. Storybook ist nur eine lokale Vorschau; dort werden bekannte PHP-Links
-auf synthetische Stories gelenkt und schreibende Aktionen abgefangen. Es ist
-kein Ersatz für den PHP-Router und gehört nicht in `httpdocs/`.
+interner Routinghinweis.
 
 ## Browser-Installer
 

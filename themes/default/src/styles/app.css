@@ -81,8 +81,10 @@
     .select.is-fullwidth, .select.is-fullwidth select { display: block; width: 100%; }
     .checkbox { display: inline-flex; align-items: center; gap: .5rem; }
     .checkbox input { accent-color: var(--color-primary-500); }
-    .settings-options { display: grid; gap: .65rem; margin-top: 1rem; }
-    .settings-options .checkbox { width: fit-content; }
+    .settings-options { display: grid; grid-template-columns: minmax(0, 1fr); gap: .65rem; margin-top: 1rem; }
+    .settings-option { display: flex; min-width: 0; align-items: flex-start; gap: .5rem; }
+    .settings-option > input { flex: none; margin-top: .2rem; accent-color: var(--color-primary-500); }
+    .settings-option > label { min-width: 0; flex: 1; overflow-wrap: anywhere; }
     .settings-form { display: grid; gap: 1rem; }
     .settings-section { margin: 0; }
     .settings-section__header { margin-bottom: 1rem; }
@@ -130,6 +132,7 @@
     .tag.is-medium { font-size: .9rem; }
 
     .table-container { min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; }
+    .table-container:focus-visible { outline: 3px solid var(--color-primary-500); outline-offset: 3px; }
     .table { width: 100%; border-collapse: collapse; border-spacing: 0; }
     .table th, .table td { border-bottom: 1px solid var(--color-surface-200); padding: .7rem .75rem; text-align: left; vertical-align: middle; }
     html.dark .table th, html.dark .table td { border-color: var(--color-surface-700); }
@@ -195,7 +198,9 @@
     .resource-grid, .settings-list { display: grid; gap: .75rem; margin-top: 1rem; }
     .resource-card, .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid var(--color-surface-200); border-radius: var(--radius-container); padding: 1rem; }
     html.dark .resource-card, html.dark .setting-row { border-color: var(--color-surface-700); }
-    .resource-title { font-size: 1.05rem; font-weight: 700; }
+    .resource-title { overflow-wrap: anywhere; font-size: 1.05rem; font-weight: 700; }
+    .resource-card > div { min-width: 0; overflow-wrap: anywhere; }
+    .resource-card small { overflow-wrap: anywhere; }
     .provider-card { align-items: flex-start; }
     .provider-card__summary { display: grid; min-width: 0; gap: .25rem; overflow-wrap: anywhere; }
     .provider-card__actions { display: grid; min-width: min(100%, 20rem); gap: .75rem; }

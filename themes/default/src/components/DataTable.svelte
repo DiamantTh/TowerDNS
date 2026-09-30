@@ -26,7 +26,8 @@
     const cellText = (value: unknown): string => value === null || value === undefined ? '–' : String(value);
 </script>
 
-<div class="table-container">
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -- This named region is a keyboard scroll target for the wide data table. -->
+<div class="table-container" role="region" aria-label={labels.join(', ')} tabindex="0">
     <table class="table">
         <thead>
             <tr>

@@ -36,7 +36,8 @@
         </form>
     </section>
 
-    <div class="table-container">
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex -- This named region is a keyboard scroll target for the wide data table. -->
+    <div class="table-container" role="region" aria-label={t('rrset.table-caption')} tabindex="0">
         <table class="table">
             <caption class="sr-only">{t('rrset.table-caption')}</caption>
             <thead>

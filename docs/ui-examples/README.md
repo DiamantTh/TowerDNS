@@ -35,41 +35,11 @@ Local files in `proposals/` are earlier, static reference material. They are
 kept separate from application source and are not evidence of implemented
 features. They may contain deliberately synthetic metrics or layout ideas.
 
-## C. Runnable Storybook UX preview
-
-The component workshop is the runnable comparison environment. It renders the
-real TowerDNS Svelte components, including `AppShell`, dashboard, zone list,
-RRset page, provider-account management, and account-member management with
-synthetic, secrets-free bootstrap data.
-
-The shared synthetic installation links the same sample users, roles, account
-memberships, provider states, zones and RRsets between stories. It includes
-empty, typical, large-list, long-value, restricted/read-only, error and MFA
-step-up states wherever the current productive component can render them.
-All IDs, CSRF values and provider labels are invalid fixture values only; no
-Storybook action calls TowerDNS or an external provider.
-
-```sh
-npm ci
-npm run storybook
-```
-
-The toolbar selects the normal Skeleton theme, language, viewport and one of
-the Storybook-only UX palettes: **02 Forest Light**, **03 Amber Light**,
-**05 Slate Hybrid**, **06 OLED Ocean Dark**, or **Nordic Hybrid**. The palette
-token story lists the exact HEX values. The variants deliberately run over the
-same real components so that tables, long RDATA values, forms, statuses and
-responsive layouts can be compared directly.
-
-`npm run storybook:check` creates an ignored `storybook-static/` directory.
-It is suitable for a local or access-controlled development preview with only
-the committed fixtures. It must not be copied into `httpdocs/`, and it does
-not contain production credentials, live DNS data or application
-configuration.
-
-## D. Productive application
+## C. Productive application
 
 Only the normal Svelte bundle under `httpdocs/assets/` is part of the running
-TowerDNS application. Storybook palettes are workshop-only token overrides:
-they do not alter stored user themes, locale, active-account selection,
-dashboard settings or any server-side authorization.
+TowerDNS application. A future, temporary UX development tool may use the
+real components with synthetic, secrets-free states, but is not part of the
+application or this repository at present. It must not alter stored user
+themes, locale, active-account selection, dashboard settings, or any
+server-side authorization.

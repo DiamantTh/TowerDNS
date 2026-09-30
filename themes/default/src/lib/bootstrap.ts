@@ -8,8 +8,8 @@ export type ThemeBootstrap = {
 /** Server-selected page templates. Authorization remains entirely server-side. */
 export type PageUrlTemplates = Record<string, string>;
 
-/** Used by isolated Storybook fixtures that have no PHP bootstrap. */
-const previewPageUrls: PageUrlTemplates = {
+/** Safe defaults for a component rendered without server-supplied URL templates. */
+const defaultPageUrls: PageUrlTemplates = {
     dashboard: '/', login: '/login', admin: '/admin',
     users: '/users', user: '/users/{id}', roles: '/roles', role: '/roles/{id}',
     accounts: '/accounts', account: '/accounts/{id}', accountMembers: '/accounts/{id}/members', accountProviders: '/accounts/{id}/providers', zones: '/zones',
@@ -20,7 +20,7 @@ const previewPageUrls: PageUrlTemplates = {
 };
 
 export function pageUrl(templates: PageUrlTemplates | undefined, name: string, parameters: Record<string, string | number> = {}): string {
-    const template = (templates ?? previewPageUrls)[name];
+    const template = (templates ?? defaultPageUrls)[name];
     if (!template) throw new Error(`Unknown page URL: ${name}`);
     return template.replace(/\{([a-zA-Z]+)\}/g, (_match, key: string) => {
         if (!(key in parameters)) throw new Error(`Missing page URL parameter: ${key}`);
