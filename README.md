@@ -50,7 +50,7 @@ Rechtepruefungen sind zentral im Core und nicht nur in der UI.
 - CLI/Mailer/Konfig: Symfony Console, Symfony Mailer, `devium/toml`
 - Authentifizierung: WebAuthn (`web-auth/webauthn-lib`), TOTP (`spomky-labs/otphp`), Passwortpruefung (`bjeavons/zxcvbn-php`)
 - Frontend: Skeleton 5 + Svelte 5 + Tailwind CSS 4 + Vite 6 + TypeScript
-- Tests/Statisch: PHPUnit 11, PHPStan 2 (Level 8)
+- Tests/Statisch: PHPUnit 11, PHPStan 2 (Level 8), PHP-CS-Fixer (PER-CS 2.0), PHPCS (gezielte Sicherheits-/Portabilitätsregeln) und Rector
 - Provider-Module unter `modules/`; Kern-Layer unter `src/Domain`, `src/Application` und `src/Infrastructure`
 
 ## Aktueller Stand
@@ -66,7 +66,7 @@ Rechtepruefungen sind zentral im Core und nicht nur in der UI.
 
 ```
 composer install
-composer check       # lint + phpstan + phpunit
+composer check       # lint + PHP-CS-Fixer + PHPCS + Rector + PHPStan + PHPUnit
 npm install
 npm run check
 npm run build        # Frontend-Assets -> httpdocs/assets/
@@ -75,6 +75,12 @@ npm run build        # Frontend-Assets -> httpdocs/assets/
 Der Frontend-Build wird für die lokale Anwendung und die Entwicklungsprüfung
 nach `httpdocs/assets/` geschrieben. Mezzio liefert Seitendaten und
 CSRF-geschuetzte Endpunkte; Svelte rendert die gesamte Anwendung.
+
+PHP-CS-Fixer ist die alleinige Formatierungsquelle und setzt PER-CS 2.0 um.
+PHPCS formatiert nicht erneut: `composer phpcs` untersagt nur bewusst
+risikoreiche globale PHP-Funktionen in Produktcode. Damit
+ergänzt es Formatter, PHPStan (Typen/Analyse), Rector (Modernisierung) und
+PHPUnit (Verhalten), ohne deren Regeln zu duplizieren.
 
 Die Hauptseiten verwenden sichtbare PHP-Adressen wie `/index.php`, `/zones.php`,
 `/records.php?account=107&zone=21` und `/profile.php`. Nur `index.php` ist
