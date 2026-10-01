@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Console;
 
 use Symfony\Component\Console\Command\ListCommand;
-use Symfony\Component\Console\Descriptor\ApplicationDescription;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -45,16 +44,24 @@ final class CommandListCommand extends ListCommand
             return self::FAILURE;
         }
 
-        $description = new ApplicationDescription($application, $input->getArgument('namespace'));
-        $commands    = [];
+        $namespace = $input->getArgument('namespace');
+        if (!is_string($namespace)) {
+            $namespace = null;
+        }
+        $registeredCommands = $application->all($namespace === null ? null : $application->findNamespace($namespace));
+        $commands           = [];
 
-        foreach ($description->getCommands() as $command) {
+        foreach ($registeredCommands as $registeredName => $command) {
+            if ($command->isHidden() || $command->getName() !== $registeredName) {
+                continue;
+            }
             $commands[] = [
                 'name'        => $command->getName(),
                 'description' => $command->getDescription(),
                 'aliases'     => $command->getAliases(),
             ];
         }
+        usort($commands, static fn(array $left, array $right): int => $left['name'] <=> $right['name']);
 
         if ($input->getOption('raw')) {
             $output->writeln(implode("\n", array_column($commands, 'name')));

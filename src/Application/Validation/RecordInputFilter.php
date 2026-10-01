@@ -11,8 +11,8 @@ use Laminas\Filter\StringTrim;
 use Laminas\Filter\ToInt;
 use Laminas\InputFilter\Input;
 use Laminas\InputFilter\InputFilter;
-use Laminas\Validator\Between;
 use Laminas\Validator\NotEmpty;
+use Laminas\Validator\NumberComparison;
 use Laminas\Validator\StringLength;
 
 /**
@@ -44,7 +44,7 @@ final class RecordInputFilter extends InputFilter
         $ttl = new Input('ttl');
         $ttl->getFilterChain()->attach(new ToInt());
         $ttl->getValidatorChain()
-            ->attach(new Between(['min' => 30, 'max' => 604800, 'inclusive' => true]));
+            ->attach(new NumberComparison(['min' => 30, 'max' => 604800]));
 
         $content = new Input('content');
         $content->getFilterChain()->attach(new StringTrim());

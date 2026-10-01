@@ -6,7 +6,7 @@ namespace TowerDNS\Tests\Infrastructure\Http\Handler;
 
 use Doctrine\DBAL\DriverManager;
 use Laminas\Diactoros\ServerRequest;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;

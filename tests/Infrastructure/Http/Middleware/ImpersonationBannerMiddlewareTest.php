@@ -7,7 +7,7 @@ namespace TowerDNS\Tests\Infrastructure\Http\Middleware;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\ServerRequest;
 use Laminas\Diactoros\StreamFactory;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use PHPUnit\Framework\TestCase;

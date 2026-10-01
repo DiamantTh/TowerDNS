@@ -9,7 +9,7 @@ namespace TowerDNS\Tests\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\ServerRequest;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Template\TemplateRendererInterface;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
