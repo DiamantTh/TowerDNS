@@ -6,7 +6,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -20,6 +20,7 @@ use TowerDNS\Domain\Auth\User;
 final readonly class RecordDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(private ManagedZoneDNSService $dns, private AuditLogService $audit, private TranslatorInterface $translator) {}
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $user      = $request->getAttribute(User::class);

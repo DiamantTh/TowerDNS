@@ -28,12 +28,14 @@ final class DbalSystemSettingsRepository implements SystemSettingsRepositoryInte
         private readonly ClockInterface $clock,
     ) {}
 
+    #[\Override]
     public function get(string $key, mixed $default = null): mixed
     {
         $all = $this->getAll();
         return array_key_exists($key, $all) ? $all[$key] : $default;
     }
 
+    #[\Override]
     public function getAll(): array
     {
         if ($this->cache !== null) {
@@ -57,11 +59,13 @@ final class DbalSystemSettingsRepository implements SystemSettingsRepositoryInte
         return $out;
     }
 
+    #[\Override]
     public function set(string $key, mixed $value, ?string $actorUserId): void
     {
         $this->setMany([$key => $value], $actorUserId);
     }
 
+    #[\Override]
     public function setMany(array $values, ?string $actorUserId): void
     {
         if ($values === []) {

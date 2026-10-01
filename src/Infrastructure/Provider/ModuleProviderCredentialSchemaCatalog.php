@@ -15,6 +15,7 @@ final readonly class ModuleProviderCredentialSchemaCatalog implements ProviderCr
 {
     public function __construct(private ProviderModuleRegistry $modules) {}
 
+    #[\Override]
     public function definitions(): array
     {
         $definitions = [];
@@ -30,6 +31,7 @@ final readonly class ModuleProviderCredentialSchemaCatalog implements ProviderCr
     }
 
     /** @return array<string, string>|null */
+    #[\Override]
     public function credentialsFromInput(string $type, array $input): ?array
     {
         $definition = $this->definitions()[$type] ?? null;
@@ -44,6 +46,7 @@ final readonly class ModuleProviderCredentialSchemaCatalog implements ProviderCr
         return $credentials;
     }
 
+    #[\Override]
     public function credentialsComplete(string $type, array $credentials): bool
     {
         $definition = $this->definitions()[$type] ?? null;

@@ -25,6 +25,7 @@ final readonly class DashboardHandler implements RequestHandlerInterface
         private TemplateRendererInterface $renderer,
     ) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User|null $user */

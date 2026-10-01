@@ -29,6 +29,7 @@ final readonly class WebAuthnProfileHandler implements RequestHandlerInterface
         private WebAuthnCredentialRepositoryInterface $webAuthn,
     ) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         /** @var User $currentUser */

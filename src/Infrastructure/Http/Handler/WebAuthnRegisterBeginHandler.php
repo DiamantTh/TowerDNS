@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\JsonResponse;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -38,6 +38,7 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         private SessionSecurity                        $sessionSecurity,
     ) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         /** @var \Mezzio\Csrf\CsrfGuardInterface $guard */

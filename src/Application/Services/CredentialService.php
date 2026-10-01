@@ -74,6 +74,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
      * @param string $plaintext  Credential JSON to encrypt
      * @throws \RuntimeException on encryption failure
      */
+    #[\Override]
     public function encrypt(string $plaintext): string
     {
         if (defined('SODIUM_CRYPTO_AEAD_AEGIS256_KEYBYTES')) {
@@ -109,13 +110,14 @@ final readonly class CredentialService implements CredentialEncryptorInterface
      * IMPORTANT: The returned plaintext is short-lived. Call {@see self::wipe()}
      * on it as soon as the provider client has been constructed.
      *
-     * @param string $encoded  Base64-encoded ciphertext blob
+     * @param string $ciphertext Base64-encoded ciphertext blob
      * @return string  Plaintext JSON credential string
      * @throws \RuntimeException on authentication failure or invalid format
      */
-    public function decrypt(string $encoded): string
+    #[\Override]
+    public function decrypt(string $ciphertext): string
     {
-        $raw = base64_decode($encoded, strict: true);
+        $raw = base64_decode($ciphertext, strict: true);
         if ($raw === false || strlen($raw) < 2) {
             throw new \RuntimeException('CredentialService: invalid ciphertext blob.');
         }
@@ -135,6 +137,7 @@ final readonly class CredentialService implements CredentialEncryptorInterface
      * Zeroes a plaintext string in memory after use.
      * Always call this after constructing the provider client.
      */
+    #[\Override]
     public function wipe(string &$plaintext): void
     {
         if (function_exists('sodium_memzero')) {

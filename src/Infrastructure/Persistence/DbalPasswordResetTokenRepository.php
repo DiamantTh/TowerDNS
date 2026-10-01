@@ -16,6 +16,7 @@ final readonly class DbalPasswordResetTokenRepository implements PasswordResetTo
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function create(
         string $userId,
         string $tokenHash,
@@ -32,6 +33,7 @@ final readonly class DbalPasswordResetTokenRepository implements PasswordResetTo
         ]);
     }
 
+    #[\Override]
     public function findByHash(string $tokenHash): ?PasswordResetToken
     {
         $row = $this->connection->fetchAssociative(
@@ -42,6 +44,7 @@ final readonly class DbalPasswordResetTokenRepository implements PasswordResetTo
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function markUsed(int $id, string $usedAt): void
     {
         $this->connection->update(
@@ -51,6 +54,7 @@ final readonly class DbalPasswordResetTokenRepository implements PasswordResetTo
         );
     }
 
+    #[\Override]
     public function consumeIfValid(int $id, string $usedAt): bool
     {
         return $this->connection->executeStatement(

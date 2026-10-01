@@ -15,6 +15,7 @@ final readonly class DbalStepUpProofNonceRepository implements StepUpProofNonceR
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function claim(string $nonce, int $expiresAt): bool
     {
         // Expired rows are short-lived security metadata, not an audit trail.

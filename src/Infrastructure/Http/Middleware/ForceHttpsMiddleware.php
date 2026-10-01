@@ -33,6 +33,7 @@ final readonly class ForceHttpsMiddleware implements MiddlewareInterface
         private ClientIpResolver $trustedProxies,
     ) {}
 
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         if (!$this->enabled || $this->isSecure($request)) {

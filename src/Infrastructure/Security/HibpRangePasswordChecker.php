@@ -38,6 +38,7 @@ final readonly class HibpRangePasswordChecker implements BreachedPasswordChecker
         private LoggerInterface        $logger = new NullLogger(),
     ) {}
 
+    #[\Override]
     public function timesSeen(string $password): int
     {
         if ($password === '') {

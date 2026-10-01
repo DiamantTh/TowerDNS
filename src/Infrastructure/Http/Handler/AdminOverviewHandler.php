@@ -28,6 +28,7 @@ final readonly class AdminOverviewHandler implements RequestHandlerInterface
         private PageUrls $urls,
     ) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $user = $request->getAttribute(User::class);

@@ -23,12 +23,14 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function findById(string $id): ?Role
     {
         $roles = $this->findByIds([$id]);
         return $roles[0] ?? null;
     }
 
+    #[\Override]
     public function findByIds(array $ids): array
     {
         if ($ids === []) {
@@ -48,6 +50,7 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
         return $this->hydrateRoles($rows);
     }
 
+    #[\Override]
     public function findAll(): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -61,6 +64,7 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
         return $this->hydrateRoles($rows);
     }
 
+    #[\Override]
     public function save(Role $role): void
     {
         $exists = $this->connection->fetchOne(
@@ -103,6 +107,7 @@ final readonly class DbalRoleRepository implements RoleRepositoryInterface
         }
     }
 
+    #[\Override]
     public function delete(string $roleId): void
     {
         $row = $this->connection->fetchAssociative(

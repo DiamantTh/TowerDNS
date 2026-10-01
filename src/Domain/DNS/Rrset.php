@@ -11,7 +11,7 @@ namespace TowerDNS\Domain\DNS;
 final readonly class Rrset
 {
     /**
-     * @param non-empty-list<string> $rdata
+     * @param list<string> $rdata
      * @param array<string, scalar|null> $metadata
      */
     public function __construct(

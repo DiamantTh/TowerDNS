@@ -116,7 +116,12 @@ final class LocalModuleDiscovery
         /** @var array<string, string> $owners */
         $owners = [];
         foreach ($directories as $directory) {
-            foreach (glob($directory . '/*.php') ?: [] as $catalogue) {
+            $catalogues = glob($directory . '/*.php');
+            if ($catalogues === false) {
+                throw new \RuntimeException(sprintf('Unable to enumerate module translation catalogues in "%s".', $directory));
+            }
+            foreach ($catalogues as $catalogue) {
+                /** @psalm-suppress UnresolvableInclude Module catalogues are discovered from validated local directories. */
                 $messages = require $catalogue;
                 if (!is_array($messages)) {
                     throw new \RuntimeException(sprintf('Module translation catalogue "%s" must return an array.', $catalogue));
@@ -152,7 +157,10 @@ final class LocalModuleDiscovery
             $this->moduleDirectories = [];
             return [];
         }
-        $files = glob($this->moduleDirectory . '/*/module.php') ?: [];
+        $files = glob($this->moduleDirectory . '/*/module.php');
+        if ($files === false) {
+            throw new \RuntimeException(sprintf('Unable to enumerate modules in "%s".', $this->moduleDirectory));
+        }
         sort($files, SORT_STRING);
         $modules           = [];
         $directories       = [];
@@ -169,6 +177,7 @@ final class LocalModuleDiscovery
             }
             $directories[$directoryKey] = $directory;
 
+            /** @psalm-suppress UnresolvableInclude Module entry points are discovered from validated local directories. */
             $module = require $file;
             if (!$module instanceof ModuleManifest && !$module instanceof TowerDNSModuleInterface) {
                 throw new \RuntimeException(sprintf('Module entry point %s must return a TowerDNS module or ModuleManifest.', $file));

@@ -19,6 +19,7 @@ final readonly class DbalAuditLogRepository implements AuditLogRepositoryInterfa
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function append(AuditLogEntry $entry, string $createdAt): void
     {
         $this->connection->insert('audit_logs', [
@@ -40,6 +41,7 @@ final readonly class DbalAuditLogRepository implements AuditLogRepositoryInterfa
         ]);
     }
 
+    #[\Override]
     public function findByAccount(int $accountId, int $limit = 100, int $offset = 0): array
     {
         return $this->connection->fetchAllAssociative(
@@ -49,6 +51,7 @@ final readonly class DbalAuditLogRepository implements AuditLogRepositoryInterfa
         );
     }
 
+    #[\Override]
     public function findByZone(string $zoneId, int $limit = 50, int $offset = 0): array
     {
         return $this->connection->fetchAllAssociative(
@@ -58,6 +61,7 @@ final readonly class DbalAuditLogRepository implements AuditLogRepositoryInterfa
         );
     }
 
+    #[\Override]
     public function findByImpersonationSession(string $sessionId): array
     {
         return $this->connection->fetchAllAssociative(

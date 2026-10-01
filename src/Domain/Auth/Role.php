@@ -41,16 +41,19 @@ final class Role implements RoleInterface
 
     // ── Laminas RoleInterface ─────────────────────────────────────────────
 
+    #[\Override]
     public function getName(): string
     {
         return $this->name;
     }
 
+    #[\Override]
     public function addPermission(string $name): void
     {
         $this->permissionMap[PermissionRegistry::normalize($name)] = true;
     }
 
+    #[\Override]
     public function hasPermission(string $name): bool
     {
         if (isset($this->permissionMap[$name])) {
@@ -59,6 +62,7 @@ final class Role implements RoleInterface
         return array_any($this->children, fn(RoleInterface $child): bool => $child->hasPermission($name));
     }
 
+    #[\Override]
     public function addChild(RoleInterface $child): void
     {
         $childName = $child->getName();
@@ -68,16 +72,19 @@ final class Role implements RoleInterface
         }
     }
 
+    #[\Override]
     public function getChildren(): iterable
     {
         return array_values($this->children);
     }
 
+    #[\Override]
     public function addParent(RoleInterface $parent): void
     {
         $this->parents[$parent->getName()] = $parent;
     }
 
+    #[\Override]
     public function getParents(): iterable
     {
         return array_values($this->parents);

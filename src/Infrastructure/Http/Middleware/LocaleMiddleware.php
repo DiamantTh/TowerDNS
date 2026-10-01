@@ -16,6 +16,7 @@ final readonly class LocaleMiddleware implements MiddlewareInterface
 {
     public function __construct(private Translator $translator, private string $defaultLocale = SupportedLocales::DEFAULT) {}
 
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $user   = $request->getAttribute(User::class);

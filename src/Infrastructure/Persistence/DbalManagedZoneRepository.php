@@ -12,18 +12,21 @@ final readonly class DbalManagedZoneRepository implements ManagedZoneRepositoryI
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function findById(int $id): ?ManagedZone
     {
         $row = $this->connection->fetchAssociative('SELECT * FROM managed_zones WHERE id = ?', [$id]);
         return $row === false ? null : $this->hydrate($row);
     }
 
+    #[\Override]
     public function findByIdForAccount(int $id, int $accountId): ?ManagedZone
     {
         $row = $this->connection->fetchAssociative('SELECT * FROM managed_zones WHERE id = ? AND account_id = ?', [$id, $accountId]);
         return $row === false ? null : $this->hydrate($row);
     }
 
+    #[\Override]
     public function findByProviderZone(int $providerAccountId, string $providerZoneId): ?ManagedZone
     {
         $row = $this->connection->fetchAssociative(
@@ -33,12 +36,14 @@ final readonly class DbalManagedZoneRepository implements ManagedZoneRepositoryI
         return $row === false ? null : $this->hydrate($row);
     }
 
+    #[\Override]
     public function findByAccountId(int $accountId): array
     {
         $rows = $this->connection->fetchAllAssociative('SELECT * FROM managed_zones WHERE account_id = ? ORDER BY canonical_name', [$accountId]);
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function countByAccountId(int $accountId): int
     {
         return (int) $this->connection->fetchOne(
@@ -47,6 +52,7 @@ final readonly class DbalManagedZoneRepository implements ManagedZoneRepositoryI
         );
     }
 
+    #[\Override]
     public function create(int $accountId, int $providerAccountId, string $providerZoneId, string $canonicalName, string $createdAt): int
     {
         $providerBelongs = $this->connection->fetchOne(
@@ -67,6 +73,7 @@ final readonly class DbalManagedZoneRepository implements ManagedZoneRepositoryI
         return (int) $this->connection->lastInsertId();
     }
 
+    #[\Override]
     public function delete(int $id): void
     {
         $this->connection->delete('managed_zones', ['id' => $id]);

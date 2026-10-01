@@ -19,6 +19,7 @@ final readonly class SecurityHeaderMiddleware implements MiddlewareInterface
 {
     public function __construct(private bool $hstsEnabled = false) {}
 
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $response = $handler->handle($request);

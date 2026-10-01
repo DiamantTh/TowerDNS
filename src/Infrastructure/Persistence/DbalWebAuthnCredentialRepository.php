@@ -19,6 +19,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
         private SerializerInterface $serializer,
     ) {}
 
+    #[\Override]
     public function findByUserId(string $userId): array
     {
         /** @var list<array<string, mixed>> $rows */
@@ -49,6 +50,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
         return $result;
     }
 
+    #[\Override]
     public function findByCredentialId(string $credentialId): ?PublicKeyCredentialSource
     {
         $row = $this->connection->fetchAssociative(
@@ -67,6 +69,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
         );
     }
 
+    #[\Override]
     public function save(string $userId, string $name, PublicKeyCredentialSource $source): void
     {
         $now  = new \DateTimeImmutable()->format('Y-m-d H:i:s');
@@ -82,6 +85,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
         ]);
     }
 
+    #[\Override]
     public function updateAfterAuthentication(string $credentialId, int $counter): void
     {
         $source = $this->findByCredentialId($credentialId);
@@ -103,6 +107,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
         );
     }
 
+    #[\Override]
     public function delete(string $credentialId, string $userId): void
     {
         $this->connection->delete(

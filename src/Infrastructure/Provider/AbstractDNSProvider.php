@@ -35,17 +35,20 @@ abstract class AbstractDNSProvider implements DNSProviderInterface, RrsetProvide
      */
     abstract protected function capabilityMap(): array;
 
+    #[\Override]
     public function capabilities(): ProviderCapabilitySet
     {
         return $this->capabilitySet;
     }
 
+    #[\Override]
     public function constraints(): ProviderConstraintProfile
     {
         return new ProviderConstraintProfile('provider_defined', 'immediate', false);
     }
 
     /** @return list<Rrset> */
+    #[\Override]
     public function listRrsets(string $zoneId): array
     {
         /** @var array<string, array{owner: string, type: DNSRecordType, ttl: int, rdata: list<string>, ids: list<string>}> $sets */
@@ -75,6 +78,7 @@ abstract class AbstractDNSProvider implements DNSProviderInterface, RrsetProvide
         return $result;
     }
 
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         throw new \LogicException(sprintf(
@@ -83,6 +87,7 @@ abstract class AbstractDNSProvider implements DNSProviderInterface, RrsetProvide
         ));
     }
 
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         throw new \LogicException(sprintf(

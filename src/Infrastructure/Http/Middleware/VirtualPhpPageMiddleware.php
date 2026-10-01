@@ -21,6 +21,7 @@ final readonly class VirtualPhpPageMiddleware implements MiddlewareInterface
 
     public function __construct(private PageUrls $urls = new PageUrls()) {}
 
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $path          = $request->getUri()->getPath();

@@ -28,6 +28,7 @@ final readonly class ClientIpMiddleware implements MiddlewareInterface
 {
     public function __construct(private ClientIpResolver $resolver) {}
 
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $ip = $this->resolver->resolve($request);

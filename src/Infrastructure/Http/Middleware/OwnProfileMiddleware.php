@@ -14,6 +14,7 @@ use TowerDNS\Domain\Auth\User;
 /** An impersonated identity must never manage another person's credentials or profile. */
 final class OwnProfileMiddleware implements MiddlewareInterface
 {
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $path = $request->getUri()->getPath();

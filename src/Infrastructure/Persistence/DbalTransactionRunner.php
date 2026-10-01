@@ -11,6 +11,7 @@ final readonly class DbalTransactionRunner implements TransactionRunnerInterface
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function run(callable $operation): mixed
     {
         return $this->connection->transactional(static fn(Connection $connection): mixed => $operation());

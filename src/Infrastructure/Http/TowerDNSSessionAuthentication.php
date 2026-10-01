@@ -27,6 +27,7 @@ final readonly class TowerDNSSessionAuthentication implements AuthenticationInte
         private SessionSecurity $sessionSecurity,
     ) {}
 
+    #[\Override]
     public function authenticate(ServerRequestInterface $request): ?UserInterface
     {
         $session = $request->getAttribute(SessionInterface::class);
@@ -50,6 +51,7 @@ final readonly class TowerDNSSessionAuthentication implements AuthenticationInte
         return new TowerDNSAuthenticatedUser($user);
     }
 
+    #[\Override]
     public function unauthorizedResponse(ServerRequestInterface $request): ResponseInterface
     {
         return new EmptyResponse(401);

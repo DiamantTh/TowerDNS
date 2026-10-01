@@ -36,6 +36,7 @@ final readonly class RequireAuthMiddleware implements MiddlewareInterface
 {
     public function __construct(private string $loginPath = '/login') {}
 
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $user     = $request->getAttribute(User::class);

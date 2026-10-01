@@ -33,6 +33,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         private ClockInterface $clock,
     ) {}
 
+    #[\Override]
     public function findById(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
@@ -47,6 +48,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id']));
     }
 
+    #[\Override]
     public function findByIdForAdministration(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
@@ -56,6 +58,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return is_array($raw) ? $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id'])) : null;
     }
 
+    #[\Override]
     public function findByIdsForAdministration(array $ids): array
     {
         $ids = array_values(array_unique(array_filter($ids, static fn(mixed $id): bool => is_string($id) && $id !== '')));
@@ -83,6 +86,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return $users;
     }
 
+    #[\Override]
     public function findByEmail(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
@@ -97,6 +101,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id']));
     }
 
+    #[\Override]
     public function findByEmailForAdministration(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
@@ -107,6 +112,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return is_array($raw) ? $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id'])) : null;
     }
 
+    #[\Override]
     public function fetchPasswordHash(string $email): ?string
     {
         $hash = $this->connection->fetchOne(
@@ -117,6 +123,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return is_string($hash) && $hash !== '' ? $hash : null;
     }
 
+    #[\Override]
     public function fetchEncryptedTotpSecret(string $userId): ?string
     {
         $secret = $this->connection->fetchOne(
@@ -127,6 +134,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return is_string($secret) && $secret !== '' ? $secret : null;
     }
 
+    #[\Override]
     public function saveEncryptedTotpSecret(string $userId, ?string $ciphertext): void
     {
         $this->connection->update(
@@ -136,6 +144,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         );
     }
 
+    #[\Override]
     public function updateLastLoginAt(string $userId): void
     {
         $this->connection->update(
@@ -145,6 +154,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         );
     }
 
+    #[\Override]
     public function create(string $id, string $email, string $passwordHash): void
     {
         $now = $this->clock->now()->format('Y-m-d H:i:s');
@@ -164,6 +174,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         ]);
     }
 
+    #[\Override]
     public function updatePasswordHash(string $userId, string $passwordHash): void
     {
         $this->connection->update(
@@ -176,6 +187,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         );
     }
 
+    #[\Override]
     public function updateDisplayName(string $userId, string $displayName): void
     {
         $this->connection->update(
@@ -188,6 +200,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         );
     }
 
+    #[\Override]
     public function setActive(string $userId, bool $active): void
     {
         // MariaDB/PDO can bind PHP false as an empty string for a BOOLEAN
@@ -195,6 +208,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $this->connection->update('users', ['active' => $active ? 1 : 0, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')], ['id' => $userId]);
     }
 
+    #[\Override]
     public function updateProfile(string $userId, array $profile): void
     {
         $allowed = ['display_name', 'theme', 'language', 'locale', 'timezone', 'first_name', 'last_name', 'alternate_email', 'phone', 'mobile', 'street', 'street2', 'postal_code', 'city', 'region', 'country', 'external_reference'];
@@ -206,6 +220,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $this->connection->update('users', $values, ['id' => $userId]);
     }
 
+    #[\Override]
     public function syncRoles(string $userId, array $roleIds): void
     {
         $this->connection->beginTransaction();
@@ -227,6 +242,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         }
     }
 
+    #[\Override]
     public function findAll(?string $search = null, ?bool $active = true, int $limit = 100, int $offset = 0, ?string $accountSearch = null, ?TeamRole $membershipRole = null): array
     {
         $conditions = [];
@@ -290,16 +306,19 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return $users;
     }
 
+    #[\Override]
     public function delete(string $userId): void
     {
         $this->connection->delete('users', ['id' => $userId]);
     }
 
+    #[\Override]
     public function countActiveUsersWithRole(string $roleId): int
     {
         return (int) $this->connection->fetchOne('SELECT COUNT(*) FROM users u JOIN user_roles ur ON ur.user_id = u.id WHERE u.active = TRUE AND ur.role_id = ?', [$roleId]);
     }
 
+    #[\Override]
     public function lockSuperadminRoleForMutation(): void
     {
         // Use the seeded role row as a cross-database serialization point for
@@ -317,6 +336,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         }
     }
 
+    #[\Override]
     public function invalidateApiKeys(string $userId): int
     {
         return (int) $this->connection->executeStatement(

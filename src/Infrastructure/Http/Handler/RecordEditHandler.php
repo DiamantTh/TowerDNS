@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -15,12 +15,14 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Domain\DNS\Record;
 
 /** Loads one record using the managed-zone scope. */
 final readonly class RecordEditHandler implements RequestHandlerInterface
 {
     public function __construct(private TemplateRendererInterface $renderer, private ManagedZoneDNSService $dns, private TranslatorInterface $translator) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $user = $request->getAttribute(User::class);
@@ -39,13 +41,13 @@ final readonly class RecordEditHandler implements RequestHandlerInterface
         } catch (\Throwable) {
             return $this->render($user, $accountId, $zoneId, null, $csrfToken, $this->translator->translate('records.error.read-failed'), 500);
         }
-        if (!$record instanceof \TowerDNS\Domain\DNS\Record) {
+        if (!$record instanceof Record) {
             return $this->render($user, $accountId, $zoneId, null, $csrfToken, $this->translator->translate('http.error.not-found'), 404);
         }
         return $this->render($user, $accountId, $zoneId, $record, $csrfToken, null, 200);
     }
 
-    private function render(User $user, int $accountId, int $zoneId, mixed $record, string $csrfToken, ?string $error, int $status): HtmlResponse
+    private function render(User $user, int $accountId, int $zoneId, ?Record $record, string $csrfToken, ?string $error, int $status): HtmlResponse
     {
         return new HtmlResponse($this->renderer->render('app::zones/record_edit', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'record' => $record, 'csrfToken' => $csrfToken, 'error' => $error]), $status);
     }

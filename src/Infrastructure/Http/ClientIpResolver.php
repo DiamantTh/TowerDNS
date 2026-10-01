@@ -93,7 +93,11 @@ final readonly class ClientIpResolver
             return $ip === $cidrOrIp;
         }
 
-        [$subnet, $maskBits] = explode('/', $cidrOrIp, 2);
+        $parts = explode('/', $cidrOrIp, 2);
+        if (count($parts) !== 2) {
+            return false;
+        }
+        [$subnet, $maskBits] = $parts;
         $ipBin               = @inet_pton($ip);
         $subnetBin           = @inet_pton($subnet);
         if ($ipBin === false || $subnetBin === false || strlen($ipBin) !== strlen($subnetBin)) {

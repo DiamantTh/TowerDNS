@@ -26,11 +26,13 @@ final readonly class TowerDNSAuthenticatedUser implements UserInterface
         return $this->user;
     }
 
+    #[\Override]
     public function getIdentity(): string
     {
         return $this->user->id;
     }
 
+    #[\Override]
     public function getRoles(): iterable
     {
         foreach ($this->user->roles as $role) {
@@ -38,11 +40,13 @@ final readonly class TowerDNSAuthenticatedUser implements UserInterface
         }
     }
 
+    #[\Override]
     public function getDetail(string $name, $default = null)
     {
         return $default;
     }
 
+    #[\Override]
     public function getDetails(): array
     {
         return [];

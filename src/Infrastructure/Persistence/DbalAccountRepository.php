@@ -19,6 +19,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function findById(int $id): ?Account
     {
         $row = $this->connection->fetchAssociative(
@@ -28,6 +29,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function findBySlug(string $slug): ?Account
     {
         $row = $this->connection->fetchAssociative(
@@ -37,6 +39,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function findPersonalByUserId(string $userId): ?Account
     {
         $row = $this->connection->fetchAssociative(
@@ -46,6 +49,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function findByUserId(string $userId, ?string $search = null, ?AccountKind $type = null, int $limit = 100, int $offset = 0, bool $includeInactive = false, ?TeamRole $role = null, ?bool $active = null): array
     {
         $conditions = ['am.user_id = ?'];
@@ -95,6 +99,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function findAll(): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -103,6 +108,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function create(string $name, string $slug, string $ownerUserId, string $createdAt, AccountKind $type = AccountKind::ORGANIZATION, ?string $personalUserId = null, ?string $customerNumber = null, ?string $externalReference = null): int
     {
         if ($type === AccountKind::PERSONAL && $personalUserId !== $ownerUserId) {
@@ -141,11 +147,13 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         });
     }
 
+    #[\Override]
     public function updateName(int $id, string $name): void
     {
         $this->connection->update('accounts', ['name' => $name], ['id' => $id]);
     }
 
+    #[\Override]
     public function updateOrganizationDetails(int $id, string $name, ?string $customerNumber, ?string $externalReference): void
     {
         $this->connection->update('accounts', [
@@ -155,16 +163,19 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         ], ['id' => $id]);
     }
 
+    #[\Override]
     public function deactivate(int $id): void
     {
         $this->connection->update('accounts', ['is_active' => false], ['id' => $id]);
     }
 
+    #[\Override]
     public function activate(int $id): void
     {
         $this->connection->update('accounts', ['is_active' => true], ['id' => $id]);
     }
 
+    #[\Override]
     public function delete(int $id): void
     {
         $this->connection->delete('accounts', ['id' => $id]);
@@ -172,6 +183,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
 
     // ── Memberships ───────────────────────────────────────────────────────────
 
+    #[\Override]
     public function findMemberships(int $accountId): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -181,6 +193,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return array_map($this->hydrateMembership(...), $rows);
     }
 
+    #[\Override]
     public function countMemberships(int $accountId): int
     {
         return (int) $this->connection->fetchOne(
@@ -189,6 +202,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         );
     }
 
+    #[\Override]
     public function findMembership(int $accountId, string $userId): ?AccountMembership
     {
         $row = $this->connection->fetchAssociative(
@@ -198,6 +212,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         return $row !== false ? $this->hydrateMembership($row) : null;
     }
 
+    #[\Override]
     public function addMembership(int $accountId, string $userId, TeamRole $role, string $createdAt, ?string $invitedBy = null): void
     {
         $this->connection->insert('account_memberships', [
@@ -209,6 +224,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         ]);
     }
 
+    #[\Override]
     public function updateMembershipRole(int $accountId, string $userId, TeamRole $role): void
     {
         $this->connection->update(
@@ -218,6 +234,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         );
     }
 
+    #[\Override]
     public function removeMembership(int $accountId, string $userId): void
     {
         $membership = $this->findMembership($accountId, $userId);
@@ -230,6 +247,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         );
     }
 
+    #[\Override]
     public function transferOwnership(int $accountId, string $newOwnerUserId): void
     {
         $this->connection->transactional(function () use ($accountId, $newOwnerUserId): void {
@@ -263,6 +281,7 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
         });
     }
 
+    #[\Override]
     public function getEffectiveRole(int $accountId, string $userId): ?TeamRole
     {
         $row = $this->connection->fetchAssociative(

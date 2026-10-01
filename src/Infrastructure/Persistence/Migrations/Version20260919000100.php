@@ -17,6 +17,7 @@ final class Version20260919000100 extends AbstractMigration
     private bool $legacyLanguageColumnMissing               = false;
     private bool $legacyWebAuthnCredentialIdNeedsConversion = false;
 
+    #[\Override]
     public function isTransactional(): bool
     {
         // DDL transaction semantics differ between SQLite, MySQL/MariaDB and
@@ -25,11 +26,13 @@ final class Version20260919000100 extends AbstractMigration
         return false;
     }
 
+    #[\Override]
     public function getDescription(): string
     {
         return 'Establish canonical TowerDNS tables and constraints';
     }
 
+    #[\Override]
     public function up(Schema $schema): void
     {
         $this->legacyLanguageColumnMissing = $schema->hasTable('users')
@@ -57,11 +60,13 @@ final class Version20260919000100 extends AbstractMigration
         }
     }
 
+    #[\Override]
     public function down(Schema $schema): void
     {
         $this->throwIrreversibleMigrationException('The canonical baseline cannot be reverted automatically.');
     }
 
+    #[\Override]
     public function postUp(Schema $schema): void
     {
         if ($this->legacyLanguageColumnMissing) {

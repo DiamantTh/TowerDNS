@@ -15,6 +15,7 @@ final readonly class DbalAdminImpersonationSessionRepository implements AdminImp
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function findById(string $id): ?AdminImpersonationSession
     {
         $row = $this->connection->fetchAssociative(
@@ -24,6 +25,7 @@ final readonly class DbalAdminImpersonationSessionRepository implements AdminImp
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function findActiveForActor(string $actorUserId): ?AdminImpersonationSession
     {
         $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
@@ -39,6 +41,7 @@ final readonly class DbalAdminImpersonationSessionRepository implements AdminImp
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function create(
         string $id,
         string $actorUserId,
@@ -60,6 +63,7 @@ final readonly class DbalAdminImpersonationSessionRepository implements AdminImp
         ]);
     }
 
+    #[\Override]
     public function end(string $id, string $endedAt): void
     {
         $this->connection->update(

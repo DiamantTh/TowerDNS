@@ -41,6 +41,7 @@ final class PasswordResetCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -49,6 +50,7 @@ final class PasswordResetCommand extends Command
             ->addOption('keep-api-keys', null, InputOption::VALUE_NONE, 'Keep existing API keys active (default: revoke)');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

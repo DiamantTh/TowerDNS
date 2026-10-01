@@ -14,7 +14,7 @@ final readonly class PermissionDefinition
      * Labels and descriptions are translation keys, never user-facing source
      * text. Modules use the same convention for their contributions.
      *
-     * @param list<'system'|'account'|'zone'> $scopeKinds
+     * @param list<string> $scopeKinds
      */
     public function __construct(
         public string $id,

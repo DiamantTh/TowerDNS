@@ -16,6 +16,7 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function findByManagedZoneId(int $managedZoneId): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -25,6 +26,7 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function findByUserId(string $userId): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -34,6 +36,7 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function findMembership(int $managedZoneId, string $userId): ?ZoneMembership
     {
         $row = $this->connection->fetchAssociative(
@@ -43,6 +46,7 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function grant(int $managedZoneId, string $userId, TeamRole $role, string $createdAt, ?string $grantedBy = null): void
     {
         $this->connection->insert('zone_memberships', [
@@ -54,6 +58,7 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
         ]);
     }
 
+    #[\Override]
     public function updateRole(int $managedZoneId, string $userId, TeamRole $role): void
     {
         $this->connection->update(
@@ -63,6 +68,7 @@ final readonly class DbalZoneMembershipRepository implements ZoneMembershipRepos
         );
     }
 
+    #[\Override]
     public function revoke(int $managedZoneId, string $userId): void
     {
         $this->connection->delete(

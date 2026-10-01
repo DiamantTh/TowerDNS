@@ -121,8 +121,12 @@ final readonly class HealthStatusService
 
             /** @var array<string, mixed> $data */
             $data = $decoded;
-            $key  = (string) ($data['security']['encryption_key'] ?? '');
-            return $key !== '' && strlen(base64_decode($key, true) ?: '') === 32;
+            $key = (string) ($data['security']['encryption_key'] ?? '');
+            if ($key === '') {
+                return false;
+            }
+            $decodedKey = base64_decode($key, true);
+            return is_string($decodedKey) && strlen($decodedKey) === 32;
         } catch (\Throwable) {
             return false;
         }

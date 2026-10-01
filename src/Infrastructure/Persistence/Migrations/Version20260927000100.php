@@ -14,17 +14,20 @@ use TowerDNS\Infrastructure\Persistence\SchemaManager;
 /** Adds database-enforced one-time claims for action-bound MFA step-up proofs. */
 final class Version20260927000100 extends AbstractMigration
 {
+    #[\Override]
     public function isTransactional(): bool
     {
         // Keep behavior consistent across SQLite, MariaDB and PostgreSQL DDL.
         return false;
     }
 
+    #[\Override]
     public function getDescription(): string
     {
         return 'Add one-time step-up proof nonce storage';
     }
 
+    #[\Override]
     public function up(Schema $schema): void
     {
         if (!$this->connection->createSchemaManager()->tablesExist(['step_up_proof_nonces'])) {
@@ -32,11 +35,13 @@ final class Version20260927000100 extends AbstractMigration
         }
     }
 
+    #[\Override]
     public function down(Schema $schema): void
     {
         $this->throwIrreversibleMigrationException('Consumed MFA proof nonces are security state and are not rolled back automatically.');
     }
 
+    #[\Override]
     public function postUp(Schema $schema): void
     {
         $this->abortIf(

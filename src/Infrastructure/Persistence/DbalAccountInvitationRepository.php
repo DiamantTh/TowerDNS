@@ -13,6 +13,7 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function create(int $accountId, string $email, ?string $userId, TeamRole $role, string $invitedBy, string $tokenHash, string $createdAt, string $expiresAt): int
     {
         $this->connection->insert('account_invitations', [
@@ -31,18 +32,21 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
         return (int) $this->connection->lastInsertId();
     }
 
+    #[\Override]
     public function findById(int $id): ?AccountInvitation
     {
         $row = $this->connection->fetchAssociative('SELECT * FROM account_invitations WHERE id = ?', [$id]);
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function findByTokenHash(string $tokenHash): ?AccountInvitation
     {
         $row = $this->connection->fetchAssociative('SELECT * FROM account_invitations WHERE token_hash = ?', [$tokenHash]);
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function findPendingByAccountAndEmail(int $accountId, string $email, string $now): ?AccountInvitation
     {
         $row = $this->connection->fetchAssociative(
@@ -52,12 +56,14 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function findByAccount(int $accountId): array
     {
         $rows = $this->connection->fetchAllAssociative('SELECT * FROM account_invitations WHERE account_id = ? ORDER BY created_at DESC', [$accountId]);
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function findPendingForUser(string $email, string $now): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -67,6 +73,7 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function consume(int $id, string $userId, string $acceptedAt, string $now): bool
     {
         return $this->connection->executeStatement(
@@ -75,6 +82,7 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
         ) === 1;
     }
 
+    #[\Override]
     public function decline(int $id, string $declinedAt, string $now): bool
     {
         return $this->connection->executeStatement(
@@ -83,6 +91,7 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
         ) === 1;
     }
 
+    #[\Override]
     public function revoke(int $id, string $revokedAt, string $now): bool
     {
         return $this->connection->executeStatement(

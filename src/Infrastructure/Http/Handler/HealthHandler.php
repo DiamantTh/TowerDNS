@@ -17,6 +17,7 @@ final readonly class HealthHandler implements RequestHandlerInterface
 {
     public function __construct(private HealthStatusService $health) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $path    = $request->getUri()->getPath();

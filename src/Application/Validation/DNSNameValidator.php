@@ -25,6 +25,10 @@ final class DNSNameValidator
             throw new \InvalidArgumentException('DNS-Name darf nicht leer sein.');
         }
         $name = rtrim($name, '.');
+        if ($name === '') {
+            throw new \InvalidArgumentException('DNS-Name darf nicht leer sein.');
+        }
+        /** @var non-empty-string $name */
 
         if (function_exists('idn_to_ascii')) {
             $converted = idn_to_ascii($name, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);
@@ -72,12 +76,15 @@ final class DNSNameValidator
         if ($owner === '' || $owner === '@') {
             return '';
         }
-
         $absolute = str_ends_with($owner, '.');
         if ($absolute && str_ends_with($owner, '..')) {
             throw new \InvalidArgumentException('Ungültiger DNS-Record-Name.');
         }
         $owner = rtrim($owner, '.');
+        if ($owner === '') {
+            throw new \InvalidArgumentException('Ungültiger DNS-Record-Name.');
+        }
+        /** @var non-empty-string $owner */
 
         if (function_exists('idn_to_ascii')) {
             $ascii = idn_to_ascii($owner, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46);

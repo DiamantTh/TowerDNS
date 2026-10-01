@@ -15,6 +15,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function findById(int $id): ?ProviderAccount
     {
         $row = $this->connection->fetchAssociative(
@@ -24,6 +25,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         return $row !== false ? $this->hydrate($row) : null;
     }
 
+    #[\Override]
     public function findByAccountId(int $accountId): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -33,6 +35,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function countByAccountId(int $accountId): int
     {
         return (int) $this->connection->fetchOne(
@@ -41,6 +44,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         );
     }
 
+    #[\Override]
     public function findActiveByAccountAndType(int $accountId, string $providerType): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -52,6 +56,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         return array_map($this->hydrate(...), $rows);
     }
 
+    #[\Override]
     public function create(
         int    $accountId,
         string $providerType,
@@ -72,6 +77,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         return (int) $this->connection->lastInsertId();
     }
 
+    #[\Override]
     public function replaceCredentials(
         int    $id,
         int    $accountId,
@@ -88,6 +94,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         );
     }
 
+    #[\Override]
     public function touchLastUsed(int $id, string $timestamp): void
     {
         $this->connection->update(
@@ -97,6 +104,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         );
     }
 
+    #[\Override]
     public function touchLastTested(int $id, string $timestamp): void
     {
         $this->connection->update(
@@ -106,6 +114,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         );
     }
 
+    #[\Override]
     public function deactivate(int $id, int $accountId): void
     {
         $this->connection->update(
@@ -115,6 +124,7 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         );
     }
 
+    #[\Override]
     public function delete(int $id, int $accountId): void
     {
         $this->connection->delete(

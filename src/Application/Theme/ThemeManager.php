@@ -52,7 +52,11 @@ final class ThemeManager
         $themes    = [];
 
         if (is_dir($themesDir)) {
-            foreach (scandir($themesDir) ?: [] as $name) {
+            $themeDirectories = scandir($themesDir);
+            if ($themeDirectories === false) {
+                throw new \RuntimeException(sprintf('Unable to enumerate themes in "%s".', $themesDir));
+            }
+            foreach ($themeDirectories as $name) {
                 if (!$this->isValidName($name)) {
                     continue;
                 }

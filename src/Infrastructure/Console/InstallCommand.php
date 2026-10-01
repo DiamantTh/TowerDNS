@@ -9,7 +9,7 @@ namespace TowerDNS\Infrastructure\Console;
 
 use Devium\Toml\Toml;
 use Doctrine\DBAL\DriverManager;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -42,6 +42,7 @@ final class InstallCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
@@ -97,18 +98,24 @@ final class InstallCommand extends Command
 
         if ($driver === 'pdo_sqlite') {
             $defaultPath = $this->projectRoot . '/data/towerdns.sqlite';
-            $db['path']  = $io->ask('SQLite file path', $defaultPath) ?? $defaultPath;
+            $path        = $io->ask('SQLite file path', $defaultPath);
+            $db['path']  = is_string($path) ? $path : $defaultPath;
             $sqliteDir   = dirname($db['path']);
             if (!is_dir($sqliteDir)) {
                 mkdir($sqliteDir, 0o750, true);
             }
         } else {
             $defaultPort = $driver === 'pdo_pgsql' ? '5432' : '3306';
-            $db['host']  = $io->ask('Database host', 'localhost')                    ?? 'localhost';
-            $db['port']  = $io->ask('Database port', $defaultPort)                   ?? $defaultPort;
-            $db['name']  = $io->ask('Database name', 'towerdns')                     ?? 'towerdns';
-            $db['user']  = $io->ask('Database user', 'towerdns')                     ?? 'towerdns';
-            $db['pass']  = $io->askHidden('Database password (empty = no password)') ?? '';
+            $host        = $io->ask('Database host', 'localhost');
+            $port        = $io->ask('Database port', $defaultPort);
+            $name        = $io->ask('Database name', 'towerdns');
+            $user        = $io->ask('Database user', 'towerdns');
+            $password    = $io->askHidden('Database password (empty = no password)');
+            $db['host']  = is_string($host) ? $host : 'localhost';
+            $db['port']  = is_string($port) ? $port : $defaultPort;
+            $db['name']  = is_string($name) ? $name : 'towerdns';
+            $db['user']  = is_string($user) ? $user : 'towerdns';
+            $db['pass']  = is_string($password) ? $password : '';
         }
 
         // ──────────────────────────────────────────────────────────────────
@@ -147,15 +154,19 @@ final class InstallCommand extends Command
         $io->section('Step 3: Application settings');
 
         $themeNames = array_keys(new ThemeManager($this->projectRoot)->getAvailable());
-        $appName    = $io->ask('Application name', 'TowerDNS')                  ?? 'TowerDNS';
-        $appDomain  = $io->ask('Domain (optional, e.g. tower.example.com)', '') ?? '';
+        $appNameInput = $io->ask('Application name', 'TowerDNS');
+        $appDomainInput = $io->ask('Domain (optional, e.g. tower.example.com)', '');
+        $appName      = is_string($appNameInput) ? $appNameInput : 'TowerDNS';
+        $appDomain    = is_string($appDomainInput) ? $appDomainInput : '';
         $appTheme   = (string) $io->choice('Theme', $themeNames, 'default');
         $appHttps   = $io->confirm('Force HTTPS (HSTS)', true);
         $sentryDsn  = $io->ask('Sentry DSN (leave blank to skip)', '')                                           ?? '';
         $mailerDsn  = $io->ask('Mailer DSN (e.g. smtp://user:pass@smtp.example.com:587, or blank for none)', '') ?? '';
         $mailerFrom = '';
         if ($mailerDsn !== '') {
-            $mailerFrom = $io->ask('Mail from address', 'noreply@' . ($appDomain ?: 'localhost')) ?? '';
+            $defaultSender = $appDomain !== '' ? $appDomain : 'localhost';
+            $mailerFromInput = $io->ask('Mail from address', 'noreply@' . $defaultSender);
+            $mailerFrom = is_string($mailerFromInput) ? $mailerFromInput : '';
         }
 
         // ──────────────────────────────────────────────────────────────────
@@ -199,8 +210,8 @@ final class InstallCommand extends Command
         $io->section('Summary');
 
         $dbSummary = $driver === 'pdo_sqlite'
-            ? $driver . ' → ' . $db['path']
-            : $driver . ' @ ' . $db['host'] . ':' . $db['port'] . '/' . $db['name'];
+            ? $driver . ' → ' . (string) ($db['path'] ?? '')
+            : $driver . ' @ ' . (string) ($db['host'] ?? '') . ':' . (string) ($db['port'] ?? '') . '/' . (string) ($db['name'] ?? '');
 
         $io->definitionList(
             ['Database' => $dbSummary],

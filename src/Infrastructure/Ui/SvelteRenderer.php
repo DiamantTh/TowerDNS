@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Ui;
 
 use Laminas\I18n\Translator\Translator;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Template\TemplateRendererInterface;
 use TowerDNS\Application\PageUrls;
 use TowerDNS\Application\Services\SupportedLocales;
@@ -30,6 +30,7 @@ final class SvelteRenderer implements TemplateRendererInterface
         private readonly PageUrls $urls = new PageUrls(),
     ) {}
 
+    #[\Override]
     public function render(string $name, array|object $params = []): string
     {
         $provided    = is_object($params) ? get_object_vars($params) : $params;
@@ -73,6 +74,7 @@ final class SvelteRenderer implements TemplateRendererInterface
             HTML;
     }
 
+    #[\Override]
     public function addDefaultParam(string $templateName, string $param, mixed $value): void
     {
         $this->defaults[$templateName][$param] = $value;

@@ -19,7 +19,7 @@ final readonly class DNSProviderFactory
      * @var array<string, array{
      *   label: string,
      *   user_managed: bool,
-     *   credentials: array<string, array{input: string, label: string, required: bool, secret: bool, default?: string}>
+     *   credentials: array<string, array{input: string, label: string, required: bool, secret: bool, default?: string, type?: string}>
      * }>
      */
     private const array DEFINITIONS = [

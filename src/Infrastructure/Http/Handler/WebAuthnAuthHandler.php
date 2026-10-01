@@ -34,6 +34,7 @@ final readonly class WebAuthnAuthHandler implements RequestHandlerInterface
         private SessionSecurity                        $sessionSecurity,
     ) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $session = $request->getAttribute(SessionInterface::class);

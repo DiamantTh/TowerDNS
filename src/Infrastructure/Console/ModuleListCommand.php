@@ -21,6 +21,7 @@ final class ModuleListCommand extends Command
         parent::__construct('module:list');
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this
@@ -28,6 +29,7 @@ final class ModuleListCommand extends Command
             ->addOption('format', null, InputOption::VALUE_REQUIRED, 'Output format: table, json, or toml', 'table', ['table', 'json', 'toml']);
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $rows = array_map(static fn(\TowerDNS\Application\Module\ModuleManifest $module): array => [

@@ -8,7 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -31,19 +31,23 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
         private TranslatorInterface       $translator,
     ) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        /** @var User $user */
-        $user      = $request->getAttribute(User::class);
+        $user = $request->getAttribute(User::class);
+        if (!$user instanceof User) {
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
+        }
         $accountId = (int) $request->getAttribute('account', 0);
         if ($accountId <= 0) {
-            $context   = $request->getAttribute(ActiveAccountContext::class);
-            $accountId = $context instanceof ActiveAccountContext && $context->account instanceof \TowerDNS\Domain\Account\Account ? $context->account->id : 0;
+            $context = $request->getAttribute(ActiveAccountContext::class);
+            if ($context instanceof ActiveAccountContext && $context->account instanceof \TowerDNS\Domain\Account\Account) {
+                $accountId = $context->account->id;
+            }
         }
 
-        /** @var CsrfGuardInterface $guard */
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        $csrfToken = $guard->generateToken();
+        $csrfToken = $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '';
 
         try {
             $zones            = $this->dns->list($user, $accountId);

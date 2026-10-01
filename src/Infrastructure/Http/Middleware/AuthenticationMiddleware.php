@@ -52,6 +52,7 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
         private AuditLogService $audit,
     ) {}
 
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $session = $request->getAttribute(SessionInterface::class);
@@ -67,15 +68,20 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
 
                 $request       = $request->withAttribute(UserInterface::class, $identity);
                 $request       = $request->withAttribute(User::class, $user)->withAttribute('actor_user', $user)->withAttribute(ImpersonationContext::class, new ImpersonationContext($user, $user));
-                $switchId      = $session->get('admin_switch_session_id');
-                $impersonation = null;
+                    $switchId      = $session->get('admin_switch_session_id');
+                    $impersonation = null;
                 if (is_string($switchId) && $switchId !== '') {
-                    $switch        = $this->impersonationSessions->findById($switchId);
+                    $switch = $this->impersonationSessions->findById($switchId);
+                    if (!$switch instanceof AdminImpersonationSession) {
+                        return $this->invalidateSwitch($request, $session, $user, $switchId, null, 'missing_session');
+                    }
+                    if ($switch->effectiveUserId === null) {
+                        return $this->invalidateSwitch($request, $session, $user, $switchId, $switch, 'missing_target');
+                    }
+                    $effectiveUserId = $switch->effectiveUserId;
                     $invalidReason = match (true) {
-                        !$switch instanceof AdminImpersonationSession                          => 'missing_session',
                         !$this->authorization->isBuiltInSuperadmin($user)                      => 'actor_privilege_revoked',
                         $switch->actorUserId !== $user->id                                     => 'actor_mismatch',
-                        $switch->effectiveUserId === null                                      => 'missing_target',
                         $switch->endedAt !== null                                              => 'already_ended',
                         new \DateTimeImmutable($switch->expiresAt) <= new \DateTimeImmutable() => 'expired',
                         default                                                                => null,
@@ -84,7 +90,7 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
                         return $this->invalidateSwitch($request, $session, $user, $switchId, $switch, $invalidReason);
                     }
 
-                    $effective = $this->users->findById($switch->effectiveUserId);
+                    $effective = $this->users->findById($effectiveUserId);
                     $account   = $switch->effectiveAccountId === null ? null : $this->accounts->findById($switch->effectiveAccountId);
 
                     // A switched account narrows the effective user's existing scope. It
@@ -107,12 +113,13 @@ final readonly class AuthenticationMiddleware implements MiddlewareInterface
                 /** @var User $effectiveUser */
                 $effectiveUser = $request->getAttribute(User::class);
                 $activeId      = $session->get('active_account_id');
-                $active        = $impersonation?->effectiveAccountId !== null
-                    ? $this->activeAccounts->resolve($effectiveUser, $impersonation->effectiveAccountId)
+                $impersonatedAccountId = $impersonation instanceof AdminImpersonationSession ? $impersonation->effectiveAccountId : null;
+                $active        = $impersonatedAccountId !== null
+                    ? $this->activeAccounts->resolve($effectiveUser, $impersonatedAccountId)
                     : (is_int($activeId) || (is_string($activeId) && ctype_digit($activeId))
                         ? $this->activeAccounts->resolve($effectiveUser, (int) $activeId)
                         : $this->activeAccounts->defaultFor($effectiveUser));
-                if ($impersonation?->effectiveAccountId !== null && (int) $activeId !== $impersonation->effectiveAccountId) {
+                if ($impersonatedAccountId !== null && (int) $activeId !== $impersonatedAccountId) {
                     $session->unset('active_account_id');
                 }
                 if (!$active instanceof \TowerDNS\Domain\Account\Account && $activeId !== null) {

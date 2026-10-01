@@ -33,6 +33,7 @@ final readonly class ProviderAccountAdapterFactory implements AccountProviderFac
         private DNSProviderFactory $providerFactory,
     ) {}
 
+    #[\Override]
     public function buildProvider(ProviderAccount $account): DNSProviderInterface
     {
         $json = $this->credentialService->decrypt($account->credentialsEncrypted);

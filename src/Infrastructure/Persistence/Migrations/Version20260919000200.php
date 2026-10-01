@@ -14,11 +14,13 @@ use TowerDNS\Infrastructure\Persistence\SchemaManager;
 /** Backfills personal accounts and profile preferences for known older schemas. */
 final class Version20260919000200 extends AbstractMigration
 {
+    #[\Override]
     public function getDescription(): string
     {
         return 'Backfill explicit account types, personal accounts and profile preferences';
     }
 
+    #[\Override]
     public function up(Schema $schema): void
     {
         $schemaManager = new SchemaManager($this->connection);
@@ -27,6 +29,7 @@ final class Version20260919000200 extends AbstractMigration
         $schemaManager->backfillLegacyProfileAndAccountData();
     }
 
+    #[\Override]
     public function down(Schema $schema): void
     {
         $this->throwIrreversibleMigrationException('Personal-account backfills are intentionally irreversible.');

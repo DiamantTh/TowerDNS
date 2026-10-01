@@ -19,6 +19,7 @@ final readonly class TomlSystemProviderConfigurationStore implements SystemProvi
         private AtomicConfigurationWriter $writer = new AtomicConfigurationWriter(),
     ) {}
 
+    #[\Override]
     public function load(): array
     {
         if (!is_file($this->path)) {
@@ -35,6 +36,7 @@ final readonly class TomlSystemProviderConfigurationStore implements SystemProvi
         return $data;
     }
 
+    #[\Override]
     public function save(array $configuration): void
     {
         $content = "# TowerDNS system provider configuration\n";
@@ -44,6 +46,7 @@ final readonly class TomlSystemProviderConfigurationStore implements SystemProvi
         $this->writer->write($this->path, $content);
     }
 
+    #[\Override]
     public function update(callable $mutator): void
     {
         $lockPath = $this->path . '.lock';

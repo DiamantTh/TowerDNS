@@ -24,6 +24,7 @@ final class RrsetListCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addArgument('provider', InputArgument::REQUIRED, 'Configured provider ID')
@@ -32,6 +33,7 @@ final class RrsetListCommand extends Command
             ->addOption('format', null, InputOption::VALUE_REQUIRED, 'Output format: table, json, or toml', 'table', ['table', 'json', 'toml']);
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

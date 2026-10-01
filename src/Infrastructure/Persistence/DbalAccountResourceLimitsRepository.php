@@ -12,6 +12,7 @@ final readonly class DbalAccountResourceLimitsRepository implements AccountResou
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function findByAccountId(int $accountId): AccountResourceLimits
     {
         $row = $this->connection->fetchAssociative('SELECT * FROM account_resource_limits WHERE account_id = ?', [$accountId]);
@@ -21,6 +22,7 @@ final readonly class DbalAccountResourceLimitsRepository implements AccountResou
         return new AccountResourceLimits($accountId, $this->nullableInt($row['max_zones']), $this->nullableInt($row['max_members']), $this->nullableInt($row['max_provider_accounts']));
     }
 
+    #[\Override]
     public function save(AccountResourceLimits $limits): void
     {
         $values = [

@@ -23,11 +23,13 @@ final class SchemaMigrateCommand extends Command
         parent::__construct();
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->addOption('confirm', null, InputOption::VALUE_NONE, 'Confirm the backup and migration operation');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);

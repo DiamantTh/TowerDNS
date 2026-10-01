@@ -7,7 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Http\Middleware;
 
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -26,6 +26,7 @@ final readonly class ImpersonationBannerMiddleware implements MiddlewareInterfac
         private TranslatorInterface $translator,
     ) {}
 
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $response  = $handler->handle($request);
@@ -52,8 +53,8 @@ final readonly class ImpersonationBannerMiddleware implements MiddlewareInterfac
 
         $message = htmlspecialchars(sprintf(
             $this->translator->translate('admin-switch.active-banner'),
-            $effective->displayName ?: $effective->email,
-            $actor->displayName ?: $actor->email,
+            ($effective->displayName ?? '') !== '' ? $effective->displayName : $effective->email,
+            ($actor->displayName ?? '') !== '' ? $actor->displayName : $actor->email,
         ), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $token     = htmlspecialchars($guard->generateToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $label     = htmlspecialchars($this->translator->translate('admin-switch.end'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

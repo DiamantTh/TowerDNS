@@ -18,6 +18,7 @@ final readonly class ActiveAccountHandler implements RequestHandlerInterface
 {
     public function __construct(private ActiveAccountService $accounts) {}
 
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $session = $request->getAttribute(SessionInterface::class);

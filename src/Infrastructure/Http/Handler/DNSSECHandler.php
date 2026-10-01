@@ -6,7 +6,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
@@ -17,10 +17,12 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Domain\DNS\DNSSECProfile;
 
 final readonly class DNSSECHandler implements RequestHandlerInterface
 {
     public function __construct(private TemplateRendererInterface $renderer, private ManagedZoneDNSService $dns, private TranslatorInterface $translator) {}
+    #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
         $user = $request->getAttribute(User::class);
@@ -61,7 +63,7 @@ final readonly class DNSSECHandler implements RequestHandlerInterface
         $query = $request->getQueryParams();
         return $this->render($user, $accountId, $zoneId, $profile, $csrfToken, is_string($query['error'] ?? null) ? $query['error'] : null, 200, is_string($query['success'] ?? null) ? $query['success'] : null);
     }
-    private function render(User $user, int $accountId, int $zoneId, mixed $profile, string $csrfToken, ?string $error, int $status, ?string $success = null): HtmlResponse
+    private function render(User $user, int $accountId, int $zoneId, ?DNSSECProfile $profile, string $csrfToken, ?string $error, int $status, ?string $success = null): HtmlResponse
     {
         return new HtmlResponse($this->renderer->render('app::zones/dnssec', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'profile' => $profile, 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success]), $status);
     }

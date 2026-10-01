@@ -14,6 +14,7 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
 {
     public function __construct(private Connection $connection) {}
 
+    #[\Override]
     public function findByUserId(string $userId): array
     {
         /** @var list<array{id: int|string, name: string, created_at: string|null, last_used: string|null, is_active: int|bool}> $rows */
@@ -34,6 +35,7 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
         ], $rows);
     }
 
+    #[\Override]
     public function revoke(int $id, string $userId): bool
     {
         $affected = $this->connection->executeStatement(

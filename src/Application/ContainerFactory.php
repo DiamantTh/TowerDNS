@@ -14,7 +14,7 @@ use Doctrine\DBAL\DriverManager;
 use Laminas\HttpHandlerRunner\Emitter\EmitterInterface;
 use Laminas\HttpHandlerRunner\RequestHandlerRunnerInterface;
 use Laminas\I18n\Translator\Translator;
-use Laminas\I18n\Translator\TranslatorInterface;
+use Laminas\Translator\TranslatorInterface;
 use Laminas\Stratigility\Middleware\ErrorHandler;
 use Laminas\Stratigility\MiddlewarePipe;
 use Mezzio\Authentication\AuthenticationInterface;
@@ -223,8 +223,10 @@ final class ContainerFactory
 
             // ── Doctrine DBAL ─────────────────────────────────────────────────
             Connection::class => \DI\factory(static function () use ($dbConf, $projectRoot): Connection {
-                $db     = $dbConf['database'] ?? [];
-                $driver = (string) ($db['driver'] ?? 'pdo_sqlite');
+                $db          = $dbConf['database'] ?? [];
+                $driver      = (string) ($db['driver'] ?? 'pdo_sqlite');
+                $envPassword = getenv('DB_PASSWORD');
+                $dbPassword  = is_string($envPassword) ? $envPassword : '';
 
                 if ($driver === 'pdo_sqlite') {
                     $params = [
@@ -238,7 +240,7 @@ final class ContainerFactory
                         'port'     => (int) ($db['port'] ?? 5432),
                         'dbname'   => (string) ($db['name'] ?? ''),
                         'user'     => (string) ($db['user'] ?? ''),
-                        'password' => (string) ($db['password'] ?? (string) (getenv('DB_PASSWORD') ?: '')),
+                        'password' => (string) ($db['password'] ?? $dbPassword),
                     ];
                 } else {
                     $params = [
@@ -247,7 +249,7 @@ final class ContainerFactory
                         'port'     => (int) ($db['port'] ?? 3306),
                         'dbname'   => (string) ($db['name'] ?? ''),
                         'user'     => (string) ($db['user'] ?? ''),
-                        'password' => (string) ($db['password'] ?? (string) (getenv('DB_PASSWORD') ?: '')),
+                        'password' => (string) ($db['password'] ?? $dbPassword),
                         'charset'  => (string) ($db['charset'] ?? 'utf8mb4'),
                     ];
                 }

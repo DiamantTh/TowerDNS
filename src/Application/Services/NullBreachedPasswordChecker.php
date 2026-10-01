@@ -12,6 +12,7 @@ namespace TowerDNS\Application\Services;
  */
 final class NullBreachedPasswordChecker implements BreachedPasswordCheckerInterface
 {
+    #[\Override]
     public function timesSeen(string $password): int
     {
         return 0;
