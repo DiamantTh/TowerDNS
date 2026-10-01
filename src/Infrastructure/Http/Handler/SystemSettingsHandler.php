@@ -356,9 +356,9 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
 
     private function smtpDsn(string $host, int $port, string $encryption, string $username, string $password): string
     {
-        $scheme      = $encryption    === 'tls' ? 'smtps' : 'smtp';
-        $query       = $encryption    === 'none' ? '?auto_tls=false' : ($encryption === 'starttls' ? '?require_tls=true' : '');
-        $credentials = $username === '' ? '' : rawurlencode($username) . ':' . rawurlencode($password) . '@';
+        $scheme      = $encryption === 'tls' ? 'smtps' : 'smtp';
+        $query       = $encryption === 'none' ? '?auto_tls=false' : ($encryption === 'starttls' ? '?require_tls=true' : '');
+        $credentials = $username   === '' ? '' : rawurlencode($username) . ':' . rawurlencode($password) . '@';
 
         return $scheme . '://' . $credentials . $host . ':' . $port . $query;
     }
