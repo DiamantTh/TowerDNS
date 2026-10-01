@@ -168,7 +168,7 @@ final readonly class SchemaManager
             }
 
             foreach ($expected->getForeignKeys() as $foreignKey) {
-                $matching = array_any($actual->getForeignKeys(), fn(\Doctrine\DBAL\Schema\ForeignKeyConstraint $candidate): bool => $this->foreignKeysMatch($foreignKey, $candidate));
+                $matching = array_any($actual->getForeignKeys(), fn(ForeignKeyConstraint $candidate): bool => $this->foreignKeysMatch($foreignKey, $candidate));
                 if (!$matching) {
                     $issues[] = sprintf('missing foreign key %s on %s', $foreignKey->getName(), $expected->getName());
                 }
@@ -193,10 +193,10 @@ final readonly class SchemaManager
             return true;
         }
 
-        // SQLite has no native UUID affinity. DBAL 4 therefore introspects a
-        // GUID column created by its SQLite platform as STRING. Both names
-        // describe the same text-backed UUID representation in this dialect.
-        return PlatformDetector::isSqlite($this->connection)
+        // SQLite and MariaDB/MySQL have no native UUID type. DBAL 4 therefore
+        // introspects GUID columns on these platforms as STRING. Both names
+        // describe the same text-backed UUID representation in those dialects.
+        return (PlatformDetector::isSqlite($this->connection) || PlatformDetector::isMySqlFamily($this->connection))
             && $expected === Types::GUID
             && $actual   === Types::STRING;
     }

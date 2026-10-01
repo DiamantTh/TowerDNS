@@ -160,7 +160,11 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
 
             new SchemaManager($connection)->createTablesIfNotExist();
             if ($backend === 'mariadb') {
-                $connection->executeStatement('ALTER TABLE webauthn_credentials MODIFY credential_id VARCHAR(1024) NOT NULL');
+                // utf8mb4 primary-key indexes must remain within MariaDB's
+                // 3072-byte limit. 700 characters is sufficient to model a
+                // legacy text credential ID while the migration restores its
+                // canonical VARBINARY(1024) representation.
+                $connection->executeStatement('ALTER TABLE webauthn_credentials MODIFY credential_id VARCHAR(700) NOT NULL');
             } else {
                 $connection->executeStatement('ALTER TABLE "webauthn_credentials" DROP CONSTRAINT "webauthn_credentials_pkey"');
                 $connection->executeStatement("ALTER TABLE \"webauthn_credentials\" ALTER COLUMN \"credential_id\" TYPE TEXT USING convert_from(\"credential_id\", 'UTF8')");
