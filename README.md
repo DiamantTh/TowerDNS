@@ -43,7 +43,7 @@ Rechtepruefungen sind zentral im Core und nicht nur in der UI.
 - Sessions/CSRF: `mezzio-session`, `mezzio-session-ext`, `mezzio-csrf`
 - Validierung/Filter/Inputs: Laminas (`laminas-filter`, `laminas-validator`, `laminas-inputfilter`, `laminas-i18n`)
 - RBAC-Bibliothek: `laminas/laminas-permissions-rbac` (eigene Permission/Role-Domain dazu)
-- Persistenz und kontrollierte Schema-Upgrades: Doctrine DBAL 3 und Doctrine Migrations
+- Persistenz und kontrollierte Schema-Upgrades: Doctrine DBAL 4 und Doctrine Migrations
 - HTTP-Clients: Guzzle 7
 - Logging/Telemetrie: Monolog 3, Sentry 4
 - Caching: Symfony Cache, PSR Simple Cache
@@ -52,6 +52,12 @@ Rechtepruefungen sind zentral im Core und nicht nur in der UI.
 - Frontend: Skeleton 5 + Svelte 5 + Tailwind CSS 4 + Vite 6 + TypeScript
 - Tests/Statisch: PHPUnit 11, PHPStan 2 (Level 8), PHP-CS-Fixer (PER-CS 2.0), PHPCS (gezielte Sicherheits-/Portabilitätsregeln) und Rector
 - Provider-Module unter `modules/`; Kern-Layer unter `src/Domain`, `src/Application` und `src/Infrastructure`
+
+Abhängigkeitsupdates werden nicht allein anhand eines erfolgreichen Composer-
+oder npm-Laufs bewertet. Vor einem Update sind aktuelle öffentliche APIs,
+neue `@deprecated`- und `@internal`-Markierungen sowie obsolet gewordene
+Kompatibilitätsschichten im TowerDNS-Code zu prüfen. Major-Upgrades werden
+erst nach den betroffenen Datenbank-, HTTP- und statischen Tests übernommen.
 
 ## Aktueller Stand
 

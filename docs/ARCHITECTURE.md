@@ -18,7 +18,7 @@ modules/            isolierte Provider-Module und deren API-Adapter
 2. **Application** orchestriert DNS-Abläufe über `ManagedZoneDNSService`, normalisiert Eingaben (`DNSNameValidator`, `RecordValidator`), prüft Rechte und Account-Scope und erzwingt die deklarierten Provider-Capabilities.
 3. **Domain** stellt DNS- und RRset-Wertmodelle (`Zone`, `Record`, `DNSRecordType`, `Rrset`, `DNSSECProfile`, `DNSSECState`), RBAC-Modelle und Account-gebundene Ressourcen bereit.
 4. **modules/** kapselt externe Provider-APIs. Module deklarieren Zugangsdaten und bilden provider-spezifische Unterschiede ab; `ProviderModuleRegistry` und Factorys registrieren bzw. instanziieren sie.
-5. **Infrastructure/Persistence** implementiert Repository-Interfaces per Doctrine DBAL. `SchemaManager` bleibt Grundlage für den Legacy-/Fresh-Install-Übergang; versionierte Doctrine-Migrationen sind der kontrollierte Updatepfad.
+5. **Infrastructure/Persistence** implementiert Repository-Interfaces per Doctrine DBAL 4. `SchemaManager` bleibt Grundlage für den Legacy-/Fresh-Install-Übergang; versionierte Doctrine-Migrationen sind der kontrollierte Updatepfad.
 
 ## Provider-Registry
 
@@ -65,7 +65,18 @@ Neuen Provider hinzufuegen:
 
 - **Passwort** aktuell mit Argon2id (`password_hash`), Policy-gesteuert via `PasswordPolicy` (Mindestlaenge, zxcvbn-Score). Vorhandene Legacy-Hashes werden beim erfolgreichen Login geprüft und auf Argon2id re-gehasht.
 - **TOTP** (`TotpService`): SHA-512, 8 Stellen, 64-Byte-Secret, Aegis/FreeOTP+-kompatibel. Google Authenticator ist wegen SHA-1-Beschraenkung inkompatibel.
-- **FIDO2/WebAuthn** (`WebAuthnService`): Resident-Key-Support, ES256/RS256, challenge-basierte Login-Ceremony.
+- **FIDO2/WebAuthn** (`WebAuthnService`): Resident-Key-Support, ES256/RS256, challenge-basierte Login-Ceremony. Persistierte Credentials werden über die aktuelle öffentliche `CredentialRecord`-API des WebAuthn-Pakets serialisiert; das vorhandene JSON-Format früherer `PublicKeyCredentialSource`-Objekte bleibt lesbar, weil es keine PHP-Klassenbezeichnung speichert.
+
+### Kontrollierte Migrationen und Upstream-Kopplung
+
+`SchemaMigrationManager` kapselt die programmgesteuerte Ausführung an einer
+einzigen Infrastrukturgrenze. Doctrine Migrations 3.9 kennzeichnet
+`Migrator` und `MigratorConfiguration` als `@internal`, bietet für denselben
+programmgesteuerten Anwendungsfall jedoch keine öffentliche Runner-API an;
+die öffentliche Console ist keine gleichwertige Einbettung für TowerDNS.
+Diese kleine, dokumentierte Kopplung bleibt deshalb bewusst isoliert und ist
+bei jedem Doctrine-Migrations-Update zusammen mit den Migrationsintegrationstests
+zu prüfen. Sie ist nicht als deprecated API klassifiziert.
 
 ### HIBP-Integration (Have I Been Pwned)
 

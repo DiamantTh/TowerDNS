@@ -21,7 +21,7 @@ zusätzlich der passende PDO-Treiber installiert sein:
 * SQLite: `pdo_sqlite`
 
 Doctrine DBAL verwendet genau diese PDO-Treiber; die unterstützten Treiber und
-Verbindungsparameter sind in der [DBAL-Dokumentation](https://www.doctrine-project.org/projects/doctrine-dbal/en/3.3/reference/configuration.html)
+Verbindungsparameter sind in der [DBAL-Dokumentation](https://www.doctrine-project.org/projects/doctrine-dbal/en/4.0/reference/configuration.html)
 beschrieben. Der Installer bietet alle drei Treiber an. Die Migrationstests
 verwenden immer eine temporäre SQLite-Datenbank und können zusätzlich gegen
 MariaDB 11.4 und PostgreSQL 16 in der optionalen Containerumgebung laufen. Das
