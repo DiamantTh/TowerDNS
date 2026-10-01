@@ -18,8 +18,7 @@ final readonly class SchemaMigrationLock
 
     public function acquire(): SchemaMigrationLockHandle
     {
-        $platform = $this->connection->getDatabasePlatform()->getName();
-        if ($platform === 'mysql') {
+        if (PlatformDetector::isMySqlFamily($this->connection)) {
             $locked = $this->connection->fetchOne("SELECT GET_LOCK('towerdns_schema_migrations', 0)");
             if ((int) $locked !== 1) {
                 throw new SchemaMigrationLockedException();
@@ -28,7 +27,7 @@ final readonly class SchemaMigrationLock
             return SchemaMigrationLockHandle::database($this->connection, 'mysql');
         }
 
-        if ($platform === 'postgresql') {
+        if (PlatformDetector::isPostgreSql($this->connection)) {
             $locked = $this->connection->fetchOne("SELECT pg_try_advisory_lock(hashtext('towerdns_schema_migrations'))");
             if (!in_array($locked, [true, 1, '1', 't', 'true'], true)) {
                 throw new SchemaMigrationLockedException();

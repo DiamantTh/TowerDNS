@@ -8,7 +8,9 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Persistence\Migrations;
 
 use Doctrine\DBAL\Schema\Schema;
+use Doctrine\DBAL\Types\Type;
 use Doctrine\Migrations\AbstractMigration;
+use TowerDNS\Infrastructure\Persistence\PlatformDetector;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 
 /** Establishes the additive canonical TowerDNS schema. */
@@ -39,23 +41,23 @@ final class Version20260919000100 extends AbstractMigration
             && !$schema->getTable('users')->hasColumn('language');
         $credentialIdType = $schema->hasTable('webauthn_credentials')
             && $schema->getTable('webauthn_credentials')->hasColumn('credential_id')
-            ? $schema->getTable('webauthn_credentials')->getColumn('credential_id')->getType()->getName()
+            ? Type::getTypeRegistry()->lookupName($schema->getTable('webauthn_credentials')->getColumn('credential_id')->getType())
             : null;
         $this->legacyWebAuthnCredentialIdNeedsConversion = $credentialIdType !== null
             && !in_array($credentialIdType, ['binary', 'blob'], true)
-            && $this->connection->getDatabasePlatform()->getName() !== 'sqlite';
+            && !PlatformDetector::isSqlite($this->connection);
         new SchemaManager($this->connection)->mergeCanonicalSchema($schema);
 
         if (!$this->legacyWebAuthnCredentialIdNeedsConversion) {
             return;
         }
 
-        if ($this->connection->getDatabasePlatform()->getName() === 'mysql') {
+        if (PlatformDetector::isMySqlFamily($this->connection)) {
             $this->addSql('ALTER TABLE webauthn_credentials MODIFY credential_id VARBINARY(1024) NOT NULL');
             return;
         }
 
-        if ($this->connection->getDatabasePlatform()->getName() === 'postgresql') {
+        if (PlatformDetector::isPostgreSql($this->connection)) {
             $this->addSql("ALTER TABLE \"webauthn_credentials\" ALTER COLUMN \"credential_id\" TYPE BYTEA USING convert_to(\"credential_id\", 'UTF8')");
         }
     }

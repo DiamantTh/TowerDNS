@@ -14,7 +14,7 @@ final readonly class SqliteConnectionConfigurator
 {
     public function configure(Connection $connection): void
     {
-        if ($connection->getDatabasePlatform()->getName() !== 'sqlite') {
+        if (!PlatformDetector::isSqlite($connection)) {
             return;
         }
 

@@ -325,7 +325,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         // all IAM operations which can alter superadmin assignments/status.
         // SQLite has no SELECT .. FOR UPDATE; a no-op write acquires its
         // database write lock while the surrounding transaction is active.
-        if ($this->connection->getDatabasePlatform()->getName() === 'sqlite') {
+        if (PlatformDetector::isSqlite($this->connection)) {
             $this->connection->executeStatement("UPDATE roles SET name = name WHERE id = 'superadmin'");
         } else {
             $this->connection->fetchOne("SELECT id FROM roles WHERE id = 'superadmin' FOR UPDATE");

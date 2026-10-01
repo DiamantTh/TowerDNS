@@ -12,6 +12,7 @@ use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Schema\ForeignKeyConstraint;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
+use Doctrine\DBAL\Types\Type;
 use Doctrine\DBAL\Types\Types;
 use TowerDNS\Application\Services\UserPreferences;
 use TowerDNS\Domain\Account\AccountKind;
@@ -90,7 +91,7 @@ final readonly class SchemaManager
             $target = $schema->getTable($expected->getName());
             foreach ($expected->getColumns() as $column) {
                 if (!$target->hasColumn($column->getName())) {
-                    $target->addColumn($column->getName(), $column->getType()->getName(), $this->columnOptions($column));
+                    $target->addColumn($column->getName(), $this->typeName($column), $this->columnOptions($column));
                 }
             }
 
@@ -157,8 +158,8 @@ final readonly class SchemaManager
                     continue;
                 }
                 if (!$this->typesMatch(
-                    $column->getType()->getName(),
-                    $actual->getColumn($column->getName())->getType()->getName(),
+                    $this->typeName($column),
+                    $this->typeName($actual->getColumn($column->getName())),
                 )) {
                     $issues[] = sprintf('incompatible type for %s.%s', $expected->getName(), $column->getName());
                 }
@@ -203,7 +204,7 @@ final readonly class SchemaManager
         // DBAL exposes PostgreSQL BYTEA as its generic blob type. It is the
         // binary-key equivalent of the canonical BINARY definition used for
         // MariaDB (PostgreSQL does not expose a fixed byte length here).
-        return $this->connection->getDatabasePlatform()->getName() === 'postgresql'
+        return PlatformDetector::isPostgreSql($this->connection)
             && $expected                                           === Types::BINARY
             && $actual                                             === Types::BLOB;
     }
@@ -684,7 +685,7 @@ final readonly class SchemaManager
         // PostgreSQL need a binary key representation instead: TEXT/BLOB
         // columns cannot be indexed as a primary key on MariaDB, while BYTEA
         // is the native PostgreSQL equivalent.
-        $credentialIdType = $this->connection->getDatabasePlatform()->getName() === 'sqlite'
+        $credentialIdType = PlatformDetector::isSqlite($this->connection)
             ? Types::TEXT
             : Types::BINARY;
         $waCredentials->addColumn(
@@ -1037,7 +1038,7 @@ final readonly class SchemaManager
     private function copyTableDefinition(Table $source, Table $target): void
     {
         foreach ($source->getColumns() as $column) {
-            $target->addColumn($column->getName(), $column->getType()->getName(), $this->columnOptions($column));
+            $target->addColumn($column->getName(), $this->typeName($column), $this->columnOptions($column));
         }
 
         $primary = $source->getPrimaryKey();
@@ -1063,6 +1064,11 @@ final readonly class SchemaManager
                 $foreignKey->getName(),
             );
         }
+    }
+
+    private function typeName(Column $column): string
+    {
+        return Type::getTypeRegistry()->lookupName($column->getType());
     }
 
     /** @return array<string, mixed> */

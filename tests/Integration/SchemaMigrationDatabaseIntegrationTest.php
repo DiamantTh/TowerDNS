@@ -6,6 +6,7 @@ namespace TowerDNS\Tests\Integration;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Types\Type;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
@@ -312,7 +313,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             'password' => isset($parts['pass']) ? rawurldecode((string) $parts['pass']) : '',
             ...($backend === 'mariadb' ? ['charset' => 'utf8mb4'] : []),
         ]);
-        $connection->connect();
+        $connection->fetchOne('SELECT 1');
 
         return $connection;
     }
@@ -327,11 +328,12 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
 
     private function credentialIdType(Connection $connection): string
     {
-        return $connection->createSchemaManager()
+        $type = $connection->createSchemaManager()
             ->introspectTable('webauthn_credentials')
             ->getColumn('credential_id')
-            ->getType()
-            ->getName();
+            ->getType();
+
+        return Type::getTypeRegistry()->lookupName($type);
     }
 
     private function dropTestTables(Connection $connection, string $backend): void

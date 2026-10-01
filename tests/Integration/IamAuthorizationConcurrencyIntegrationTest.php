@@ -272,7 +272,7 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
             'password' => isset($parts['pass']) ? rawurldecode((string) $parts['pass']) : '',
             ...($backend === 'mariadb' ? ['charset' => 'utf8mb4'] : []),
         ]);
-        $connection->connect();
+        $connection->fetchOne('SELECT 1');
 
         return $connection;
     }
