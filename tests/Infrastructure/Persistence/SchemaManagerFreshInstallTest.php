@@ -28,6 +28,7 @@ final class SchemaManagerFreshInstallTest extends TestCase
             'managed_zones', 'zone_memberships', 'admin_impersonation_sessions', 'audit_logs',
             'password_reset_tokens', 'system_settings',
         ]));
+        self::assertTrue($schema->schemaIsCurrent());
         self::assertTrue($schemaManager->introspectTable('managed_zones')->hasForeignKey('fk_mz_provider_account'));
         self::assertTrue($schemaManager->introspectTable('zone_memberships')->hasForeignKey('fk_zm_managed_zone_id'));
         self::assertTrue($schemaManager->introspectTable('account_memberships')->hasForeignKey('fk_accm_invited_by'));

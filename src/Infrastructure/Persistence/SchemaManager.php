@@ -96,13 +96,7 @@ final readonly class SchemaManager
             }
 
             foreach ($expected->getIndexes() as $index) {
-                $indexPresent = false;
-                foreach ($target->getIndexes() as $candidate) {
-                    if ($index->isFulfilledBy($candidate)) {
-                        $indexPresent = true;
-                        break;
-                    }
-                }
+                $indexPresent = array_any($target->getIndexes(), fn(\Doctrine\DBAL\Schema\Index $candidate) => $index->isFulfilledBy($candidate));
                 if ($indexPresent) {
                     continue;
                 }
@@ -121,7 +115,8 @@ final readonly class SchemaManager
                         continue 2;
                     }
                 }
-                $target->addForeignKeyConstraint(
+                $this->addForeignKeyConstraint(
+                    $target,
                     $foreignKey->getForeignTableName(),
                     $foreignKey->getLocalColumns(),
                     $foreignKey->getForeignColumns(),
@@ -166,26 +161,14 @@ final readonly class SchemaManager
             }
 
             foreach ($expected->getIndexes() as $index) {
-                $matching = null;
-                foreach ($actual->getIndexes() as $candidate) {
-                    if ($index->isFulfilledBy($candidate)) {
-                        $matching = $candidate;
-                        break;
-                    }
-                }
+                $matching = array_find($actual->getIndexes(), fn(\Doctrine\DBAL\Schema\Index $candidate) => $index->isFulfilledBy($candidate));
                 if ($matching === null) {
                     $issues[] = sprintf('missing index %s on %s', $index->getName(), $expected->getName());
                 }
             }
 
             foreach ($expected->getForeignKeys() as $foreignKey) {
-                $matching = false;
-                foreach ($actual->getForeignKeys() as $candidate) {
-                    if ($this->foreignKeysMatch($foreignKey, $candidate)) {
-                        $matching = true;
-                        break;
-                    }
-                }
+                $matching = array_any($actual->getForeignKeys(), fn(\Doctrine\DBAL\Schema\ForeignKeyConstraint $candidate): bool => $this->foreignKeysMatch($foreignKey, $candidate));
                 if (!$matching) {
                     $issues[] = sprintf('missing foreign key %s on %s', $foreignKey->getName(), $expected->getName());
                 }
@@ -204,9 +187,18 @@ final readonly class SchemaManager
         // DBAL exposes PostgreSQL BYTEA as its generic blob type. It is the
         // binary-key equivalent of the canonical BINARY definition used for
         // MariaDB (PostgreSQL does not expose a fixed byte length here).
-        return PlatformDetector::isPostgreSql($this->connection)
-            && $expected                                           === Types::BINARY
-            && $actual                                             === Types::BLOB;
+        if (PlatformDetector::isPostgreSql($this->connection)
+            && $expected === Types::BINARY
+            && $actual   === Types::BLOB) {
+            return true;
+        }
+
+        // SQLite has no native UUID affinity. DBAL 4 therefore introspects a
+        // GUID column created by its SQLite platform as STRING. Both names
+        // describe the same text-backed UUID representation in this dialect.
+        return PlatformDetector::isSqlite($this->connection)
+            && $expected === Types::GUID
+            && $actual   === Types::STRING;
     }
 
     private function foreignKeysMatch(ForeignKeyConstraint $expected, ForeignKeyConstraint $candidate): bool
@@ -1042,7 +1034,7 @@ final readonly class SchemaManager
         }
 
         $primary = $source->getPrimaryKey();
-        if ($primary !== null) {
+        if ($primary instanceof \Doctrine\DBAL\Schema\Index) {
             $target->setPrimaryKey($primary->getColumns(), $primary->getName());
         }
         foreach ($source->getIndexes() as $index) {
@@ -1056,7 +1048,8 @@ final readonly class SchemaManager
             }
         }
         foreach ($source->getForeignKeys() as $foreignKey) {
-            $target->addForeignKeyConstraint(
+            $this->addForeignKeyConstraint(
+                $target,
                 $foreignKey->getForeignTableName(),
                 $foreignKey->getLocalColumns(),
                 $foreignKey->getForeignColumns(),
@@ -1069,6 +1062,28 @@ final readonly class SchemaManager
     private function typeName(Column $column): string
     {
         return Type::getTypeRegistry()->lookupName($column->getType());
+    }
+
+    /**
+     * @param non-empty-array<int, string> $localColumns
+     * @param non-empty-array<int, string> $foreignColumns
+     * @param array<string, mixed>          $options
+     */
+    private function addForeignKeyConstraint(
+        Table $table,
+        string $foreignTable,
+        array $localColumns,
+        array $foreignColumns,
+        array $options,
+        ?string $name,
+    ): void {
+        $table->addForeignKeyConstraint(
+            $foreignTable,
+            array_values($localColumns),
+            array_values($foreignColumns),
+            $options,
+            $name,
+        );
     }
 
     /** @return array<string, mixed> */

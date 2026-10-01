@@ -10,14 +10,14 @@ namespace TowerDNS\Infrastructure\Persistence;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
-use Doctrine\DBAL\Platforms\SqlitePlatform;
+use Doctrine\DBAL\Platforms\SQLitePlatform;
 
 /** Database checks based on DBAL's public platform hierarchy. */
 final class PlatformDetector
 {
     public static function isSqlite(Connection $connection): bool
     {
-        return $connection->getDatabasePlatform() instanceof SqlitePlatform;
+        return $connection->getDatabasePlatform() instanceof SQLitePlatform;
     }
 
     public static function isPostgreSql(Connection $connection): bool
