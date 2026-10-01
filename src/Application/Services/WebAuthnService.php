@@ -14,13 +14,13 @@ use Webauthn\AuthenticatorAttestationResponse;
 use Webauthn\AuthenticatorAttestationResponseValidator;
 use Webauthn\AuthenticatorSelectionCriteria;
 use Webauthn\CeremonyStep\CeremonyStepManagerFactory;
+use Webauthn\CredentialRecord;
 use Webauthn\PublicKeyCredential;
 use Webauthn\PublicKeyCredentialCreationOptions;
 use Webauthn\PublicKeyCredentialDescriptor;
 use Webauthn\PublicKeyCredentialParameters;
 use Webauthn\PublicKeyCredentialRequestOptions;
 use Webauthn\PublicKeyCredentialRpEntity;
-use Webauthn\PublicKeyCredentialSource;
 use Webauthn\PublicKeyCredentialUserEntity;
 
 /**
@@ -92,7 +92,7 @@ final readonly class WebAuthnService
     public function parseAndValidateRegistration(
         string                             $jsonResponse,
         PublicKeyCredentialCreationOptions $options,
-    ): PublicKeyCredentialSource {
+    ): CredentialRecord {
         /** @var PublicKeyCredential $credential */
         $credential = $this->serializer->deserialize($jsonResponse, PublicKeyCredential::class, 'json');
 
@@ -103,10 +103,8 @@ final readonly class WebAuthnService
         $factory = new CeremonyStepManagerFactory();
         $factory->setAllowedOrigins(['https://' . $this->rpId]);
 
-        $record = AuthenticatorAttestationResponseValidator::create($factory->creationCeremony())
+        return AuthenticatorAttestationResponseValidator::create($factory->creationCeremony())
             ->check($credential->response, $options, $this->rpId);
-
-        return PublicKeyCredentialSource::fromCredentialRecord($record);
     }
 
     // ── Authentication ────────────────────────────────────────────────────────
@@ -145,10 +143,10 @@ final readonly class WebAuthnService
      */
     public function parseAndValidateAuthentication(
         string                            $jsonResponse,
-        PublicKeyCredentialSource         $source,
+        CredentialRecord                  $source,
         PublicKeyCredentialRequestOptions $options,
         ?string                           $userHandle = null,
-    ): PublicKeyCredentialSource {
+    ): CredentialRecord {
         /** @var PublicKeyCredential $credential */
         $credential = $this->serializer->deserialize($jsonResponse, PublicKeyCredential::class, 'json');
 
@@ -159,10 +157,8 @@ final readonly class WebAuthnService
         $factory = new CeremonyStepManagerFactory();
         $factory->setAllowedOrigins(['https://' . $this->rpId]);
 
-        $record = AuthenticatorAssertionResponseValidator::create($factory->requestCeremony())
+        return AuthenticatorAssertionResponseValidator::create($factory->requestCeremony())
             ->check($source, $credential->response, $options, $this->rpId, $userHandle);
-
-        return PublicKeyCredentialSource::fromCredentialRecord($record);
     }
 
     // ── Serialization helpers ─────────────────────────────────────────────────

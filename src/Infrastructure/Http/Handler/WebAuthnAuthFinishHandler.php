@@ -95,7 +95,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         }
 
         $source = $this->credentialRepo->findByCredentialId($credentialId);
-        if (!$source instanceof \Webauthn\PublicKeyCredentialSource) {
+        if (!$source instanceof \Webauthn\CredentialRecord) {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }
 

@@ -10,7 +10,7 @@ namespace TowerDNS\Infrastructure\Persistence;
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
-use Webauthn\PublicKeyCredentialSource;
+use Webauthn\CredentialRecord;
 
 final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredentialRepositoryInterface
 {
@@ -35,7 +35,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
         foreach ($rows as $row) {
             $source = $this->serializer->deserialize(
                 (string) $row['data'],
-                PublicKeyCredentialSource::class,
+                CredentialRecord::class,
                 'json',
             );
             $result[] = [
@@ -51,7 +51,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
     }
 
     #[\Override]
-    public function findByCredentialId(string $credentialId): ?PublicKeyCredentialSource
+    public function findByCredentialId(string $credentialId): ?CredentialRecord
     {
         $row = $this->connection->fetchAssociative(
             'SELECT data FROM webauthn_credentials WHERE credential_id = ?',
@@ -64,13 +64,13 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
 
         return $this->serializer->deserialize(
             (string) $row['data'],
-            PublicKeyCredentialSource::class,
+            CredentialRecord::class,
             'json',
         );
     }
 
     #[\Override]
-    public function save(string $userId, string $name, PublicKeyCredentialSource $source): void
+    public function save(string $userId, string $name, CredentialRecord $source): void
     {
         $now  = new \DateTimeImmutable()->format('Y-m-d H:i:s');
         $data = $this->serializer->serialize($source, 'json');
@@ -89,7 +89,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
     public function updateAfterAuthentication(string $credentialId, int $counter): void
     {
         $source = $this->findByCredentialId($credentialId);
-        if (!$source instanceof PublicKeyCredentialSource) {
+        if (!$source instanceof CredentialRecord) {
             return;
         }
 

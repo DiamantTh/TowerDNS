@@ -219,7 +219,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-response')], 422);
         }
         $source = $this->credentials->findByCredentialId($credentialId);
-        if (!$source instanceof \Webauthn\PublicKeyCredentialSource) {
+        if (!$source instanceof \Webauthn\CredentialRecord) {
             $this->recordAttempt($request, $user, $switchId, $intent, 'webauthn', false);
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }
