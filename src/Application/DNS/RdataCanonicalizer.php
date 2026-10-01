@@ -68,11 +68,13 @@ final class RdataCanonicalizer
     private static function txt(string $value): string
     {
         preg_match_all('/"((?:\\\\.|[^"\\\\])*)"/s', $value, $matches, PREG_OFFSET_CAPTURE);
-        $strings = $matches[0] ?? [];
+        /** @psalm-suppress PossiblyUndefinedArrayOffset preg_match_all creates both capture offsets with PREG_OFFSET_CAPTURE. */
+        $strings = $matches[0];
         if ($strings === [] || trim(preg_replace('/"(?:\\\\.|[^"\\\\])*"/s', '', $value) ?? '') !== '') {
             throw new \InvalidArgumentException('TXT erwartet einen oder mehrere quotierte Character-Strings.');
         }
-        foreach ($matches[1] ?? [] as $match) {
+        /** @psalm-suppress PossiblyUndefinedArrayOffset preg_match_all creates both capture offsets with PREG_OFFSET_CAPTURE. */
+        foreach ($matches[1] as $match) {
             $decoded = preg_replace_callback('/\\\\([0-9]{3}|.)/', static fn(array $m): string => ctype_digit($m[1]) ? chr((int) $m[1]) : $m[1], $match[0]);
             if (!is_string($decoded) || strlen($decoded) > 255) {
                 throw new \InvalidArgumentException('Jeder TXT Character-String darf höchstens 255 Oktette enthalten.');

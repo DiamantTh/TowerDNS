@@ -210,7 +210,7 @@ final class InstallCommand extends Command
         $io->section('Summary');
 
         $dbSummary = $driver === 'pdo_sqlite'
-            ? $driver . ' → ' . (string) ($db['path'] ?? '')
+            ? $driver . ' → ' . $db['path']
             : $driver . ' @ ' . (string) ($db['host'] ?? '') . ':' . (string) ($db['port'] ?? '') . '/' . (string) ($db['name'] ?? '');
 
         $io->definitionList(
