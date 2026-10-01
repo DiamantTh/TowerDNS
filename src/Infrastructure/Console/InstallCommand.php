@@ -153,20 +153,20 @@ final class InstallCommand extends Command
         // ──────────────────────────────────────────────────────────────────
         $io->section('Step 3: Application settings');
 
-        $themeNames = array_keys(new ThemeManager($this->projectRoot)->getAvailable());
-        $appNameInput = $io->ask('Application name', 'TowerDNS');
+        $themeNames     = array_keys(new ThemeManager($this->projectRoot)->getAvailable());
+        $appNameInput   = $io->ask('Application name', 'TowerDNS');
         $appDomainInput = $io->ask('Domain (optional, e.g. tower.example.com)', '');
-        $appName      = is_string($appNameInput) ? $appNameInput : 'TowerDNS';
-        $appDomain    = is_string($appDomainInput) ? $appDomainInput : '';
-        $appTheme   = (string) $io->choice('Theme', $themeNames, 'default');
-        $appHttps   = $io->confirm('Force HTTPS (HSTS)', true);
-        $sentryDsn  = $io->ask('Sentry DSN (leave blank to skip)', '')                                           ?? '';
-        $mailerDsn  = $io->ask('Mailer DSN (e.g. smtp://user:pass@smtp.example.com:587, or blank for none)', '') ?? '';
-        $mailerFrom = '';
+        $appName        = is_string($appNameInput) ? $appNameInput : 'TowerDNS';
+        $appDomain      = is_string($appDomainInput) ? $appDomainInput : '';
+        $appTheme       = (string) $io->choice('Theme', $themeNames, 'default');
+        $appHttps       = $io->confirm('Force HTTPS (HSTS)', true);
+        $sentryDsn      = $io->ask('Sentry DSN (leave blank to skip)', '')                                           ?? '';
+        $mailerDsn      = $io->ask('Mailer DSN (e.g. smtp://user:pass@smtp.example.com:587, or blank for none)', '') ?? '';
+        $mailerFrom     = '';
         if ($mailerDsn !== '') {
-            $defaultSender = $appDomain !== '' ? $appDomain : 'localhost';
+            $defaultSender   = $appDomain !== '' ? $appDomain : 'localhost';
             $mailerFromInput = $io->ask('Mail from address', 'noreply@' . $defaultSender);
-            $mailerFrom = is_string($mailerFromInput) ? $mailerFromInput : '';
+            $mailerFrom      = is_string($mailerFromInput) ? $mailerFromInput : '';
         }
 
         // ──────────────────────────────────────────────────────────────────

@@ -121,7 +121,7 @@ final readonly class HealthStatusService
 
             /** @var array<string, mixed> $data */
             $data = $decoded;
-            $key = (string) ($data['security']['encryption_key'] ?? '');
+            $key  = (string) ($data['security']['encryption_key'] ?? '');
             if ($key === '') {
                 return false;
             }
