@@ -82,6 +82,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         ];
     }
 
+    #[\Override]
     public function constraints(): ProviderConstraintProfile
     {
         return new ProviderConstraintProfile(
@@ -149,6 +150,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
     }
 
     /** @return list<Rrset> */
+    #[\Override]
     public function listRrsets(string $zoneId): array
     {
         $row  = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));

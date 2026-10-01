@@ -174,6 +174,7 @@ final class GoogleCloudDNSProvider extends AbstractDNSProvider
     }
 
     /** @return list<Rrset> */
+    #[\Override]
     public function listRrsets(string $zoneId): array
     {
         $zone    = $this->getZone($zoneId);

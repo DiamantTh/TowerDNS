@@ -83,6 +83,7 @@ final class CloudflareProvider extends AbstractDNSProvider
         ];
     }
 
+    #[\Override]
     public function constraints(): ProviderConstraintProfile
     {
         return new ProviderConstraintProfile(
