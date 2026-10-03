@@ -290,6 +290,7 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
             $resultTimedOut = $result === false;
             if ($resultTimedOut) {
                 if (function_exists('posix_kill') && defined('SIGTERM')) {
+                    /** @var int $terminationSignal SIGTERM is a POSIX signal constant. */
                     $terminationSignal = constant('SIGTERM');
                     posix_kill($worker['pid'], $terminationSignal);
                 }
