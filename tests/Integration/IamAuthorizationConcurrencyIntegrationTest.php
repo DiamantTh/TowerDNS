@@ -31,13 +31,17 @@ use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 
-/** Executes IAM changes in distinct OS processes against the same disposable database. */
+/**
+ * Executes IAM changes in distinct OS processes against the same disposable database.
+ *
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
+ */
 final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
 {
     public function testConcurrentRoleRemovalAndSuperadminDeactivationKeepOneActiveSuperadmin(): void
     {
-        if (!function_exists('pcntl_fork') || !function_exists('stream_socket_pair')) {
-            self::markTestSkipped('pcntl and Unix socket pairs are required for a real multi-process test.');
+        if (!function_exists('pcntl_fork')) {
+            self::markTestSkipped('pcntl is required for a real multi-process test.');
         }
 
         foreach ($this->configuredBackends() as $backend) {
@@ -104,29 +108,46 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
         $connection->executeStatement('DROP TABLE towerdns_concurrency_test_users');
     }
 
-    /** @return list<array{outcome: string, backend: string, error?: ?string}> */
+    /** @return list<array{outcome: 'changed'|'denied'|'error', backend: string, error?: string}> */
     private function runCompetingMutations(string $backend, ?string $sqlitePath, string $scenario): array
     {
+        $barrierDir = sys_get_temp_dir() . '/towerdns-iam-barrier-' . bin2hex(random_bytes(8));
+        if (!mkdir($barrierDir, 0o700)) {
+            self::fail('Could not create private worker-coordination directory.');
+        }
+
         $workers = [];
         foreach ([1, 2] as $position) {
-            $pair = stream_socket_pair(STREAM_PF_UNIX, STREAM_SOCK_STREAM, STREAM_IPPROTO_IP);
-            if (!is_array($pair)) {
-                self::fail('Could not create local synchronization sockets.');
-            }
             $pid = pcntl_fork();
             if ($pid === -1) {
+                $this->stopWorkers($workers, $barrierDir);
                 self::fail('Could not fork IAM integration worker.');
             }
 
             if ($pid === 0) {
-                fclose($pair[0]);
-                foreach ($workers as $worker) {
-                    fclose($worker['socket']);
+                $readyPath    = $barrierDir . '/worker-' . $position . '.ready';
+                $commandPath  = $barrierDir . '/worker-' . $position . '.command';
+                $mutatePath   = $barrierDir . '/worker-' . $position . '.mutate';
+                $preparedPath = $barrierDir . '/worker-' . $position . '.prepared';
+                $resultPath   = $barrierDir . '/worker-' . $position . '.result';
+
+                if (!$this->publishWorkerFile($readyPath, "READY\n")) {
+                    exit(70);
                 }
-                stream_set_timeout($pair[1], 25);
-                fwrite($pair[1], "READY\n");
-                fflush($pair[1]);
-                fgets($pair[1]);
+
+                $deadline = hrtime(true) + 25_000_000_000;
+                while (!is_file($commandPath) && hrtime(true) < $deadline) {
+                    usleep(10_000);
+                }
+                $command = is_file($commandPath) ? file_get_contents($commandPath) : false;
+                if ($command !== "GO\n") {
+                    $this->publishWorkerFile($resultPath, json_encode([
+                        'outcome' => 'error',
+                        'backend' => $backend,
+                        'error'   => $command === false ? 'Worker command timed out.' : 'Worker received an invalid command.',
+                    ], JSON_THROW_ON_ERROR));
+                    exit(71);
+                }
 
                 $workerConnection = null;
                 try {
@@ -146,6 +167,20 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
                     $proof   = $services['proofs']->issue($actorId, $action, $targetId, null, 'totp');
                     $context = new AuditContext($actorId, $actorId);
 
+                    if (!$this->publishWorkerFile($preparedPath, "PREPARED\n")) {
+                        throw new \RuntimeException('Could not publish prepared worker state.');
+                    }
+                    $mutationDeadline = hrtime(true) + 25_000_000_000;
+                    while (!is_file($mutatePath) && hrtime(true) < $mutationDeadline) {
+                        usleep(10_000);
+                    }
+                    $mutationCommand = is_file($mutatePath) ? file_get_contents($mutatePath) : false;
+                    if ($mutationCommand !== "MUTATE\n") {
+                        throw new \RuntimeException(
+                            $mutationCommand === false ? 'Worker mutation barrier timed out.' : 'Worker received an invalid mutation command.',
+                        );
+                    }
+
                     if ($scenario === 'role-removal') {
                         $services['iam']->syncRoles($actor, $targetId, [], $context, $proof);
                     } else {
@@ -163,52 +198,188 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
                 }
 
                 $workerConnection?->close();
-                fwrite($pair[1], json_encode([
+                $this->publishWorkerFile($resultPath, json_encode([
                     'outcome' => $outcome,
                     'backend' => $backend,
                     'error'   => $errorMessage ?? null,
-                ], JSON_THROW_ON_ERROR) . "\n");
-                fflush($pair[1]);
-                fclose($pair[1]);
+                ], JSON_THROW_ON_ERROR));
                 exit(0);
             }
 
-            fclose($pair[1]);
-            stream_set_timeout($pair[0], 30);
-            $workers[] = ['pid' => $pid, 'socket' => $pair[0]];
+            $workers[] = ['pid' => $pid, 'position' => $position];
         }
 
-        foreach ($workers as $worker) {
-            self::assertSame("READY\n", fgets($worker['socket']));
+        $readyDeadline = hrtime(true) + 25_000_000_000;
+        $allReady      = false;
+        while (hrtime(true) < $readyDeadline) {
+            $allReady = true;
+            foreach ($workers as $worker) {
+                $readyPath = $barrierDir . '/worker-' . $worker['position'] . '.ready';
+                if (!is_file($readyPath) || file_get_contents($readyPath) !== "READY\n") {
+                    $allReady = false;
+                    break;
+                }
+            }
+            if ($allReady) {
+                break;
+            }
+            usleep(10_000);
+        }
+
+        if (!$allReady) {
+            $diagnostics = array_map(
+                static fn(array $worker): array => [
+                    'position' => $worker['position'],
+                    'ready'    => is_file($barrierDir . '/worker-' . $worker['position'] . '.ready'),
+                    'result'   => is_file($barrierDir . '/worker-' . $worker['position'] . '.result')
+                        ? file_get_contents($barrierDir . '/worker-' . $worker['position'] . '.result')
+                        : null,
+                ],
+                $workers,
+            );
+            $this->stopWorkers($workers, $barrierDir);
+            self::fail("{$backend} concurrency worker readiness timed out: " . json_encode($diagnostics, JSON_THROW_ON_ERROR));
         }
         foreach ($workers as $worker) {
-            fwrite($worker['socket'], "GO\n");
-            fflush($worker['socket']);
+            $this->publishWorkerFile($barrierDir . '/worker-' . $worker['position'] . '.command', "GO\n");
+        }
+
+        $preparedDeadline = hrtime(true) + 25_000_000_000;
+        $allPrepared      = false;
+        while (hrtime(true) < $preparedDeadline) {
+            $allPrepared = true;
+            foreach ($workers as $worker) {
+                $preparedPath = $barrierDir . '/worker-' . $worker['position'] . '.prepared';
+                if (!is_file($preparedPath) || file_get_contents($preparedPath) !== "PREPARED\n") {
+                    $allPrepared = false;
+                    break;
+                }
+            }
+            if ($allPrepared) {
+                break;
+            }
+            usleep(10_000);
+        }
+
+        if (!$allPrepared) {
+            $diagnostics = array_map(
+                static fn(array $worker): array => [
+                    'position' => $worker['position'],
+                    'prepared' => is_file($barrierDir . '/worker-' . $worker['position'] . '.prepared'),
+                    'result'   => is_file($barrierDir . '/worker-' . $worker['position'] . '.result')
+                        ? file_get_contents($barrierDir . '/worker-' . $worker['position'] . '.result')
+                        : null,
+                ],
+                $workers,
+            );
+            $this->stopWorkers($workers, $barrierDir);
+            self::fail("{$backend} concurrency worker preparation timed out: " . json_encode($diagnostics, JSON_THROW_ON_ERROR));
+        }
+        foreach ($workers as $worker) {
+            $this->publishWorkerFile($barrierDir . '/worker-' . $worker['position'] . '.mutate', "MUTATE\n");
         }
 
         $results = [];
         foreach ($workers as $worker) {
-            $line = fgets($worker['socket']);
-            fclose($worker['socket']);
-            $decoded = is_string($line) ? json_decode($line, true) : null;
-            if (!is_array($decoded)
-                || !is_string($decoded['outcome'] ?? null)
-                || !is_string($decoded['backend'] ?? null)
-                || (isset($decoded['error']) && !is_string($decoded['error']))) {
-                $decoded = ['outcome' => 'error', 'backend' => $backend];
+            $resultPath     = $barrierDir . '/worker-' . $worker['position'] . '.result';
+            $resultDeadline = hrtime(true) + 45_000_000_000;
+            while (!is_file($resultPath) && hrtime(true) < $resultDeadline) {
+                usleep(10_000);
             }
-            $results[] = [
-                'outcome' => $decoded['outcome'],
-                'backend' => $decoded['backend'],
-                ...((isset($decoded['error']) && is_string($decoded['error'])) ? ['error' => $decoded['error']] : []),
-            ];
+            $result         = is_file($resultPath) ? file_get_contents($resultPath) : false;
+            $resultTimedOut = $result === false;
+            if ($resultTimedOut) {
+                if (function_exists('posix_kill')) {
+                    posix_kill($worker['pid'], SIGTERM);
+                }
+            }
+            $decoded       = is_string($result) ? json_decode($result, true) : null;
+            $outcome       = is_array($decoded) ? ($decoded['outcome'] ?? null) : null;
+            $resultBackend = is_array($decoded) ? ($decoded['backend'] ?? null) : null;
+            $error         = is_array($decoded) ? ($decoded['error'] ?? null) : null;
+            if (!in_array($outcome, ['changed', 'denied', 'error'], true)
+                || !is_string($resultBackend)
+                || ($error !== null && !is_string($error))) {
+                $outcome       = 'error';
+                $resultBackend = $backend;
+                $error         = $resultTimedOut ? 'Worker result timed out.' : 'Worker returned malformed result JSON.';
+            }
+            $normalizedOutcome = match ($outcome) {
+                'changed' => 'changed',
+                'denied'  => 'denied',
+                default   => 'error',
+            };
+            $results[] = $this->workerResult($normalizedOutcome, $resultBackend, $error);
             pcntl_waitpid($worker['pid'], $status);
-            self::assertTrue(pcntl_wifexited($status) && pcntl_wexitstatus($status) === 0, "{$backend} child process exited cleanly");
+            self::assertTrue(
+                pcntl_wifexited($status) && pcntl_wexitstatus($status) === 0,
+                "{$backend} child process {$worker['position']} exited cleanly; result=" . ($result === false ? 'missing' : $result),
+            );
         }
 
         $errors = array_values(array_filter($results, static fn(array $result): bool => $result['outcome'] === 'error'));
         self::assertSame([], $errors, "{$backend} {$scenario} worker error: " . json_encode($errors, JSON_THROW_ON_ERROR));
+        foreach ($this->globPaths($barrierDir . '/*') as $path) {
+            unlink($path);
+        }
+        rmdir($barrierDir);
+
         return $results;
+    }
+
+    /** @param list<array{pid: int, position: int}> $workers */
+    private function stopWorkers(array $workers, string $barrierDir): void
+    {
+        foreach ($workers as $worker) {
+            foreach (['command', 'mutate'] as $phase) {
+                $commandPath = $barrierDir . '/worker-' . $worker['position'] . '.' . $phase;
+                if (!is_file($commandPath)) {
+                    $this->publishWorkerFile($commandPath, "ABORT\n");
+                }
+            }
+        }
+        foreach ($workers as $worker) {
+            pcntl_waitpid($worker['pid'], $status);
+        }
+        foreach ($this->globPaths($barrierDir . '/*') as $path) {
+            unlink($path);
+        }
+        rmdir($barrierDir);
+    }
+
+    private function publishWorkerFile(string $path, string $contents): bool
+    {
+        $pid = getmypid();
+        if ($pid === false) {
+            return false;
+        }
+        $temporaryPath = $path . '.tmp-' . $pid;
+        if (file_put_contents($temporaryPath, $contents, LOCK_EX) !== strlen($contents)) {
+            return false;
+        }
+
+        return rename($temporaryPath, $path);
+    }
+
+    /**
+     * @param 'changed'|'denied'|'error' $outcome
+     * @return array{backend: string, outcome: 'changed'|'denied'|'error', error?: string}
+     */
+    private function workerResult(string $outcome, string $backend, ?string $error): array
+    {
+        if ($error === null) {
+            return ['outcome' => $outcome, 'backend' => $backend];
+        }
+
+        return ['outcome' => $outcome, 'backend' => $backend, 'error' => $error];
+    }
+
+    /** @return list<string> */
+    private function globPaths(string $pattern): array
+    {
+        $paths = glob($pattern);
+
+        return $paths === false ? [] : $paths;
     }
 
     /** @return array{iam: IamAdministrationService, users: DbalUserRepository, proofs: StepUpProofService} */
@@ -263,15 +434,28 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
             self::fail(sprintf('%s must be a database URL.', $envName));
         }
 
-        $connection = DriverManager::getConnection([
+        // parse_url() guarantees string host/path/user/pass and integer port
+        // components when present; the required host/path presence is checked
+        // above before these values cross into DBAL.
+        $host     = $parts['host'];
+        $path     = $parts['path'];
+        $port     = $parts['port'] ?? ($backend === 'mariadb' ? 3306 : 5432);
+        $user     = $parts['user'] ?? '';
+        $password = $parts['pass'] ?? '';
+
+        $connectionParams = [
             'driver'   => $backend === 'mariadb' ? 'pdo_mysql' : 'pdo_pgsql',
-            'host'     => (string) $parts['host'],
-            'port'     => (int) ($parts['port'] ?? ($backend === 'mariadb' ? 3306 : 5432)),
-            'dbname'   => ltrim((string) $parts['path'], '/'),
-            'user'     => isset($parts['user']) ? rawurldecode((string) $parts['user']) : '',
-            'password' => isset($parts['pass']) ? rawurldecode((string) $parts['pass']) : '',
-            ...($backend === 'mariadb' ? ['charset' => 'utf8mb4'] : []),
-        ]);
+            'host'     => $host,
+            'port'     => $port,
+            'dbname'   => ltrim($path, '/'),
+            'user'     => rawurldecode($user),
+            'password' => rawurldecode($password),
+        ];
+        if ($backend === 'mariadb') {
+            $connectionParams['charset'] = 'utf8mb4';
+        }
+
+        $connection = DriverManager::getConnection($connectionParams);
         $connection->fetchOne('SELECT 1');
 
         return $connection;
@@ -293,12 +477,15 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
 
     private function dropTestTables(Connection $connection, string $backend): void
     {
-        $tables = $connection->createSchemaManager()->listTableNames();
+        $tables = array_map(
+            static fn(\Doctrine\DBAL\Schema\Name\OptionallyQualifiedName $name): string => $name->getUnqualifiedName()->getValue(),
+            $connection->createSchemaManager()->introspectTableNames(),
+        );
         if ($backend === 'mariadb') {
             $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 0');
         }
         foreach (array_reverse($tables) as $table) {
-            $connection->executeStatement('DROP TABLE IF EXISTS ' . $connection->quoteIdentifier($table) . ($backend === 'postgresql' ? ' CASCADE' : ''));
+            $connection->executeStatement('DROP TABLE IF EXISTS ' . $connection->getDatabasePlatform()->quoteSingleIdentifier($table) . ($backend === 'postgresql' ? ' CASCADE' : ''));
         }
         if ($backend === 'mariadb') {
             $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 1');
