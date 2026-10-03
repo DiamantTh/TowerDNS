@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace TowerDNS\Tests\Infrastructure\Persistence;
 
 use Doctrine\DBAL\DriverManager;
+use Doctrine\DBAL\Schema\Index;
+use Doctrine\DBAL\Schema\Index\IndexType;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SchemaMigrationManagerTest extends TestCase
 {
     public function testFreshDatabaseIsMigratedAndRepeatedRunsAreNoOps(): void
@@ -87,7 +90,7 @@ final class SchemaMigrationManagerTest extends TestCase
         $status = $this->manager($connection)->status();
 
         self::assertFalse($status->metadataInitialized);
-        self::assertSame([], $connection->createSchemaManager()->listTableNames());
+        self::assertSame([], $connection->createSchemaManager()->introspectTableNames());
     }
 
     public function testUnknownExecutedMigrationBlocksStatusAndUpgrade(): void
@@ -134,10 +137,20 @@ final class SchemaMigrationManagerTest extends TestCase
         $connection    = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
         $schemaManager = new SchemaManager($connection);
         $schemaManager->createTablesIfNotExist();
-        $databaseSchema = $connection->createSchemaManager()->introspectSchema();
-        $accounts       = $databaseSchema->getTable('accounts');
-        $accounts->dropIndex('uq_accounts_slug');
-        $accounts->addUniqueIndex(['slug'], 'legacy_accounts_slug');
+        $databaseSchema = $connection->createSchemaManager()->introspectSchema()
+            ->edit()
+            ->modifyTableByUnquotedName('accounts', static function (\Doctrine\DBAL\Schema\TableEditor $editor): void {
+                $editor->dropIndexByUnquotedName('uq_accounts_slug');
+                $editor->addIndex(
+                    Index::editor()
+                        ->setUnquotedName('legacy_accounts_slug')
+                        ->setType(IndexType::UNIQUE)
+                        ->setUnquotedColumnNames('slug')
+                        ->create(),
+                );
+            })
+            ->create();
+        $accounts = $databaseSchema->getTable('accounts');
 
         $schemaManager->mergeCanonicalSchema($databaseSchema);
 

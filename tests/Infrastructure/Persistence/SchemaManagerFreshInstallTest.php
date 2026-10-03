@@ -8,6 +8,7 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SchemaManagerFreshInstallTest extends TestCase
 {
     public function testFreshSchemaSeedsAUsableSuperadminAndOwnerAccount(): void
@@ -29,12 +30,12 @@ final class SchemaManagerFreshInstallTest extends TestCase
             'password_reset_tokens', 'system_settings',
         ]));
         self::assertTrue($schema->schemaIsCurrent());
-        self::assertTrue($schemaManager->introspectTable('managed_zones')->hasForeignKey('fk_mz_provider_account'));
-        self::assertTrue($schemaManager->introspectTable('zone_memberships')->hasForeignKey('fk_zm_managed_zone_id'));
-        self::assertTrue($schemaManager->introspectTable('account_memberships')->hasForeignKey('fk_accm_invited_by'));
-        self::assertTrue($schemaManager->introspectTable('admin_impersonation_sessions')->hasForeignKey('fk_ais_effective_account_id'));
-        self::assertTrue($schemaManager->introspectTable('password_reset_tokens')->hasIndex('idx_prt_expires_at'));
-        self::assertTrue($schemaManager->introspectTable('accounts')->hasIndex('uq_accounts_personal_user'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('managed_zones')->hasForeignKey('fk_mz_provider_account'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('zone_memberships')->hasForeignKey('fk_zm_managed_zone_id'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('account_memberships')->hasForeignKey('fk_accm_invited_by'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('admin_impersonation_sessions')->hasForeignKey('fk_ais_effective_account_id'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('password_reset_tokens')->hasIndex('idx_prt_expires_at'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('accounts')->hasIndex('uq_accounts_personal_user'));
         self::assertSame('superadmin', $connection->fetchOne('SELECT role_id FROM user_roles WHERE user_id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));
         self::assertSame('en-GB', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));
         self::assertSame('en-GB', $connection->fetchOne('SELECT language FROM users WHERE id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));

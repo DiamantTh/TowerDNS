@@ -6,7 +6,6 @@ namespace TowerDNS\Tests\Integration;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
-use Doctrine\DBAL\Types\Type;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
@@ -22,6 +21,7 @@ use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
 /**
  * Runs the migration invariants against SQLite and, when configured, real
  * MariaDB and PostgreSQL servers. Non-SQLite databases must be disposable.
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
  */
 final class SchemaMigrationDatabaseIntegrationTest extends TestCase
 {
@@ -308,15 +308,28 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             self::fail(sprintf('%s must be a valid database URL.', $envName));
         }
 
-        $connection = DriverManager::getConnection([
+        // parse_url() guarantees string host/path/user/pass and integer port
+        // components when present; the required host/path presence is checked
+        // above before these values cross into DBAL.
+        $host     = $parts['host'];
+        $path     = $parts['path'];
+        $port     = $parts['port'] ?? ($backend === 'mariadb' ? 3306 : 5432);
+        $user     = $parts['user'] ?? '';
+        $password = $parts['pass'] ?? '';
+
+        $connectionParams = [
             'driver'   => $backend === 'mariadb' ? 'pdo_mysql' : 'pdo_pgsql',
-            'host'     => (string) $parts['host'],
-            'port'     => (int) ($parts['port'] ?? ($backend === 'mariadb' ? 3306 : 5432)),
-            'dbname'   => ltrim((string) $parts['path'], '/'),
-            'user'     => isset($parts['user']) ? rawurldecode((string) $parts['user']) : '',
-            'password' => isset($parts['pass']) ? rawurldecode((string) $parts['pass']) : '',
-            ...($backend === 'mariadb' ? ['charset' => 'utf8mb4'] : []),
-        ]);
+            'host'     => $host,
+            'port'     => $port,
+            'dbname'   => ltrim($path, '/'),
+            'user'     => rawurldecode($user),
+            'password' => rawurldecode($password),
+        ];
+        if ($backend === 'mariadb') {
+            $connectionParams['charset'] = 'utf8mb4';
+        }
+
+        $connection = DriverManager::getConnection($connectionParams);
         $connection->fetchOne('SELECT 1');
 
         return $connection;
@@ -332,12 +345,10 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
 
     private function credentialIdType(Connection $connection): string
     {
-        $type = $connection->createSchemaManager()
-            ->introspectTable('webauthn_credentials')
+        return $connection->createSchemaManager()
+            ->introspectTableByUnquotedName('webauthn_credentials')
             ->getColumn('credential_id')
-            ->getType();
-
-        return Type::getTypeRegistry()->lookupName($type);
+            ->getTypeName();
     }
 
     private function dropTestTables(Connection $connection, string $backend): void
@@ -346,12 +357,15 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             return;
         }
 
-        $tables = $connection->createSchemaManager()->listTableNames();
+        $tables = array_map(
+            static fn(\Doctrine\DBAL\Schema\Name\OptionallyQualifiedName $name): string => $name->getUnqualifiedName()->getValue(),
+            $connection->createSchemaManager()->introspectTableNames(),
+        );
         if ($backend === 'mariadb') {
             $connection->executeStatement('SET FOREIGN_KEY_CHECKS = 0');
         }
         foreach (array_reverse($tables) as $table) {
-            $identifier = $connection->quoteIdentifier($table);
+            $identifier = $connection->getDatabasePlatform()->quoteSingleIdentifier($table);
             $suffix     = $backend === 'postgresql' ? ' CASCADE' : '';
             $connection->executeStatement('DROP TABLE IF EXISTS ' . $identifier . $suffix);
         }

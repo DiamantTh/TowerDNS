@@ -78,6 +78,15 @@ Diese kleine, dokumentierte Kopplung bleibt deshalb bewusst isoliert und ist
 bei jedem Doctrine-Migrations-Update zusammen mit den Migrationsintegrationstests
 zu prüfen. Sie ist nicht als deprecated API klassifiziert.
 
+Der `up(Schema $schema): void`-Vertrag von Doctrine Migrations 3.9 erwartet
+außerdem, dass Änderungen am übergebenen Schema-Objekt nach Rückkehr sichtbar
+sind, weil Migrations genau dieses Objekt mit dem Ausgangsschema vergleicht.
+DBAL 4.5s `SchemaEditor` erzeugt dagegen ein neues Schema, das diese Signatur
+nicht zurückgeben kann. Daher ist die Verwendung der mutierenden Schema-/Table-
+Methoden ausschließlich in `mergeCanonicalSchema()` auf diese Migrationsgrenze
+beschränkt; neue kanonische Tabellen entstehen bereits über `TableEditor` und
+`ColumnEditor`.
+
 ### HIBP-Integration (Have I Been Pwned)
 
 `HibpRangePasswordChecker` implementiert `BreachedPasswordCheckerInterface` via k-Anonymity Range-API (kein Klartextpasswort verlaesst das System). PSR-18 als Client-Interface; Guzzle wird nur in Kompositionsstellen (`ContainerFactory`, Console-Commands) als Konkrete eingesetzt. Im Air-gapped-Betrieb oder wenn HIBP in `system_settings` deaktiviert ist, wird automatisch `NullBreachedPasswordChecker` gewaehlt.

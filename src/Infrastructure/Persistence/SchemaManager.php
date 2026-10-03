@@ -10,9 +10,15 @@ namespace TowerDNS\Infrastructure\Persistence;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\Schema\Column;
 use Doctrine\DBAL\Schema\ForeignKeyConstraint;
+use Doctrine\DBAL\Schema\Index;
+use Doctrine\DBAL\Schema\Index\IndexType;
+use Doctrine\DBAL\Schema\Name;
+use Doctrine\DBAL\Schema\Name\OptionallyQualifiedName;
+use Doctrine\DBAL\Schema\Name\UnqualifiedName;
+use Doctrine\DBAL\Schema\NamedObject;
+use Doctrine\DBAL\Schema\OptionallyNamedObject;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
-use Doctrine\DBAL\Types\Type;
 use Doctrine\DBAL\Types\Types;
 use TowerDNS\Application\Services\UserPreferences;
 use TowerDNS\Domain\Account\AccountKind;
@@ -46,10 +52,13 @@ final readonly class SchemaManager
     public function createTablesIfNotExist(): void
     {
         $sm       = $this->connection->createSchemaManager();
-        $existing = array_map(strtolower(...), $sm->listTableNames());
+        $existing = array_map(
+            static fn(OptionallyQualifiedName $name): string => strtolower($name->getUnqualifiedName()->getValue()),
+            $sm->introspectTableNames(),
+        );
 
         foreach ($this->buildTables() as $table) {
-            if (!in_array(strtolower($table->getName()), $existing, true)) {
+            if (!in_array(strtolower($this->tableName($table)), $existing, true)) {
                 $sm->createTable($table);
             }
         }
@@ -66,46 +75,57 @@ final readonly class SchemaManager
 
     public static function stepUpProofNonceTable(): Table
     {
-        $table = new Table('step_up_proof_nonces');
-        $table->addColumn('nonce', Types::STRING, ['length' => 32]);
-        $table->addColumn('expires_at', Types::BIGINT);
-        $table->setPrimaryKey(['nonce']);
-
-        return $table;
+        return new CanonicalTableBuilder('step_up_proof_nonces')
+            ->addColumn('nonce', Types::STRING, ['length' => 32])
+            ->addColumn('expires_at', Types::BIGINT)
+            ->setPrimaryKey(['nonce'])
+            ->create();
     }
 
     /**
      * Merges the canonical schema into Doctrine's migration schema object.
      * Missing tables, columns, indexes and foreign keys are added only; no
      * existing definition is dropped or changed implicitly.
+     *
+     * Doctrine Migrations 3.9 calls migrations with a mutable Schema object
+     * and diffs that same object after up() returns. DBAL 4.5's SchemaEditor
+     * creates a replacement Schema, which this public migration contract
+     * cannot return. Mutations in this method are therefore intentionally
+     * limited to that migration boundary until Doctrine Migrations exposes
+     * an editor- or return-based contract.
+     *
+     * @psalm-suppress DeprecatedMethod DBAL 4.5 editors return replacement schemas; Doctrine Migrations 3.9 requires this instance to be mutated in place.
      */
     public function mergeCanonicalSchema(Schema $schema): void
     {
         foreach ($this->buildTables() as $expected) {
-            if (!$schema->hasTable($expected->getName())) {
-                $target = $schema->createTable($expected->getName());
+            $expectedName = $this->tableName($expected);
+            if (!$schema->hasTable($expectedName)) {
+                $target = $schema->createTable($expectedName);
                 $this->copyTableDefinition($expected, $target);
                 continue;
             }
 
-            $target = $schema->getTable($expected->getName());
+            $target = $schema->getTable($expectedName);
             foreach ($expected->getColumns() as $column) {
-                if (!$target->hasColumn($column->getName())) {
-                    $target->addColumn($column->getName(), $this->typeName($column), $this->columnOptions($column));
+                $columnName = $this->columnName($column);
+                if (!$target->hasColumn($columnName)) {
+                    $target->addColumn($columnName, $this->typeName($column), $this->columnOptions($column));
                 }
             }
 
             foreach ($expected->getIndexes() as $index) {
-                $indexPresent = array_any($target->getIndexes(), fn(\Doctrine\DBAL\Schema\Index $candidate) => $index->isFulfilledBy($candidate));
+                if ($this->isPrimaryKeyIndex($expected, $index)) {
+                    continue;
+                }
+                $indexPresent = array_any($target->getIndexes(), fn(Index $candidate) => $index->isFulfilledBy($candidate));
                 if ($indexPresent) {
                     continue;
                 }
-                if ($index->isPrimary()) {
-                    $target->setPrimaryKey($index->getColumns(), $index->getName());
-                } elseif ($index->isUnique()) {
-                    $target->addUniqueIndex($index->getColumns(), $index->getName(), $index->getOptions());
+                if ($index->getType() === IndexType::UNIQUE) {
+                    $target->addUniqueIndex($this->nonEmptyIndexColumns($index), $this->indexName($index));
                 } else {
-                    $target->addIndex($index->getColumns(), $index->getName(), $index->getFlags(), $index->getOptions());
+                    $target->addIndex($this->nonEmptyIndexColumns($index), $this->indexName($index));
                 }
             }
 
@@ -117,11 +137,11 @@ final readonly class SchemaManager
                 }
                 $this->addForeignKeyConstraint(
                     $target,
-                    $foreignKey->getForeignTableName(),
-                    $foreignKey->getLocalColumns(),
-                    $foreignKey->getForeignColumns(),
-                    $foreignKey->getOptions(),
-                    $foreignKey->getName(),
+                    $this->foreignTableName($foreignKey),
+                    $this->foreignKeyLocalColumns($foreignKey),
+                    $this->foreignKeyReferencedColumns($foreignKey),
+                    $this->foreignKeyOptions($foreignKey),
+                    $this->foreignKeyName($foreignKey),
                 );
             }
         }
@@ -136,41 +156,52 @@ final readonly class SchemaManager
     public function schemaIssues(): array
     {
         $manager  = $this->connection->createSchemaManager();
-        $existing = array_fill_keys(array_map(strtolower(...), $manager->listTableNames()), true);
-        $issues   = [];
+        $existing = array_fill_keys(array_map(
+            static fn(OptionallyQualifiedName $name): string => strtolower($name->getUnqualifiedName()->getValue()),
+            $manager->introspectTableNames(),
+        ), true);
+        $issues = [];
 
         foreach ($this->buildTables() as $expected) {
-            $name = strtolower($expected->getName());
+            $tableName = $this->tableName($expected);
+            $name      = strtolower($tableName);
             if (!isset($existing[$name])) {
-                $issues[] = sprintf('missing table %s', $expected->getName());
+                $issues[] = sprintf('missing table %s', $tableName);
                 continue;
             }
 
-            $actual = $manager->introspectTable($expected->getName());
+            if ($tableName === '') {
+                throw new \LogicException('Canonical table names must not be empty.');
+            }
+            $actual = $manager->introspectTableByUnquotedName($tableName);
             foreach ($expected->getColumns() as $column) {
-                if (!$actual->hasColumn($column->getName())) {
-                    $issues[] = sprintf('missing column %s.%s', $expected->getName(), $column->getName());
+                $columnName = $this->columnName($column);
+                if (!$actual->hasColumn($columnName)) {
+                    $issues[] = sprintf('missing column %s.%s', $tableName, $columnName);
                     continue;
                 }
                 if (!$this->typesMatch(
                     $this->typeName($column),
-                    $this->typeName($actual->getColumn($column->getName())),
+                    $this->typeName($actual->getColumn($columnName)),
                 )) {
-                    $issues[] = sprintf('incompatible type for %s.%s', $expected->getName(), $column->getName());
+                    $issues[] = sprintf('incompatible type for %s.%s', $tableName, $columnName);
                 }
             }
 
             foreach ($expected->getIndexes() as $index) {
-                $matching = array_find($actual->getIndexes(), fn(\Doctrine\DBAL\Schema\Index $candidate) => $index->isFulfilledBy($candidate));
+                if ($this->isPrimaryKeyIndex($expected, $index)) {
+                    continue;
+                }
+                $matching = array_find($actual->getIndexes(), fn(Index $candidate) => $index->isFulfilledBy($candidate));
                 if ($matching === null) {
-                    $issues[] = sprintf('missing index %s on %s', $index->getName(), $expected->getName());
+                    $issues[] = sprintf('missing index %s on %s', $this->indexName($index), $tableName);
                 }
             }
 
             foreach ($expected->getForeignKeys() as $foreignKey) {
                 $matching = array_any($actual->getForeignKeys(), fn(ForeignKeyConstraint $candidate): bool => $this->foreignKeysMatch($foreignKey, $candidate));
                 if (!$matching) {
-                    $issues[] = sprintf('missing foreign key %s on %s', $foreignKey->getName(), $expected->getName());
+                    $issues[] = sprintf('missing foreign key %s on %s', $this->foreignKeyName($foreignKey) ?? '(unnamed)', $tableName);
                 }
             }
         }
@@ -203,10 +234,10 @@ final readonly class SchemaManager
 
     private function foreignKeysMatch(ForeignKeyConstraint $expected, ForeignKeyConstraint $candidate): bool
     {
-        return $candidate->getUnqualifiedForeignTableName() === $expected->getUnqualifiedForeignTableName()
-            && $candidate->getLocalColumns()                === $expected->getLocalColumns()
-            && $candidate->getForeignColumns()              === $expected->getForeignColumns()
-            && strtoupper((string) $candidate->onDelete())  === strtoupper((string) $expected->onDelete());
+        return $this->foreignTableName($candidate)            === $this->foreignTableName($expected)
+            && $this->foreignKeyLocalColumns($candidate)      === $this->foreignKeyLocalColumns($expected)
+            && $this->foreignKeyReferencedColumns($candidate) === $this->foreignKeyReferencedColumns($expected)
+            && $candidate->getOnDeleteAction()                === $expected->getOnDeleteAction();
     }
 
     public function schemaIsCurrent(): bool
@@ -235,7 +266,10 @@ final readonly class SchemaManager
             'account_memberships'     => ['account_id', 'user_id', 'role'],
             'account_resource_limits' => ['account_id'],
         ] as $table => $columns) {
-            $availableColumns = array_map(strtolower(...), array_keys($manager->listTableColumns($table)));
+            $availableColumns = array_map(
+                fn(Column $column): string => strtolower($this->columnName($column)),
+                $manager->introspectTableByUnquotedName($table)->getColumns(),
+            );
             if (array_diff($columns, $availableColumns) !== []) {
                 return [];
             }
@@ -329,9 +363,7 @@ final readonly class SchemaManager
         return $issues;
     }
 
-    /**
-     * Returns true when all application tables are present.
-     */
+    /** @psalm-api Returns true when all application tables are present. */
     public function schemaExists(): bool
     {
         $sm = $this->connection->createSchemaManager();
@@ -600,7 +632,7 @@ final readonly class SchemaManager
     private function buildTables(): array
     {
         // roles ---------------------------------------------------------------
-        $roles = new Table('roles');
+        $roles = new CanonicalTableBuilder('roles');
         $roles->addColumn('id', Types::STRING, ['length' => 64]);
         $roles->addColumn('name', Types::STRING, ['length' => 255]);
         $roles->addColumn('is_system', Types::BOOLEAN, ['default' => false]);
@@ -608,7 +640,7 @@ final readonly class SchemaManager
         $roles->setPrimaryKey(['id']);
 
         // role_permissions ----------------------------------------------------
-        $rolePerms = new Table('role_permissions');
+        $rolePerms = new CanonicalTableBuilder('role_permissions');
         $rolePerms->addColumn('role_id', Types::STRING, ['length' => 64]);
         $rolePerms->addColumn('permission', Types::STRING, ['length' => 64]);
         $rolePerms->setPrimaryKey(['role_id', 'permission']);
@@ -621,7 +653,7 @@ final readonly class SchemaManager
         );
 
         // users ---------------------------------------------------------------
-        $users = new Table('users');
+        $users = new CanonicalTableBuilder('users');
         $users->addColumn('id', Types::GUID);
         $users->addColumn('email', Types::STRING, ['length' => 254]);
         $users->addColumn('display_name', Types::STRING, ['length' => 64, 'notnull' => false]);
@@ -651,7 +683,7 @@ final readonly class SchemaManager
         $users->addUniqueIndex(['email'], 'uq_users_email');
 
         // user_roles ----------------------------------------------------------
-        $userRoles = new Table('user_roles');
+        $userRoles = new CanonicalTableBuilder('user_roles');
         $userRoles->addColumn('user_id', Types::GUID);
         $userRoles->addColumn('role_id', Types::STRING, ['length' => 64]);
         $userRoles->setPrimaryKey(['user_id', 'role_id']);
@@ -671,7 +703,7 @@ final readonly class SchemaManager
         );
 
         // webauthn_credentials -----------------------------------------------
-        $waCredentials = new Table('webauthn_credentials');
+        $waCredentials = new CanonicalTableBuilder('webauthn_credentials');
         // SQLite accepts a TEXT primary key and has historically stored the
         // raw credential bytes through its TEXT affinity. MariaDB and
         // PostgreSQL need a binary key representation instead: TEXT/BLOB
@@ -701,7 +733,7 @@ final readonly class SchemaManager
         );
 
         // api_keys -----------------------------------------------------------
-        $apiKeys = new Table('api_keys');
+        $apiKeys = new CanonicalTableBuilder('api_keys');
         $apiKeys->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $apiKeys->addColumn('user_id', Types::GUID);
         $apiKeys->addColumn('name', Types::STRING, ['length' => 255]);
@@ -721,7 +753,7 @@ final readonly class SchemaManager
         );
 
         // accounts -----------------------------------------------------------
-        $accounts = new Table('accounts');
+        $accounts = new CanonicalTableBuilder('accounts');
         $accounts->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $accounts->addColumn('name', Types::STRING, ['length' => 255]);
         $accounts->addColumn('slug', Types::STRING, ['length' => 100]);
@@ -752,7 +784,7 @@ final readonly class SchemaManager
         );
 
         // account_resource_limits -------------------------------------------
-        $resourceLimits = new Table('account_resource_limits');
+        $resourceLimits = new CanonicalTableBuilder('account_resource_limits');
         $resourceLimits->addColumn('account_id', Types::INTEGER);
         $resourceLimits->addColumn('max_zones', Types::INTEGER, ['notnull' => false]);
         $resourceLimits->addColumn('max_members', Types::INTEGER, ['notnull' => false]);
@@ -761,7 +793,7 @@ final readonly class SchemaManager
         $resourceLimits->addForeignKeyConstraint('accounts', ['account_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_arl_account_id');
 
         // account_memberships ------------------------------------------------
-        $accMembers = new Table('account_memberships');
+        $accMembers = new CanonicalTableBuilder('account_memberships');
         $accMembers->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $accMembers->addColumn('account_id', Types::INTEGER);
         $accMembers->addColumn('user_id', Types::GUID);
@@ -795,7 +827,7 @@ final readonly class SchemaManager
 
         // account_invitations -----------------------------------------------
         // Raw invitation tokens are never persisted; token_hash is SHA-256.
-        $accountInvitations = new Table('account_invitations');
+        $accountInvitations = new CanonicalTableBuilder('account_invitations');
         $accountInvitations->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $accountInvitations->addColumn('account_id', Types::INTEGER);
         $accountInvitations->addColumn('email', Types::STRING, ['length' => 254]);
@@ -817,7 +849,7 @@ final readonly class SchemaManager
         $accountInvitations->addForeignKeyConstraint('users', ['invited_by'], ['id'], ['onDelete' => 'RESTRICT'], 'fk_ai_invited_by');
 
         // provider_accounts --------------------------------------------------
-        $provAccounts = new Table('provider_accounts');
+        $provAccounts = new CanonicalTableBuilder('provider_accounts');
         $provAccounts->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $provAccounts->addColumn('account_id', Types::INTEGER);
         $provAccounts->addColumn('provider_type', Types::STRING, ['length' => 64]);
@@ -840,7 +872,7 @@ final readonly class SchemaManager
         $provAccounts->addUniqueIndex(['id', 'account_id'], 'uq_provider_accounts_id_account');
 
         // managed_zones ------------------------------------------------------
-        $managedZones = new Table('managed_zones');
+        $managedZones = new CanonicalTableBuilder('managed_zones');
         $managedZones->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $managedZones->addColumn('account_id', Types::INTEGER);
         $managedZones->addColumn('provider_account_id', Types::INTEGER);
@@ -854,7 +886,7 @@ final readonly class SchemaManager
         $managedZones->addForeignKeyConstraint('provider_accounts', ['provider_account_id', 'account_id'], ['id', 'account_id'], ['onDelete' => 'CASCADE'], 'fk_mz_provider_account');
 
         // zone_memberships ---------------------------------------------------
-        $zoneMembers = new Table('zone_memberships');
+        $zoneMembers = new CanonicalTableBuilder('zone_memberships');
         $zoneMembers->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $zoneMembers->addColumn('managed_zone_id', Types::INTEGER);
         $zoneMembers->addColumn('user_id', Types::GUID);
@@ -887,7 +919,7 @@ final readonly class SchemaManager
         );
 
         // admin_impersonation_sessions ---------------------------------------
-        $impSessions = new Table('admin_impersonation_sessions');
+        $impSessions = new CanonicalTableBuilder('admin_impersonation_sessions');
         $impSessions->addColumn('id', Types::GUID);
         $impSessions->addColumn('actor_user_id', Types::GUID);
         $impSessions->addColumn('effective_user_id', Types::GUID, ['notnull' => false]);
@@ -923,7 +955,7 @@ final readonly class SchemaManager
         $impSessions->addIndex(['effective_account_id'], 'idx_ais_effective_account');
 
         // audit_logs ---------------------------------------------------------
-        $auditLogs = new Table('audit_logs');
+        $auditLogs = new CanonicalTableBuilder('audit_logs');
         $auditLogs->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $auditLogs->addColumn('actor_user_id', Types::GUID, ['notnull' => false]);
         $auditLogs->addColumn('effective_user_id', Types::GUID, ['notnull' => false]);
@@ -947,7 +979,7 @@ final readonly class SchemaManager
         $auditLogs->addIndex(['created_at'], 'idx_al_created_at');
 
         // password_reset_tokens ----------------------------------------------
-        $pwResetTokens = new Table('password_reset_tokens');
+        $pwResetTokens = new CanonicalTableBuilder('password_reset_tokens');
         $pwResetTokens->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
         $pwResetTokens->addColumn('user_id', Types::GUID);
         $pwResetTokens->addColumn('token_hash', Types::STRING, ['length' => 64]);
@@ -970,7 +1002,7 @@ final readonly class SchemaManager
         // system_settings ----------------------------------------------------
         // Runtime-konfigurierbare Werte (UI-editierbar). Bootstrap-Werte
         // (DB-Connection, encryption_key, app.hostname) bleiben in TOML.
-        $systemSettings = new Table('system_settings');
+        $systemSettings = new CanonicalTableBuilder('system_settings');
         $systemSettings->addColumn('setting_key', Types::STRING, ['length' => 120]);
         $systemSettings->addColumn('setting_value', Types::TEXT);
         $systemSettings->addColumn('updated_at', Types::DATETIME_MUTABLE);
@@ -985,13 +1017,16 @@ final readonly class SchemaManager
         );
 
         // step_up_proof_nonces -----------------------------------------------
-        $stepUpProofNonces = self::stepUpProofNonceTable();
+        $stepUpProofNonces = new CanonicalTableBuilder('step_up_proof_nonces')
+            ->addColumn('nonce', Types::STRING, ['length' => 32])
+            ->addColumn('expires_at', Types::BIGINT)
+            ->setPrimaryKey(['nonce']);
 
-        return [
+        return array_map(static fn(CanonicalTableBuilder $table): Table => $table->create(), [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $apiKeys,
             $accounts, $resourceLimits, $accMembers, $accountInvitations, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
             $pwResetTokens, $systemSettings, $stepUpProofNonces,
-        ];
+        ]);
     }
 
     /**
@@ -1027,47 +1062,184 @@ final readonly class SchemaManager
         }
     }
 
+    /**
+     * @psalm-suppress DeprecatedMethod Used only while adapting canonical definitions to the mutable Doctrine Migrations Schema contract.
+     */
     private function copyTableDefinition(Table $source, Table $target): void
     {
         foreach ($source->getColumns() as $column) {
-            $target->addColumn($column->getName(), $this->typeName($column), $this->columnOptions($column));
+            $target->addColumn($this->columnName($column), $this->typeName($column), $this->columnOptions($column));
         }
 
-        $primary = $source->getPrimaryKey();
-        if ($primary instanceof \Doctrine\DBAL\Schema\Index) {
-            $target->setPrimaryKey($primary->getColumns(), $primary->getName());
+        $primary = $source->getPrimaryKeyConstraint();
+        if ($primary instanceof \Doctrine\DBAL\Schema\PrimaryKeyConstraint) {
+            $columns = array_map(static fn(UnqualifiedName $name): string => $name->getIdentifier()->getValue(), $primary->getColumnNames());
+            $target->setPrimaryKey($columns, $primary->getObjectName()?->getIdentifier()->getValue());
         }
         foreach ($source->getIndexes() as $index) {
-            if ($index->isPrimary()) {
+            if ($this->isPrimaryKeyIndex($source, $index)) {
                 continue;
             }
-            if ($index->isUnique()) {
-                $target->addUniqueIndex($index->getColumns(), $index->getName(), $index->getOptions());
+            if ($index->getType() === IndexType::UNIQUE) {
+                $target->addUniqueIndex($this->nonEmptyIndexColumns($index), $this->indexName($index));
             } else {
-                $target->addIndex($index->getColumns(), $index->getName(), $index->getFlags(), $index->getOptions());
+                $target->addIndex($this->nonEmptyIndexColumns($index), $this->indexName($index));
             }
         }
         foreach ($source->getForeignKeys() as $foreignKey) {
             $this->addForeignKeyConstraint(
                 $target,
-                $foreignKey->getForeignTableName(),
-                $foreignKey->getLocalColumns(),
-                $foreignKey->getForeignColumns(),
-                $foreignKey->getOptions(),
-                $foreignKey->getName(),
+                $this->foreignTableName($foreignKey),
+                $this->foreignKeyLocalColumns($foreignKey),
+                $this->foreignKeyReferencedColumns($foreignKey),
+                $this->foreignKeyOptions($foreignKey),
+                $this->foreignKeyName($foreignKey),
             );
         }
     }
 
     private function typeName(Column $column): string
     {
-        return Type::getTypeRegistry()->lookupName($column->getType());
+        return $column->getTypeName();
+    }
+
+    private function tableName(Table $table): string
+    {
+        $name = $this->namedObjectName($table);
+        if (!$name instanceof OptionallyQualifiedName) {
+            throw new \LogicException('Expected an optionally qualified table name.');
+        }
+
+        return $name->getUnqualifiedName()->getValue();
+    }
+
+    private function columnName(Column $column): string
+    {
+        $name = $this->namedObjectName($column);
+        if (!$name instanceof UnqualifiedName) {
+            throw new \LogicException('Expected an unqualified column name.');
+        }
+
+        return $name->getIdentifier()->getValue();
+    }
+
+    private function indexName(Index $index): string
+    {
+        $name = $this->namedObjectName($index);
+        if (!$name instanceof UnqualifiedName) {
+            throw new \LogicException('Expected an unqualified index name.');
+        }
+
+        return $name->getIdentifier()->getValue();
+    }
+
+    private function isPrimaryKeyIndex(Table $table, Index $index): bool
+    {
+        $primary = $table->getPrimaryKeyConstraint();
+        if (!$primary instanceof \Doctrine\DBAL\Schema\PrimaryKeyConstraint) {
+            return false;
+        }
+
+        $primaryColumns = array_map(
+            static fn(UnqualifiedName $name): string => $name->getIdentifier()->getValue(),
+            $primary->getColumnNames(),
+        );
+
+        return $this->indexColumns($index) === $primaryColumns;
+    }
+
+    /** @return list<string> */
+    private function indexColumns(Index $index): array
+    {
+        return array_map(
+            static fn(Index\IndexedColumn $column): string => $column->getColumnName()->getIdentifier()->getValue(),
+            $index->getIndexedColumns(),
+        );
+    }
+
+    private function foreignKeyName(ForeignKeyConstraint $foreignKey): ?string
+    {
+        $name = $this->optionalNamedObjectName($foreignKey);
+        if (!$name instanceof Name) {
+            return null;
+        }
+        if (!$name instanceof UnqualifiedName) {
+            throw new \LogicException('Expected an unqualified foreign key name.');
+        }
+
+        return $name->getIdentifier()->getValue();
+    }
+
+    /** @return non-empty-list<string> */
+    private function nonEmptyIndexColumns(Index $index): array
+    {
+        $columns = $this->indexColumns($index);
+        if ($columns === []) {
+            throw new \LogicException('Database indexes must reference at least one column.');
+        }
+
+        return $columns;
     }
 
     /**
-     * @param non-empty-array<int, string> $localColumns
-     * @param non-empty-array<int, string> $foreignColumns
-     * @param array<string, mixed>          $options
+     * @template TName of Name
+     * @param NamedObject<TName> $object
+     * @return TName
+     */
+    private function namedObjectName(NamedObject $object): Name
+    {
+        return $object->getObjectName();
+    }
+
+    /**
+     * @template TName of Name
+     * @param OptionallyNamedObject<TName> $object
+     * @return TName|null
+     */
+    private function optionalNamedObjectName(OptionallyNamedObject $object): ?Name
+    {
+        return $object->getObjectName();
+    }
+
+    private function foreignTableName(ForeignKeyConstraint $foreignKey): string
+    {
+        return $foreignKey->getReferencedTableName()->getUnqualifiedName()->getValue();
+    }
+
+    /** @return non-empty-list<string> */
+    private function foreignKeyLocalColumns(ForeignKeyConstraint $foreignKey): array
+    {
+        return array_map(
+            static fn(UnqualifiedName $name): string => $name->getIdentifier()->getValue(),
+            $foreignKey->getReferencingColumnNames(),
+        );
+    }
+
+    /** @return non-empty-list<string> */
+    private function foreignKeyReferencedColumns(ForeignKeyConstraint $foreignKey): array
+    {
+        return array_map(
+            static fn(UnqualifiedName $name): string => $name->getIdentifier()->getValue(),
+            $foreignKey->getReferencedColumnNames(),
+        );
+    }
+
+    /** @return array<string, string> */
+    private function foreignKeyOptions(ForeignKeyConstraint $foreignKey): array
+    {
+        $action = $foreignKey->getOnDeleteAction();
+        if ($action === ForeignKeyConstraint\ReferentialAction::NO_ACTION) {
+            return [];
+        }
+
+        return ['onDelete' => $action->value];
+    }
+
+    /**
+     * @param non-empty-list<string> $localColumns
+     * @param non-empty-list<string> $foreignColumns
+     * @param array<string, mixed> $options
+     * @psalm-suppress DeprecatedMethod DBAL 4.5 exposes immutable foreign-key editors, but migrations require mutating the supplied Table.
      */
     private function addForeignKeyConstraint(
         Table $table,
@@ -1079,8 +1251,8 @@ final readonly class SchemaManager
     ): void {
         $table->addForeignKeyConstraint(
             $foreignTable,
-            array_values($localColumns),
-            array_values($foreignColumns),
+            $localColumns,
+            $foreignColumns,
             $options,
             $name,
         );

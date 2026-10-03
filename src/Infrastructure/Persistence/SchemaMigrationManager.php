@@ -87,6 +87,10 @@ final readonly class SchemaMigrationManager
         );
     }
 
+    /**
+     * @psalm-suppress InternalClass Doctrine Migrations 3.9 has no public programmatic runner accepting the app's existing mutable schema plan.
+     * @psalm-suppress InternalMethod The internal Migrator API is isolated here and documented in docs/ARCHITECTURE.md.
+     */
     public function migrate(): SchemaMigrationStatus
     {
         $lock = new SchemaMigrationLock($this->connection, $this->lockPath)->acquire();
@@ -114,10 +118,7 @@ final readonly class SchemaMigrationManager
 
             if ($available !== []) {
                 $latest = end($available);
-                if ($latest === false) {
-                    throw new \RuntimeException('No migration target could be resolved.');
-                }
-                $plan = $factory->getMigrationPlanCalculator()->getPlanUntilVersion($latest->getVersion());
+                $plan   = $factory->getMigrationPlanCalculator()->getPlanUntilVersion($latest->getVersion());
                 if (count($plan) > 0) {
                     $factory->getMigrator()->migrate($plan, new MigratorConfiguration()->setAllOrNothing(false));
                 }
