@@ -16,6 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ClientIpMiddlewareTest extends TestCase
 {
     public function testStoresRemoteAddrWhenNoTrustedProxiesConfigured(): void
@@ -56,6 +57,7 @@ final class ClientIpMiddlewareTest extends TestCase
         return new readonly class ($captured) implements RequestHandlerInterface {
             public function __construct(private \stdClass $captured) {}
 
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->captured->ip = $request->getAttribute(ClientIpResolver::ATTRIBUTE);

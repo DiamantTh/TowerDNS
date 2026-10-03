@@ -6,8 +6,10 @@ namespace TowerDNSTestsInfrastructureInstallation;
 
 use PHPUnit\Framework\TestCase;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class InstallerLocaleTest extends TestCase
 {
+    #[\Override]
     public static function setUpBeforeClass(): void
     {
         if (!defined('INSTALL_DIR')) {
@@ -16,6 +18,7 @@ final class InstallerLocaleTest extends TestCase
         require_once dirname(__DIR__, 3) . '/install/inc/i18n.php';
     }
 
+    #[\Override]
     protected function tearDown(): void
     {
         unset($_GET['lang'], $_SESSION['installer_lang'], $_SERVER['HTTP_ACCEPT_LANGUAGE']);

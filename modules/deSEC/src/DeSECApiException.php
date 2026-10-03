@@ -24,6 +24,7 @@ final class DeSECApiException extends ProviderRequestException
      * Seconds to wait before retrying, from a Retry-After response header.
      * Returns 0 when the header was absent.
      */
+    /** @psalm-api Provider integrations can use this parsed Retry-After delay. */
     public function retryAfter(): int
     {
         return $this->retryAfter;

@@ -28,6 +28,7 @@ use TowerDNS\Infrastructure\Http\StepUpRequestService;
 
 /**
  * POST /roles — Neue Rolle anlegen.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class RoleCreateHandler implements RequestHandlerInterface
 {

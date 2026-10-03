@@ -26,6 +26,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * strings.
  *
  * @see https://www.inwx.de/de/api-documentation
+ * @psalm-api Loaded through the dynamic provider-module contract.
  */
 final class INWXProvider extends AbstractDNSProvider
 {
@@ -39,16 +40,19 @@ final class INWXProvider extends AbstractDNSProvider
         parent::__construct();
     }
 
+    #[\Override]
     public function id(): string
     {
         return self::ID;
     }
 
+    #[\Override]
     public function displayName(): string
     {
         return 'INWX';
     }
 
+    #[\Override]
     protected function capabilityMap(): array
     {
         return [
@@ -77,6 +81,7 @@ final class INWXProvider extends AbstractDNSProvider
 
     // ── Zone operations ───────────────────────────────────────────────────────
 
+    #[\Override]
     public function listZones(): array
     {
         $zones = [];
@@ -86,6 +91,7 @@ final class INWXProvider extends AbstractDNSProvider
         return $zones;
     }
 
+    #[\Override]
     public function createZone(string $zoneName): Zone
     {
         $this->client->createZone($zoneName);
@@ -97,6 +103,7 @@ final class INWXProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function deleteZone(string $zoneId): void
     {
         $this->client->deleteZone($zoneId);
@@ -104,6 +111,7 @@ final class INWXProvider extends AbstractDNSProvider
 
     // ── Record operations ─────────────────────────────────────────────────────
 
+    #[\Override]
     public function listRecords(string $zoneId): array
     {
         $info    = $this->client->getZoneInfo($zoneId);
@@ -119,6 +127,7 @@ final class INWXProvider extends AbstractDNSProvider
         return $records;
     }
 
+    #[\Override]
     public function createRecord(Record $record): Record
     {
         $params = [
@@ -142,6 +151,7 @@ final class INWXProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function updateRecord(Record $record): Record
     {
         $inwxId = (int) $record->id;
@@ -167,6 +177,7 @@ final class INWXProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         $inwxId = (int) $recordId;
@@ -176,6 +187,7 @@ final class INWXProvider extends AbstractDNSProvider
         $this->client->deleteRecord($inwxId);
     }
 
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         $type = RecordType::tryFrom($rrset->type->presentation);
@@ -221,6 +233,7 @@ final class INWXProvider extends AbstractDNSProvider
         throw new INWXAPIException('INWX lieferte das geschriebene RRset nicht zurück.');
     }
 
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         foreach ($this->listRecords($zoneId) as $record) {
@@ -232,6 +245,7 @@ final class INWXProvider extends AbstractDNSProvider
 
     // ── DNSSEC operations ─────────────────────────────────────────────────────
 
+    #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $keyInfo = $this->client->getDnsKeyInfo($zoneId);
@@ -252,6 +266,7 @@ final class INWXProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         match ($action) {

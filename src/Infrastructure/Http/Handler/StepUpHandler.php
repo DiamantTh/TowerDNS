@@ -38,6 +38,7 @@ use Webauthn\PublicKeyCredentialRequestOptions;
 /**
  * Handles the authenticated, action-bound second-factor challenge used for
  * high-impact IAM operations and the start of an administrator switch.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class StepUpHandler implements RequestHandlerInterface
 {
@@ -175,7 +176,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             return new JsonResponse(['error' => $this->translator->translate('security.step-up.unavailable')], 403);
         }
 
-        $ids     = array_values(array_map(static fn(array $credential): string => $credential['source']->publicKeyCredentialId, $credentials));
+        $ids     = array_map(static fn(array $credential): string => $credential['source']->publicKeyCredentialId, $credentials);
         $options = $this->webAuthn->createAuthenticationOptions(
             $ids,
             PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_REQUIRED,

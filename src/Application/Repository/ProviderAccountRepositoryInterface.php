@@ -9,6 +9,7 @@ namespace TowerDNS\Application\Repository;
 
 use TowerDNS\Domain\Account\ProviderAccount;
 
+/** @psalm-api Application persistence port consumed through dependency injection. */
 interface ProviderAccountRepositoryInterface
 {
     public function findById(int $id): ?ProviderAccount;

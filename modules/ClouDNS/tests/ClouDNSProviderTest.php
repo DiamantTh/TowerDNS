@@ -23,6 +23,7 @@ use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Module\ClouDNS\ClouDNSAPIClient;
 use TowerDNS\Module\ClouDNS\ClouDNSProvider;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ClouDNSProviderTest extends TestCase
 {
     /** @var array<int, array<int|string, mixed>> */

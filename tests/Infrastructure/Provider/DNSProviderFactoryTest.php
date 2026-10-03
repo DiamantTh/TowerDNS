@@ -21,6 +21,7 @@ use TowerDNS\Module\netcup\NetcupProvider;
 use TowerDNS\Module\OVHcloud\OVHcloudProvider;
 use TowerDNS\Module\PowerDNS\PowerDNSProvider;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class DnsProviderFactoryTest extends TestCase
 {
     public function testPowerDNSIsSystemOnlyButStillBuildable(): void

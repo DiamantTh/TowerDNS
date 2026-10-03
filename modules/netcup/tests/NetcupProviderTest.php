@@ -23,6 +23,7 @@ use TowerDNS\Module\netcup\NetcupAPIClient;
 use TowerDNS\Module\netcup\NetcupAPIException;
 use TowerDNS\Module\netcup\NetcupProvider;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class NetcupProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */

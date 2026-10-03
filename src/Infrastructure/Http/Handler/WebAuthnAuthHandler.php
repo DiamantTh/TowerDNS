@@ -24,6 +24,7 @@ use TowerDNS\Infrastructure\Http\SessionSecurity;
  * Renders the WebAuthn second-factor authentication page.
  * Generates assertion options and stores the challenge in the session.
  * Requires session[mfa_pending] to be set by LoginHandler.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class WebAuthnAuthHandler implements RequestHandlerInterface
 {

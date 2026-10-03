@@ -14,6 +14,7 @@ use TowerDNS\Application\DTO\StepUpProof;
 use TowerDNS\Application\Repository\StepUpProofNonceRepositoryInterface;
 use TowerDNS\Application\Services\StepUpProofService;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class StepUpProofServiceTest extends TestCase
 {
     public function testProofIsValidOnlyForItsActorActionTargetAndImpersonationContext(): void
@@ -51,7 +52,7 @@ final class StepUpProofServiceTest extends TestCase
     public function testProofNonceCanOnlyBeConsumedOnce(): void
     {
         $nonces = $this->createMock(StepUpProofNonceRepositoryInterface::class);
-        $nonces->expects(self::exactly(2))->method('claim')->with(self::isType('string'), 1300)->willReturnOnConsecutiveCalls(true, false);
+        $nonces->expects(self::exactly(2))->method('claim')->with(self::callback('is_string'), 1300)->willReturnOnConsecutiveCalls(true, false);
         $service = new StepUpProofService(str_repeat('s', 32), $this->clock(1000), $nonces);
         $proof   = $service->issue('actor', StepUpAction::IAM_ROLE_DELETE, 'role', null, 'totp');
 
@@ -72,6 +73,7 @@ final class StepUpProofServiceTest extends TestCase
         return new readonly class ($timestamp) implements ClockInterface {
             public function __construct(private int $timestamp) {}
 
+            #[\Override]
             public function now(): \DateTimeImmutable
             {
                 return new \DateTimeImmutable()->setTimestamp($this->timestamp);

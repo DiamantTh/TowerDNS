@@ -17,6 +17,7 @@ use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Ui\SvelteRenderer;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SvelteRendererTest extends TestCase
 {
     public function testRendererBootstrapsSvelteWithoutLeakingStoredCredentials(): void

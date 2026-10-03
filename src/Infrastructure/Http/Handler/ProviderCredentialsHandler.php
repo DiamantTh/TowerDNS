@@ -65,15 +65,14 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
 
     private function handlePost(ServerRequestInterface $request, CsrfGuardInterface $guard): ResponseInterface
     {
-        /** @var array<string, string> $body */
-        $body      = (array) ($request->getParsedBody() ?? []);
-        $csrfToken = (string) ($body['csrf_token'] ?? '');
+        $body      = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $csrfToken = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($csrfToken)) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
-        $provider = (string) ($body['provider'] ?? '');
+        $provider = ($body['provider'] ?? '');
 
         try {
             /** @var User $user */

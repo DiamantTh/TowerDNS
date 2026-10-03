@@ -17,8 +17,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Application\Provider\ProviderRegistry;
 
 #[AsCommand(name: 'zone:list', description: 'List DNS zones of a configured provider')]
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final class ZoneListCommand extends Command
 {
+    /** @psalm-api Symfony instantiates this command from its runtime command map. */
     public function __construct(private readonly ProviderRegistry $providers)
     {
         parent::__construct();

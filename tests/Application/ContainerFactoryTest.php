@@ -16,6 +16,7 @@ use Psr\Http\Message\StreamFactoryInterface;
 use TowerDNS\Application\ContainerFactory;
 use TowerDNS\Application\Services\WebAuthnService;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ContainerFactoryTest extends TestCase
 {
     public function testProvidesThePsr17StreamFactoryRequiredByTheHttpPipeline(): void
@@ -62,7 +63,7 @@ final class ContainerFactoryTest extends TestCase
         try {
             $connection = ContainerFactory::create($root)->get(Connection::class);
 
-            self::assertSame([], $connection->createSchemaManager()->listTableNames());
+            self::assertSame([], $connection->createSchemaManager()->introspectTableNames());
         } finally {
             @unlink($root . '/configs/database.toml');
             @rmdir($root . '/configs');

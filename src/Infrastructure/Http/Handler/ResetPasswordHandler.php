@@ -31,6 +31,7 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
  *
  * GET  /password/reset?token=<raw>  — show new-password form
  * POST /password/reset              — validate token + update password
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class ResetPasswordHandler implements RequestHandlerInterface
 {
@@ -89,24 +90,23 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
     {
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
                 $this->renderer->render('app::reset_password', [
                     'csrfToken' => $guard->generateToken(),
-                    'token'     => (string) ($body['reset_token'] ?? ''),
+                    'token'     => ($body['reset_token'] ?? ''),
                     'error'     => $this->translator->translate('http.error.invalid-request'),
                 ]),
                 400
             );
         }
 
-        $rawToken = trim((string) ($body['reset_token'] ?? ''));
-        $password = (string) ($body['password'] ?? '');
-        $confirm  = (string) ($body['password_confirm'] ?? '');
+        $rawToken = trim(($body['reset_token'] ?? ''));
+        $password = ($body['password'] ?? '');
+        $confirm  = ($body['password_confirm'] ?? '');
 
         $renderError = (fn(string $msg): HtmlResponse => new HtmlResponse(
             $this->renderer->render('app::reset_password', [

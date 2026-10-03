@@ -15,11 +15,13 @@ use TowerDNS\Application\Module\ProviderModuleInterface;
 
 final readonly class DeSECModule implements ProviderModuleInterface
 {
+    #[\Override]
     public function manifest(): ModuleManifest
     {
         return new ModuleManifest('towerdns.desec', 'deSEC', '1.0.0', ModuleType::PROVIDER);
     }
 
+    #[\Override]
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition('desec', 'deSEC', true, [
@@ -27,6 +29,7 @@ final readonly class DeSECModule implements ProviderModuleInterface
         ]);
     }
 
+    #[\Override]
     public function buildProvider(array $credentials): DNSProviderInterface
     {
         return new DeSECProvider(new DeSECApiClient((string) $credentials['token']));

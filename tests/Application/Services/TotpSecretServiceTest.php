@@ -15,6 +15,7 @@ use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\TotpService;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class TotpSecretServiceTest extends TestCase
 {
     public function testEnablePersistsCiphertextAndVerificationUsesShortLivedPlaintext(): void
@@ -88,6 +89,7 @@ final class TotpSecretServiceTest extends TestCase
     private function clock(): ClockInterface
     {
         return new class implements ClockInterface {
+            #[\Override]
             public function now(): \DateTimeImmutable
             {
                 return new \DateTimeImmutable('@1768500000');
@@ -100,21 +102,27 @@ final readonly class TestTotpCipher implements CredentialEncryptorInterface
 {
     public function __construct(private string $key) {}
 
+    #[\Override]
     public function encrypt(string $plaintext): string
     {
         return base64_encode($this->key . ':' . $plaintext);
     }
 
+    #[\Override]
     public function decrypt(string $ciphertext): string
     {
         $decoded = base64_decode($ciphertext, true);
         $prefix  = $this->key . ':';
-        if (!is_string($decoded) || !str_starts_with($decoded, $prefix)) {
+        if ($decoded === false) {
+            throw new \RuntimeException('Invalid ciphertext.');
+        }
+        if (!str_starts_with($decoded, $prefix)) {
             throw new \RuntimeException('Invalid ciphertext.');
         }
         return substr($decoded, strlen($prefix));
     }
 
+    #[\Override]
     public function wipe(string &$plaintext): void
     {
         $plaintext = '';

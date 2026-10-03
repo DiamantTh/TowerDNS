@@ -32,6 +32,7 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
  * Requires session[mfa_pending] to be set by {@see LoginHandler}.
  * If the session does not contain that key the user is redirected back
  * to /login.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class TotpHandler implements RequestHandlerInterface
 {
@@ -75,9 +76,8 @@ final readonly class TotpHandler implements RequestHandlerInterface
         }
 
         // POST — verify TOTP code
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
@@ -89,7 +89,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
             );
         }
 
-        $code   = trim((string) ($body['code'] ?? ''));
+        $code   = trim(($body['code'] ?? ''));
         $userId = $pendingUserId;
 
         if ($code === '') {

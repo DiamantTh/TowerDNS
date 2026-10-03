@@ -33,6 +33,7 @@ use TowerDNS\Infrastructure\Http\SessionSecurity;
  *
  * Disable flow:
  *   POST action=disable: verify current TOTP code → clear secret in DB.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class TotpSetupHandler implements RequestHandlerInterface
 {
@@ -113,9 +114,8 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         CsrfGuardInterface $guard,
         ServerRequestInterface $request,
     ): ResponseInterface {
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
@@ -133,8 +133,8 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
             );
         }
 
-        $action = (string) ($body['action'] ?? '');
-        $code   = trim((string) ($body['code'] ?? ''));
+        $action = ($body['action'] ?? '');
+        $code   = trim(($body['code'] ?? ''));
 
         if ($action === 'enable') {
             return $this->enable($user, $session, $guard, $code, $request);

@@ -23,5 +23,6 @@ final class StepUpAction
         return hash('sha256', json_encode([$userId, $accountId], JSON_THROW_ON_ERROR));
     }
 
+    /** @psalm-suppress UnusedConstructor This constants/factory class must not be instantiated. */
     private function __construct() {}
 }

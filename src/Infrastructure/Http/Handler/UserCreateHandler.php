@@ -25,6 +25,7 @@ use TowerDNS\Domain\Auth\User;
 
 /**
  * POST /users — legt einen neuen Benutzer an.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class UserCreateHandler implements RequestHandlerInterface
 {
@@ -43,9 +44,8 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.invalid-request')));
@@ -57,8 +57,8 @@ final readonly class UserCreateHandler implements RequestHandlerInterface
             return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.forbidden')));
         }
 
-        $email    = trim(strtolower((string) ($body['email'] ?? '')));
-        $password = (string) ($body['password'] ?? '');
+        $email    = trim(strtolower(($body['email'] ?? '')));
+        $password = ($body['password'] ?? '');
 
         $filter = new UserInputFilter();
         $filter->setData(['email' => $email, 'password' => $password]);

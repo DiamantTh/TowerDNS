@@ -43,7 +43,7 @@ final readonly class DNSProviderFactory
      * @return array<string, array{
      *   label: string,
      *   user_managed: bool,
-     *   credentials: array<string, array{input: string, label: string, required: bool, secret: bool, default?: string}>
+     *   credentials: array<string, array{input: string, label: string, required: bool, secret: bool, default?: string, type?: string}>
      * }>
      */
     public function definitions(): array
@@ -103,12 +103,10 @@ final readonly class DNSProviderFactory
             throw new \InvalidArgumentException(sprintf('Credentials für DNS-Provider "%s" sind unvollständig.', $type));
         }
 
-        if ($this->moduleRegistry?->has($type)) {
+        if ($this->moduleRegistry instanceof ProviderModuleRegistry) {
             return $this->moduleRegistry->get($type)->buildProvider($credentials);
         }
 
-        return match ($type) {
-            default => throw ProviderNotFoundException::forId($type),
-        };
+        throw ProviderNotFoundException::forId($type);
     }
 }

@@ -19,6 +19,7 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Domain\Account\AccountInvitation;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class AccountInvitationHandler implements RequestHandlerInterface
 {
     public function __construct(

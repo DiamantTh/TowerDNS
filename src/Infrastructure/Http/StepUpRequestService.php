@@ -16,7 +16,9 @@ use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Services\StepUpProofService;
 use TowerDNS\Domain\Account\AdminImpersonationSession;
 
-/** HTTP adapter for consuming or starting session-bound step-up challenges. */
+/** HTTP adapter for consuming or starting session-bound step-up challenges.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
+ */
 final readonly class StepUpRequestService
 {
     public function __construct(

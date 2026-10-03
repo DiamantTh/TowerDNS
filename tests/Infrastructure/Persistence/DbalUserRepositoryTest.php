@@ -12,6 +12,7 @@ use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class DbalUserRepositoryTest extends TestCase
 {
     public function testSuperadminMutationLockUsesSeededRoleWithinSqliteTransaction(): void

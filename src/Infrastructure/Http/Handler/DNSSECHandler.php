@@ -19,6 +19,7 @@ use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Domain\DNS\DNSSECProfile;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class DNSSECHandler implements RequestHandlerInterface
 {
     public function __construct(private TemplateRendererInterface $renderer, private ManagedZoneDNSService $dns, private TranslatorInterface $translator) {}

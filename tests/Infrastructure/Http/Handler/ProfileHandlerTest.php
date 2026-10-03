@@ -24,6 +24,7 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Http\Handler\ProfileHandler;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ProfileHandlerTest extends TestCase
 {
     public function testSuccessMessageIsTranslatedOnTheRequestAfterLocaleSwitch(): void

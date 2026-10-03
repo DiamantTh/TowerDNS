@@ -6,6 +6,7 @@ namespace TowerDNS\Tests\Infrastructure\Ui;
 
 use PHPUnit\Framework\TestCase;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class TranslationCatalogConsistencyTest extends TestCase
 {
     private const string ROOT = __DIR__ . '/../../..';
@@ -13,7 +14,7 @@ final class TranslationCatalogConsistencyTest extends TestCase
     public function testCoreAndModuleCataloguesHaveMatchingKeysAndNoDuplicates(): void
     {
         $directories = [self::ROOT . '/translations'];
-        foreach (glob(self::ROOT . '/modules/*/translations', GLOB_ONLYDIR) ?: [] as $directory) {
+        foreach ($this->globPaths(self::ROOT . '/modules/*/translations', true) as $directory) {
             $directories[] = $directory;
         }
         foreach ($directories as $directory) {
@@ -26,7 +27,7 @@ final class TranslationCatalogConsistencyTest extends TestCase
     public function testStaticallyUsedKeysExistInCatalogues(): void
     {
         $known = $this->catalogue(self::ROOT . '/translations/en-GB.php');
-        foreach (glob(self::ROOT . '/modules/*/translations/en-GB.php') ?: [] as $file) {
+        foreach ($this->globPaths(self::ROOT . '/modules/*/translations/en-GB.php') as $file) {
             $known += $this->catalogue($file);
         }
         $missing = [];
@@ -55,9 +56,18 @@ final class TranslationCatalogConsistencyTest extends TestCase
         $source = (string) file_get_contents($path);
         preg_match_all('/^\s*\'([^\']*)\'\s*=>/m', $source, $matches);
         self::assertSame(count($matches[1]), count(array_unique($matches[1])), $path . ' duplicate keys');
+        /** @psalm-suppress UnresolvableInclude Paths come from fixed catalogue roots and globbed module translation directories. */
         /** @var array<string, mixed> $catalogue */
         $catalogue = require $path;
         ksort($catalogue);
         return $catalogue;
+    }
+
+    /** @return list<string> */
+    private function globPaths(string $pattern, bool $directoriesOnly = false): array
+    {
+        $paths = $directoriesOnly ? glob($pattern, GLOB_ONLYDIR) : glob($pattern);
+
+        return $paths === false ? [] : $paths;
     }
 }

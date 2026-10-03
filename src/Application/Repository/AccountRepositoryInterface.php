@@ -12,6 +12,7 @@ use TowerDNS\Domain\Account\AccountKind;
 use TowerDNS\Domain\Account\AccountMembership;
 use TowerDNS\Domain\Account\TeamRole;
 
+/** @psalm-api Application persistence port; concrete services use it through DI. */
 interface AccountRepositoryInterface
 {
     public function findById(int $id): ?Account;

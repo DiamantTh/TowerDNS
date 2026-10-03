@@ -11,6 +11,7 @@ use Laminas\Diactoros\ServerRequest;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ClientIpResolverTest extends TestCase
 {
     public function testUsesRemoteAddrWhenNoTrustedProxiesConfigured(): void

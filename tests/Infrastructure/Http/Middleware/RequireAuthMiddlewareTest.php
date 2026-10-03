@@ -18,6 +18,7 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 use TowerDNS\Infrastructure\Http\TowerDNSAuthenticatedUser;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class RequireAuthMiddlewareTest extends TestCase
 {
     public function testRejectsMismatchedMezzioAndDomainIdentities(): void
@@ -27,6 +28,7 @@ final class RequireAuthMiddlewareTest extends TestCase
             ->withAttribute(UserInterface::class, new TowerDNSAuthenticatedUser(new User('other-user', 'other@example.test')));
         $handler = new class implements RequestHandlerInterface {
             public bool $called = false;
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->called = true;
@@ -48,6 +50,7 @@ final class RequireAuthMiddlewareTest extends TestCase
             ->withAttribute(UserInterface::class, new TowerDNSAuthenticatedUser($user));
         $handler = new class implements RequestHandlerInterface {
             public bool $called = false;
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->called = true;

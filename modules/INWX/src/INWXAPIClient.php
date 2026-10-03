@@ -43,6 +43,7 @@ final class INWXAPIClient
 
     /**
      * @return array<string, mixed>
+     * @psalm-suppress PossiblyUnusedReturnValue Adapter workflows verify mutations by read-back; retain the raw response at this API boundary.
      */
     public function createZone(string $domainName): array
     {
@@ -75,6 +76,7 @@ final class INWXAPIClient
     /**
      * @param array<string, mixed> $params
      * @return array<string, mixed>
+     * @psalm-suppress PossiblyUnusedReturnValue Adapter workflows verify mutations by read-back; retain the raw response at this API boundary.
      */
     public function createRecord(array $params): array
     {
@@ -85,6 +87,7 @@ final class INWXAPIClient
     /**
      * @param array<string, mixed> $params
      * @return array<string, mixed>
+     * @psalm-suppress PossiblyUnusedReturnValue Adapter workflows verify mutations by read-back; retain the raw response at this API boundary.
      */
     public function updateRecord(array $params): array
     {
@@ -139,7 +142,10 @@ final class INWXAPIClient
         } catch (CallFailedException $e) {
             throw new INWXAPIException('INWX-Login konnte nicht ausgeführt werden.', 0, $e);
         }
-        if (!empty($response['resData']['tfa']) && empty($this->sharedSecret)) {
+        $tfaIndicator = $response['resData']['tfa'] ?? false;
+        $tfaRequired  = $tfaIndicator === true || $tfaIndicator === 1
+                                               || (is_string($tfaIndicator) && $tfaIndicator !== '' && $tfaIndicator !== '0');
+        if ($tfaRequired && ($this->sharedSecret === null || $this->sharedSecret === '')) {
             throw new INWXAPIException('INWX erfordert einen konfigurierten zweiten Faktor.');
         }
 
@@ -163,7 +169,12 @@ final class INWXAPIClient
      */
     private function call(string $method, array $params = []): array
     {
-        [$object, $operation] = explode('.', $method, 2);
+        $separator = strpos($method, '.');
+        if ($separator === false || $separator === 0 || $separator === strlen($method) - 1) {
+            throw new \InvalidArgumentException('INWX API method must use object.operation notation.');
+        }
+        $object    = substr($method, 0, $separator);
+        $operation = substr($method, $separator + 1);
         try {
             $response = $this->sdk->call($object, $operation, $params);
         } catch (CallFailedException $e) {

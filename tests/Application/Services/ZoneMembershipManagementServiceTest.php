@@ -23,6 +23,7 @@ use TowerDNS\Domain\Account\ManagedZone;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ZoneMembershipManagementServiceTest extends TestCase
 {
     public function testGrantUsesTheInternalManagedZoneAndValidatesTheTargetUser(): void
@@ -33,7 +34,7 @@ final class ZoneMembershipManagementServiceTest extends TestCase
             7,
             'target',
             TeamRole::VIEWER,
-            self::isType('string'),
+            self::callback('is_string'),
             'actor',
         );
         $users = $this->createMock(UserRepositoryInterface::class);

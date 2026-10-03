@@ -103,7 +103,7 @@ final class PowerDNSAPIClient
                 $e,
             );
         } catch (GuzzleException $e) {
-            throw new ProviderRequestException('PowerDNS API-Aufruf fehlgeschlagen: ' . $e->getMessage(), (int) $e->getCode(), $e);
+            throw new ProviderRequestException('PowerDNS API-Aufruf fehlgeschlagen: ' . $e->getMessage(), $e->getCode(), $e);
         }
 
         if ($response->getStatusCode() >= 300 && $response->getStatusCode() < 400) {

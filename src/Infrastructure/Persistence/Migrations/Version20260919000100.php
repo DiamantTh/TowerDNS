@@ -8,7 +8,6 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Persistence\Migrations;
 
 use Doctrine\DBAL\Schema\Schema;
-use Doctrine\DBAL\Types\Type;
 use Doctrine\Migrations\AbstractMigration;
 use TowerDNS\Infrastructure\Persistence\PlatformDetector;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
@@ -41,7 +40,7 @@ final class Version20260919000100 extends AbstractMigration
             && !$schema->getTable('users')->hasColumn('language');
         $credentialIdType = $schema->hasTable('webauthn_credentials')
             && $schema->getTable('webauthn_credentials')->hasColumn('credential_id')
-            ? Type::getTypeRegistry()->lookupName($schema->getTable('webauthn_credentials')->getColumn('credential_id')->getType())
+            ? $schema->getTable('webauthn_credentials')->getColumn('credential_id')->getTypeName()
             : null;
         $this->legacyWebAuthnCredentialIdNeedsConversion = $credentialIdType !== null
             && !in_array($credentialIdType, ['binary', 'blob'], true)

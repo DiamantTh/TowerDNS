@@ -10,10 +10,15 @@ namespace TowerDNS\Tests\Application\Theme;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Theme\ThemeManager;
 
+/**
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
+ * @psalm-suppress PropertyNotSetInConstructor PHPUnit initializes the project path in setUp().
+ */
 final class ThemeManagerTest extends TestCase
 {
     private string $projectRoot;
 
+    #[\Override]
     protected function setUp(): void
     {
         $this->projectRoot = sys_get_temp_dir() . '/towerdns-theme-' . bin2hex(random_bytes(6));
@@ -26,6 +31,7 @@ final class ThemeManagerTest extends TestCase
         ], JSON_THROW_ON_ERROR));
     }
 
+    #[\Override]
     protected function tearDown(): void
     {
         $iterator = new \RecursiveIteratorIterator(

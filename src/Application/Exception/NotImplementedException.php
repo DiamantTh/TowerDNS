@@ -13,6 +13,7 @@ namespace TowerDNS\Application\Exception;
  */
 final class NotImplementedException extends \RuntimeException
 {
+    /** @psalm-api Standardized factory for optional provider integrations. */
     public static function forFeature(string $providerId, string $feature): self
     {
         return new self(sprintf('Provider "%s" implementiert "%s" noch nicht.', $providerId, $feature));

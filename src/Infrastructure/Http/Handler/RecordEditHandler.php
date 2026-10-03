@@ -17,7 +17,9 @@ use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Domain\DNS\Record;
 
-/** Loads one record using the managed-zone scope. */
+/** Loads one record using the managed-zone scope.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
+ */
 final readonly class RecordEditHandler implements RequestHandlerInterface
 {
     public function __construct(private TemplateRendererInterface $renderer, private ManagedZoneDNSService $dns, private TranslatorInterface $translator) {}

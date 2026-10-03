@@ -18,11 +18,13 @@ use TowerDNS\Application\Module\ProviderModuleInterface;
 
 final readonly class GoogleCloudDNSModule implements ProviderModuleInterface
 {
+    #[\Override]
     public function manifest(): ModuleManifest
     {
         return new ModuleManifest('towerdns.googleclouddns', 'Google Cloud DNS', '1.0.0', ModuleType::PROVIDER);
     }
 
+    #[\Override]
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(GoogleCloudDNSProvider::ID, 'Google Cloud DNS', true, [
@@ -31,6 +33,7 @@ final readonly class GoogleCloudDNSModule implements ProviderModuleInterface
         ]);
     }
 
+    #[\Override]
     public function buildProvider(array $credentials): DNSProviderInterface
     {
         try {

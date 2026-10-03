@@ -9,7 +9,10 @@ final class SupportedLocales
 {
     public const string DEFAULT = UserPreferences::DEFAULT_LANGUAGE;
 
-    /** @return list<string> */
+    /**
+     * @return list<string>
+     * @psalm-api Locale catalogue for runtime integrations.
+     */
     public static function all(): array
     {
         return UserPreferences::languages();

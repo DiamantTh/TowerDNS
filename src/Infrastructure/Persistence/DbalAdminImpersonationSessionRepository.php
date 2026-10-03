@@ -11,6 +11,7 @@ use Doctrine\DBAL\Connection;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
 use TowerDNS\Domain\Account\AdminImpersonationSession;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class DbalAdminImpersonationSessionRepository implements AdminImpersonationSessionRepositoryInterface
 {
     public function __construct(private Connection $connection) {}

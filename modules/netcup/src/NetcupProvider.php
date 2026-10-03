@@ -23,6 +23,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * Netcup only exposes DNS zones belonging to known domains, rather than a
  * list-zones endpoint for ordinary customer accounts. The explicit zone allow
  * list is therefore a safety boundary as well as an API limitation.
+ * @psalm-api Loaded through the dynamic provider-module contract.
  */
 final class NetcupProvider extends AbstractDNSProvider
 {
@@ -41,16 +42,19 @@ final class NetcupProvider extends AbstractDNSProvider
         parent::__construct();
     }
 
+    #[\Override]
     public function id(): string
     {
         return self::ID;
     }
 
+    #[\Override]
     public function displayName(): string
     {
         return 'Netcup (CCP DNS)';
     }
 
+    #[\Override]
     protected function capabilityMap(): array
     {
         return [
@@ -74,21 +78,25 @@ final class NetcupProvider extends AbstractDNSProvider
         ];
     }
 
+    #[\Override]
     public function listZones(): array
     {
         return array_map(fn(string $zone): Zone => new Zone($zone, $zone, self::ID, true), $this->zones);
     }
 
+    #[\Override]
     public function createZone(string $zoneName): Zone
     {
         throw new CapabilityException('Netcup CCP DNS kann keine Zonen erzeugen; die Domain muss im CCP existieren.');
     }
 
+    #[\Override]
     public function deleteZone(string $zoneId): void
     {
         throw new CapabilityException('Netcup CCP DNS kann keine Zonen löschen; verwalte die Domain im CCP.');
     }
 
+    #[\Override]
     public function listRecords(string $zoneId): array
     {
         $this->assertAllowedZone($zoneId);
@@ -102,6 +110,7 @@ final class NetcupProvider extends AbstractDNSProvider
         return $records;
     }
 
+    #[\Override]
     public function createRecord(Record $record): Record
     {
         $this->assertAllowedZone($record->zoneId);
@@ -111,6 +120,7 @@ final class NetcupProvider extends AbstractDNSProvider
         return $this->withId($record);
     }
 
+    #[\Override]
     public function updateRecord(Record $record): Record
     {
         $this->assertAllowedZone($record->zoneId);
@@ -132,6 +142,7 @@ final class NetcupProvider extends AbstractDNSProvider
         return $this->withId($record);
     }
 
+    #[\Override]
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         $this->assertAllowedZone($zoneId);
@@ -147,6 +158,7 @@ final class NetcupProvider extends AbstractDNSProvider
         $this->client->replaceDnsRecords($zoneId, $remaining);
     }
 
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         $this->assertAllowedZone($rrset->zoneId);
@@ -171,6 +183,7 @@ final class NetcupProvider extends AbstractDNSProvider
         throw new NetcupAPIException('Netcup lieferte das geschriebene RRset nicht zurück.');
     }
 
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         $this->assertAllowedZone($zoneId);
@@ -182,12 +195,14 @@ final class NetcupProvider extends AbstractDNSProvider
         $this->client->replaceDnsRecords($zoneId, $remaining);
     }
 
+    #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $this->assertAllowedZone($zoneId);
         return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN, ['auto_managed' => false, 'ds_available' => false]);
     }
 
+    #[\Override]
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('Netcup CCP DNS stellt keine DNSSEC-Key-Verwaltung über diese Schnittstelle bereit.');

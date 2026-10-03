@@ -17,6 +17,7 @@ use PHPUnit\Framework\TestCase;
  * Wiring/bootstrap files (ContainerFactory, Pipeline, Routes) are the only
  * allowed exception, since they exist specifically to connect the two
  * layers.
+  * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
  */
 final class ApplicationLayerDoesNotDependOnInfrastructureTest extends TestCase
 {

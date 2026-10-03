@@ -23,7 +23,9 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ProviderAccountManagementService;
 use TowerDNS\Domain\Auth\User;
 
-/** HTTP transport adapter for tenant provider-account operations. */
+/** HTTP transport adapter for tenant provider-account operations.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
+ */
 final readonly class ProviderAccountHandler implements RequestHandlerInterface
 {
     public function __construct(

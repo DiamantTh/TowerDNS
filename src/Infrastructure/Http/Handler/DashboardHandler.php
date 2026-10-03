@@ -18,6 +18,7 @@ use TowerDNS\Domain\Auth\User;
 
 /**
  * GET / — renders the main dashboard.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class DashboardHandler implements RequestHandlerInterface
 {

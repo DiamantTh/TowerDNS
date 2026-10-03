@@ -35,6 +35,7 @@ use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
 use TowerDNS\Infrastructure\Http\TowerDNSSessionAuthentication;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AuthenticationMiddlewareTest extends TestCase
 {
     public function testDownstreamAuthorizationUsesOnlyTheEffectiveSwitchIdentity(): void
@@ -79,6 +80,7 @@ final class AuthenticationMiddlewareTest extends TestCase
 
             public function __construct(private readonly AuthorizationService $authorization) {}
 
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $user               = $request->getAttribute(User::class);
@@ -140,6 +142,7 @@ final class AuthenticationMiddlewareTest extends TestCase
         $capturingHandler = new class implements RequestHandlerInterface {
             public ?ServerRequestInterface $request = null;
 
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->request = $request;
@@ -204,18 +207,19 @@ final class AuthenticationMiddlewareTest extends TestCase
             date('Y-m-d H:i:s'),
             date('Y-m-d H:i:s', time() + 3600),
         ));
-        $switches->expects(self::once())->method('end')->with('switch-1', self::isType('string'));
+        $switches->expects(self::once())->method('end')->with('switch-1', self::callback('is_string'));
         $auditRepository = $this->createMock(AuditLogRepositoryInterface::class);
         $auditRepository->expects(self::once())->method('append')->with(
             self::callback(static fn(\TowerDNS\Domain\Account\AuditLogEntry $entry): bool => $entry->action === 'admin.switch.invalidated'
                 && $entry->actorUserId                                                                      === 'actor'
                 && $entry->effectiveUserId                                                                  === 'effective'),
-            self::isType('string'),
+            self::callback('is_string'),
         );
 
         $capturingHandler = new class implements RequestHandlerInterface {
             public ?ServerRequestInterface $request = null;
 
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->request = $request;
@@ -254,10 +258,11 @@ final class AuthenticationMiddlewareTest extends TestCase
             date('Y-m-d H:i:s'),
             date('Y-m-d H:i:s', time() + 3600),
         ));
-        $switches->expects(self::once())->method('end')->with('legacy-switch', self::isType('string'));
+        $switches->expects(self::once())->method('end')->with('legacy-switch', self::callback('is_string'));
 
         $capturingHandler = new class implements RequestHandlerInterface {
             public ?ServerRequestInterface $request = null;
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->request = $request;
@@ -300,9 +305,10 @@ final class AuthenticationMiddlewareTest extends TestCase
             date('Y-m-d H:i:s'),
             date('Y-m-d H:i:s', time() + 3600),
         ));
-        $switches->expects(self::once())->method('end')->with('switch-1', self::isType('string'));
+        $switches->expects(self::once())->method('end')->with('switch-1', self::callback('is_string'));
         $handler = new class implements RequestHandlerInterface {
             public ?ServerRequestInterface $request = null;
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->request = $request;
@@ -338,6 +344,7 @@ final class AuthenticationMiddlewareTest extends TestCase
         $switches = $this->createMock(AdminImpersonationSessionRepositoryInterface::class);
         $handler  = new class implements RequestHandlerInterface {
             public ?ServerRequestInterface $request = null;
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->request = $request;
@@ -378,6 +385,7 @@ final class AuthenticationMiddlewareTest extends TestCase
         return new readonly class ($timestamp) implements ClockInterface {
             public function __construct(private int $timestamp) {}
 
+            #[\Override]
             public function now(): \DateTimeImmutable
             {
                 return new \DateTimeImmutable()->setTimestamp($this->timestamp);

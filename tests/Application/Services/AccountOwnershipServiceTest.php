@@ -17,11 +17,11 @@ use TowerDNS\Domain\Account\AccountMembership;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AccountOwnershipServiceTest extends TestCase
 {
     public function testTransfersOwnershipToAnActiveAccountMember(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'owner', true, '2026-09-16 00:00:00'));
         $accounts->method('findMembership')->with(42, 'target')->willReturn(new AccountMembership(7, 42, 'target', TeamRole::ADMIN, '2026-09-16 00:00:00', 'owner'));
@@ -37,7 +37,6 @@ final class AccountOwnershipServiceTest extends TestCase
 
     public function testRejectsAUserWithoutAccountMembership(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'owner', true, '2026-09-16 00:00:00'));
         $accounts->method('findMembership')->with(42, 'target')->willReturn(null);

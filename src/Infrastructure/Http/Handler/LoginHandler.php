@@ -35,6 +35,7 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
  *   POST /login  — verify email+password
  *     → if TOTP enabled: set session[mfa_pending] and redirect to /login/totp
  *     → else: complete login immediately
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class LoginHandler implements RequestHandlerInterface
 {
@@ -101,9 +102,8 @@ final readonly class LoginHandler implements RequestHandlerInterface
             );
         }
 
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
@@ -115,8 +115,8 @@ final readonly class LoginHandler implements RequestHandlerInterface
             );
         }
 
-        $email = trim((string) ($body['email'] ?? ''));
-        $pass  = (string) ($body['password'] ?? '');
+        $email = trim(($body['email'] ?? ''));
+        $pass  = ($body['password'] ?? '');
 
         // Normalize the email address (lowercase) via the LoginInputFilter.
         // If the filter marks the input as invalid, authenticate() will still

@@ -20,6 +20,7 @@ use TowerDNS\Infrastructure\Http\SessionSecurity;
 
 /**
  * POST /logout — destroys the session and redirects to /login.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class LogoutHandler implements RequestHandlerInterface
 {

@@ -27,6 +27,7 @@ use TowerDNS\Infrastructure\Http\StepUpRequestService;
  *
  * Systemrollen können nicht gelöscht werden; der Repository wirft eine
  * DomainException, die hier in eine Fehlermeldung umgewandelt wird.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class RoleDeleteHandler implements RequestHandlerInterface
 {

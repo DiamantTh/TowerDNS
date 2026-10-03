@@ -12,6 +12,7 @@ use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class RateLimiterTest extends TestCase
 {
     public function testAllowsHitsWithinLimit(): void
@@ -54,29 +55,34 @@ final class RateLimiterTest extends TestCase
             /** @var array<string, mixed> */
             private array $store = [];
 
+            #[\Override]
             public function get(string $key, mixed $default = null): mixed
             {
                 return $this->store[$key] ?? $default;
             }
 
+            #[\Override]
             public function set(string $key, mixed $value, null|int|\DateInterval $ttl = null): bool
             {
                 $this->store[$key] = $value;
                 return true;
             }
 
+            #[\Override]
             public function delete(string $key): bool
             {
                 unset($this->store[$key]);
                 return true;
             }
 
+            #[\Override]
             public function clear(): bool
             {
                 $this->store = [];
                 return true;
             }
 
+            #[\Override]
             public function getMultiple(iterable $keys, mixed $default = null): iterable
             {
                 $result = [];
@@ -86,7 +92,8 @@ final class RateLimiterTest extends TestCase
                 return $result;
             }
 
-            /** @param iterable<string, mixed> $values */
+            /** @param iterable<mixed, mixed> $values */
+            #[\Override]
             public function setMultiple(iterable $values, null|int|\DateInterval $ttl = null): bool
             {
                 foreach ($values as $key => $value) {
@@ -95,6 +102,7 @@ final class RateLimiterTest extends TestCase
                 return true;
             }
 
+            #[\Override]
             public function deleteMultiple(iterable $keys): bool
             {
                 foreach ($keys as $key) {
@@ -103,6 +111,7 @@ final class RateLimiterTest extends TestCase
                 return true;
             }
 
+            #[\Override]
             public function has(string $key): bool
             {
                 return array_key_exists($key, $this->store);

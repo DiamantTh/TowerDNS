@@ -13,6 +13,7 @@ use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Services\ResourceLimitService;
 use TowerDNS\Domain\Account\AccountResourceLimits;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ResourceLimitServiceTest extends TestCase
 {
     public function testNullLimitsAreUnlimited(): void
@@ -21,7 +22,7 @@ final class ResourceLimitServiceTest extends TestCase
         $service->assertCanCreateZone(1);
         $service->assertCanAddMember(1);
         $service->assertCanCreateProviderAccount(1);
-        self::addToAssertionCount(3);
+        $this->expectNotToPerformAssertions();
     }
 
     public function testZeroAndReachedLimitsBlockOnlyTheMatchingResource(): void

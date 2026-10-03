@@ -18,6 +18,7 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\Handler\SchemaMigrationHandler;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SchemaMigrationHandlerTest extends TestCase
 {
     public function testInvalidCsrfDoesNotRunMigration(): void
@@ -40,6 +41,6 @@ final class SchemaMigrationHandlerTest extends TestCase
         $handler = new SchemaMigrationHandler($renderer, new AuthorizationService(), $manager, $translator);
 
         self::assertSame(200, $handler->handle($request)->getStatusCode());
-        self::assertSame([], $connection->createSchemaManager()->listTableNames());
+        self::assertSame([], $connection->createSchemaManager()->introspectTableNames());
     }
 }

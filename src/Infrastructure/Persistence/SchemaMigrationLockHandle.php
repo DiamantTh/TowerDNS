@@ -40,9 +40,10 @@ final class SchemaMigrationLockHandle
         }
 
         if (is_resource($this->fileHandle)) {
-            flock($this->fileHandle, LOCK_UN);
-            fclose($this->fileHandle);
+            $fileHandle       = $this->fileHandle;
             $this->fileHandle = null;
+            flock($fileHandle, LOCK_UN);
+            fclose($fileHandle);
         }
     }
 }

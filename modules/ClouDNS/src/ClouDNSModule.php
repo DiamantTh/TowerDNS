@@ -15,11 +15,13 @@ use TowerDNS\Application\Module\ProviderModuleInterface;
 
 final readonly class ClouDNSModule implements ProviderModuleInterface
 {
+    #[\Override]
     public function manifest(): ModuleManifest
     {
         return new ModuleManifest('towerdns.cloudns', 'ClouDNS', '1.0.0', ModuleType::PROVIDER);
     }
 
+    #[\Override]
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(ClouDNSProvider::ID, 'ClouDNS', true, [
@@ -29,6 +31,7 @@ final readonly class ClouDNSModule implements ProviderModuleInterface
         ]);
     }
 
+    #[\Override]
     public function buildProvider(array $credentials): DNSProviderInterface
     {
         return new ClouDNSProvider(new ClouDNSAPIClient(

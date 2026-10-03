@@ -33,6 +33,7 @@ use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class IamAdministrationServiceTest extends TestCase
 {
     public function testUserManageAloneCannotAssignElevatedRoleToAnotherUser(): void
@@ -211,7 +212,7 @@ final class IamAdministrationServiceTest extends TestCase
             self::callback(static fn(AuditLogEntry $entry): bool => $entry->actorUserId === $auditContext->actorUserId
                 && $entry->effectiveUserId                                              === $auditContext->effectiveUserId
                 && $entry->impersonationSessionId                                       === $auditContext->impersonationSessionId),
-            self::isType('string'),
+            self::callback('is_string'),
         );
         $audit = new AuditLogService($auditRepository);
 

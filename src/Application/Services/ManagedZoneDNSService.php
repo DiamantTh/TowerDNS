@@ -28,6 +28,7 @@ use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 
 /** Application operations using ManagedZone as the only local zone identity. */
+/** @psalm-api DNS application use cases are callable from HTTP, CLI, and provider integrations. */
 final readonly class ManagedZoneDNSService
 {
     public function __construct(
@@ -152,6 +153,7 @@ final readonly class ManagedZoneDNSService
         return $provider->createRecord($this->forProviderZone($record, $zone->providerZoneId, $owner, $content));
     }
 
+    /** @psalm-suppress PossiblyUnusedReturnValue Returns provider-canonicalized data for read-after-write callers. */
     public function updateRecord(User $user, int $accountId, int $managedZoneId, Record $record): Record
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_UPDATE, Capability::RECORD_UPDATE);
@@ -230,7 +232,10 @@ final readonly class ManagedZoneDNSService
         );
     }
 
-    /** @param array<string, scalar|array<array-key, scalar>|null> $payload */
+    /**
+     * @param array<string, scalar|array<array-key, scalar>|null> $payload
+     * @psalm-suppress PossiblyUnusedReturnValue Returns updated status for read-after-write callers.
+     */
     public function executeDnssecAction(User $user, int $accountId, int $managedZoneId, string $action, array $payload = []): DNSSECProfile
     {
         [$zone, $provider] = $this->resolve($user, $accountId, $managedZoneId, Permission::DNSSEC_ACTION_EXECUTE, Capability::DNSSEC_ACTION_EXECUTE);

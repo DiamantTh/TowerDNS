@@ -17,6 +17,7 @@ use TowerDNS\Application\Exception\ProviderRequestException;
  * response header or from the remaining time in the current rate-limit window.
  * A value of 0 means the wait time is unknown.
  */
+/** @psalm-api Provider integrations may consume the retry delay separately from the message. */
 final class RateLimitExceededException extends ProviderRequestException
 {
     public function __construct(

@@ -86,7 +86,7 @@ final readonly class PasswordAdministrationService
             ]);
             throw $error;
         } finally {
-            $password = '';
+            sodium_memzero($password);
         }
     }
 

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Domain\Auth;
 
+/** @psalm-api Authenticated user value contract shared across application boundaries. */
 final readonly class User
 {
     /**
@@ -38,9 +39,4 @@ final readonly class User
         public ?string $createdAt = null,
         public ?string $updatedAt = null,
     ) {}
-
-    public function hasPermission(Permission|string $permission): bool
-    {
-        return array_any($this->roles, fn(Role $role): bool => $role->has($permission));
-    }
 }

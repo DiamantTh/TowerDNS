@@ -18,6 +18,7 @@ use TowerDNS\Domain\Account\AdminImpersonationSession;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\Middleware\ImpersonationBannerMiddleware;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ImpersonationBannerMiddlewareTest extends TestCase
 {
     public function testActiveSwitchIsVisiblyMarkedAndCanBeEndedWithCsrf(): void
@@ -38,6 +39,7 @@ final class ImpersonationBannerMiddlewareTest extends TestCase
             ->withAttribute('impersonation_session', new AdminImpersonationSession('switch', 'admin', 'target'))
             ->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
         $handler = new class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 return new HtmlResponse('<html><body><div id="towerdns-app"></div></body></html>');
@@ -70,6 +72,7 @@ final class ImpersonationBannerMiddlewareTest extends TestCase
             ->withAttribute('impersonation_session', new AdminImpersonationSession('switch', 'admin', 'target'))
             ->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
         $handler = new class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 return new HtmlResponse('<html><body>Not decorated</body></html>');

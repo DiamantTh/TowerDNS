@@ -19,6 +19,7 @@ use TowerDNS\Module\DeSEC\DeSECApiClient;
 use TowerDNS\Module\DeSEC\DeSECApiException;
 use TowerDNS\Module\DeSEC\DeSECProvider;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class DeSECProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */

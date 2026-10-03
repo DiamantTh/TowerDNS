@@ -136,14 +136,20 @@ final readonly class AccountInvitationService
         }
     }
 
-    /** @return list<AccountInvitation> */
+    /**
+     * @return list<AccountInvitation>
+     * @psalm-api Incoming-invitation lookup is part of the service contract even though no current page lists it.
+     */
     public function listForAccount(User $user, int $accountId): array
     {
         $this->permissions->assertCanManageMembers($accountId, $user);
         return $this->invitations->findByAccount($accountId);
     }
 
-    /** @return list<AccountInvitation> */
+    /**
+     * @return list<AccountInvitation>
+     * @psalm-api Incoming-invitation lookup is part of the service contract even though no current page lists it.
+     */
     public function listForUser(User $user): array
     {
         return $this->invitations->findPendingForUser($user->email, new \DateTimeImmutable()->format('Y-m-d H:i:s'));

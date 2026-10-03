@@ -19,6 +19,7 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class RrsetReplaceHandler implements RequestHandlerInterface
 {
     public function __construct(private ManagedZoneDNSService $dns, private AuditLogService $audit, private TranslatorInterface $translator) {}

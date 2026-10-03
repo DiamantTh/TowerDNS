@@ -18,11 +18,11 @@ use TowerDNS\Domain\Account\AccountMembership;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AccountMembershipManagementServiceTest extends TestCase
 {
     public function testInviteChecksQuotaAndCreatesMembership(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'owner', true, '2026-09-16 00:00:00'));
         $accounts->method('findMembership')->with(42, 'target')->willReturn(null);
@@ -31,7 +31,7 @@ final class AccountMembershipManagementServiceTest extends TestCase
             42,
             'target',
             TeamRole::ADMIN,
-            self::isType('string'),
+            self::callback('is_string'),
             'actor',
         );
 
@@ -54,7 +54,6 @@ final class AccountMembershipManagementServiceTest extends TestCase
 
     public function testRevokeRejectsOwnerTransferBypass(): void
     {
-        /** @var \PHPUnit\Framework\MockObject\MockObject&AccountRepositoryInterface $accounts */
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('findById')->with(42)->willReturn(new Account(42, 'Team', 'team', 'owner', true, '2026-09-16 00:00:00'));
         $accounts->method('findMembership')->with(42, 'owner')->willReturn(new AccountMembership(1, 42, 'owner', TeamRole::OWNER, '2026-09-16 00:00:00'));

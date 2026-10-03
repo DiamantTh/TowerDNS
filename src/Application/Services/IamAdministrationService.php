@@ -48,11 +48,11 @@ final readonly class IamAdministrationService
                 $this->assertTargetWithinActorAuthority($actor, $target);
                 $before   = $this->roleIds($target);
                 $assigned = $this->loadRequestedRoles($roleIds);
-                $after    = array_values(array_map(static fn(Role $role): string => $role->id, $assigned));
+                $after    = array_map(static fn(Role $role): string => $role->id, $assigned);
                 if (in_array('superadmin', $after, true) && !$this->authorization->isBuiltInSuperadmin($actor)) {
                     throw new AuthorizationException('Only the built-in superadmin may assign the superadmin role.');
                 }
-                $this->assertPermissionsDelegable($actor, array_values($assigned));
+                $this->assertPermissionsDelegable($actor, $assigned);
                 $this->assertLastSuperadminRetained($target, $after);
                 $this->assertStepUp($actor, StepUpAction::IAM_USER_ROLES, $userId, $context, $stepUp);
 

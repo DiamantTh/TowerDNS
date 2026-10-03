@@ -8,6 +8,7 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SqliteConnectionConfiguratorTest extends TestCase
 {
     public function testEnablesSqliteForeignKeys(): void

@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\DTO;
 
+/** @psalm-api Provider capability summary used by HTTP page bootstrap data. */
 final readonly class ProviderSummaryDTO
 {
     /**

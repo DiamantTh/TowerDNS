@@ -15,6 +15,7 @@ use TowerDNS\Infrastructure\Console\ConsoleApplicationFactory;
 use TowerDNS\Infrastructure\Console\InstallCommand;
 use TowerDNS\Infrastructure\Console\PasswordResetCommand;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ConsoleApplicationFactoryTest extends TestCase
 {
     public function testRegistersThePublicCommands(): void

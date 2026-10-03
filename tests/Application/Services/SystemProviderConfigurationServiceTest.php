@@ -18,6 +18,7 @@ use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SystemProviderConfigurationServiceTest extends TestCase
 {
     public function testItPersistsSystemConfigurationAndPreservesBlankSecretInput(): void
@@ -83,16 +84,19 @@ final class InMemorySystemProviderConfigurationStore implements SystemProviderCo
     /** @param array<string, mixed> $configuration */
     public function __construct(public array $configuration = ['providers' => []]) {}
 
+    #[\Override]
     public function load(): array
     {
         return $this->configuration;
     }
 
+    #[\Override]
     public function save(array $configuration): void
     {
         $this->configuration = $configuration;
     }
 
+    #[\Override]
     public function update(callable $mutator): void
     {
         $this->configuration = $mutator($this->configuration);
@@ -103,6 +107,7 @@ final readonly class ExampleProviderCredentialSchema implements ProviderCredenti
 {
     public function __construct(private bool $systemConfigurable = true) {}
 
+    #[\Override]
     public function definitions(): array
     {
         return ['example' => [
@@ -117,6 +122,7 @@ final readonly class ExampleProviderCredentialSchema implements ProviderCredenti
     }
 
     /** @return array<string, string>|null */
+    #[\Override]
     public function credentialsFromInput(string $type, array $input): ?array
     {
         if ($type !== 'example') {
@@ -125,6 +131,7 @@ final readonly class ExampleProviderCredentialSchema implements ProviderCredenti
         return ['token' => trim((string) ($input['token_input'] ?? '')), 'endpoint' => trim((string) ($input['endpoint_input'] ?? ''))];
     }
 
+    #[\Override]
     public function credentialsComplete(string $type, array $credentials): bool
     {
         return $type === 'example' && $credentials['token'] !== '' && $credentials['endpoint'] !== '';

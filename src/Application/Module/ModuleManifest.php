@@ -10,14 +10,17 @@ namespace TowerDNS\Application\Module;
 /** Immutable metadata for a locally discovered TowerDNS module. */
 final readonly class ModuleManifest
 {
-    /** @param list<string> $dependencies */
+    /** @var list<string> */
+    public array $dependencies;
+
+    /** @param array<array-key, mixed> $dependencies */
     public function __construct(
         public string $id,
         public string $displayName,
         public string $version,
         public ModuleType $type,
         public string $requiresTowerDns = '>=1.0.0',
-        public array $dependencies = [],
+        array $dependencies = [],
     ) {
         if (preg_match('/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/D', $id) !== 1) {
             throw new \InvalidArgumentException('Module IDs must be lowercase and dot-namespaced.');
@@ -28,10 +31,18 @@ final readonly class ModuleManifest
         if (preg_match('/^>=\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/D', $requiresTowerDns) !== 1) {
             throw new \InvalidArgumentException('requiresTowerDns must use the supported >=x.y.z constraint syntax.');
         }
+        if (!array_is_list($dependencies)) {
+            throw new \InvalidArgumentException('Module dependencies must be a list of normalized module IDs.');
+        }
+
+        $normalizedDependencies = [];
         foreach ($dependencies as $dependency) {
             if (!is_string($dependency) || preg_match('/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9-]*)+$/D', $dependency) !== 1) {
                 throw new \InvalidArgumentException('Module dependencies must be normalized module IDs.');
             }
+            $normalizedDependencies[] = $dependency;
         }
+
+        $this->dependencies = $normalizedDependencies;
     }
 }

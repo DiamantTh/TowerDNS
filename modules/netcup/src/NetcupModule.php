@@ -15,11 +15,13 @@ use TowerDNS\Application\Module\ProviderModuleInterface;
 
 final readonly class NetcupModule implements ProviderModuleInterface
 {
+    #[\Override]
     public function manifest(): ModuleManifest
     {
         return new ModuleManifest('towerdns.netcup', 'netcup', '1.0.0', ModuleType::PROVIDER);
     }
 
+    #[\Override]
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(NetcupProvider::ID, 'netcup', true, [
@@ -30,6 +32,7 @@ final readonly class NetcupModule implements ProviderModuleInterface
         ]);
     }
 
+    #[\Override]
     public function buildProvider(array $credentials): DNSProviderInterface
     {
         return new NetcupProvider(

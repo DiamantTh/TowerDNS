@@ -28,6 +28,7 @@ final readonly class ClientIpMiddleware implements MiddlewareInterface
 {
     public function __construct(private ClientIpResolver $resolver) {}
 
+    /** @psalm-suppress PossiblyUnusedReturnValue Mezzio consumes the PSR-15 response returned by this middleware. */
     #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

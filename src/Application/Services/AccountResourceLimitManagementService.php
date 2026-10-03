@@ -12,6 +12,7 @@ use TowerDNS\Domain\Account\AccountResourceLimits;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class AccountResourceLimitManagementService
 {
     public function __construct(

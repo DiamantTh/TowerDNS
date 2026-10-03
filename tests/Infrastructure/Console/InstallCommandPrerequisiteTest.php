@@ -7,6 +7,7 @@ namespace TowerDNS\Tests\Infrastructure\Console;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Console\InstallCommand;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class InstallCommandPrerequisiteTest extends TestCase
 {
     public function testReportsEveryMissingRequiredExtensionIncludingSodium(): void

@@ -33,6 +33,7 @@ use TowerDNS\Infrastructure\Http\StepUpRequestService;
 /**
  * GET  /users/{id} — Benutzerdetails + Rollenzuweisung-Formular.
  * POST /users/{id} — syncRoles() für den Benutzer ausführen.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class UserEditHandler implements RequestHandlerInterface
 {

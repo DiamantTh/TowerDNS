@@ -17,6 +17,7 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class RecordDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(private ManagedZoneDNSService $dns, private AuditLogService $audit, private TranslatorInterface $translator) {}

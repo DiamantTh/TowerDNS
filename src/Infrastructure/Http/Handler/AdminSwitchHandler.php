@@ -42,6 +42,7 @@ use TowerDNS\Infrastructure\Http\StepUpRequestService;
  *
  * Sessions expire after {@see self::SESSION_TTL_SECONDS} seconds (default 15 min).
  * A reason is mandatory.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class AdminSwitchHandler implements RequestHandlerInterface
 {
@@ -134,16 +135,15 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse($this->translator->translate('admin-switch.error.invalid-request'), 400);
         }
 
-        $reason             = trim((string) ($body['reason'] ?? ''));
-        $effectiveUserId    = trim((string) ($body['effective_user_id'] ?? '')) ?: null;
+        $reason             = trim(($body['reason'] ?? ''));
+        $effectiveUserId    = trim(($body['effective_user_id'] ?? '')) ?: null;
         $effectiveAccountId = isset($body['effective_account_id']) && $body['effective_account_id'] !== ''
             ? (int) $body['effective_account_id']
             : null;
@@ -246,9 +246,8 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse($this->translator->translate('admin-switch.error.invalid-request'), 400);

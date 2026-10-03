@@ -24,6 +24,7 @@ use Webauthn\Exception\AuthenticatorResponseVerificationException;
  * Validates the attestation response from the browser and persists the
  * new credential.  The request body must be the JSON object produced by
  * navigator.credentials.create().
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class WebAuthnRegisterFinishHandler implements RequestHandlerInterface
 {

@@ -21,18 +21,24 @@ use TowerDNS\Domain\Auth\PasswordResetMethod;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Persistence\DbalPasswordResetTokenRepository;
 
+/**
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
+ * @psalm-suppress PropertyNotSetInConstructor PHPUnit initializes fixtures in setUp().
+ */
 final class PasswordResetServiceTest extends TestCase
 {
     private Connection $connection;
     private DbalPasswordResetTokenRepository $tokens;
     private ClockInterface $clock;
 
+    #[\Override]
     protected function setUp(): void
     {
         $this->connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
         $this->connection->executeStatement('CREATE TABLE password_reset_tokens (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id VARCHAR(64) NOT NULL, token_hash VARCHAR(64) NOT NULL UNIQUE, created_at VARCHAR(19) NOT NULL, expires_at VARCHAR(19) NOT NULL, used_at VARCHAR(19) DEFAULT NULL, method VARCHAR(32) NOT NULL DEFAULT \'email_link\')');
         $this->tokens = new DbalPasswordResetTokenRepository($this->connection);
         $this->clock  = new class implements ClockInterface {
+            #[\Override]
             public function now(): \DateTimeImmutable
             {
                 return new \DateTimeImmutable('2026-09-15 12:00:00');
@@ -44,7 +50,7 @@ final class PasswordResetServiceTest extends TestCase
     {
         $this->tokens->create('user-1', hash('sha256', 'raw-token'), '2026-09-15 13:00:00');
         $users = $this->userRepository();
-        $users->expects(self::once())->method('updatePasswordHash')->with('user-1', self::isType('string'));
+        $users->expects(self::once())->method('updatePasswordHash')->with('user-1', self::callback('is_string'));
 
         $userId = $this->service($users)->consumeEmailLink('raw-token', 'correct horse battery staple');
 

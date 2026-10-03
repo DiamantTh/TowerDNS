@@ -135,9 +135,8 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         User $user,
         string $csrfToken,
     ): ResponseInterface {
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
@@ -152,23 +151,23 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             );
         }
 
-        $appName        = trim((string) ($body['app_name'] ?? ''));
-        $hostname       = trim((string) ($body['app_hostname'] ?? ''));
+        $appName        = trim(($body['app_name'] ?? ''));
+        $hostname       = trim(($body['app_hostname'] ?? ''));
         $forceHttps     = isset($body['app_force_https']) && $body['app_force_https'] === '1';
         $debug          = isset($body['app_debug'])       && $body['app_debug']       === '1';
-        $themeName      = trim((string) ($body['theme_name'] ?? 'default'));
+        $themeName      = trim(($body['theme_name'] ?? 'default'));
         $pwdMinLen      = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
         $pwdMinScore    = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
         $hibpEnabled    = isset($body['hibp_enabled'])   && $body['hibp_enabled']   === '1';
         $hibpFailOpen   = isset($body['hibp_fail_open']) && $body['hibp_fail_open'] === '1';
         $hibpTimeout    = max(1.0, min(10.0, (float) ($body['hibp_timeout'] ?? 3.0)));
         $mailerEnabled  = isset($body['mailer_enabled']) && $body['mailer_enabled'] === '1';
-        $smtpHost       = trim((string) ($body['smtp_host'] ?? ''));
+        $smtpHost       = trim(($body['smtp_host'] ?? ''));
         $smtpPort       = max(1, min(65535, (int) ($body['smtp_port'] ?? 587)));
-        $smtpEncryption = (string) ($body['smtp_encryption'] ?? 'starttls');
-        $smtpUsername   = trim((string) ($body['smtp_username'] ?? ''));
-        $smtpPassword   = (string) ($body['smtp_password'] ?? '');
-        $mailerFrom     = trim((string) ($body['mailer_from_address'] ?? ''));
+        $smtpEncryption = ($body['smtp_encryption'] ?? 'starttls');
+        $smtpUsername   = trim(($body['smtp_username'] ?? ''));
+        $smtpPassword   = ($body['smtp_password'] ?? '');
+        $mailerFrom     = trim(($body['mailer_from_address'] ?? ''));
 
         if ($appName === '') {
             $appName = 'TowerDNS';
@@ -318,7 +317,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         }
 
         $parts  = parse_url($dsn);
-        $scheme = is_array($parts) ? strtolower((string) ($parts['scheme'] ?? '')) : '';
+        $scheme = is_array($parts) ? strtolower($parts['scheme'] ?? '') : '';
         if (!is_array($parts) || !in_array($scheme, ['smtp', 'smtps'], true) || !isset($parts['host'])) {
             return [
                 'mailer_configured' => true,
@@ -331,7 +330,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             ];
         }
 
-        parse_str((string) ($parts['query'] ?? ''), $options);
+        parse_str($parts['query'] ?? '', $options);
         $encryption = $scheme === 'smtps'
             ? 'tls'
             : (($options['auto_tls'] ?? null) === 'false' ? 'none' : 'starttls');
@@ -340,10 +339,10 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             'mailer_configured' => true,
             'mailer_editable'   => true,
             'mailer_enabled'    => true,
-            'smtp_host'         => (string) $parts['host'],
-            'smtp_port'         => (int) ($parts['port'] ?? ($scheme === 'smtps' ? 465 : 587)),
+            'smtp_host'         => $parts['host'],
+            'smtp_port'         => $parts['port'] ?? ($scheme === 'smtps' ? 465 : 587),
             'smtp_encryption'   => $encryption,
-            'smtp_username'     => isset($parts['user']) ? rawurldecode((string) $parts['user']) : '',
+            'smtp_username'     => isset($parts['user']) ? rawurldecode($parts['user']) : '',
         ];
     }
 
@@ -351,7 +350,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
     {
         $parts = parse_url($dsn);
 
-        return is_array($parts) && isset($parts['pass']) ? rawurldecode((string) $parts['pass']) : '';
+        return is_array($parts) && isset($parts['pass']) ? rawurldecode($parts['pass']) : '';
     }
 
     private function smtpDsn(string $host, int $port, string $encryption, string $username, string $password): string

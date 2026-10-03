@@ -8,6 +8,7 @@ namespace TowerDNS\Application\DTO;
  * A single, authorization-filtered snapshot used by account administration
  * pages. Null limits mean unlimited; counts are never negative.
  */
+/** @psalm-api Account quota snapshot used by administrative views. */
 final readonly class AccountResourceUsage
 {
     public function __construct(

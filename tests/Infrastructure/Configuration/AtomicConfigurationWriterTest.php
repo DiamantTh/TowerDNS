@@ -8,18 +8,24 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
 
+/**
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
+ * @psalm-suppress PropertyNotSetInConstructor PHPUnit initializes the temporary directory in setUp().
+ */
 final class AtomicConfigurationWriterTest extends TestCase
 {
     private string $directory;
 
+    #[\Override]
     protected function setUp(): void
     {
         $this->directory = sys_get_temp_dir() . '/towerdns-config-' . bin2hex(random_bytes(8));
     }
 
+    #[\Override]
     protected function tearDown(): void
     {
-        foreach (glob($this->directory . '/*') ?: [] as $file) {
+        foreach ($this->globPaths($this->directory . '/*') as $file) {
             unlink($file);
         }
         if (is_dir($this->directory)) {
@@ -33,7 +39,9 @@ final class AtomicConfigurationWriterTest extends TestCase
         new AtomicConfigurationWriter()->write($path, "[security]\nvalue = \"private\"");
 
         self::assertFileExists($path);
-        self::assertSame(0o600, fileperms($path) & 0o777);
+        $permissions = fileperms($path);
+        self::assertIsInt($permissions);
+        self::assertSame(0o600, $permissions & 0o777);
         self::assertSame([], glob($path . '.tmp.*'));
     }
 
@@ -56,5 +64,23 @@ final class AtomicConfigurationWriterTest extends TestCase
         if (!extension_loaded('sodium')) {
             self::markTestSkipped('libsodium is required for encryption-key tests.');
         }
+    }
+
+    /** @return list<non-empty-string> */
+    private function globPaths(string $pattern): array
+    {
+        $paths = glob($pattern);
+
+        return $paths === false ? [] : array_map($this->nonEmptyPath(...), $paths);
+    }
+
+    /** @return non-empty-string */
+    private function nonEmptyPath(string $path): string
+    {
+        if ($path === '') {
+            throw new \UnexpectedValueException('glob returned an empty path.');
+        }
+
+        return $path;
     }
 }

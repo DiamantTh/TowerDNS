@@ -25,6 +25,7 @@ use TowerDNS\Infrastructure\Http\Middleware\OwnProfileMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\VirtualPhpPageMiddleware;
 
+/** @psalm-api Loaded by the shared HTTP front-controller bootstrap. */
 final class Pipeline
 {
     public static function configure(Application $app): void

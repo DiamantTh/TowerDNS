@@ -13,6 +13,7 @@ use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\PermissionRegistry;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ActionGroupRegistryTest extends TestCase
 {
     public function testDnsRecordManagementExpandsToTechnicalPermissions(): void

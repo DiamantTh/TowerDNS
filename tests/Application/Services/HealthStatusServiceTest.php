@@ -11,6 +11,7 @@ use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Services\HealthStatusService;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class HealthStatusServiceTest extends TestCase
 {
     public function testReportsHealthyStatusWithoutLeakingSecrets(): void

@@ -14,6 +14,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SecurityHeaderMiddlewareTest extends TestCase
 {
     public function testAddsStrictHeadersAndHstsWhenExplicitlyEnabled(): void
@@ -41,6 +42,7 @@ final class SecurityHeaderMiddlewareTest extends TestCase
     private function handler(): RequestHandlerInterface
     {
         return new class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): Response
             {
                 return new Response();

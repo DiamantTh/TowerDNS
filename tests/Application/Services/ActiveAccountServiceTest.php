@@ -10,6 +10,7 @@ use TowerDNS\Application\Services\ActiveAccountService;
 use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ActiveAccountServiceTest extends TestCase
 {
     public function testOnlyAnActiveMembershipAccountCanBeSelected(): void

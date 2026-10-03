@@ -29,6 +29,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * required by the project specification.
  *
  * @see https://doc.powerdns.com/authoritative/http-api/
+ * @psalm-api Loaded through the dynamic provider-module contract.
  */
 final class PowerDNSProvider extends AbstractDNSProvider
 {
@@ -46,16 +47,19 @@ final class PowerDNSProvider extends AbstractDNSProvider
         parent::__construct();
     }
 
+    #[\Override]
     public function id(): string
     {
         return self::ID;
     }
 
+    #[\Override]
     public function displayName(): string
     {
         return 'PowerDNS';
     }
 
+    #[\Override]
     protected function capabilityMap(): array
     {
         return [
@@ -93,6 +97,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function listZones(): array
     {
         $rows  = $this->client->request('GET', $this->client->serverPath('zones'));
@@ -103,6 +108,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         return $zones;
     }
 
+    #[\Override]
     public function createZone(string $zoneName): Zone
     {
         $canonical = rtrim($zoneName, '.') . '.';
@@ -115,11 +121,13 @@ final class PowerDNSProvider extends AbstractDNSProvider
         return $this->mapZone((array) $row);
     }
 
+    #[\Override]
     public function deleteZone(string $zoneId): void
     {
         $this->client->request('DELETE', $this->client->serverPath('zones/' . rawurlencode($zoneId)), null, false);
     }
 
+    #[\Override]
     public function listRecords(string $zoneId): array
     {
         $row     = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
@@ -177,6 +185,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         return $sets;
     }
 
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         $this->patchRrset(
@@ -190,6 +199,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         return $this->readRrset($rrset);
     }
 
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         $this->patchRrset($zoneId, $ownerName, $type, 0, [], 'DELETE');
@@ -205,6 +215,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         throw new ProviderRequestException('PowerDNS lieferte das geschriebene RRset nicht zurück.');
     }
 
+    #[\Override]
     public function createRecord(Record $record): Record
     {
         if ($this->client->supportsExtend()) {
@@ -244,6 +255,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function updateRecord(Record $record): Record
     {
         [$name, $typeStr, $oldHash] = $this->parseRecordId($record->zoneId, $record->id);
@@ -276,6 +288,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         [$name, $typeStr, $oldHash] = $this->parseRecordId($zoneId, $recordId);
@@ -329,6 +342,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         }
     }
 
+    #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $zone = (array) $this->client->request('GET', $this->client->serverPath('zones/' . rawurlencode($zoneId)));
@@ -352,6 +366,7 @@ final class PowerDNSProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         $base = $this->client->serverPath('zones/' . rawurlencode($zoneId));

@@ -13,6 +13,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Services\HealthStatusService;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class HealthHandler implements RequestHandlerInterface
 {
     public function __construct(private HealthStatusService $health) {}

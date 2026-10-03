@@ -10,6 +10,7 @@ namespace TowerDNS\Tests\Application\Validation;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Validation\LoginInputFilter;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class LoginInputFilterTest extends TestCase
 {
     private function filter(): LoginInputFilter

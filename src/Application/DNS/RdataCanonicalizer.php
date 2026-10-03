@@ -57,8 +57,11 @@ final class RdataCanonicalizer
                              || !ctype_digit($parts[0]) || !ctype_digit($parts[1]) || !ctype_digit($parts[2])) {
             throw new \InvalidArgumentException('TLSA erwartet Usage, Selector, Matching Type und Association Data.');
         }
-        [$usage, $selector, $matching] = array_map(intval(...), array_slice($parts, 0, 3));
-        $data                          = strtolower(preg_replace('/\s+/', '', $parts[3]) ?? '');
+        [$usageText, $selectorText, $matchingText, $association] = $parts;
+        $usage                                                   = (int) $usageText;
+        $selector                                                = (int) $selectorText;
+        $matching                                                = (int) $matchingText;
+        $data                                                    = strtolower(preg_replace('/\s+/', '', $association) ?? '');
         if ($usage > 3 || $selector > 1 || $matching > 2 || $data === '' || strlen($data) % 2 !== 0 || !ctype_xdigit($data)) {
             throw new \InvalidArgumentException('Ungültiger TLSA-RDATA-Wert.');
         }

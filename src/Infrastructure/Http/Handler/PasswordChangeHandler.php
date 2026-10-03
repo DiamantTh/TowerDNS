@@ -22,6 +22,7 @@ use TowerDNS\Domain\Auth\User;
 
 /**
  * GET+POST /profile/password — change the currently logged-in user's password.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class PasswordChangeHandler implements RequestHandlerInterface
 {

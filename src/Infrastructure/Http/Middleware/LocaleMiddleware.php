@@ -16,6 +16,7 @@ final readonly class LocaleMiddleware implements MiddlewareInterface
 {
     public function __construct(private Translator $translator, private string $defaultLocale = SupportedLocales::DEFAULT) {}
 
+    /** @psalm-suppress PossiblyUnusedReturnValue Mezzio consumes the PSR-15 response returned by this middleware. */
     #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {

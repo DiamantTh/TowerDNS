@@ -17,11 +17,13 @@ use TowerDNS\Application\Module\ProviderModuleInterface;
 
 final readonly class OVHcloudModule implements ProviderModuleInterface
 {
+    #[\Override]
     public function manifest(): ModuleManifest
     {
         return new ModuleManifest('towerdns.ovhcloud', 'OVHcloud', '1.0.0', ModuleType::PROVIDER);
     }
 
+    #[\Override]
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(OVHcloudProvider::ID, 'OVHcloud', true, [
@@ -32,6 +34,7 @@ final readonly class OVHcloudModule implements ProviderModuleInterface
         ]);
     }
 
+    #[\Override]
     public function buildProvider(array $credentials): DNSProviderInterface
     {
         return new OVHcloudProvider(new Api(

@@ -19,6 +19,7 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SystemSettingsHandlerTest extends TestCase
 {
     public function testGetDoesNotExposeConfiguredMailerDsnAndProvidesRuntimeSecuritySettings(): void

@@ -44,10 +44,10 @@ final class CloudflareAPIClient
         }
 
         $this->http = $http ?? new Client([
-            'base_uri'    => self::BASE_URI,
-            'timeout'     => 30,
+            'base_uri'        => self::BASE_URI,
+            'timeout'         => 30,
             'connect_timeout' => 5,
-            'http_errors' => false,
+            'http_errors'     => false,
         ]);
     }
 
@@ -163,6 +163,7 @@ final class CloudflareAPIClient
     /**
      * @param array<string, mixed> $payload  e.g. ['status' => 'active'] or ['status' => 'disabled']
      * @return array<string, mixed>
+     * @psalm-suppress PossiblyUnusedReturnValue Low-level API wrapper preserves the provider response for callers; the adapter verifies state by read-back.
      */
     public function patchDnssec(string $zoneName, array $payload): array
     {
@@ -294,7 +295,7 @@ final class CloudflareAPIClient
         /** @var array<string, mixed> $data */
         $data = json_decode((string) $response->getBody(), true) ?? [];
 
-        if (!($data['success'] ?? false)) {
+        if (($data['success'] ?? false) !== true) {
             $errors = (array) ($data['errors'] ?? []);
             $msg    = $errors !== []
                 ? (string) (((array) $errors[0])['message'] ?? 'Unbekannter Fehler')

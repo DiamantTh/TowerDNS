@@ -17,6 +17,7 @@ use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
+/** @psalm-api Loaded through the dynamic provider-module contract. */
 final class ClouDNSProvider extends AbstractDNSProvider
 {
     public const string ID = 'cloudns';
@@ -26,16 +27,19 @@ final class ClouDNSProvider extends AbstractDNSProvider
         parent::__construct();
     }
 
+    #[\Override]
     public function id(): string
     {
         return self::ID;
     }
 
+    #[\Override]
     public function displayName(): string
     {
         return 'ClouDNS';
     }
 
+    #[\Override]
     protected function capabilityMap(): array
     {
         return [
@@ -47,11 +51,13 @@ final class ClouDNSProvider extends AbstractDNSProvider
         ];
     }
 
+    #[\Override]
     public function listZones(): array
     {
         return array_map($this->mapZone(...), $this->client->listAll('list-zones'));
     }
 
+    #[\Override]
     public function createZone(string $zoneName): Zone
     {
         $zoneName = rtrim($zoneName, '.');
@@ -59,11 +65,13 @@ final class ClouDNSProvider extends AbstractDNSProvider
         return $this->mapZone(['name' => $zoneName, 'type' => 'master']);
     }
 
+    #[\Override]
     public function deleteZone(string $zoneId): void
     {
         $this->client->request('delete', ['domain-name' => $zoneId]);
     }
 
+    #[\Override]
     public function listRecords(string $zoneId): array
     {
         $records = [];
@@ -92,6 +100,7 @@ final class ClouDNSProvider extends AbstractDNSProvider
         return $records;
     }
 
+    #[\Override]
     public function createRecord(Record $record): Record
     {
         $data = $this->client->request('add-record', ['domain-name' => $record->zoneId, 'record-type' => $record->type->value] + $this->payload($record));
@@ -102,6 +111,7 @@ final class ClouDNSProvider extends AbstractDNSProvider
         return $this->withId($record, $id);
     }
 
+    #[\Override]
     public function updateRecord(Record $record): Record
     {
         $payload  = $this->payload($record);
@@ -120,11 +130,13 @@ final class ClouDNSProvider extends AbstractDNSProvider
         return $this->withId($record, $record->id);
     }
 
+    #[\Override]
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         $this->client->request('delete-record', ['domain-name' => $zoneId, 'record-id' => $recordId]);
     }
 
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         $type = RecordType::tryFrom($rrset->type->presentation);
@@ -170,6 +182,7 @@ final class ClouDNSProvider extends AbstractDNSProvider
         throw new ProviderRequestException('ClouDNS lieferte das geschriebene RRset nicht zurück.');
     }
 
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         foreach ($this->listRecords($zoneId) as $record) {
@@ -179,11 +192,13 @@ final class ClouDNSProvider extends AbstractDNSProvider
         }
     }
 
+    #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         throw new CapabilityException('ClouDNS DNSSEC management is not implemented.');
     }
 
+    #[\Override]
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('ClouDNS DNSSEC management is not implemented.');

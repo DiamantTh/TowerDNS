@@ -15,6 +15,7 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Log\AbstractLogger;
 use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class HibpRangePasswordCheckerTest extends TestCase
 {
     public function testNetworkFailureDoesNotLogClientExceptionDetails(): void
@@ -34,6 +35,7 @@ final class HibpRangePasswordCheckerTest extends TestCase
             /** @var list<array{level: mixed, message: string, context: array<mixed>}> */
             public array $records = [];
 
+            #[\Override]
             public function log(mixed $level, string|\Stringable $message, array $context = []): void
             {
                 $this->records[] = [

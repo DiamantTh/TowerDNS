@@ -34,6 +34,7 @@ use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ManagedZoneDNSServiceTest extends TestCase
 {
     public function testDnssecProfileReflectsProviderActionCapability(): void
@@ -127,44 +128,56 @@ final class ManagedZoneDNSServiceTest extends TestCase
         $providerAccounts->expects(self::once())->method('findById')->with(9)->willReturn(new ProviderAccount(9, 42, 'fake', 'Fake', 'ciphertext', 3, true, '2026-09-17 12:00:00'));
         $provider = new class implements DNSProviderInterface {
             public ?Record $created = null;
+            #[\Override]
             public function id(): string
             {
                 return 'fake';
             }
+            #[\Override]
             public function displayName(): string
             {
                 return 'Fake';
             }
+            #[\Override]
             public function capabilities(): ProviderCapabilitySet
             {
                 return new ProviderCapabilitySet([Capability::RECORD_CREATE => true]);
             }
+            #[\Override]
             public function listZones(): array
             {
                 return [];
             }
+            #[\Override]
             public function createZone(string $zoneName): Zone
             {
                 return new Zone('', $zoneName, 'fake', true);
             }
+            #[\Override]
             public function deleteZone(string $zoneId): void {}
+            #[\Override]
             public function listRecords(string $zoneId): array
             {
                 return [];
             }
+            #[\Override]
             public function createRecord(Record $record): Record
             {
                 return $this->created = $record;
             }
+            #[\Override]
             public function updateRecord(Record $record): Record
             {
                 return $record;
             }
+            #[\Override]
             public function deleteRecord(string $zoneId, string $recordId): void {}
+            #[\Override]
             public function getDnssecProfile(string $zoneId): DNSSECProfile
             {
                 return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
             }
+            #[\Override]
             public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
             {
                 return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
@@ -447,66 +460,82 @@ final class RecordingDNSProvider implements DNSProviderInterface, ProviderConstr
      */
     public function __construct(private readonly array $capabilities, private readonly array $constraintDetails = []) {}
 
+    #[\Override]
     public function id(): string
     {
         return 'fake';
     }
+    #[\Override]
     public function displayName(): string
     {
         return 'Fake';
     }
+    #[\Override]
     public function capabilities(): ProviderCapabilitySet
     {
         return new ProviderCapabilitySet($this->capabilities);
     }
+    #[\Override]
     public function constraints(): ProviderConstraintProfile
     {
         return new ProviderConstraintProfile('test', 'immediate', false, $this->constraintDetails);
     }
+    #[\Override]
     public function listZones(): array
     {
         return [];
     }
+    #[\Override]
     public function createZone(string $zoneName): Zone
     {
         return new Zone('provider-zone', $zoneName, 'fake', true);
     }
+    #[\Override]
     public function deleteZone(string $zoneId): void
     {
         $this->deletedZones[] = $zoneId;
     }
+    #[\Override]
     public function listRecords(string $zoneId): array
     {
         return array_values(array_filter($this->listedRecords, static fn(Record $record): bool => $record->zoneId === $zoneId));
     }
+    #[\Override]
     public function createRecord(Record $record): Record
     {
         $this->createdRecords[] = $record;
         return $record;
     }
+    #[\Override]
     public function updateRecord(Record $record): Record
     {
         $this->updatedRecords[] = $record;
         return $record;
     }
+    #[\Override]
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         $this->deletedRecords[] = $recordId;
     }
+    #[\Override]
     public function listRrsets(string $zoneId): array
     {
         return [];
     }
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         $this->replacedRrset = $rrset;
         return $this->rrsetReadback ?? $rrset;
     }
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void {}
+    #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
     }
+    #[\Override]
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);

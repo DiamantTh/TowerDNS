@@ -44,6 +44,7 @@ use TowerDNS\Infrastructure\Http\ActiveAccountContext;
  *   POST /accounts/{id}          → update name / deactivate
  *   GET  /accounts/{id}/members  → membership list
  *   POST /accounts/{id}/members  → invite or remove a member
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class AccountHandler implements RequestHandlerInterface
 {
@@ -146,16 +147,15 @@ final readonly class AccountHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
-        $name = (string) ($body['name'] ?? '');
-        $slug = (string) ($body['slug'] ?? '');
+        $name = ($body['name'] ?? '');
+        $slug = ($body['slug'] ?? '');
 
         try {
             $account = $this->accountManagement->create($user, $name, $slug);
@@ -215,15 +215,14 @@ final readonly class AccountHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
-        $action = (string) ($body['action'] ?? 'rename');
+        $action = ($body['action'] ?? 'rename');
 
         if ($action === 'deactivate') {
             try {
@@ -287,9 +286,9 @@ final readonly class AccountHandler implements RequestHandlerInterface
             return new RedirectResponse('/accounts');
         }
 
-        $name              = (string) ($body['name'] ?? '');
-        $customerNumber    = isset($body['customer_number']) ? trim((string) $body['customer_number']) : null;
-        $externalReference = isset($body['external_reference']) ? trim((string) $body['external_reference']) : null;
+        $name              = ($body['name'] ?? '');
+        $customerNumber    = isset($body['customer_number']) ? trim($body['customer_number']) : null;
+        $externalReference = isset($body['external_reference']) ? trim($body['external_reference']) : null;
 
         try {
             $this->accountManagement->updateOrganizationDetails($user, $accountId, $name, $customerNumber, $externalReference);
@@ -374,16 +373,15 @@ final readonly class AccountHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
-        $action       = (string) ($body['action'] ?? '');
-        $targetUserId = trim((string) ($body['user_id'] ?? ''));
+        $action       = ($body['action'] ?? '');
+        $targetUserId = trim(($body['user_id'] ?? ''));
         $base         = '/accounts/' . $accountId . '/members';
 
         if ($action === 'remove') {
@@ -400,9 +398,9 @@ final readonly class AccountHandler implements RequestHandlerInterface
         }
 
         if ($action === 'invite') {
-            $roleVal = trim((string) ($body['role'] ?? ''));
+            $roleVal = trim(($body['role'] ?? ''));
             $role    = TeamRole::tryFrom($roleVal);
-            $email   = strtolower(trim((string) ($body['email'] ?? '')));
+            $email   = strtolower(trim(($body['email'] ?? '')));
             if ($email === '' && $targetUserId !== '') {
                 $target = $this->users->findByIdForAdministration($targetUserId);
                 $email  = $target instanceof User ? strtolower($target->email) : '';
@@ -435,7 +433,7 @@ final readonly class AccountHandler implements RequestHandlerInterface
         }
 
         if ($action === 'role') {
-            $role = TeamRole::tryFrom(trim((string) ($body['role'] ?? '')));
+            $role = TeamRole::tryFrom(trim(($body['role'] ?? '')));
             if ($targetUserId === '' || $role === null) {
                 return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate('accounts.error.member-input-required')));
             }
@@ -461,13 +459,12 @@ final readonly class AccountHandler implements RequestHandlerInterface
         }
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body = (array) ($request->getParsedBody() ?? []);
-        $base = '/accounts/' . $accountId . '/members';
-        if (!$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $base  = '/accounts/' . $accountId . '/members';
+        if (!$guard->validateToken(($body['csrf_token'] ?? ''))) {
             return new RedirectResponse($base . '?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
         }
-        $target = trim((string) ($body['user_id'] ?? ''));
+        $target = trim(($body['user_id'] ?? ''));
         try {
             $this->ownership->transfer($actor, $accountId, $target);
             $this->audit->recordWithContext($this->auditContext($request, $actor, $accountId), 'account.ownership.transfer', 'account', (string) $accountId, after: ['owner_user_id' => $target]);

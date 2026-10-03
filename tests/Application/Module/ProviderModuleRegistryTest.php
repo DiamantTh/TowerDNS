@@ -15,6 +15,7 @@ use TowerDNS\Application\Module\ProviderDefinition;
 use TowerDNS\Application\Module\ProviderModuleInterface;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ProviderModuleRegistryTest extends TestCase
 {
     public function testRegistersProviderDefinitionByTechnicalId(): void
@@ -35,14 +36,17 @@ final class ProviderModuleRegistryTest extends TestCase
     {
         return new readonly class ($id, $displayName) implements ProviderModuleInterface {
             public function __construct(private string $id, private string $displayName) {}
+            #[\Override]
             public function manifest(): ModuleManifest
             {
                 return new ModuleManifest('towerdns.' . $this->id, $this->displayName, '1.0.0', ModuleType::PROVIDER);
             }
+            #[\Override]
             public function providerDefinition(): ProviderDefinition
             {
                 return new ProviderDefinition($this->id, $this->displayName, true, []);
             }
+            #[\Override]
             public function buildProvider(array $credentials): DNSProviderInterface
             {
                 throw new \LogicException('Not needed by this registry test.');

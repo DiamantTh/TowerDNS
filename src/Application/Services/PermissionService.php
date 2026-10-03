@@ -110,45 +110,7 @@ final readonly class PermissionService
         return $membership instanceof \TowerDNS\Domain\Account\ZoneMembership && $this->roleGrants($membership->role, $permission);
     }
 
-    /**
-     * Returns the direct account role, if any. It intentionally does not turn
-     * a global system permission into an account role.
-     */
-    public function getAccountRole(int $accountId, User $user): ?TeamRole
-    {
-        return $this->accounts->getEffectiveRole($accountId, $user->id);
-    }
-
-    /**
-     * Kept for read-only display code. Authorization must use authorizeManagedZone(),
-     * because account and zone grants can positively complement each other.
-     */
-    public function getZoneRole(string $zoneId, int $accountId, User $user): ?TeamRole
-    {
-        if (!ctype_digit($zoneId) || !$this->managedZones?->findByIdForAccount((int) $zoneId, $accountId) instanceof \TowerDNS\Domain\Account\ManagedZone) {
-            return null;
-        }
-
-        $accountRole = $this->getAccountRole($accountId, $user);
-        if ($accountRole instanceof TeamRole) {
-            return $accountRole;
-        }
-
-        return $this->zoneMemberships->findMembership((int) $zoneId, $user->id)?->role;
-    }
-
-    // ── Temporary application conveniences ──────────────────────────────────
-
-    public function canViewAccount(int $accountId, User $user): bool
-    {
-        return $this->authorizeAccount($user, Permission::ACCOUNT_READ, $accountId);
-    }
-
-    public function canManageAccount(int $accountId, User $user): bool
-    {
-        return $this->authorizeAccount($user, Permission::ACCOUNT_UPDATE, $accountId);
-    }
-
+    // ── Explicit lifecycle checks ───────────────────────────────────────────
     /** Reactivation is the one management action that must remain possible for a disabled organization. */
     public function canReactivateAccount(int $accountId, User $user): bool
     {
@@ -170,36 +132,6 @@ final readonly class PermissionService
         }
     }
 
-    public function canManageMembers(int $accountId, User $user): bool
-    {
-        return $this->authorizeAccount($user, Permission::ACCOUNT_MEMBERS_MANAGE, $accountId);
-    }
-
-    public function canManageProviderAccounts(int $accountId, User $user): bool
-    {
-        return $this->authorizeAccount($user, Permission::PROVIDER_CREDENTIALS_MANAGE, $accountId);
-    }
-
-    public function canDeleteAccount(int $accountId, User $user): bool
-    {
-        return $this->authorizeAccount($user, Permission::ACCOUNT_DELETE, $accountId);
-    }
-
-    public function canViewAuditLog(int $accountId, User $user): bool
-    {
-        return $this->authorizeAccount($user, Permission::AUDIT_READ, $accountId);
-    }
-
-    public function canViewZone(string $zoneId, int $accountId, User $user): bool
-    {
-        return $this->authorizeZone($user, Permission::ZONE_READ, $accountId, $zoneId);
-    }
-
-    public function canManageZoneRecords(string $zoneId, int $accountId, User $user): bool
-    {
-        return $this->authorizeZone($user, Permission::RECORD_UPDATE, $accountId, $zoneId);
-    }
-
     public function canImpersonate(User $actor): bool
     {
         return $actor->active && $this->authorization->isBuiltInSuperadmin($actor);
@@ -207,24 +139,9 @@ final readonly class PermissionService
 
     // ── Assertions ──────────────────────────────────────────────────────────
 
-    public function assertCanManageZoneRecords(string $zoneId, int $accountId, User $user): void
-    {
-        $this->assertZone($user, Permission::RECORD_UPDATE, $accountId, $zoneId);
-    }
-
-    public function assertCanViewZone(string $zoneId, int $accountId, User $user): void
-    {
-        $this->assertZone($user, Permission::ZONE_READ, $accountId, $zoneId);
-    }
-
     public function assertCanManageMembers(int $accountId, User $user): void
     {
         $this->assertAccount($user, Permission::ACCOUNT_MEMBERS_MANAGE, $accountId);
-    }
-
-    public function assertCanTransferAccountOwnership(int $accountId, User $user): void
-    {
-        $this->assertAccount($user, Permission::ACCOUNT_OWNERSHIP_TRANSFER, $accountId);
     }
 
     public function assertCanManageAccount(int $accountId, User $user): void
@@ -235,11 +152,6 @@ final readonly class PermissionService
     public function assertCanManageProviderAccounts(int $accountId, User $user): void
     {
         $this->assertAccount($user, Permission::PROVIDER_CREDENTIALS_MANAGE, $accountId);
-    }
-
-    public function assertCanViewAccount(int $accountId, User $user): void
-    {
-        $this->assertAccount($user, Permission::ACCOUNT_READ, $accountId);
     }
 
     public function assertCanImpersonate(User $actor): void
@@ -261,13 +173,6 @@ final readonly class PermissionService
         $account = $this->accounts->findById($accountId);
         if (!$account instanceof \TowerDNS\Domain\Account\Account || !$account->isActive) {
             throw new \DomainException('Account is inactive.');
-        }
-    }
-
-    public function assertZone(User $user, Permission $permission, int $accountId, string $zoneId): void
-    {
-        if (!$this->authorizeZone($user, $permission, $accountId, $zoneId)) {
-            throw new AuthorizationException(sprintf('Kein Recht "%s" in Zone %s.', $permission->value, $zoneId));
         }
     }
 

@@ -25,6 +25,7 @@ use TowerDNS\Domain\Auth\User;
 
 /**
  * GET /roles — Rollenübersicht mit Anlegen-Formular.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class RoleListHandler implements RequestHandlerInterface
 {

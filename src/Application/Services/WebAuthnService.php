@@ -93,7 +93,6 @@ final readonly class WebAuthnService
         string                             $jsonResponse,
         PublicKeyCredentialCreationOptions $options,
     ): CredentialRecord {
-        /** @var PublicKeyCredential $credential */
         $credential = $this->serializer->deserialize($jsonResponse, PublicKeyCredential::class, 'json');
 
         if (!$credential->response instanceof AuthenticatorAttestationResponse) {
@@ -147,7 +146,6 @@ final readonly class WebAuthnService
         PublicKeyCredentialRequestOptions $options,
         ?string                           $userHandle = null,
     ): CredentialRecord {
-        /** @var PublicKeyCredential $credential */
         $credential = $this->serializer->deserialize($jsonResponse, PublicKeyCredential::class, 'json');
 
         if (!$credential->response instanceof AuthenticatorAssertionResponse) {
@@ -170,9 +168,7 @@ final readonly class WebAuthnService
 
     public function deserializeCreationOptions(string $json): PublicKeyCredentialCreationOptions
     {
-        /** @var PublicKeyCredentialCreationOptions $opts */
-        $opts = $this->serializer->deserialize($json, PublicKeyCredentialCreationOptions::class, 'json');
-        return $opts;
+        return $this->serializer->deserialize($json, PublicKeyCredentialCreationOptions::class, 'json');
     }
 
     public function serializeRequestOptions(PublicKeyCredentialRequestOptions $options): string
@@ -182,8 +178,6 @@ final readonly class WebAuthnService
 
     public function deserializeRequestOptions(string $json): PublicKeyCredentialRequestOptions
     {
-        /** @var PublicKeyCredentialRequestOptions $opts */
-        $opts = $this->serializer->deserialize($json, PublicKeyCredentialRequestOptions::class, 'json');
-        return $opts;
+        return $this->serializer->deserialize($json, PublicKeyCredentialRequestOptions::class, 'json');
     }
 }

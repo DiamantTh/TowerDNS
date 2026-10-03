@@ -13,6 +13,7 @@ use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
 use Webauthn\CredentialRecord;
 use Webauthn\Denormalizer\WebauthnSerializerFactory;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class DbalWebAuthnCredentialRepositoryTest extends TestCase
 {
     public function testReadsCredentialsSerializedByThePreviousCredentialSourceFormat(): void

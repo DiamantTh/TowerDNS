@@ -34,6 +34,7 @@ use TowerDNS\Infrastructure\Http\StepUpRequestService;
  * GET+POST /roles/{id} — Rolle bearbeiten.
  *
  * Eingebaute Rollen werden schreibgeschützt angezeigt.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class RoleEditHandler implements RequestHandlerInterface
 {

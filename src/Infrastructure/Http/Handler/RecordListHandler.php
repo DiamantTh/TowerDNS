@@ -16,7 +16,9 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 
-/** Lists RRsets for one local managed zone. */
+/** Lists RRsets for one local managed zone.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
+ */
 final readonly class RecordListHandler implements RequestHandlerInterface
 {
     public function __construct(private TemplateRendererInterface $renderer, private ManagedZoneDNSService $dns, private TranslatorInterface $translator) {}

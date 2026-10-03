@@ -58,8 +58,8 @@ final readonly class PasswordResetService
                 return $token->userId;
             });
         } finally {
-            // Do not retain a plaintext password in this service after return or failure.
-            $password = '';
+            // Wipe the mutable PHP string buffer after hashing and persistence.
+            sodium_memzero($password);
         }
     }
 }

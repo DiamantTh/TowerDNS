@@ -10,6 +10,7 @@ namespace TowerDNS\Domain\Account;
 /**
  * Represents a user's membership in an Account with a specific TeamRole.
  */
+/** @psalm-api Membership value contract shared by repositories and authorization services. */
 final readonly class AccountMembership
 {
     public function __construct(

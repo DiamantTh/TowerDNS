@@ -28,6 +28,7 @@ use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class PasswordAdministrationServiceTest extends TestCase
 {
     public function testAdministrativePasswordResetRequiresActionBoundStepUpBeforeMutation(): void

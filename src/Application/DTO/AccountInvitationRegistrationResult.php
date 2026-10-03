@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application\DTO;
 
 /** Result of a one-time invitation registration. */
+/** @psalm-api Registration result crosses the Application/HTTP boundary. */
 final readonly class AccountInvitationRegistrationResult
 {
     public function __construct(

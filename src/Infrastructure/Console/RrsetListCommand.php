@@ -17,8 +17,10 @@ use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Domain\DNS\Zone;
 
 #[AsCommand(name: 'rrset:list', description: 'List DNS RRsets in a provider zone')]
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final class RrsetListCommand extends Command
 {
+    /** @psalm-api Symfony instantiates this command from its runtime command map. */
     public function __construct(private readonly ProviderRegistry $providers)
     {
         parent::__construct();

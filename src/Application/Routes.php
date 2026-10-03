@@ -57,6 +57,7 @@ use TowerDNS\Infrastructure\Http\Handler\ZoneMembersHandler;
 use TowerDNS\Infrastructure\Http\Handler\ZoneUpdateHandler;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 
+/** @psalm-api Loaded by the shared HTTP front-controller bootstrap. */
 final class Routes
 {
     public static function configure(Application $app): void

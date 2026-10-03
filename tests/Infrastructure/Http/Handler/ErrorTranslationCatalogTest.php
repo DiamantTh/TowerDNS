@@ -10,12 +10,14 @@ namespace TowerDNS\Tests\Infrastructure\Http\Handler;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ErrorTranslationCatalogTest extends TestCase
 {
     #[DataProvider('localeProvider')]
     public function testZoneRecordAndUserErrorKeysExistInBothRuntimeCatalogues(string $locale): void
     {
         /** @var array<string, string> $catalogue */
+        /** @psalm-suppress UnresolvableInclude Locale is supplied by the fixed provider immediately below. */
         $catalogue = require dirname(__DIR__, 4) . '/translations/' . $locale . '.php';
 
         foreach ([

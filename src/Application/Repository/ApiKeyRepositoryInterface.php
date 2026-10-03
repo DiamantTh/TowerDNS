@@ -14,6 +14,7 @@ namespace TowerDNS\Application\Repository;
  * the database, so even with full DB read-access an attacker cannot impersonate
  * a key holder.
  */
+/** @psalm-api Persistence contract for the account-bound API-key lifecycle. */
 interface ApiKeyRepositoryInterface
 {
     /**

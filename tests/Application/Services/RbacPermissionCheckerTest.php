@@ -12,6 +12,7 @@ use TowerDNS\Application\Services\RbacPermissionChecker;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class RbacPermissionCheckerTest extends TestCase
 {
     public function testChecksDirectPermissionAndRoleHierarchyWithoutRegistryState(): void

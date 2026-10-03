@@ -25,6 +25,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * provider and the user only consumes status and DS information. The
  * adapter therefore advertises {@see Capability::DNSSEC_AUTO_MANAGED} and
  * exposes status reads, but does not expose imperative DNSSEC actions.
+ * @psalm-api Loaded through the dynamic provider-module contract.
  */
 final class DeSECProvider extends AbstractDNSProvider
 {
@@ -35,16 +36,19 @@ final class DeSECProvider extends AbstractDNSProvider
         parent::__construct();
     }
 
+    #[\Override]
     public function id(): string
     {
         return self::ID;
     }
 
+    #[\Override]
     public function displayName(): string
     {
         return 'deSEC';
     }
 
+    #[\Override]
     protected function capabilityMap(): array
     {
         return [
@@ -72,6 +76,7 @@ final class DeSECProvider extends AbstractDNSProvider
         ];
     }
 
+    #[\Override]
     public function listZones(): array
     {
         $zones = [];
@@ -81,16 +86,19 @@ final class DeSECProvider extends AbstractDNSProvider
         return $zones;
     }
 
+    #[\Override]
     public function createZone(string $zoneName): Zone
     {
         return $this->mapZone($this->client->createDomain($zoneName));
     }
 
+    #[\Override]
     public function deleteZone(string $zoneId): void
     {
         $this->client->deleteDomain($zoneId);
     }
 
+    #[\Override]
     public function listRecords(string $zoneId): array
     {
         $records = [];
@@ -137,6 +145,7 @@ final class DeSECProvider extends AbstractDNSProvider
         return $sets;
     }
 
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         $this->client->modifyRRSet($rrset->zoneId, $rrset->ownerName, $rrset->type->presentation, $rrset->rdata, $rrset->ttl);
@@ -148,11 +157,13 @@ final class DeSECProvider extends AbstractDNSProvider
         throw new \RuntimeException('deSEC lieferte das geschriebene RRset nicht zurück.');
     }
 
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         $this->client->deleteRRSet($zoneId, $ownerName, $type);
     }
 
+    #[\Override]
     public function createRecord(Record $record): Record
     {
         try {
@@ -195,6 +206,7 @@ final class DeSECProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function updateRecord(Record $record): Record
     {
         [$subname, $typeStr, $oldHash] = $this->parseRecordId($record->zoneId, $record->id);
@@ -230,6 +242,7 @@ final class DeSECProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         [$subname, $typeStr, $oldHash] = $this->parseRecordId($zoneId, $recordId);
@@ -252,6 +265,7 @@ final class DeSECProvider extends AbstractDNSProvider
         }
     }
 
+    #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $row = $this->client->getDomain($zoneId);
@@ -277,6 +291,7 @@ final class DeSECProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('deSEC verwaltet DNSSEC vollautomatisch; manuelle Aktionen sind nicht moeglich.');

@@ -219,13 +219,7 @@ final class LocalModuleDiscovery
     {
         $manifest = $module instanceof ModuleManifest ? $module : $module->manifest();
 
-        return array_any($this->enabledModuleIds ?? [], static function (mixed $id) use ($manifest): bool {
-            if (!is_string($id)) {
-                throw new \InvalidArgumentException('Enabled module IDs must be strings.');
-            }
-
-            return $id === $manifest->id;
-        });
+        return array_any($this->enabledModuleIds ?? [], static fn(string $id): bool => $id === $manifest->id);
     }
 
     /**

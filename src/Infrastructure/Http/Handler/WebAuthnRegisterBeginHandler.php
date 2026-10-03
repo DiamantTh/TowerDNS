@@ -28,6 +28,7 @@ use TowerDNS\Infrastructure\Http\SessionSecurity;
  * Request body (form-encoded or JSON):
  *   name       – human-readable label for the new key
  *   csrf_token – CSRF token
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInterface
 {
@@ -44,15 +45,14 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         /** @var \Mezzio\Csrf\CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new JsonResponse(['error' => $this->translator->translate('http.error.invalid-request')], 400);
         }
 
-        $name = trim((string) ($body['name'] ?? ''));
+        $name = trim(($body['name'] ?? ''));
         if ($name === '') {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.name-required')], 422);
         }

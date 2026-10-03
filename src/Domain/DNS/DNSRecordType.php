@@ -14,6 +14,7 @@ namespace TowerDNS\Domain\DNS;
  * deliberately a value object rather than an enum: DNS type allocation is not
  * closed and a control panel must not make unknown records disappear.
  */
+/** @psalm-api DNS type value contract used by provider adapters and API consumers. */
 final readonly class DNSRecordType
 {
     /** @var array<string, int> */
@@ -49,6 +50,7 @@ final readonly class DNSRecordType
         return new self('TYPE' . $code, $code, false);
     }
 
+    /** @psalm-api Construct a canonical DNS type value from its wire code. */
     public static function fromCode(int $code): self
     {
         if ($code < 0 || $code > 65535) {

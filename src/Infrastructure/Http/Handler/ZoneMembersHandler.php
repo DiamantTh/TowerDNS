@@ -34,6 +34,7 @@ use TowerDNS\Domain\Auth\User;
  *
  * Zone memberships grant zone-specific access without account-wide rights.
  * Only users with account-level OWNER or ADMIN role may manage zone members.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class ZoneMembersHandler implements RequestHandlerInterface
 {
@@ -109,16 +110,15 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
         }
 
-        $action       = (string) ($body['action'] ?? '');
-        $targetUserId = trim((string) ($body['user_id'] ?? ''));
+        $action       = ($body['action'] ?? '');
+        $targetUserId = trim(($body['user_id'] ?? ''));
         $base         = '/accounts/' . $accountId . '/zones/' . $managedZoneId . '/members';
 
         if ($action === 'revoke') {
@@ -146,7 +146,7 @@ final readonly class ZoneMembersHandler implements RequestHandlerInterface
         }
 
         if ($action === 'grant') {
-            $roleVal = trim((string) ($body['role'] ?? ''));
+            $roleVal = trim(($body['role'] ?? ''));
             $role    = TeamRole::tryFrom($roleVal);
 
             if ($targetUserId === '' || $role === null) {

@@ -24,7 +24,7 @@ interface UserRepositoryInterface
     /**
      * Administrative bulk lookup that also returns inactive users.
      *
-     * @param list<string> $ids
+     * @param array<array-key, mixed> $ids Untrusted administrative lookup input; implementations retain only non-empty string IDs.
      * @return array<string, User> keyed by user ID
      */
     public function findByIdsForAdministration(array $ids): array;

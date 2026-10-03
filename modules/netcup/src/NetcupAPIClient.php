@@ -57,6 +57,10 @@ final readonly class NetcupAPIClient
     }
 
     /** @return array<string, mixed> */
+    /**
+     * @return array<string, mixed>
+     * @psalm-api Read-only zone information endpoint for module-level consumers.
+     */
     public function getDnsZone(string $zoneName): array
     {
         return $this->authenticatedRequest('infoDnsZone', ['domainname' => $zoneName]);
@@ -67,7 +71,7 @@ final readonly class NetcupAPIClient
     {
         $this->authenticatedRequest('updateDnsRecords', [
             'domainname'   => $zoneName,
-            'dnsrecordset' => ['dnsrecords' => array_values($records)],
+            'dnsrecordset' => ['dnsrecords' => $records],
         ]);
     }
 

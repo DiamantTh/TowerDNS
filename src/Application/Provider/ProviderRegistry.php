@@ -18,6 +18,7 @@ use TowerDNS\Application\Exception\ProviderNotFoundException;
  * The registry is the single point through which the Application layer obtains
  * provider instances. Adapters are never injected into services directly so
  * the same workflow code can drive any registered provider.
+ * @psalm-api Public provider-module/application integration contract.
  */
 final class ProviderRegistry
 {

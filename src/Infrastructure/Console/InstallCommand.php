@@ -209,9 +209,16 @@ final class InstallCommand extends Command
         // ──────────────────────────────────────────────────────────────────
         $io->section('Summary');
 
-        $dbSummary = $driver === 'pdo_sqlite'
-            ? $driver . ' → ' . $db['path']
-            : $driver . ' @ ' . ($db['host'] ?? '') . ':' . ($db['port'] ?? '') . '/' . ($db['name'] ?? '');
+        if ($driver === 'pdo_sqlite') {
+            $databasePath = $this->stringConfigValue($db, 'path');
+            if ($databasePath === null || $databasePath === '') {
+                $io->error('SQLite database path is missing from the installation configuration.');
+                return Command::FAILURE;
+            }
+            $dbSummary = $driver . ' → ' . $databasePath;
+        } else {
+            $dbSummary = $driver . ' @ ' . ($db['host'] ?? '') . ':' . ($db['port'] ?? '') . '/' . ($db['name'] ?? '');
+        }
 
         $io->definitionList(
             ['Database' => $dbSummary],
@@ -305,6 +312,14 @@ final class InstallCommand extends Command
         ]);
 
         return Command::SUCCESS;
+    }
+
+    /** @param array<string, mixed> $configuration */
+    private function stringConfigValue(array $configuration, string $key): ?string
+    {
+        $value = $configuration[$key] ?? null;
+
+        return is_string($value) ? $value : null;
     }
 
     private function translate(string $message): string

@@ -26,6 +26,7 @@ use TowerDNS\Infrastructure\Http\StepUpRequestService;
  * POST /users/{id}/delete — löscht einen Benutzer.
  *
  * Verhindert Selbst-Löschung des angemeldeten Benutzers.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class UserDeleteHandler implements RequestHandlerInterface
 {
@@ -46,9 +47,8 @@ final readonly class UserDeleteHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new RedirectResponse('/users?error=' . rawurlencode($this->t('http.error.invalid-request')));

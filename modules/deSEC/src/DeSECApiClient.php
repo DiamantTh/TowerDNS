@@ -90,6 +90,7 @@ final readonly class DeSECApiClient
         return $result;
     }
 
+    /** @psalm-suppress PossiblyUnusedReturnValue Adapter confirms deletion through provider state; retain the status for direct API consumers. */
     public function deleteDomain(string $domainName): bool
     {
         $response = $this->request('DELETE', $this->domainPath($domainName), null, false);
@@ -122,6 +123,7 @@ final readonly class DeSECApiClient
     /**
      * @param list<string> $records
      * @return array<string, mixed>
+     * @psalm-suppress PossiblyUnusedReturnValue Adapter confirms writes by read-back; preserve provider responses at this client boundary.
      */
     public function createRRSet(string $domainName, string $subname, string $type, array $records, int $ttl = 3600): array
     {
@@ -138,6 +140,7 @@ final readonly class DeSECApiClient
     /**
      * @param list<string> $records
      * @return array<string, mixed>
+     * @psalm-suppress PossiblyUnusedReturnValue Adapter confirms writes by read-back; preserve provider responses at this client boundary.
      */
     public function modifyRRSet(string $domainName, string $subname, string $type, array $records, int $ttl = 3600): array
     {
@@ -154,6 +157,7 @@ final readonly class DeSECApiClient
         return $result;
     }
 
+    /** @psalm-suppress PossiblyUnusedReturnValue Adapter confirms deletion by read-back; preserve the status at this client boundary. */
     public function deleteRRSet(string $domainName, string $subname, string $type): bool
     {
         $sub      = $subname === '' ? '@' : $subname;
@@ -167,6 +171,7 @@ final readonly class DeSECApiClient
         return $response->getStatusCode() === 204;
     }
 
+    /** @psalm-api Zone-file export is available to module consumers even though TowerDNS UI does not yet expose it. */
     public function exportZonefile(string $domainName): string
     {
         $response = $this->request('GET', $this->domainPath($domainName, 'zonefile/'), null, false);
@@ -249,7 +254,7 @@ final readonly class DeSECApiClient
         } catch (GuzzleException $e) {
             throw new DeSECApiException(
                 'deSEC API-Aufruf fehlgeschlagen: ' . $e->getMessage(),
-                (int) $e->getCode(),
+                $e->getCode(),
                 $e,
             );
         }

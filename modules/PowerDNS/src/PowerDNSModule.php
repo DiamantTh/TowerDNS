@@ -15,11 +15,13 @@ use TowerDNS\Application\Module\ProviderModuleInterface;
 
 final readonly class PowerDNSModule implements ProviderModuleInterface
 {
+    #[\Override]
     public function manifest(): ModuleManifest
     {
         return new ModuleManifest('towerdns.powerdns', 'PowerDNS', '1.0.0', ModuleType::PROVIDER);
     }
 
+    #[\Override]
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition('powerdns', 'PowerDNS', false, [
@@ -30,6 +32,7 @@ final readonly class PowerDNSModule implements ProviderModuleInterface
         ]);
     }
 
+    #[\Override]
     public function buildProvider(array $credentials): DNSProviderInterface
     {
         return new PowerDNSProvider(

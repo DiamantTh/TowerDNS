@@ -9,11 +9,16 @@ use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Persistence\DbalManagedZoneRepository;
 
+/**
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
+ * @psalm-suppress PropertyNotSetInConstructor PHPUnit initializes the connection and repository in setUp().
+ */
 final class DbalManagedZoneRepositoryTest extends TestCase
 {
     private Connection $connection;
     private DbalManagedZoneRepository $repository;
 
+    #[\Override]
     protected function setUp(): void
     {
         $this->connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);

@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application\Exception;
 
 /** Stable application failure for managed-zone membership operations. */
+/** @psalm-api Domain failure contract mapped by account and zone-member handlers. */
 final class ZoneMembershipException extends \RuntimeException
 {
     public const string MANAGED_ZONE_NOT_FOUND = 'managed_zone_not_found';

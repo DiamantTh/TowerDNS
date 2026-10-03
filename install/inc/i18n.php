@@ -32,12 +32,14 @@ define('INSTALLER_LANGS', [
  */
 function detectInstallerLocale(): string
 {
-    if (isset($_GET['lang']) && array_key_exists($_GET['lang'], INSTALLER_LANGS)) {
-        $_SESSION['installer_lang'] = $_GET['lang'];
+    $requestedLanguage = $_GET['lang'] ?? null;
+    if (is_string($requestedLanguage) && array_key_exists($requestedLanguage, INSTALLER_LANGS)) {
+        $_SESSION['installer_lang'] = $requestedLanguage;
     }
 
-    if (!empty($_SESSION['installer_lang']) && array_key_exists($_SESSION['installer_lang'], INSTALLER_LANGS)) {
-        return $_SESSION['installer_lang'];
+    $sessionLanguage = $_SESSION['installer_lang'] ?? null;
+    if (is_string($sessionLanguage) && array_key_exists($sessionLanguage, INSTALLER_LANGS)) {
+        return $sessionLanguage;
     }
 
     // Accept-Language auswerten
@@ -72,7 +74,7 @@ function detectInstallerLocale(): string
 function initTranslator(): string
 {
     $locale  = detectInstallerLocale();
-    $langDir = INSTALL_DIR . '/lang';
+    $langDir = dirname(__DIR__) . '/lang';
 
     $translator = new Laminas\I18n\Translator\Translator();
     $translator->setLocale($locale);

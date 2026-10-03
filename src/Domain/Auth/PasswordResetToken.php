@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Domain\Auth;
 
+/** @psalm-api Password-reset persistence value contract. */
 final readonly class PasswordResetToken
 {
     public function __construct(

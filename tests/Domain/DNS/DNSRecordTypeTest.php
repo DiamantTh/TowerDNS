@@ -7,6 +7,7 @@ namespace TowerDNS\Tests\Domain\DNS;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Domain\DNS\DNSRecordType;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class DnsRecordTypeTest extends TestCase
 {
     public function testKnownTypesAreCanonicalized(): void

@@ -79,7 +79,7 @@ final readonly class RateLimiter
         return max(0, $this->limit - $data['count']);
     }
 
-    /** Unix timestamp when the current window resets (0 if not yet started). */
+    /** @psalm-api Unix timestamp when the current window resets (0 if not yet started). */
     public function resetAt(): int
     {
         /** @var array{count: int, reset_at: int}|null $data */

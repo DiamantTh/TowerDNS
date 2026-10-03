@@ -19,6 +19,7 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\Handler\AdminOverviewHandler;
 use TowerDNS\Infrastructure\Ui\SvelteRenderer;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AdminOverviewHandlerTest extends TestCase
 {
     public function testOnlyGrantedAdministrativeLinksAreBootstrapped(): void

@@ -25,6 +25,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  *
  * @see https://api.ovh.com/1.0/domain.json
  * @see https://github.com/ovh/php-ovh
+ * @psalm-api Loaded through the dynamic provider-module contract.
  */
 final class OVHcloudProvider extends AbstractDNSProvider
 {
@@ -35,16 +36,19 @@ final class OVHcloudProvider extends AbstractDNSProvider
         parent::__construct();
     }
 
+    #[\Override]
     public function id(): string
     {
         return self::ID;
     }
 
+    #[\Override]
     public function displayName(): string
     {
         return 'OVHcloud';
     }
 
+    #[\Override]
     protected function capabilityMap(): array
     {
         return [
@@ -59,6 +63,7 @@ final class OVHcloudProvider extends AbstractDNSProvider
         ];
     }
 
+    #[\Override]
     public function listZones(): array
     {
         $zones = [];
@@ -70,16 +75,19 @@ final class OVHcloudProvider extends AbstractDNSProvider
         return $zones;
     }
 
+    #[\Override]
     public function createZone(string $zoneName): Zone
     {
         throw new CapabilityException('OVH DNS-Zonen bitte im OVHcloud-Konto bereitstellen.');
     }
 
+    #[\Override]
     public function deleteZone(string $zoneId): void
     {
         throw new CapabilityException('OVH DNS-Zonen werden nicht über TowerDNS gekündigt.');
     }
 
+    #[\Override]
     public function listRecords(string $zoneId): array
     {
         $records = [];
@@ -93,6 +101,7 @@ final class OVHcloudProvider extends AbstractDNSProvider
         return $records;
     }
 
+    #[\Override]
     public function createRecord(Record $record): Record
     {
         $this->assertWritable($record);
@@ -104,6 +113,7 @@ final class OVHcloudProvider extends AbstractDNSProvider
         return $this->mapRecord($record->zoneId, $row);
     }
 
+    #[\Override]
     public function updateRecord(Record $record): Record
     {
         $this->assertWritable($record);
@@ -118,12 +128,14 @@ final class OVHcloudProvider extends AbstractDNSProvider
         return $this->mapRecord($record->zoneId, (array) $this->request('GET', $path));
     }
 
+    #[\Override]
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         $this->request('DELETE', $this->recordPath($zoneId, $recordId));
         $this->refresh($zoneId);
     }
 
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         $type = RecordType::tryFrom($rrset->type->presentation);
@@ -158,6 +170,7 @@ final class OVHcloudProvider extends AbstractDNSProvider
         throw new ProviderRequestException('OVHcloud lieferte das geschriebene RRset nicht zurück.');
     }
 
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         foreach ($this->listRecords($zoneId) as $record) {
@@ -167,6 +180,7 @@ final class OVHcloudProvider extends AbstractDNSProvider
         }
     }
 
+    #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $row    = (array) $this->request('GET', $this->zonePath($zoneId) . '/dnssec');
@@ -179,6 +193,7 @@ final class OVHcloudProvider extends AbstractDNSProvider
         }, metadata: ['status'                      => $status]);
     }
 
+    #[\Override]
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         throw new CapabilityException('OVH DNSSEC kann in TowerDNS nur gelesen werden.');

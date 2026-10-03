@@ -14,9 +14,10 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Infrastructure\Http\Middleware\VirtualPhpPageMiddleware;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class VirtualPhpPageMiddlewareTest extends TestCase
 {
-    /** @return iterable<string, array{string, string, int, 3?: string}> */
+    /** @return iterable<string, array{0: string, 1: string, 2: int, 3?: string}> */
     public static function paths(): iterable
     {
         yield 'dashboard' => ['/index.php', '/', 204];
@@ -68,6 +69,7 @@ final class VirtualPhpPageMiddlewareTest extends TestCase
         $next = new class implements RequestHandlerInterface {
             public ?ServerRequestInterface $seen = null;
 
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->seen = $request;
@@ -95,6 +97,7 @@ final class VirtualPhpPageMiddlewareTest extends TestCase
     public function testVirtualPageRequiresMatchingServerHint(): void
     {
         $next = new class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 return new EmptyResponse(204);
@@ -108,6 +111,7 @@ final class VirtualPhpPageMiddlewareTest extends TestCase
     public function testUnsupportedMethodReturns405BeforeMezzioDispatch(): void
     {
         $next = new class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 throw new \LogicException('Unsupported methods must not reach Mezzio dispatch.');
@@ -131,6 +135,7 @@ final class VirtualPhpPageMiddlewareTest extends TestCase
         $next = new class implements RequestHandlerInterface {
             public ?ServerRequestInterface $seen = null;
 
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 $this->seen = $request;

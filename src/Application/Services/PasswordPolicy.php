@@ -17,6 +17,7 @@ use ZxcvbnPhp\Zxcvbn;
  *   minScore   int  0–4,    default 0  (0 = disabled)
  *   checker    BreachedPasswordCheckerInterface (default: Null = disabled)
  */
+/** @psalm-api Password scoring and thresholds are a shared application policy contract. */
 final readonly class PasswordPolicy
 {
     public const int DEFAULT_MIN_LENGTH = 16;

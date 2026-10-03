@@ -58,6 +58,10 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         return is_array($raw) ? $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id'])) : null;
     }
 
+    /**
+     * @param array<array-key, mixed> $ids
+     * @return array<string, User>
+     */
     #[\Override]
     public function findByIdsForAdministration(array $ids): array
     {
@@ -294,7 +298,6 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         // Load roles for all users in two queries to avoid N+1.
         $ids = array_map(static fn(array $r): string => (string) ($r['id'] ?? ''), $rows);
 
-        /** @var array<string, list<Role>> $rolesByUser */
         $rolesByUser = $this->loadRolesForUsers($ids);
 
         $users = [];

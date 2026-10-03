@@ -15,11 +15,13 @@ use TowerDNS\Application\Module\ProviderModuleInterface;
 
 final readonly class INWXModule implements ProviderModuleInterface
 {
+    #[\Override]
     public function manifest(): ModuleManifest
     {
         return new ModuleManifest('towerdns.inwx', 'INWX', '1.0.0', ModuleType::PROVIDER);
     }
 
+    #[\Override]
     public function providerDefinition(): ProviderDefinition
     {
         return new ProviderDefinition(INWXProvider::ID, 'INWX', true, [
@@ -28,6 +30,7 @@ final readonly class INWXModule implements ProviderModuleInterface
         ]);
     }
 
+    #[\Override]
     public function buildProvider(array $credentials): DNSProviderInterface
     {
         return new INWXProvider(

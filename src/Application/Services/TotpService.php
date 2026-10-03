@@ -89,7 +89,6 @@ final readonly class TotpService
         if ($secret === '') {
             throw new \InvalidArgumentException('TOTP secret must not be empty.');
         }
-        /** @var non-empty-string $secret */
         $totp = TOTP::createFromSecret($secret, $this->clock);
         $totp->setDigits(self::DIGITS);
         $totp->setDigest(self::ALGORITHM);

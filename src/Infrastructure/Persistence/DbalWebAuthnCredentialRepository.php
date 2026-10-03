@@ -22,7 +22,6 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
     #[\Override]
     public function findByUserId(string $userId): array
     {
-        /** @var list<array<string, mixed>> $rows */
         $rows = $this->connection->fetchAllAssociative(
             'SELECT credential_id, name, data, created_at, last_used_at
                FROM webauthn_credentials

@@ -31,6 +31,7 @@ use Webauthn\Exception\AuthenticatorResponseVerificationException;
  *
  * The request body must be the JSON object produced by
  * navigator.credentials.get() (with ArrayBuffers encoded as base64url).
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterface
 {

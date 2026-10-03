@@ -22,6 +22,7 @@ use TowerDNS\Infrastructure\Http\ActiveAccountContext;
 
 /**
  * GET /accounts/{account}/zones — lists locally managed zones for one account.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class ZoneListHandler implements RequestHandlerInterface
 {

@@ -32,7 +32,6 @@ final readonly class TotpSecretService
     /** @param string $secret Base32 TOTP secret verified during setup. */
     public function enable(string $userId, string $secret): void
     {
-        $ciphertext = '';
         try {
             $ciphertext = $this->cipher->encrypt($secret);
             $this->users->saveEncryptedTotpSecret($userId, $ciphertext);

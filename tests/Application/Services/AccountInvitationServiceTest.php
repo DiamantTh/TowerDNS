@@ -22,6 +22,7 @@ use TowerDNS\Domain\Account\AccountInvitation;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AccountInvitationServiceTest extends TestCase
 {
     public function testInvitationStoresOnlyHashAndCanBeAcceptedOnce(): void
@@ -45,7 +46,7 @@ final class AccountInvitationServiceTest extends TestCase
         $created = new AccountInvitation(7, 42, 'target@example.test', 'target', TeamRole::VIEWER, 'owner', str_repeat('a', 64), '2026-09-17 00:00:00', '2999-01-01 00:00:00');
         $invitations->method('findById')->with(7)->willReturn($created);
         $invitations->method('findByTokenHash')->with(hash('sha256', str_repeat('b', 64)))->willReturn($created);
-        $invitations->expects(self::once())->method('consume')->with(7, 'target', self::isType('string'), self::isType('string'))->willReturn(true);
+        $invitations->expects(self::once())->method('consume')->with(7, 'target', self::callback('is_string'), self::callback('is_string'))->willReturn(true);
         $limitsRepository = $this->createMock(AccountResourceLimitsRepositoryInterface::class);
         $limitsRepository->method('findByAccountId')->with(42)->willReturn(new \TowerDNS\Domain\Account\AccountResourceLimits(42, null, 10, null));
         $accounts->method('findMemberships')->with(42)->willReturn([]);

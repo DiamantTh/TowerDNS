@@ -10,6 +10,7 @@ namespace TowerDNS\Application\Repository;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Account\ZoneMembership;
 
+/** @psalm-api Application persistence port consumed through dependency injection. */
 interface ZoneMembershipRepositoryInterface
 {
     /**

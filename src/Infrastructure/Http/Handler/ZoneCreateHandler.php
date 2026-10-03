@@ -17,7 +17,9 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 
-/** Creates an account-owned managed zone. */
+/** Creates an account-owned managed zone.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
+ */
 final readonly class ZoneCreateHandler implements RequestHandlerInterface
 {
     public function __construct(

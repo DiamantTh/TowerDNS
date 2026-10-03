@@ -9,6 +9,7 @@ use TowerDNS\Application\DNS\RrsetComparator;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class RrsetComparatorTest extends TestCase
 {
     public function testRdataOrderAndTlsaHexCaseDoNotMatter(): void

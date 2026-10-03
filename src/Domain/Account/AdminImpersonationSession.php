@@ -16,6 +16,7 @@ namespace TowerDNS\Domain\Account;
  * All actions taken while an impersonation session is active MUST be
  * written to the audit log with both actor_user_id and effective_user_id set.
  */
+/** @psalm-api Impersonation persistence and audit value contract. */
 final readonly class AdminImpersonationSession
 {
     public function __construct(

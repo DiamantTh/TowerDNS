@@ -19,7 +19,9 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 
-/** Updates a record in one managed zone. */
+/** Updates a record in one managed zone.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
+ */
 final readonly class ZoneUpdateHandler implements RequestHandlerInterface
 {
     public function __construct(private ManagedZoneDNSService $dns, private AuditLogService $audit, private TranslatorInterface $translator) {}

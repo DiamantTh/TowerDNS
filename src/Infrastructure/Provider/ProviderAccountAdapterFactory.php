@@ -25,6 +25,7 @@ use TowerDNS\Domain\Account\ProviderAccount;
  * PowerDNS remains buildable for existing installations and system use, but
  * the central provider definition marks it as unavailable for new user-managed
  * provider accounts.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class ProviderAccountAdapterFactory implements AccountProviderFactoryInterface
 {

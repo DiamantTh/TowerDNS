@@ -17,6 +17,7 @@ use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
  * Caches the full row set for the lifetime of the instance (= one HTTP
  * request in PHP-FPM, one CLI command for Symfony Console). Writes invalidate
  * the cache.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final class DbalSystemSettingsRepository implements SystemSettingsRepositoryInterface
 {
@@ -74,6 +75,9 @@ final class DbalSystemSettingsRepository implements SystemSettingsRepositoryInte
 
         $now = $this->clock->now()->format('Y-m-d H:i:s');
 
+        // Invalidate before writing; if the transaction fails the next read
+        // must not keep a potentially stale request-local snapshot.
+        $this->cache = null;
         $this->connection->transactional(function (Connection $conn) use ($values, $actorUserId, $now): void {
             foreach ($values as $key => $value) {
                 $encoded = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -106,7 +110,5 @@ final class DbalSystemSettingsRepository implements SystemSettingsRepositoryInte
                 }
             }
         });
-
-        $this->cache = null;
     }
 }

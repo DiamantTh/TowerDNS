@@ -14,6 +14,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Services\ActiveAccountService;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class ActiveAccountHandler implements RequestHandlerInterface
 {
     public function __construct(private ActiveAccountService $accounts) {}

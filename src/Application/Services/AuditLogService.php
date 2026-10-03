@@ -19,6 +19,7 @@ use TowerDNS\Domain\Account\AuditLogEntry;
  * or admin actions MUST be recorded via this service.
  * NEVER include credentials or secrets in any parameter passed here.
  */
+/** @psalm-api Typed audit-event writers are the shared application audit boundary. */
 final readonly class AuditLogService
 {
     public function __construct(private AuditLogRepositoryInterface $repository) {}

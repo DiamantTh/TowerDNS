@@ -14,6 +14,7 @@ namespace TowerDNS\Domain\Account;
  * Example: Freund A gets TeamRole::DNS_MANAGER on pokeirc.tld only,
  * without seeing diamantthomy.info or sandkaufen.net in the same account.
  */
+/** @psalm-api Zone membership value contract consumed by authorization and persistence. */
 final readonly class ZoneMembership
 {
     public function __construct(

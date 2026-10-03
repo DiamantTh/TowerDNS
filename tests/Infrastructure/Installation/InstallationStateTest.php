@@ -9,10 +9,15 @@ namespace TowerDNS\Tests\Infrastructure\Installation;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Installation\InstallationState;
 
+/**
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
+ * @psalm-suppress PropertyNotSetInConstructor PHPUnit initializes the temporary root in setUp().
+ */
 final class InstallationStateTest extends TestCase
 {
     private string $root;
 
+    #[\Override]
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir() . '/towerdns-install-state-' . bin2hex(random_bytes(8));
@@ -20,6 +25,7 @@ final class InstallationStateTest extends TestCase
         mkdir($this->root . '/install', 0o750, true);
     }
 
+    #[\Override]
     protected function tearDown(): void
     {
         $this->removeTree($this->root);

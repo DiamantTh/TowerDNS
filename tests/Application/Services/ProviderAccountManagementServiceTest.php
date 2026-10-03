@@ -25,6 +25,7 @@ use TowerDNS\Domain\Account\ProviderAccount;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ProviderAccountManagementServiceTest extends TestCase
 {
     public function testCreateAuthorizesWithinTheAccountAndPersistsEncryptedCredentials(): void
@@ -37,7 +38,7 @@ final class ProviderAccountManagementServiceTest extends TestCase
             'Primary',
             self::callback(static fn(string $blob): bool => $blob !== '' && !str_contains($blob, 'secret-token')),
             CredentialService::currentVersion(),
-            self::isType('string'),
+            self::callback('is_string'),
         )->willReturn(9);
 
         $result = $this->service($accounts, $providers)->create(
@@ -141,16 +142,19 @@ final class ProviderAccountManagementServiceTest extends TestCase
 
 final class TestCredentialEncryptor implements CredentialEncryptorInterface
 {
+    #[\Override]
     public function encrypt(string $plaintext): string
     {
         return 'cipher:' . hash('sha256', $plaintext);
     }
 
+    #[\Override]
     public function wipe(string &$plaintext): void
     {
         $plaintext = '';
     }
 
+    #[\Override]
     public function decrypt(string $ciphertext): string
     {
         throw new \RuntimeException('Not used by this test double.');
@@ -159,6 +163,7 @@ final class TestCredentialEncryptor implements CredentialEncryptorInterface
 
 final class ExampleAccountProviderCredentialSchema implements ProviderCredentialSchemaInterface
 {
+    #[\Override]
     public function definitions(): array
     {
         return [
@@ -169,11 +174,13 @@ final class ExampleAccountProviderCredentialSchema implements ProviderCredential
     }
 
     /** @return array<string, string>|null */
+    #[\Override]
     public function credentialsFromInput(string $type, array $input): ?array
     {
         return isset($this->definitions()[$type]) ? ['token' => trim((string) ($input['token'] ?? ''))] : null;
     }
 
+    #[\Override]
     public function credentialsComplete(string $type, array $credentials): bool
     {
         return isset($this->definitions()[$type]) && ($credentials['token'] ?? '') !== '';

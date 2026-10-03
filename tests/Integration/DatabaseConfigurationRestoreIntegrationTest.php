@@ -13,7 +13,11 @@ use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
 
-/** Verifies that a database backup and its encryption-key config restore as one unit. */
+/**
+ * Verifies that a database backup and its encryption-key config restore as one unit.
+ *
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
+ */
 final class DatabaseConfigurationRestoreIntegrationTest extends TestCase
 {
     public function testBackupPairSurvivesMigrationAndRestoresAdministratorAndEncryptedCredentials(): void
@@ -41,7 +45,9 @@ final class DatabaseConfigurationRestoreIntegrationTest extends TestCase
         try {
             foreach ([$configDirectory, $dataDirectory, $backupDirectory] as $directory) {
                 self::assertTrue(mkdir($directory, 0o700, true));
-                self::assertSame(0o700, fileperms($directory) & 0o777);
+                $permissions = fileperms($directory);
+                self::assertIsInt($permissions);
+                self::assertSame(0o700, $permissions & 0o777);
             }
             self::assertFalse($this->isInsidePublicDocumentRoot($databasePath));
 
@@ -92,7 +98,6 @@ final class DatabaseConfigurationRestoreIntegrationTest extends TestCase
             // The test snapshots the closed SQLite database together with the exact
             // bootstrap config whose key decrypts the stored provider credential.
             $connection->close();
-            $connection = null;
             self::assertTrue(copy($databasePath, $backupDatabasePath));
             self::assertTrue(copy($configPath, $backupConfigPath));
 
@@ -109,7 +114,6 @@ final class DatabaseConfigurationRestoreIntegrationTest extends TestCase
             $this->assertInstalledData($connection, $userId, $email, $password, $passwordHash, $organizationId, $ciphertext, $key);
             self::assertSame('de-DE', $connection->fetchOne('SELECT language FROM users WHERE id = ?', [$userId]));
             $connection->close();
-            $connection = null;
 
             // Simulate a changed/lost local key, then restore the paired database
             // and configuration backups in place.
@@ -134,7 +138,9 @@ final class DatabaseConfigurationRestoreIntegrationTest extends TestCase
             self::assertIsString($restoredConfig);
             self::assertStringContainsString('encryption_key = "' . $key . '"', $restoredConfig);
             self::assertStringContainsString('path = "' . $databasePath . '"', $restoredConfig);
-            self::assertSame(0o600, fileperms($configPath) & 0o777);
+            $permissions = fileperms($configPath);
+            self::assertIsInt($permissions);
+            self::assertSame(0o600, $permissions & 0o777);
 
             $connection = $this->connect($databasePath);
             self::assertTrue(new SchemaMigrationManager($connection, $root . '/install/restore-validation.lock')->status()->schemaCurrent);
@@ -187,7 +193,14 @@ final class DatabaseConfigurationRestoreIntegrationTest extends TestCase
         $projectRoot = dirname(__DIR__, 2);
         $publicRoot  = realpath($projectRoot . '/httpdocs');
 
-        return $publicRoot !== false && str_starts_with(realpath(dirname($path)) ?: dirname($path), $publicRoot . DIRECTORY_SEPARATOR);
+        if ($publicRoot === false) {
+            return false;
+        }
+
+        $directory = realpath(dirname($path));
+        $directory = $directory !== false ? $directory : dirname($path);
+
+        return str_starts_with($directory, $publicRoot . DIRECTORY_SEPARATOR);
     }
 
     private function assertInstalledData(
@@ -204,7 +217,7 @@ final class DatabaseConfigurationRestoreIntegrationTest extends TestCase
         self::assertIsArray($user);
         self::assertSame($email, $user['email']);
         self::assertSame($passwordHash, $user['password_hash']);
-        self::assertTrue(password_verify($password, (string) $user['password_hash']));
+        self::assertTrue(password_verify($password, $user['password_hash']));
 
         self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts'));
         self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM account_memberships WHERE user_id = ? AND role = ?', [$userId, 'owner']));

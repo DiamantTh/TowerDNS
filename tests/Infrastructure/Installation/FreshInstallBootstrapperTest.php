@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class FreshInstallBootstrapperTest extends TestCase
 {
     public function testBootstrapsAnEmptyDatabaseToAUsableAdminAndOwnerAccount(): void

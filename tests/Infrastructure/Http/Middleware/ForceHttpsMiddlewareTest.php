@@ -16,6 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ForceHttpsMiddlewareTest extends TestCase
 {
     public function testPassesThroughWhenDisabled(): void
@@ -84,6 +85,7 @@ final class ForceHttpsMiddlewareTest extends TestCase
     private function passThroughHandler(): RequestHandlerInterface
     {
         return new readonly class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 return new Response();
@@ -94,6 +96,7 @@ final class ForceHttpsMiddlewareTest extends TestCase
     private function failIfCalledHandler(): RequestHandlerInterface
     {
         return new readonly class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 throw new \RuntimeException('Handler must not be reached for an insecure request.');

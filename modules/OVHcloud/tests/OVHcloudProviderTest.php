@@ -21,6 +21,7 @@ use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Module\OVHcloud\OVHcloudProvider;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class OVHcloudProviderTest extends TestCase
 {
     public function testListsZonesUsingDnsDeploymentStatusOnly(): void

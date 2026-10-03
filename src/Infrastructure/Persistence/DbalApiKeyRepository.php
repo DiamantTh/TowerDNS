@@ -10,6 +10,7 @@ namespace TowerDNS\Infrastructure\Persistence;
 use Doctrine\DBAL\Connection;
 use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
 {
     public function __construct(private Connection $connection) {}
@@ -28,9 +29,9 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
 
         return array_map(static fn(array $row): array => [
             'id'         => (int) $row['id'],
-            'name'       => (string) $row['name'],
-            'created_at' => isset($row['created_at']) ? (string) $row['created_at'] : null,
-            'last_used'  => isset($row['last_used']) ? (string) $row['last_used'] : null,
+            'name'       => $row['name'],
+            'created_at' => $row['created_at'] ?? null,
+            'last_used'  => $row['last_used']  ?? null,
             'is_active'  => (bool) $row['is_active'],
         ], $rows);
     }

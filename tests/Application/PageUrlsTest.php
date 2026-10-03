@@ -7,6 +7,7 @@ namespace TowerDNS\Tests\Application;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\PageUrls;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class PageUrlsTest extends TestCase
 {
     public function testPhpPagesEncodeIdsAndPreserveFlashQueries(): void

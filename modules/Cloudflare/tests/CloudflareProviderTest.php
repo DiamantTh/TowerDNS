@@ -19,6 +19,7 @@ use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Module\Cloudflare\CloudflareAPIException;
 use TowerDNS\Module\Cloudflare\CloudflareProvider;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class CloudflareProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */

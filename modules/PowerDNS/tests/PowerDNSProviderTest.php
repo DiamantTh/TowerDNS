@@ -25,6 +25,7 @@ use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Module\PowerDNS\PowerDNSProvider;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class PowerDNSProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */

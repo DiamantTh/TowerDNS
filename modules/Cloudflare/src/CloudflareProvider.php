@@ -34,6 +34,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * concept of key management exposed to API clients.
  *
  * @see https://developers.cloudflare.com/api/
+ * @psalm-api Loaded through the dynamic provider-module contract.
  */
 final class CloudflareProvider extends AbstractDNSProvider
 {
@@ -47,16 +48,19 @@ final class CloudflareProvider extends AbstractDNSProvider
         parent::__construct();
     }
 
+    #[\Override]
     public function id(): string
     {
         return self::ID;
     }
 
+    #[\Override]
     public function displayName(): string
     {
         return 'Cloudflare';
     }
 
+    #[\Override]
     protected function capabilityMap(): array
     {
         return [
@@ -96,6 +100,7 @@ final class CloudflareProvider extends AbstractDNSProvider
 
     // ── Zone operations ───────────────────────────────────────────────────────
 
+    #[\Override]
     public function listZones(): array
     {
         $zones = [];
@@ -105,11 +110,13 @@ final class CloudflareProvider extends AbstractDNSProvider
         return $zones;
     }
 
+    #[\Override]
     public function createZone(string $zoneName): Zone
     {
         return $this->mapZone($this->client->createZone($zoneName));
     }
 
+    #[\Override]
     public function deleteZone(string $zoneId): void
     {
         $this->client->deleteZone($zoneId);
@@ -117,6 +124,7 @@ final class CloudflareProvider extends AbstractDNSProvider
 
     // ── Record operations ─────────────────────────────────────────────────────
 
+    #[\Override]
     public function listRecords(string $zoneId): array
     {
         $records = [];
@@ -129,6 +137,7 @@ final class CloudflareProvider extends AbstractDNSProvider
         return $records;
     }
 
+    #[\Override]
     public function createRecord(Record $record): Record
     {
         $name    = $this->toFqdn($record->name, $record->zoneId);
@@ -147,6 +156,7 @@ final class CloudflareProvider extends AbstractDNSProvider
         return $this->mapRecord($record->zoneId, $row) ?? $record;
     }
 
+    #[\Override]
     public function updateRecord(Record $record): Record
     {
         $name    = $this->toFqdn($record->name, $record->zoneId);
@@ -166,12 +176,14 @@ final class CloudflareProvider extends AbstractDNSProvider
         return $this->mapRecord($record->zoneId, $row) ?? $record;
     }
 
+    #[\Override]
     public function deleteRecord(string $zoneId, string $recordId): void
     {
         // recordId is the Cloudflare native UUID
         $this->client->deleteDnsRecord($zoneId, $recordId);
     }
 
+    #[\Override]
     public function replaceRrset(Rrset $rrset): Rrset
     {
         $type = RecordType::tryFrom($rrset->type->presentation);
@@ -216,6 +228,7 @@ final class CloudflareProvider extends AbstractDNSProvider
         return $this->readRrset($rrset);
     }
 
+    #[\Override]
     public function deleteRrset(string $zoneId, string $ownerName, string $type): void
     {
         foreach ($this->listRecords($zoneId) as $record) {
@@ -237,6 +250,7 @@ final class CloudflareProvider extends AbstractDNSProvider
 
     // ── DNSSEC operations ─────────────────────────────────────────────────────
 
+    #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {
         $row    = $this->client->getDnssec($zoneId);
@@ -267,6 +281,7 @@ final class CloudflareProvider extends AbstractDNSProvider
         );
     }
 
+    #[\Override]
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         $cfStatus = match ($action) {

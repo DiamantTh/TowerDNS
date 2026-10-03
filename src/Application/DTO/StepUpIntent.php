@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application\DTO;
 
 /** Server-side intent binding the second-factor challenge to one mutation. */
+/** @psalm-api Session-bound step-up challenge state shared across handlers. */
 final readonly class StepUpIntent
 {
     public function __construct(

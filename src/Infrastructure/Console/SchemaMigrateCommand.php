@@ -16,8 +16,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 
 #[AsCommand(name: 'towerdns:schema:migrate', description: 'Apply pending TowerDNS database migrations')]
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final class SchemaMigrateCommand extends Command
 {
+    /** @psalm-api Symfony instantiates this command from its runtime command map. */
     public function __construct(private readonly SchemaMigrationManager $migrations)
     {
         parent::__construct();

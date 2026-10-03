@@ -34,6 +34,7 @@ final class RecordValidator
         }
     }
 
+    /** @psalm-api Validation entry point for callers that do not need canonicalized RDATA. */
     public static function assertContent(RecordType $type, string $content): void
     {
         self::normaliseContent($type, $content);

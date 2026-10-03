@@ -13,6 +13,7 @@ use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Infrastructure\Console\StructuredOutput;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class StructuredOutputTest extends TestCase
 {
     public function testWritesMachineReadableJsonAndToml(): void

@@ -14,12 +14,14 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\Middleware\OwnProfileMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\VirtualPhpPageMiddleware;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class OwnProfileMiddlewareTest extends TestCase
 {
     public function testImpersonationCannotAccessProfileOrCredentialRoutes(): void
     {
         $middleware = new OwnProfileMiddleware();
         $next       = new class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 return new EmptyResponse(204);
@@ -45,6 +47,7 @@ final class OwnProfileMiddlewareTest extends TestCase
             ->withAttribute('actor_user', new User('actor', 'actor@example.test'))
             ->withAttribute(User::class, new User('effective', 'effective@example.test'));
         $next = new class implements RequestHandlerInterface {
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 return new EmptyResponse(204);
@@ -54,6 +57,7 @@ final class OwnProfileMiddlewareTest extends TestCase
         $pipeline = new readonly class ($profile, $next) implements RequestHandlerInterface {
             public function __construct(private OwnProfileMiddleware $profile, private RequestHandlerInterface $next) {}
 
+            #[\Override]
             public function handle(ServerRequestInterface $request): ResponseInterface
             {
                 return $this->profile->process($request, $this->next);

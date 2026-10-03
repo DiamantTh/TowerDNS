@@ -17,6 +17,7 @@ use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Console\RecordListCommand;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class RecordListCommandTest extends TestCase
 {
     public function testResolvesZoneNameBeforeListingRecords(): void

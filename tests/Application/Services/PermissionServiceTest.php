@@ -22,6 +22,7 @@ use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class PermissionServiceTest extends TestCase
 {
     public function testTeamRoleBundlesExpressTheExpectedBoundaries(): void

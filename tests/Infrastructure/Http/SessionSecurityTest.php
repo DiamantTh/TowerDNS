@@ -15,6 +15,7 @@ use TowerDNS\Application\Repository\StepUpProofNonceRepositoryInterface;
 use TowerDNS\Application\Services\StepUpProofService;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SessionSecurityTest extends TestCase
 {
     public function testCompletingLoginRegeneratesTheSessionAndRecordsItsLifetime(): void
@@ -157,6 +158,7 @@ final class SessionSecurityTest extends TestCase
         return new readonly class ($timestamp) implements ClockInterface {
             public function __construct(private int $timestamp) {}
 
+            #[\Override]
             public function now(): \DateTimeImmutable
             {
                 return new \DateTimeImmutable()->setTimestamp($this->timestamp);

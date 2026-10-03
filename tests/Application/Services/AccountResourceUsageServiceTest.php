@@ -19,6 +19,7 @@ use TowerDNS\Domain\Account\AccountResourceLimits;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AccountResourceUsageServiceTest extends TestCase
 {
     public function testUsageSnapshotContainsCountsAndUnlimitedLimits(): void

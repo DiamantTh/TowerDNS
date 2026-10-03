@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\Permission;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class TeamRoleTest extends TestCase
 {
     public function testMembershipRoleIsNotMarkedAsBuiltIn(): void

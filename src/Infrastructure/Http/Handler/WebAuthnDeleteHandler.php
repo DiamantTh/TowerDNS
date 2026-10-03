@@ -21,6 +21,7 @@ use TowerDNS\Domain\Auth\User;
  *
  * Deletes one of the current user's WebAuthn credentials.
  * credentialId is base64url-encoded raw credential bytes.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class WebAuthnDeleteHandler implements RequestHandlerInterface
 {
@@ -35,9 +36,8 @@ final readonly class WebAuthnDeleteHandler implements RequestHandlerInterface
         /** @var \Mezzio\Csrf\CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new RedirectResponse('/profile/webauthn?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
@@ -46,7 +46,7 @@ final readonly class WebAuthnDeleteHandler implements RequestHandlerInterface
         // credentialId in the URL is base64url-encoded raw bytes.
         /** @var array<string, string> $routeParams */
         $routeParams = $request->getAttribute(\Mezzio\Router\RouteResult::class)?->getMatchedParams() ?? [];
-        $credIdUrl   = (string) ($routeParams['credentialId'] ?? '');
+        $credIdUrl   = $routeParams['credentialId']                                                   ?? '';
 
         if ($credIdUrl === '') {
             return new RedirectResponse('/profile/webauthn?error=' . rawurlencode($this->translator->translate('webauthn.error.key-not-found')));

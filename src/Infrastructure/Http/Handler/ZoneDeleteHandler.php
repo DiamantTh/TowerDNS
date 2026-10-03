@@ -18,7 +18,9 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\User;
 
-/** Deletes exactly one account-owned managed zone. */
+/** Deletes exactly one account-owned managed zone.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
+ */
 final readonly class ZoneDeleteHandler implements RequestHandlerInterface
 {
     public function __construct(

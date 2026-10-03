@@ -16,6 +16,7 @@ use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ApiKeyHandlerTest extends TestCase
 {
     public function testPostWithoutAKeyIdDoesNotIssueAnUnsupportedApiCredential(): void

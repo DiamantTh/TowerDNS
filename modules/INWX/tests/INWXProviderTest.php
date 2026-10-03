@@ -13,6 +13,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Module\INWX\INWXProvider;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class INWXProviderTest extends TestCase
 {
     public function testDoesNotAdvertiseZoneUpdatesWithoutAnUpdateOperation(): void

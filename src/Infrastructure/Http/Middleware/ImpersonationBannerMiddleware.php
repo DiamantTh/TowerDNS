@@ -51,10 +51,19 @@ final readonly class ImpersonationBannerMiddleware implements MiddlewareInterfac
             return $response;
         }
 
+        $effectiveName = $effective->displayName;
+        if ($effectiveName === null || $effectiveName === '') {
+            $effectiveName = $effective->email;
+        }
+        $actorName = $actor->displayName;
+        if ($actorName === null || $actorName === '') {
+            $actorName = $actor->email;
+        }
+
         $message = htmlspecialchars(sprintf(
             $this->translator->translate('admin-switch.active-banner'),
-            ($effective->displayName ?? '') !== '' ? $effective->displayName : $effective->email,
-            ($actor->displayName ?? '')     !== '' ? $actor->displayName : $actor->email,
+            $effectiveName,
+            $actorName,
         ), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $token     = htmlspecialchars($guard->generateToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $label     = htmlspecialchars($this->translator->translate('admin-switch.end'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');

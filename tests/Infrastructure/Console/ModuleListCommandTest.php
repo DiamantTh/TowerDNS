@@ -12,6 +12,7 @@ use Symfony\Component\Console\Tester\CommandTester;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
 use TowerDNS\Infrastructure\Console\ModuleListCommand;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ModuleListCommandTest extends TestCase
 {
     public function testJsonFormatContainsDiscoveredModules(): void

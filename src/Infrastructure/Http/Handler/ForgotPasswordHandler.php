@@ -65,9 +65,8 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
         }
 
         // POST
-        /** @var array<string, string> $body */
-        $body  = (array) ($request->getParsedBody() ?? []);
-        $token = (string) ($body['csrf_token'] ?? '');
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        $token = ($body['csrf_token'] ?? '');
 
         if (!$guard->validateToken($token)) {
             return new HtmlResponse(
@@ -80,7 +79,7 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
             );
         }
 
-        $email = strtolower(trim((string) ($body['email'] ?? '')));
+        $email = strtolower(trim(($body['email'] ?? '')));
 
         $ip      = (string) ($request->getAttribute(ClientIpResolver::ATTRIBUTE) ?? '');
         $limiter = new RateLimiter(

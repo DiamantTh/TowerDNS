@@ -20,11 +20,16 @@ use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
 
+/**
+ * @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible.
+ * @psalm-suppress PropertyNotSetInConstructor PHPUnit initializes fixtures in setUp().
+ */
 final class UserLifecycleServiceTest extends TestCase
 {
     private Connection $connection;
     private UserLifecycleService $lifecycle;
 
+    #[\Override]
     protected function setUp(): void
     {
         $this->connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);

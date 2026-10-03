@@ -17,6 +17,7 @@ use TowerDNS\Domain\Account\Account;
 use TowerDNS\Domain\Account\TeamRole;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AccountManagementServiceTest extends TestCase
 {
     public function testCreateRejectsMissingNameOrSlug(): void
@@ -54,7 +55,7 @@ final class AccountManagementServiceTest extends TestCase
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->expects(self::once())->method('create')
-            ->with('Team', 'team', 'owner', self::isType('string'))
+            ->with('Team', 'team', 'owner', self::callback('is_string'))
             ->willReturn(42);
         $accounts->method('findById')->with(42)->willReturn(
             new Account(42, 'Team', 'team', 'owner', true, '2026-09-16 00:00:00'),

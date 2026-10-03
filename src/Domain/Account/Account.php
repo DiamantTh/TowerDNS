@@ -13,6 +13,7 @@ namespace TowerDNS\Domain\Account;
  * Every Zone and every ProviderAccount belongs to exactly one Account.
  * Users are associated with Accounts via {@see AccountMembership}.
  */
+/** @psalm-api Domain account value contract shared by persistence and application layers. */
 final readonly class Account
 {
     public function __construct(

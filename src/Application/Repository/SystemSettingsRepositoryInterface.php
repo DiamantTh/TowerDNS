@@ -15,6 +15,7 @@ namespace TowerDNS\Application\Repository;
  *
  * Implementations SHOULD cache reads for the duration of a single request.
  */
+/** @psalm-api Application persistence port consumed through dependency injection. */
 interface SystemSettingsRepositoryInterface
 {
     /**

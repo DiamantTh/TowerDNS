@@ -15,8 +15,10 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 
 #[AsCommand(name: 'towerdns:schema:validate', description: 'Validate the TowerDNS database schema')]
+/** @psalm-api Constructed through runtime dependency injection or command/handler registration. */
 final class SchemaValidateCommand extends Command
 {
+    /** @psalm-api Symfony instantiates this command from its runtime command map. */
     public function __construct(private readonly SchemaMigrationManager $migrations)
     {
         parent::__construct();

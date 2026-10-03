@@ -38,5 +38,6 @@ final class Capability
 
     public const string PROVIDER_CREDENTIALS_MANAGE = 'provider.credentials.manage';
 
+    /** @psalm-suppress UnusedConstructor This constants-only catalogue must not be instantiated. */
     private function __construct() {}
 }

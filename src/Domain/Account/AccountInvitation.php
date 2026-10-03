@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Domain\Account;
 
+/** @psalm-api Invitation value contract shared by repositories and handlers. */
 final readonly class AccountInvitation
 {
     public function __construct(

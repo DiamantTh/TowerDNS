@@ -21,6 +21,7 @@ use TowerDNS\Domain\Auth\User;
  *
  * Shows a list of all registered WebAuthn credentials for the current user
  * and provides the interface to add new keys or remove existing ones.
+ * @psalm-api Constructed through runtime dependency injection or command/handler registration.
  */
 final readonly class WebAuthnProfileHandler implements RequestHandlerInterface
 {

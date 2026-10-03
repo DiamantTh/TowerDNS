@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationLock;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationLockedException;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class SchemaMigrationLockTest extends TestCase
 {
     public function testASecondFileBasedUpgradeCannotAcquireTheSameLock(): void

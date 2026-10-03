@@ -13,6 +13,7 @@ use TowerDNS\Domain\Account\AdminImpersonationSession;
 use TowerDNS\Domain\Account\AuditLogEntry;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AuditLogServiceTest extends TestCase
 {
     public function testRecordsAServiceOrCliMutationWithoutAnHttpRequest(): void
@@ -26,7 +27,7 @@ final class AuditLogServiceTest extends TestCase
                 && $entry->action                                                       === 'zone.member.grant'
                 && $entry->metadataJson                                                 === ['role' => 'viewer']
                 && $entry->ipAddress                                                    === null),
-            self::isType('string'),
+            self::callback('is_string'),
         );
 
         new AuditLogService($repository)->recordWithContext(
@@ -70,7 +71,7 @@ final class AuditLogServiceTest extends TestCase
             self::callback(static fn(AuditLogEntry $entry): bool => $entry->actorUserId === 'admin'
                 && $entry->effectiveUserId                                              === 'target'
                 && $entry->impersonationSessionId                                       === 'switch-1'),
-            self::isType('string'),
+            self::callback('is_string'),
         );
         $admin   = new User('admin', 'admin@example.test');
         $target  = new User('target', 'target@example.test');

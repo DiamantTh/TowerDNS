@@ -15,6 +15,7 @@ use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class PermissionRegistryTest extends TestCase
 {
     public function testModulePermissionIsNormalisedAndPreservedByRole(): void

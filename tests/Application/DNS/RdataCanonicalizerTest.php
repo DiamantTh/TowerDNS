@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\DNS\RdataCanonicalizer;
 use TowerDNS\Domain\DNS\DNSRecordType;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class RdataCanonicalizerTest extends TestCase
 {
     public function testTlsaMatchingTypeZeroAcceptsLongAssociationData(): void
