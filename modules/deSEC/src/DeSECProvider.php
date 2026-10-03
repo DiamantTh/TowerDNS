@@ -103,16 +103,25 @@ final class DeSECProvider extends AbstractDNSProvider
     {
         $records = [];
         foreach ($this->client->getRRSets($zoneId) as $rrset) {
-            $type = $this->mapType($rrset['type'] ?? '');
+            $typeValue = $rrset['type'] ?? null;
+            if (!is_string($typeValue)) {
+                throw new DeSECApiException('deSEC lieferte einen RRset-Eintrag mit ungültigem Record-Typ.');
+            }
+            $type = $this->mapType($typeValue);
             if (!$type instanceof RecordType) {
                 continue;
             }
             $name = (string) ($rrset['subname'] ?? '');
             $ttl  = (int) ($rrset['ttl'] ?? 3600);
 
-            /** @var list<string> $contents */
-            $contents = $rrset['records'] ?? [];
+            $contents = $rrset['records'] ?? null;
+            if (!is_array($contents) || !array_is_list($contents)) {
+                throw new DeSECApiException('deSEC lieferte für ein RRset ungültige Record-Daten.');
+            }
             foreach ($contents as $content) {
+                if (!is_string($content)) {
+                    throw new DeSECApiException('deSEC lieferte für ein RRset einen ungültigen RDATA-Wert.');
+                }
                 $records[] = new Record(
                     id: $this->buildRecordId($zoneId, $name, $type, $content),
                     zoneId: $zoneId,

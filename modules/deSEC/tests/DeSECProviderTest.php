@@ -39,6 +39,26 @@ final class DeSECProviderTest extends TestCase
         self::assertSame('/example.org/rrsets/_443._tcp/TLSA/', $this->requests[0]->getUri()->getPath());
     }
 
+    public function testListRecordsRejectsMalformedProviderRecordType(): void
+    {
+        $provider = $this->provider([
+            $this->json([['subname' => 'bad-type', 'type' => 42, 'ttl' => 300, 'records' => ['192.0.2.11']]]),
+        ]);
+
+        $this->expectException(DeSECApiException::class);
+        $provider->listRecords('example.org');
+    }
+
+    public function testListRecordsRejectsMalformedProviderRdata(): void
+    {
+        $provider = $this->provider([
+            $this->json([['subname' => 'bad-rdata', 'type' => 'A', 'ttl' => 300, 'records' => ['192.0.2.10', 42]]]),
+        ]);
+
+        $this->expectException(DeSECApiException::class);
+        $provider->listRecords('example.org');
+    }
+
     public function testApiTokenIsNotForwardedAcrossRedirects(): void
     {
         $provider = $this->provider([
