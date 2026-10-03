@@ -72,7 +72,7 @@ erst nach den betroffenen Datenbank-, HTTP- und statischen Tests übernommen.
 
 ```
 composer install
-composer check       # lint + PHP-CS-Fixer + PHPCS + Rector + PHPStan + PHPUnit
+composer check       # lint + PHP-CS-Fixer + PHPCS + Rector + PHPStan + Psalm + PHPUnit
 npm install
 npm run check
 npm run build        # Frontend-Assets -> httpdocs/assets/
@@ -87,6 +87,17 @@ PHPCS formatiert nicht erneut: `composer phpcs` untersagt nur bewusst
 risikoreiche globale PHP-Funktionen in Produktcode. Damit
 ergänzt es Formatter, PHPStan (Typen/Analyse), Rector (Modernisierung) und
 PHPUnit (Verhalten), ohne deren Regeln zu duplizieren.
+
+Psalm prüft `src/`, `modules/` und `tests/` mit PHP-8.4-Typregeln und
+Error-Level 2; es gibt keine Baseline. `composer psalm-taint` führt die
+separate Taint-Analyse für Datenflüsse aus. Die zusätzliche Level-1-Probe
+lieferte derzeit vor allem offene `mixed`-Grenzen an Framework- und
+Fremdbibliotheksdaten; deshalb bleibt Level 2 der verbindliche Standard.
+
+`composer check` führt PHP-CS-Fixer sequenziell und Rector/PHPStan im
+Debug-Einzelprozess aus. Das vermeidet lokale Worker-Listener, die in
+beschränkten Container- und Sandbox-Umgebungen nicht gebunden werden können;
+Regeln und Prüfumfang werden dadurch nicht reduziert.
 
 Die Hauptseiten verwenden sichtbare PHP-Adressen wie `/index.php`, `/zones.php`,
 `/records.php?account=107&zone=21` und `/profile.php`. Nur `index.php` ist

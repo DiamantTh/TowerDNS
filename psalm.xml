@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<psalm
+    errorLevel="2"
+    phpVersion="8.4"
+    cacheDirectory="cache/psalm"
+    autoloader="vendor/autoload.php"
+    resolveFromConfigFile="true"
+>
+    <projectFiles>
+        <directory name="src" />
+        <directory name="modules" />
+        <directory name="tests" />
+        <ignoreFiles>
+            <directory name="vendor" />
+        </ignoreFiles>
+    </projectFiles>
+</psalm>
