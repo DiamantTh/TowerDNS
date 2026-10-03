@@ -289,8 +289,9 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
             $result         = is_file($resultPath) ? file_get_contents($resultPath) : false;
             $resultTimedOut = $result === false;
             if ($resultTimedOut) {
-                if (function_exists('posix_kill')) {
-                    posix_kill($worker['pid'], SIGTERM);
+                if (function_exists('posix_kill') && defined('SIGTERM')) {
+                    $terminationSignal = constant('SIGTERM');
+                    posix_kill($worker['pid'], $terminationSignal);
                 }
             }
             $decoded       = is_string($result) ? json_decode($result, true) : null;
