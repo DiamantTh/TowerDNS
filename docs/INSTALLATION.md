@@ -8,8 +8,9 @@ eigene Release-Paketierung.
 
 ## Voraussetzungen
 
-TowerDNS benötigt PHP 8.4 oder neuer. PHP 8.4 ist zum Zeitpunkt dieser
-Version eine unterstützte PHP-Version; die aktuelle Support-Matrix steht in der
+TowerDNS benötigt PHP 8.4.3 oder neuer. Die niedrigste unterstützte
+PHP-Patchversion ergibt sich aus den installierten Laufzeit- und QA-Abhängigkeiten;
+die aktuelle Support-Matrix steht in der
 [offiziellen PHP-Übersicht](https://www.php.net/supported-versions.php).
 
 Immer erforderlich sind die PHP-Erweiterungen `intl`, `json`, `mbstring`,
@@ -191,7 +192,7 @@ Dateien werden dabei nicht verändert.
 
 ## Shared Hosting und PHP-FPM
 
-Auf klassischem Shared Hosting sind PHP 8.4+, der passende PDO-Treiber,
+Auf klassischem Shared Hosting sind PHP 8.4.3+, der passende PDO-Treiber,
 Schreibrechte für die privaten Verzeichnisse und ein auf `httpdocs/` gesetzter
 DocumentRoot erforderlich. Composer, Node.js, SSH, Root-Rechte und dauerhafte
 Worker werden zur Laufzeit nicht benötigt, müssen aber für einen
@@ -206,7 +207,7 @@ Der typische Ablauf auf einem geeigneten Hosting-Paket ist:
 
 1. Ein vorbereitetes TowerDNS-Deployment-Verzeichnis in den privaten Webspace
    übertragen und den DocumentRoot auf `httpdocs/` setzen.
-2. Beim Hosting-Provider PHP 8.4+ und den benötigten PDO-Treiber aktivieren und
+2. Beim Hosting-Provider PHP 8.4.3+ und den benötigten PDO-Treiber aktivieren und
    eine Datenbank samt Benutzer anlegen.
 3. `https://example.org/install.php` aufrufen und die Zugangsdaten eingeben.
 4. Nach erfolgreicher Einrichtung mit dem gewählten Admin-Konto anmelden und

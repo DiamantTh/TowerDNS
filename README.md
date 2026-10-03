@@ -37,7 +37,7 @@ Rechtepruefungen sind zentral im Core und nicht nur in der UI.
 
 ## Technische Basis
 
-- PHP >= 8.4, Composer (PSR-4 unter `TowerDNS\`)
+- PHP >= 8.4.3, Composer (PSR-4 unter `TowerDNS\`)
 - HTTP-Schicht: Mezzio (PSR-15) + FastRoute + PHP-DI
 - UI-Renderer: Svelte-Anwendungsshell mit sicherem JSON-Bootstrap (ohne Twig)
 - Sessions/CSRF: `mezzio-session`, `mezzio-session-ext`, `mezzio-csrf`
