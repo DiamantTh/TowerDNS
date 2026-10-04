@@ -33,7 +33,7 @@ final readonly class StepUpProofService
         ?string $impersonationSessionId,
         string $method,
     ): StepUpProof {
-        if (!in_array($method, ['totp', 'webauthn'], true)) {
+        if (!in_array($method, ['password', 'totp', 'webauthn'], true)) {
             throw new \InvalidArgumentException('Unsupported step-up method.');
         }
 
@@ -72,7 +72,7 @@ final readonly class StepUpProofService
             || $proof->action                 !== $action
             || $proof->targetId               !== $targetId
             || $proof->impersonationSessionId !== $impersonationSessionId
-            || !in_array($proof->method, ['totp', 'webauthn'], true)
+            || !in_array($proof->method, ['password', 'totp', 'webauthn'], true)
             || preg_match('/^[a-f0-9]{32}$/D', $proof->nonce)     !== 1
             || preg_match('/^[a-f0-9]{64}$/D', $proof->signature) !== 1) {
             return false;

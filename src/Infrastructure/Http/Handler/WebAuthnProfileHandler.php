@@ -13,6 +13,7 @@ use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Domain\Auth\User;
 
@@ -28,6 +29,7 @@ final readonly class WebAuthnProfileHandler implements RequestHandlerInterface
     public function __construct(
         private TemplateRendererInterface              $renderer,
         private WebAuthnCredentialRepositoryInterface $webAuthn,
+        private SystemSettingsRepositoryInterface $settings,
     ) {}
 
     #[\Override]
@@ -54,12 +56,14 @@ final readonly class WebAuthnProfileHandler implements RequestHandlerInterface
 
         return new HtmlResponse(
             $this->renderer->render('app::profile/webauthn', [
-                'user'      => $currentUser,
-                'csrfToken' => $guard->generateToken(),
-                'active'    => 'profile',
-                'keys'      => $keys,
-                'success'   => $flash['success'] ?? null,
-                'error'     => $flash['error']   ?? null,
+                'user'            => $currentUser,
+                'csrfToken'       => $guard->generateToken(),
+                'active'          => 'profile',
+                'keys'            => $keys,
+                'credentialLimit' => max(1, min(100, (int) $this->settings->get('security.webauthn.max_credentials_per_user', 10))),
+                'credentialCount' => count($keys),
+                'success'         => $flash['success'] ?? null,
+                'error'           => $flash['error']   ?? null,
             ])
         );
     }

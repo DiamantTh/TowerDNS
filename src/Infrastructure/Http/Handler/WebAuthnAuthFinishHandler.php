@@ -57,7 +57,8 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         $userId      = $this->sessionSecurity->pendingMfaUserId($session);
         $optionsJson = $session->get('webauthn_auth_options');
 
-        if ($userId === null || !is_string($optionsJson) || $optionsJson === '') {
+        $mfaType = $session->get('mfa_type');
+        if ($userId === null || !in_array($mfaType, ['webauthn', 'passwordless'], true) || !is_string($optionsJson) || $optionsJson === '') {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-pending')], 400);
         }
 
@@ -83,10 +84,15 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         }
 
         // Determine which credential was used.
+        /** @var mixed $decoded */
+        $decoded = json_decode($body, true);
+        if (!is_array($decoded)) {
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-response')], 422);
+        }
         /** @var array<string, mixed> $parsed */
-        $parsed   = json_decode($body, true) ?? [];
-        $rawIdB64 = (string) ($parsed['rawId'] ?? $parsed['id'] ?? '');
-        if ($rawIdB64 === '') {
+        $parsed   = $decoded;
+        $rawIdB64 = $parsed['rawId'] ?? $parsed['id'] ?? null;
+        if (!is_string($rawIdB64) || $rawIdB64 === '') {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-response')], 422);
         }
 
@@ -95,7 +101,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-response')], 422);
         }
 
-        $source = $this->credentialRepo->findByCredentialId($credentialId);
+        $source = $this->credentialRepo->findByCredentialIdForUser($credentialId, $userId);
         if (!$source instanceof \Webauthn\CredentialRecord) {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }
@@ -108,12 +114,15 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         }
 
         // Persist updated counter + backup flags.
-        $this->credentialRepo->updateAfterAuthentication($credentialId, $updatedSource->counter);
+        $this->credentialRepo->updateAfterAuthentication($updatedSource);
 
         // Complete login.
         $this->sessionSecurity->completeLogin($session, $userId);
         $this->users->updateLastLoginAt($userId);
         $this->audit->recordLogin($request, $userId);
+        if ($mfaType === 'webauthn') {
+            $this->audit->recordPasswordBreakGlassUsed($request, $userId, 'webauthn');
+        }
 
         return new JsonResponse(['ok' => true, 'redirect' => '/']);
     }

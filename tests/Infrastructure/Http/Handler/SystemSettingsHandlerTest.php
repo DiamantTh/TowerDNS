@@ -11,6 +11,7 @@ use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Auth\Permission;
@@ -98,11 +99,16 @@ final class SystemSettingsHandlerTest extends TestCase
             $settings = $this->createMock(SystemSettingsRepositoryInterface::class);
             $settings->expects(self::once())->method('setMany')->with(
                 [
-                    'security.password.min_length'     => 20,
-                    'security.password.min_score'      => 4,
-                    'security.password.hibp_enabled'   => true,
-                    'security.password.hibp_fail_open' => false,
-                    'security.password.hibp_timeout'   => 5.0,
+                    'security.password.min_length'               => 20,
+                    'security.password.min_score'                => 4,
+                    'security.password.hibp_enabled'             => true,
+                    'security.password.hibp_fail_open'           => false,
+                    'security.password.hibp_timeout'             => 5.0,
+                    'security.webauthn.max_credentials_per_user' => 10,
+                    'security.totp.max_credentials_per_user'     => 5,
+                    'security.webauthn.rp_id'                    => 'tower.example.test',
+                    'security.webauthn.origin'                   => 'https://tower.example.test',
+                    'security.webauthn.base_url'                 => 'http://localhost',
                 ],
                 'admin',
             );
@@ -119,21 +125,23 @@ final class SystemSettingsHandlerTest extends TestCase
             $request = new ServerRequest()
                 ->withMethod('POST')
                 ->withParsedBody([
-                    'csrf_token'          => 'csrf',
-                    'app_name'            => 'TowerDNS',
-                    'app_hostname'        => 'tower.example.test',
-                    'theme_name'          => 'default',
-                    'pwd_min_length'      => '20',
-                    'pwd_min_score'       => '4',
-                    'hibp_enabled'        => '1',
-                    'hibp_timeout'        => '5',
-                    'mailer_enabled'      => '1',
-                    'smtp_host'           => 'smtp.example.test',
-                    'smtp_port'           => '587',
-                    'smtp_encryption'     => 'starttls',
-                    'smtp_username'       => '',
-                    'smtp_password'       => '',
-                    'mailer_from_address' => 'dns@example.test',
+                    'csrf_token'               => 'csrf',
+                    'app_name'                 => 'TowerDNS',
+                    'app_hostname'             => 'tower.example.test',
+                    'theme_name'               => 'default',
+                    'pwd_min_length'           => '20',
+                    'pwd_min_score'            => '4',
+                    'hibp_enabled'             => '1',
+                    'hibp_timeout'             => '5',
+                    'webauthn_max_credentials' => '10',
+                    'totp_max_credentials'     => '5',
+                    'mailer_enabled'           => '1',
+                    'smtp_host'                => 'smtp.example.test',
+                    'smtp_port'                => '587',
+                    'smtp_encryption'          => 'starttls',
+                    'smtp_username'            => '',
+                    'smtp_password'            => '',
+                    'mailer_from_address'      => 'dns@example.test',
                 ])
                 ->withAttribute(User::class, $user)
                 ->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
@@ -176,5 +184,47 @@ final class SystemSettingsHandlerTest extends TestCase
             ->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
 
         self::assertSame(200, $handler->handle($request)->getStatusCode());
+    }
+
+    public function testHostnameChangeIsBlockedWhileWebAuthnCredentialsExist(): void
+    {
+        $configPath = tempnam(sys_get_temp_dir(), 'towerdns-rp-id-');
+        self::assertNotFalse($configPath);
+        file_put_contents($configPath, "[app]\ndomain = \"old.example.test\"\n");
+        try {
+            $renderer = $this->createMock(TemplateRendererInterface::class);
+            $renderer->expects(self::once())->method('render')->with('app::settings', self::callback(
+                static fn(array $data): bool => $data['error'] === 'settings.error.webauthn-rp-id-locked'
+            ))->willReturn('<html></html>');
+            $translator = $this->createMock(TranslatorInterface::class);
+            $translator->method('translate')->willReturnArgument(0);
+            $guard = $this->createMock(CsrfGuardInterface::class);
+            $guard->method('generateToken')->willReturn('csrf');
+            $guard->method('validateToken')->with('csrf')->willReturn(true);
+            $settings = $this->createMock(SystemSettingsRepositoryInterface::class);
+            $settings->method('get')->willReturnCallback(static fn(string $key, mixed $default): mixed => $default);
+            $settings->expects(self::never())->method('setMany');
+            $credentials = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
+            $credentials->method('countAll')->willReturn(2);
+            $handler = new SystemSettingsHandler(
+                $renderer,
+                new AuthorizationService(),
+                $settings,
+                new ThemeManager(dirname(__DIR__, 4)),
+                $configPath,
+                new AtomicConfigurationWriter(),
+                $translator,
+                $credentials,
+            );
+            $user    = new User('admin', 'admin@example.test', [new Role('settings', 'Settings', [Permission::SYSTEM_SETTINGS_MANAGE])]);
+            $request = new ServerRequest()->withMethod('POST')->withParsedBody([
+                'csrf_token' => 'csrf', 'app_name' => 'TowerDNS', 'app_hostname' => 'new.example.test', 'theme_name' => 'default',
+            ])->withAttribute(User::class, $user)->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
+
+            self::assertSame(409, $handler->handle($request)->getStatusCode());
+            self::assertStringContainsString('old.example.test', (string) file_get_contents($configPath));
+        } finally {
+            @unlink($configPath);
+        }
     }
 }

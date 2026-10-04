@@ -15,6 +15,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
 
@@ -33,6 +34,7 @@ final readonly class WebAuthnAuthHandler implements RequestHandlerInterface
         private WebAuthnService                       $webAuthn,
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
         private SessionSecurity                        $sessionSecurity,
+        private TotpSecretService                     $totpSecrets,
     ) {}
 
     #[\Override]
@@ -42,7 +44,7 @@ final readonly class WebAuthnAuthHandler implements RequestHandlerInterface
         assert($session instanceof SessionInterface);
 
         $userId = $this->sessionSecurity->pendingMfaUserId($session);
-        if ($userId === null) {
+        if ($userId === null || !in_array($session->get('mfa_type'), ['webauthn', 'passwordless'], true)) {
             return new RedirectResponse('/login');
         }
 
@@ -52,20 +54,24 @@ final readonly class WebAuthnAuthHandler implements RequestHandlerInterface
             return new RedirectResponse('/login');
         }
 
-        $credentialIds = array_column(
-            array_map(static fn(array $k): array => ['credential_id' => $k['source']->publicKeyCredentialId], $credentials),
-            'credential_id',
-        );
+        $credentialIds = [];
+        $transports    = [];
+        foreach ($credentials as $credential) {
+            $id              = $credential['source']->publicKeyCredentialId;
+            $credentialIds[] = $id;
+            $transports[$id] = array_values(array_filter($credential['source']->transports, is_string(...)));
+        }
 
-        $options     = $this->webAuthn->createAuthenticationOptions($credentialIds);
+        $options     = $this->webAuthn->createAuthenticationOptions($credentialIds, transportsByCredentialId: $transports);
         $optionsJson = $this->webAuthn->serializeRequestOptions($options);
 
         $session->set('webauthn_auth_options', $optionsJson);
 
         return new HtmlResponse(
             $this->renderer->render('app::login_webauthn', [
-                'optionsJson' => $optionsJson,
-                'error'       => null,
+                'optionsJson'   => $optionsJson,
+                'totpAvailable' => $this->totpSecrets->isEnabled($userId),
+                'error'         => null,
             ])
         );
     }

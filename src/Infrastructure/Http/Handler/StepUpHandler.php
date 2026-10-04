@@ -22,6 +22,7 @@ use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\DTO\StepUpIntent;
 use TowerDNS\Application\DTO\StepUpProof;
+use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\StepUpProofService;
@@ -55,6 +56,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
         private CacheInterface                        $cache,
+        private UserRepositoryInterface               $users,
     ) {}
 
     #[\Override]
@@ -78,6 +80,10 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             return $this->verifyTotp($request, $session, $user, $switchId);
         }
 
+        if ($request->getMethod() === 'POST' && $path === '/security/step-up/password') {
+            return $this->verifyPassword($request, $session, $user, $switchId);
+        }
+
         if ($request->getMethod() === 'POST' && $path === '/security/step-up/webauthn/begin') {
             return $this->beginWebAuthn($request, $session, $user, $switchId);
         }
@@ -98,11 +104,12 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             $proof = $this->sessionSecurity->availableStepUpProof($session, $this->proofs);
             if ($proof instanceof StepUpProof && $proof->actorUserId === $user->id && $proof->impersonationSessionId === $switchId) {
                 return $this->render($guard, [
-                    'completed'        => true,
-                    'returnUrl'        => $this->returnPath($proof),
-                    'totpAvailable'    => false,
-                    'passkeyAvailable' => false,
-                    'error'            => null,
+                    'completed'         => true,
+                    'returnUrl'         => $this->returnPath($proof),
+                    'totpAvailable'     => false,
+                    'passkeyAvailable'  => false,
+                    'passwordAvailable' => false,
+                    'error'             => null,
                 ]);
             }
 
@@ -115,12 +122,45 @@ final readonly class StepUpHandler implements RequestHandlerInterface
         $error      = $request->getQueryParams()['error'] ?? null;
 
         return $this->render($guard, [
-            'completed'        => false,
-            'returnUrl'        => null,
-            'totpAvailable'    => $hasTotp,
-            'passkeyAvailable' => $hasPasskey,
-            'error'            => is_string($error) ? $error : null,
+            'completed'         => false,
+            'returnUrl'         => null,
+            'totpAvailable'     => $hasTotp,
+            'passkeyAvailable'  => $hasPasskey,
+            'passwordAvailable' => !$hasPasskey && !$hasTotp && $this->users->fetchPasswordHash($user->email) !== null,
+            'error'             => is_string($error) ? $error : null,
         ]);
+    }
+
+    private function verifyPassword(ServerRequestInterface $request, SessionInterface $session, User $user, ?string $switchId): ResponseInterface
+    {
+        /** @var CsrfGuardInterface $guard */
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
+        if (!$guard->validateToken($body['csrf_token'] ?? '')) {
+            return $this->render($guard, ['error' => $this->translator->translate('http.error.invalid-request')], 400);
+        }
+
+        $intent = $this->sessionSecurity->pendingStepUp($session, $user->id, $switchId);
+        $hash   = $this->users->fetchPasswordHash($user->email);
+        if (!$intent instanceof StepUpIntent || $hash === null || $this->credentials->findByUserId($user->id) !== [] || $this->totpSecrets->isEnabled($user->id)) {
+            return $this->render($guard, ['error' => $this->translator->translate('security.step-up.unavailable')], 403);
+        }
+        if (!$this->hitRateLimit('password', $user->id)) {
+            return $this->render($guard, ['error' => $this->translator->translate('auth.error.rate-limited')], 429);
+        }
+
+        $password = $body['password'] ?? '';
+        if ($password === '' || !password_verify($password, $hash)) {
+            $this->recordAttempt($request, $user, $switchId, $intent, 'password', false);
+            return $this->render($guard, ['error' => $this->translator->translate('auth.error.invalid-credentials')], 401);
+        }
+
+        $proof = $this->sessionSecurity->completeStepUp($session, $user->id, $switchId, 'password', $this->proofs);
+        if (!$proof instanceof StepUpProof) {
+            return $this->render($guard, ['error' => $this->translator->translate('security.step-up.expired')], 409);
+        }
+        $this->recordAttempt($request, $user, $switchId, $intent, 'password', true);
+        return new RedirectResponse('/security/step-up?verified=1');
     }
 
     private function verifyTotp(ServerRequestInterface $request, SessionInterface $session, User $user, ?string $switchId): ResponseInterface
@@ -219,7 +259,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
         if (!is_string($credentialId)) {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.invalid-response')], 422);
         }
-        $source = $this->credentials->findByCredentialId($credentialId);
+        $source = $this->credentials->findByCredentialIdForUser($credentialId, $user->id);
         if (!$source instanceof \Webauthn\CredentialRecord) {
             $this->recordAttempt($request, $user, $switchId, $intent, 'webauthn', false);
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
@@ -233,7 +273,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }
 
-        $this->credentials->updateAfterAuthentication($credentialId, $updated->counter);
+        $this->credentials->updateAfterAuthentication($updated);
         $proof = $this->sessionSecurity->completeStepUp($session, $user->id, $switchId, 'webauthn', $this->proofs);
         if (!$proof instanceof StepUpProof) {
             return new JsonResponse(['error' => $this->translator->translate('security.step-up.expired')], 409);
@@ -247,12 +287,13 @@ final readonly class StepUpHandler implements RequestHandlerInterface
     private function render(CsrfGuardInterface $guard, array $overrides = [], int $status = 200): HtmlResponse
     {
         return new HtmlResponse($this->renderer->render('app::security/step_up', [
-            'csrfToken'        => $guard->generateToken(),
-            'completed'        => false,
-            'returnUrl'        => null,
-            'totpAvailable'    => false,
-            'passkeyAvailable' => false,
-            'error'            => null,
+            'csrfToken'         => $guard->generateToken(),
+            'completed'         => false,
+            'returnUrl'         => null,
+            'totpAvailable'     => false,
+            'passkeyAvailable'  => false,
+            'passwordAvailable' => false,
+            'error'             => null,
             ...$overrides,
         ]), $status);
     }
@@ -288,6 +329,9 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             StepUpAction::IAM_USER_DELETE                                                                => '/users',
             StepUpAction::IAM_ROLE_CREATE, StepUpAction::IAM_ROLE_SAVE, StepUpAction::IAM_ROLE_DELETE    => '/roles',
             StepUpAction::ADMIN_SWITCH                                                                   => '/admin/switch',
+            StepUpAction::PROFILE_WEBAUTHN_ENROLL, StepUpAction::PROFILE_WEBAUTHN_DELETE                 => '/profile/webauthn',
+            StepUpAction::PROFILE_TOTP_ENROLL, StepUpAction::PROFILE_TOTP_DELETE                         => '/profile/totp',
+            StepUpAction::PROFILE_PASSWORD_CHANGE, StepUpAction::PROFILE_PASSWORD_DISABLE                => '/profile/password',
             default                                                                                      => '/',
         };
     }

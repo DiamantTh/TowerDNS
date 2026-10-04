@@ -13,6 +13,8 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
+use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
+use TowerDNS\Application\Repository\TotpCredentialRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
@@ -33,8 +35,10 @@ final class ProfileHandlerTest extends TestCase
         $renderer->expects(self::once())->method('render')->with('app::profile/index', self::callback(
             static fn(array $data): bool => $data['success'] === 'Profil aktualisiert.'
         ))->willReturn('<html></html>');
-        $users    = $this->createMock(UserRepositoryInterface::class);
-        $webauthn = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
+        $users           = $this->createMock(UserRepositoryInterface::class);
+        $totpCredentials = $this->createMock(TotpCredentialRepositoryInterface::class);
+        $settings        = $this->createMock(SystemSettingsRepositoryInterface::class);
+        $webauthn        = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
         $webauthn->method('findByUserId')->willReturn([]);
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('findByUserId')->willReturn([]);
@@ -46,7 +50,7 @@ final class ProfileHandlerTest extends TestCase
         $handler = new ProfileHandler(
             $renderer,
             $webauthn,
-            new TotpSecretService($users, new TotpService(new SystemClock()), $this->createMock(CredentialEncryptorInterface::class)),
+            new TotpSecretService($totpCredentials, new TotpService(new SystemClock()), $this->createMock(CredentialEncryptorInterface::class), $settings),
             new ProfileService($users, new ThemeManager(dirname(__DIR__, 4))),
             $accounts,
             new AuditLogService($this->createMock(AuditLogRepositoryInterface::class)),

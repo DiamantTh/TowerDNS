@@ -19,6 +19,8 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Auth\Permission;
@@ -41,6 +43,8 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         private string                            $configPath,
         private AtomicConfigurationWriter         $configWriter,
         private TranslatorInterface               $translator,
+        private ?WebAuthnCredentialRepositoryInterface $webAuthnCredentials = null,
+        private ?AuditLogService $audit = null,
     ) {}
 
     #[\Override]
@@ -114,16 +118,18 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         $mailer = $this->mailerFields(trim((string) ($conf['mailer']['dsn'] ?? 'null://null')));
 
         return [
-            'app_name'        => (string) ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
-            'app_hostname'    => $hostname,
-            'app_force_https' => (bool) ($app['force_https'] ?? false),
-            'app_debug'       => (bool) ($app['debug'] ?? false),
-            'theme_name'      => (string) ($thm['name'] ?? 'default'),
-            'pwd_min_length'  => (int) $this->settings->get('security.password.min_length', 16),
-            'pwd_min_score'   => (int) $this->settings->get('security.password.min_score', 2),
-            'hibp_enabled'    => (bool) $this->settings->get('security.password.hibp_enabled', false),
-            'hibp_fail_open'  => (bool) $this->settings->get('security.password.hibp_fail_open', true),
-            'hibp_timeout'    => (float) $this->settings->get('security.password.hibp_timeout', 3.0),
+            'app_name'                 => (string) ($appl['name'] ?? $app['name'] ?? 'TowerDNS'),
+            'app_hostname'             => $hostname,
+            'app_force_https'          => (bool) ($app['force_https'] ?? false),
+            'app_debug'                => (bool) ($app['debug'] ?? false),
+            'theme_name'               => (string) ($thm['name'] ?? 'default'),
+            'pwd_min_length'           => (int) $this->settings->get('security.password.min_length', 16),
+            'pwd_min_score'            => (int) $this->settings->get('security.password.min_score', 2),
+            'webauthn_max_credentials' => (int) $this->settings->get('security.webauthn.max_credentials_per_user', 10),
+            'totp_max_credentials'     => (int) $this->settings->get('security.totp.max_credentials_per_user', 5),
+            'hibp_enabled'             => (bool) $this->settings->get('security.password.hibp_enabled', false),
+            'hibp_fail_open'           => (bool) $this->settings->get('security.password.hibp_fail_open', true),
+            'hibp_timeout'             => (float) $this->settings->get('security.password.hibp_timeout', 3.0),
             ...$mailer,
             'mailer_from_address' => (string) ($conf['mailer']['from_address'] ?? ''),
         ];
@@ -151,23 +157,25 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             );
         }
 
-        $appName        = trim(($body['app_name'] ?? ''));
-        $hostname       = trim(($body['app_hostname'] ?? ''));
-        $forceHttps     = isset($body['app_force_https']) && $body['app_force_https'] === '1';
-        $debug          = isset($body['app_debug'])       && $body['app_debug']       === '1';
-        $themeName      = trim(($body['theme_name'] ?? 'default'));
-        $pwdMinLen      = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
-        $pwdMinScore    = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
-        $hibpEnabled    = isset($body['hibp_enabled'])   && $body['hibp_enabled']   === '1';
-        $hibpFailOpen   = isset($body['hibp_fail_open']) && $body['hibp_fail_open'] === '1';
-        $hibpTimeout    = max(1.0, min(10.0, (float) ($body['hibp_timeout'] ?? 3.0)));
-        $mailerEnabled  = isset($body['mailer_enabled']) && $body['mailer_enabled'] === '1';
-        $smtpHost       = trim(($body['smtp_host'] ?? ''));
-        $smtpPort       = max(1, min(65535, (int) ($body['smtp_port'] ?? 587)));
-        $smtpEncryption = ($body['smtp_encryption'] ?? 'starttls');
-        $smtpUsername   = trim(($body['smtp_username'] ?? ''));
-        $smtpPassword   = ($body['smtp_password'] ?? '');
-        $mailerFrom     = trim(($body['mailer_from_address'] ?? ''));
+        $appName                = trim(($body['app_name'] ?? ''));
+        $hostname               = trim(($body['app_hostname'] ?? ''));
+        $forceHttps             = isset($body['app_force_https']) && $body['app_force_https'] === '1';
+        $debug                  = isset($body['app_debug'])       && $body['app_debug']       === '1';
+        $themeName              = trim(($body['theme_name'] ?? 'default'));
+        $pwdMinLen              = max(8, min(128, (int) ($body['pwd_min_length'] ?? 16)));
+        $pwdMinScore            = max(0, min(4, (int) ($body['pwd_min_score'] ?? 2)));
+        $webauthnMaxCredentials = max(1, min(100, (int) ($body['webauthn_max_credentials'] ?? 10)));
+        $totpMaxCredentials     = max(1, min(100, (int) ($body['totp_max_credentials'] ?? 5)));
+        $hibpEnabled            = isset($body['hibp_enabled'])   && $body['hibp_enabled']   === '1';
+        $hibpFailOpen           = isset($body['hibp_fail_open']) && $body['hibp_fail_open'] === '1';
+        $hibpTimeout            = max(1.0, min(10.0, (float) ($body['hibp_timeout'] ?? 3.0)));
+        $mailerEnabled          = isset($body['mailer_enabled']) && $body['mailer_enabled'] === '1';
+        $smtpHost               = trim(($body['smtp_host'] ?? ''));
+        $smtpPort               = max(1, min(65535, (int) ($body['smtp_port'] ?? 587)));
+        $smtpEncryption         = ($body['smtp_encryption'] ?? 'starttls');
+        $smtpUsername           = trim(($body['smtp_username'] ?? ''));
+        $smtpPassword           = ($body['smtp_password'] ?? '');
+        $mailerFrom             = trim(($body['mailer_from_address'] ?? ''));
 
         if ($appName === '') {
             $appName = 'TowerDNS';
@@ -194,6 +202,28 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             );
         }
         $conf = $this->loadConfig();
+
+        $appSection    = (array) ($conf['app'] ?? []);
+        $oldRpId       = (string) ($appSection['hostname'] ?? $appSection['domain'] ?? 'localhost');
+        $oldBaseUrl    = rtrim((string) ($appSection['base_url'] ?? 'http://localhost'), '/');
+        $pinnedRpId    = $this->settings->get('security.webauthn.rp_id', $oldRpId);
+        $pinnedOrigin  = $this->settings->get('security.webauthn.origin', 'https://' . $oldRpId);
+        $pinnedBaseUrl = $this->settings->get('security.webauthn.base_url', $oldBaseUrl);
+        if (($this->webAuthnCredentials?->countAll() ?? 0) > 0
+            && (!is_string($pinnedRpId) || $hostname                   !== $pinnedRpId
+                                        || !is_string($pinnedOrigin) || 'https://' . $hostname !== $pinnedOrigin
+                                        || !is_string($pinnedBaseUrl) || $oldBaseUrl           !== $pinnedBaseUrl)) {
+            return new HtmlResponse(
+                $this->renderer->render('app::settings', [
+                    'user'      => $user,
+                    'fields'    => $this->readFields(),
+                    'error'     => $this->translator->translate('settings.error.webauthn-rp-id-locked'),
+                    'success'   => null,
+                    'csrfToken' => $csrfToken,
+                ]),
+                409,
+            );
+        }
 
         // [app] — schreibe in der Variante, die bereits in der Datei steht,
         // damit der bestehende Schlüssel nicht dupliziert wird.
@@ -262,12 +292,34 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
 
             // Runtime-Werte (DB)
             $this->settings->setMany([
-                'security.password.min_length'     => $pwdMinLen,
-                'security.password.min_score'      => $pwdMinScore,
-                'security.password.hibp_enabled'   => $hibpEnabled,
-                'security.password.hibp_fail_open' => $hibpFailOpen,
-                'security.password.hibp_timeout'   => $hibpTimeout,
+                'security.password.min_length'               => $pwdMinLen,
+                'security.password.min_score'                => $pwdMinScore,
+                'security.password.hibp_enabled'             => $hibpEnabled,
+                'security.password.hibp_fail_open'           => $hibpFailOpen,
+                'security.password.hibp_timeout'             => $hibpTimeout,
+                'security.webauthn.max_credentials_per_user' => $webauthnMaxCredentials,
+                'security.totp.max_credentials_per_user'     => $totpMaxCredentials,
+                'security.webauthn.rp_id'                    => $hostname,
+                'security.webauthn.origin'                   => 'https://' . $hostname,
+                'security.webauthn.base_url'                 => $oldBaseUrl,
             ], $user->id);
+            if ($hostname !== $oldRpId || $oldBaseUrl !== $pinnedBaseUrl) {
+                $this->audit?->record(
+                    $request,
+                    'security.webauthn.rp_configuration.changed',
+                    'system_configuration',
+                    'webauthn',
+                    $user->id,
+                    null,
+                    null,
+                    null,
+                    null,
+                    $user->id,
+                    ['rp_id' => is_string($pinnedRpId) ? $pinnedRpId : $oldRpId, 'base_url' => is_string($pinnedBaseUrl) ? $pinnedBaseUrl : $oldBaseUrl],
+                    ['rp_id' => $hostname, 'base_url' => $oldBaseUrl],
+                    ['credential_count' => $this->webAuthnCredentials?->countAll() ?? 0],
+                );
+            }
         } catch (\Throwable) {
             return new HtmlResponse(
                 $this->renderer->render('app::settings', [

@@ -44,6 +44,7 @@ use TowerDNS\Infrastructure\Http\Handler\UserCreateHandler;
 use TowerDNS\Infrastructure\Http\Handler\UserDeleteHandler;
 use TowerDNS\Infrastructure\Http\Handler\UserEditHandler;
 use TowerDNS\Infrastructure\Http\Handler\UserListHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnAuthBeginHandler;
 use TowerDNS\Infrastructure\Http\Handler\WebAuthnAuthFinishHandler;
 use TowerDNS\Infrastructure\Http\Handler\WebAuthnAuthHandler;
 use TowerDNS\Infrastructure\Http\Handler\WebAuthnDeleteHandler;
@@ -70,12 +71,14 @@ final class Routes
         $app->get('/login/totp', TotpHandler::class, 'login.totp.form');
         $app->post('/login/totp', TotpHandler::class, 'login.totp.submit');
         $app->get('/login/webauthn', WebAuthnAuthHandler::class, 'login.webauthn.form');
+        $app->post('/login/webauthn/begin', WebAuthnAuthBeginHandler::class, 'login.webauthn.begin');
         $app->post('/login/webauthn/finish', WebAuthnAuthFinishHandler::class, 'login.webauthn.finish');
         $app->post('/logout', [RequireAuthMiddleware::class, LogoutHandler::class], 'logout');
 
         // Recent second-factor confirmation for high-impact operations.
         $app->get('/security/step-up', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.form');
         $app->post('/security/step-up/totp', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.totp');
+        $app->post('/security/step-up/password', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.password');
         $app->post('/security/step-up/webauthn/begin', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.webauthn.begin');
         $app->post('/security/step-up/webauthn/finish', [RequireAuthMiddleware::class, StepUpHandler::class], 'security.step-up.webauthn.finish');
 
@@ -94,6 +97,7 @@ final class Routes
         $app->post('/profile', [RequireAuthMiddleware::class, ProfileHandler::class], 'profile.update');
         $app->get('/profile/totp', [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.form');
         $app->post('/profile/totp', [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.submit');
+        $app->post('/profile/totp/{credentialId}/delete', [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.delete');
         $app->get('/profile/password', [RequireAuthMiddleware::class, PasswordChangeHandler::class], 'profile.password.form');
         $app->post('/profile/password', [RequireAuthMiddleware::class, PasswordChangeHandler::class], 'profile.password.submit');
         $app->get('/profile/webauthn', [RequireAuthMiddleware::class, WebAuthnProfileHandler::class], 'profile.webauthn');

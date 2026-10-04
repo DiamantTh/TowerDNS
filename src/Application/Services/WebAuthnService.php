@@ -49,6 +49,7 @@ final readonly class WebAuthnService
         string $userEmail,
         string $displayName,
         array  $excludedCredentialIds = [],
+        bool $hardwareSecurityKey = false,
     ): PublicKeyCredentialCreationOptions {
         $rp   = new PublicKeyCredentialRpEntity($this->rpName, $this->rpId);
         $user = new PublicKeyCredentialUserEntity($userEmail, $userId, $displayName);
@@ -67,8 +68,11 @@ final readonly class WebAuthnService
         );
 
         $selection = new AuthenticatorSelectionCriteria(
-            authenticatorAttachment: AuthenticatorSelectionCriteria::AUTHENTICATOR_ATTACHMENT_NO_PREFERENCE,
-            userVerification: AuthenticatorSelectionCriteria::USER_VERIFICATION_REQUIREMENT_PREFERRED,
+            authenticatorAttachment: $hardwareSecurityKey
+                ? AuthenticatorSelectionCriteria::AUTHENTICATOR_ATTACHMENT_CROSS_PLATFORM
+                : AuthenticatorSelectionCriteria::AUTHENTICATOR_ATTACHMENT_NO_PREFERENCE,
+            userVerification: AuthenticatorSelectionCriteria::USER_VERIFICATION_REQUIREMENT_REQUIRED,
+            residentKey: AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_PREFERRED,
         );
 
         return new PublicKeyCredentialCreationOptions(
@@ -93,6 +97,9 @@ final readonly class WebAuthnService
         string                             $jsonResponse,
         PublicKeyCredentialCreationOptions $options,
     ): CredentialRecord {
+        if ($options->authenticatorSelection?->userVerification !== AuthenticatorSelectionCriteria::USER_VERIFICATION_REQUIREMENT_REQUIRED) {
+            throw new \InvalidArgumentException('WebAuthn registration options must require user verification.');
+        }
         $credential = $this->serializer->deserialize($jsonResponse, PublicKeyCredential::class, 'json');
 
         if (!$credential->response instanceof AuthenticatorAttestationResponse) {
@@ -112,15 +119,18 @@ final readonly class WebAuthnService
      * Build assertion options for authentication.
      *
      * @param list<string> $allowedCredentialIds  Raw bytes of credentials to allow
+     * @param array<string, list<string>> $transportsByCredentialId
      */
     public function createAuthenticationOptions(
         array $allowedCredentialIds = [],
-        string $userVerification = PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_PREFERRED,
+        string $userVerification = PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_REQUIRED,
+        array $transportsByCredentialId = [],
     ): PublicKeyCredentialRequestOptions {
         $allowCredentials = array_map(
             static fn(string $id): PublicKeyCredentialDescriptor => new PublicKeyCredentialDescriptor(
                 PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
                 $id,
+                $transportsByCredentialId[$id] ?? [],
             ),
             $allowedCredentialIds,
         );
@@ -146,6 +156,9 @@ final readonly class WebAuthnService
         PublicKeyCredentialRequestOptions $options,
         ?string                           $userHandle = null,
     ): CredentialRecord {
+        if ($options->userVerification !== PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_REQUIRED) {
+            throw new \InvalidArgumentException('WebAuthn authentication options must require user verification.');
+        }
         $credential = $this->serializer->deserialize($jsonResponse, PublicKeyCredential::class, 'json');
 
         if (!$credential->response instanceof AuthenticatorAssertionResponse) {

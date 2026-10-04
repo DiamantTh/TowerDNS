@@ -14,10 +14,14 @@ use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\DTO\StepUpAction;
+use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\WebAuthnService;
+use TowerDNS\Domain\Account\AdminImpersonationSession;
 use TowerDNS\Domain\Auth\User;
-use TowerDNS\Infrastructure\Http\SessionSecurity;
+use TowerDNS\Infrastructure\Http\StepUpRequestService;
 
 /**
  * POST /profile/webauthn/register/begin
@@ -36,7 +40,9 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         private WebAuthnService                       $webAuthn,
         private WebAuthnCredentialRepositoryInterface $credentialRepo,
         private TranslatorInterface                   $translator,
-        private SessionSecurity                        $sessionSecurity,
+        private StepUpRequestService                  $stepUp,
+        private SystemSettingsRepositoryInterface     $settings,
+        private AuditLogService                       $audit,
     ) {}
 
     #[\Override]
@@ -56,7 +62,7 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         if ($name === '') {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.name-required')], 422);
         }
-        if (mb_strlen($name) > 100) {
+        if (mb_strlen($name) > 64) {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.name-too-long')], 422);
         }
 
@@ -65,23 +71,41 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
 
         $session = $request->getAttribute(SessionInterface::class);
         assert($session instanceof SessionInterface);
-        if (!$this->sessionSecurity->passwordVerifiedRecently($session, $currentUser->id)) {
-            return new JsonResponse(['error' => $this->translator->translate('auth.error.reauth-required')], 403);
+        if ($request->getAttribute('impersonation_session') instanceof AdminImpersonationSession) {
+            return new JsonResponse(['error' => $this->translator->translate('http.error.forbidden')], 403);
+        }
+
+        $maxCredentials = max(1, min(100, (int) $this->settings->get('security.webauthn.max_credentials_per_user', 10)));
+        if ($this->credentialRepo->countByUserId($currentUser->id) >= $maxCredentials) {
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.limit-reached')], 409);
+        }
+        if (!$this->stepUp->hasProof($request, $currentUser->id, StepUpAction::PROFILE_WEBAUTHN_ENROLL, $currentUser->id)) {
+            return $this->stepUp->challengeAction($request, $currentUser->id, StepUpAction::PROFILE_WEBAUTHN_ENROLL, $currentUser->id, json: true);
         }
 
         // Collect existing credential IDs to pass as excludeCredentials.
         $existing   = $this->credentialRepo->findByUserId($currentUser->id);
         $excludeIds = array_column($existing, 'credential_id');
 
+        $purpose = ($body['method'] ?? '') === 'security_key' ? 'hardware_security_key' : 'passkey';
         $options = $this->webAuthn->createRegistrationOptions(
             userId: $currentUser->id,
             userEmail: $currentUser->email,
             displayName: $currentUser->displayName ?? $currentUser->email,
             excludedCredentialIds: $excludeIds,
+            hardwareSecurityKey: $purpose === 'hardware_security_key',
         );
 
-        $session->set('webauthn_register_options', $this->webAuthn->serializeCreationOptions($options));
-        $session->set('webauthn_register_name', $name);
+        $createdAt = time();
+        $session->set('webauthn_register_pending', [
+            'user_id'    => $currentUser->id,
+            'options'    => $this->webAuthn->serializeCreationOptions($options),
+            'label'      => $name,
+            'created_at' => $createdAt,
+            'expires_at' => $createdAt + 300,
+            'purpose'    => $purpose,
+        ]);
+        $this->audit->record($request, 'security.webauthn.enrollment.started', 'user', $currentUser->id, $currentUser->id, null, null, null, null, $currentUser->id, null, null, ['purpose' => $purpose]);
 
         return new JsonResponse(
             json_decode($this->webAuthn->serializeCreationOptions($options), true),

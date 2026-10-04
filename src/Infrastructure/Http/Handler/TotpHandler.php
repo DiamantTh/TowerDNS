@@ -59,7 +59,8 @@ final readonly class TotpHandler implements RequestHandlerInterface
         }
 
         $pendingUserId = $this->sessionSecurity->pendingMfaUserId($session);
-        if ($pendingUserId === null) {
+        $mfaType       = $session->get('mfa_type');
+        if ($pendingUserId === null || !in_array($mfaType, ['totp', 'webauthn'], true)) {
             return new RedirectResponse('/login');
         }
 
@@ -123,6 +124,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         $this->sessionSecurity->completeLogin($session, $userId);
         $this->users->updateLastLoginAt($userId);
         $this->audit->recordLogin($request, $userId);
+        $this->audit->recordPasswordBreakGlassUsed($request, $userId, 'totp');
 
         return new RedirectResponse('/');
     }

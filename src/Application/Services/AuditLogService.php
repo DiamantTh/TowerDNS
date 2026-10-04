@@ -133,6 +133,25 @@ final readonly class AuditLogService
         $this->record($request, 'user.password.reset', 'user', $userId, $userId, null, null, null, null, null, null, null, ['method' => 'email_link']);
     }
 
+    public function recordPasswordBreakGlassUsed(ServerRequestInterface $request, string $userId, string $secondFactor): void
+    {
+        $this->record(
+            $request,
+            'security.password.break_glass.used',
+            'user',
+            $userId,
+            $userId,
+            null,
+            null,
+            null,
+            null,
+            $userId,
+            null,
+            null,
+            ['second_factor' => $secondFactor],
+        );
+    }
+
     public function recordPasswordSetByAdministrator(
         ServerRequestInterface $request,
         string $actorUserId,

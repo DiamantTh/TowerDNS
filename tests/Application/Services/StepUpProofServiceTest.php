@@ -60,6 +60,15 @@ final class StepUpProofServiceTest extends TestCase
         self::assertFalse($service->consumeOnce($proof, 'actor', StepUpAction::IAM_ROLE_DELETE, 'role', null));
     }
 
+    public function testPasswordReauthenticationCanBeRepresentedAsStepUpProof(): void
+    {
+        $service = new StepUpProofService(str_repeat('s', 32), $this->clock(1000), $this->nonceRepository());
+        $proof   = $service->issue('actor', StepUpAction::PROFILE_WEBAUTHN_ENROLL, 'actor', null, 'password');
+
+        self::assertSame('password', $proof->method);
+        self::assertTrue($service->isValid($proof, 'actor', StepUpAction::PROFILE_WEBAUTHN_ENROLL, 'actor', null));
+    }
+
     private function nonceRepository(): StepUpProofNonceRepositoryInterface
     {
         $nonces = $this->createMock(StepUpProofNonceRepositoryInterface::class);

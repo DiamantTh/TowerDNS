@@ -198,21 +198,16 @@ final readonly class LoginHandler implements RequestHandlerInterface
             $this->users->updatePasswordHash($user->id, $rehash);
         }
 
-        // A recent primary-factor verification is required before changing
-        // enrolled authenticators. Keep this server-side marker through MFA.
-        $this->sessionSecurity->markPasswordVerified($session, $user->id);
-
-        // Check whether TOTP is configured for this user.
-        if ($this->totpSecrets->isEnabled($user->id)) {
-            // TOTP required — store pending state without completing the login.
-            $session = $this->sessionSecurity->beginMfa($session, $user->id, 'totp');
-            return null;
-        }
-
-        // Check whether WebAuthn credentials are registered.
+        // When both factors exist WebAuthn is the preferred MFA path. The
+        // TOTP endpoint remains available as an explicit fallback.
         $webAuthnKeys = $this->webAuthnCredentials->findByUserId($user->id);
         if ($webAuthnKeys !== []) {
             $session = $this->sessionSecurity->beginMfa($session, $user->id, 'webauthn');
+            return null;
+        }
+
+        if ($this->totpSecrets->isEnabled($user->id)) {
+            $session = $this->sessionSecurity->beginMfa($session, $user->id, 'totp');
             return null;
         }
 
@@ -220,6 +215,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         $session = $this->sessionSecurity->completeLogin($session, $user->id);
         $this->users->updateLastLoginAt($user->id);
         $this->audit->recordLogin($request, $user->id);
+        $this->audit->recordPasswordBreakGlassUsed($request, $user->id, 'none');
 
         return null;
     }

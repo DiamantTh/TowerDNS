@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Http;
 
+use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -51,5 +52,37 @@ final readonly class StepUpRequestService
         $this->sessionSecurity->beginStepUp($session, $actorUserId, $required->action, $required->targetId, $switchId);
 
         return new RedirectResponse('/security/step-up');
+    }
+
+    public function hasProof(ServerRequestInterface $request, string $actorUserId, string $action, string $targetId): bool
+    {
+        $session = $request->getAttribute(SessionInterface::class);
+        if (!$session instanceof SessionInterface) {
+            return false;
+        }
+        $switch   = $request->getAttribute('impersonation_session');
+        $switchId = $switch instanceof AdminImpersonationSession ? $switch->id : null;
+        $proof    = $this->sessionSecurity->availableStepUpProof($session, $this->proofs);
+
+        return $proof instanceof StepUpProof
+            && $proof->actorUserId            === $actorUserId
+            && $proof->action                 === $action
+            && $proof->targetId               === $targetId
+            && $proof->impersonationSessionId === $switchId;
+    }
+
+    public function challengeAction(ServerRequestInterface $request, string $actorUserId, string $action, string $targetId, bool $json = false): ResponseInterface
+    {
+        $session = $request->getAttribute(SessionInterface::class);
+        if (!$session instanceof SessionInterface) {
+            return new RedirectResponse('/login');
+        }
+        $switch   = $request->getAttribute('impersonation_session');
+        $switchId = $switch instanceof AdminImpersonationSession ? $switch->id : null;
+        $this->sessionSecurity->beginStepUp($session, $actorUserId, $action, $targetId, $switchId);
+
+        return $json
+            ? new JsonResponse(['stepUpRequired' => true, 'redirect' => '/security/step-up'], 428)
+            : new RedirectResponse('/security/step-up');
     }
 }

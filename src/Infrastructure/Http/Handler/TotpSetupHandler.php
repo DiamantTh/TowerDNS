@@ -7,46 +7,48 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Http\Handler;
 
+use Doctrine\DBAL\Connection;
 use Laminas\Diactoros\Response\HtmlResponse;
 use Laminas\Diactoros\Response\RedirectResponse;
 use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
+use Mezzio\Router\RouteResult;
 use Mezzio\Session\SessionInterface;
 use Mezzio\Template\TemplateRendererInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use TowerDNS\Application\DTO\StepUpAction;
+use TowerDNS\Application\Exception\TotpCredentialLimitException;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
+use TowerDNS\Application\Services\AuthenticationPathPolicy;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\TotpService;
+use TowerDNS\Domain\Account\AdminImpersonationSession;
 use TowerDNS\Domain\Auth\User;
-use TowerDNS\Infrastructure\Http\SessionSecurity;
+use TowerDNS\Infrastructure\Http\FormInput;
+use TowerDNS\Infrastructure\Http\StepUpRequestService;
+use TowerDNS\Infrastructure\Persistence\PlatformDetector;
 
-/**
- * GET  /profile/totp — show TOTP setup or disable form.
- * POST /profile/totp — enable or disable TOTP for the authenticated user.
- *
- * Enable flow:
- *   1. GET: generate a pending secret, store in session, show provisioning URI + confirm form.
- *   2. POST action=enable: verify one-time code against pending secret → save to DB.
- *
- * Disable flow:
- *   POST action=disable: verify current TOTP code → clear secret in DB.
- * @psalm-api Constructed through runtime dependency injection or command/handler registration.
- */
+/** Manages pending TOTP enrollment and individually revocable TOTP credentials. */
 final readonly class TotpSetupHandler implements RequestHandlerInterface
 {
-    private const string SESSION_KEY = 'totp_setup_secret';
-    private const string ISSUER      = 'TowerDNS';
+    private const string SESSION_KEY      = 'totp_setup_pending';
+    private const string ISSUER           = 'TowerDNS';
+    private const int PENDING_TTL_SECONDS = 300;
 
+    /** @psalm-suppress PossiblyUnusedMethod Resolved by the route container from the handler class name. */
     public function __construct(
+        private Connection $connection,
         private TemplateRendererInterface $renderer,
-        private TotpSecretService         $secrets,
-        private TotpService               $totp,
-        private AuditLogService           $audit,
-        private TranslatorInterface       $translator,
-        private SessionSecurity            $sessionSecurity,
+        private TotpSecretService $secrets,
+        private TotpService $totp,
+        private AuditLogService $audit,
+        private TranslatorInterface $translator,
+        private StepUpRequestService $stepUp,
+        private WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
     ) {}
 
     #[\Override]
@@ -54,220 +56,189 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
     {
         /** @var User $user */
         $user = $request->getAttribute(User::class);
-
         /** @var CsrfGuardInterface $guard */
-        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-
+        $guard   = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $session = $request->getAttribute(SessionInterface::class);
-
-        // Prevent a stolen authenticated session from silently enrolling a
-        // new factor. Existing TOTP disable requests still require the current
-        // code and are not covered by this enrollment-only gate.
-        if (!$this->secrets->isEnabled($user->id)
-            && (!$session instanceof SessionInterface || !$this->sessionSecurity->passwordVerifiedRecently($session, $user->id))) {
-            return new HtmlResponse($this->renderer->render('app::profile/totp', [
-                'user'            => $user,
-                'totpActive'      => false,
-                'provisioningUri' => null,
-                'secret'          => null,
-                'secretFormatted' => null,
-                'error'           => null,
-                'success'         => null,
-                'reauthRequired'  => true,
-                'csrfToken'       => $guard->generateToken(),
-            ]));
+        if (!$session instanceof SessionInterface) {
+            return new RedirectResponse('/login');
+        }
+        if ($request->getAttribute('impersonation_session') instanceof AdminImpersonationSession) {
+            return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
         if ($request->getMethod() === 'GET') {
-            return $this->handleGet($user, $session, $guard);
+            if (($request->getQueryParams()['setup'] ?? null) === '1') {
+                return $this->beginSetup($request, $session, $user, $guard);
+            }
+            return $this->renderPage($user, $session, $guard, null, null);
         }
 
-        return $this->handlePost($user, $session, $guard, $request);
+        return $this->handlePost($request, $session, $user, $guard);
     }
 
-    private function handleGet(User $user, mixed $session, CsrfGuardInterface $guard): ResponseInterface
+    private function beginSetup(ServerRequestInterface $request, SessionInterface $session, User $user, CsrfGuardInterface $guard): ResponseInterface
     {
-        if ($this->secrets->isEnabled($user->id)) {
-            return $this->renderDisableForm($user, null, null, $guard);
+        if ($this->secrets->count($user->id) >= $this->secrets->maxCredentialsPerUser()) {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.limit-reached'), null, 409);
+        }
+        if (!$this->stepUp->hasProof($request, $user->id, StepUpAction::PROFILE_TOTP_ENROLL, $user->id)) {
+            return $this->stepUp->challengeAction($request, $user->id, StepUpAction::PROFILE_TOTP_ENROLL, $user->id);
         }
 
-        // Not set up yet — reuse or generate a pending secret
-        if (!$session instanceof SessionInterface) {
-            return new RedirectResponse('/');
-        }
+        $createdAt = time();
+        $label     = trim((string) ($request->getQueryParams()['label'] ?? ''));
+        $label     = $label !== '' ? mb_substr($label, 0, 100) : 'Authenticator';
+        $secret    = $this->totp->generateSecret();
+        $session->set(self::SESSION_KEY, [
+            'user_id'    => $user->id,
+            'secret'     => $secret,
+            'label'      => $label,
+            'created_at' => $createdAt,
+            'expires_at' => $createdAt + self::PENDING_TTL_SECONDS,
+            'purpose'    => 'totp.enrollment',
+        ]);
 
-        $pendingSecret = $session->has(self::SESSION_KEY)
-            ? (string) $session->get(self::SESSION_KEY)
-            : '';
-
-        if ($pendingSecret === '') {
-            $pendingSecret = $this->totp->generateSecret();
-            $session->set(self::SESSION_KEY, $pendingSecret);
-        }
-
-        return $this->renderSetupForm($user, $pendingSecret, null, null, $guard);
+        return $this->renderPage($user, $session, $guard, null, null);
     }
 
-    private function handlePost(
-        User $user,
-        mixed $session,
-        CsrfGuardInterface $guard,
-        ServerRequestInterface $request,
-    ): ResponseInterface {
-        $body  = \TowerDNS\Infrastructure\Http\FormInput::fromParsedBody($request->getParsedBody());
-        $token = ($body['csrf_token'] ?? '');
-
-        if (!$guard->validateToken($token)) {
-            return new HtmlResponse(
-                $this->renderer->render('app::profile/totp', [
-                    'user'            => $user,
-                    'totpActive'      => false,
-                    'provisioningUri' => null,
-                    'secret'          => null,
-                    'secretFormatted' => null,
-                    'error'           => $this->translator->translate('auth.error.invalid-request'),
-                    'success'         => null,
-                    'csrfToken'       => $guard->generateToken(),
-                ]),
-                400,
-            );
+    private function handlePost(ServerRequestInterface $request, SessionInterface $session, User $user, CsrfGuardInterface $guard): ResponseInterface
+    {
+        $body = FormInput::fromParsedBody($request->getParsedBody());
+        if (!$guard->validateToken($body['csrf_token'] ?? '')) {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('auth.error.invalid-request'), null, 400);
         }
 
-        $action = ($body['action'] ?? '');
-        $code   = trim(($body['code'] ?? ''));
-
+        $action = $body['action'] ?? '';
+        /** @var array<string, string> $routeParams */
+        $routeParams = $request->getAttribute(RouteResult::class)?->getMatchedParams() ?? [];
+        if (isset($routeParams['credentialId'])) {
+            return $this->delete($request, $session, $user, $guard, $routeParams['credentialId']);
+        }
         if ($action === 'enable') {
-            return $this->enable($user, $session, $guard, $code, $request);
+            return $this->enable($request, $session, $user, $guard, trim($body['code'] ?? ''));
         }
-
-        if ($action === 'disable') {
-            return $this->disable($user, $guard, $code, $request);
+        if ($action === 'delete') {
+            return $this->delete($request, $session, $user, $guard, trim($body['credential_id'] ?? ''));
         }
 
         return new RedirectResponse('/profile/totp');
     }
 
-    private function enable(
-        User $user,
-        mixed $session,
-        CsrfGuardInterface $guard,
-        string $code,
-        ServerRequestInterface $request,
-    ): ResponseInterface {
-        if (!$session instanceof SessionInterface || !$session->has(self::SESSION_KEY)) {
-            // Session expired or missing — restart
-            return new RedirectResponse('/profile/totp');
-        }
-
-        $pendingSecret = (string) $session->get(self::SESSION_KEY);
-
-        if ($code === '') {
-            return $this->renderSetupForm($user, $pendingSecret, $this->translator->translate('totp.error.code-required'), null, $guard);
-        }
-
-        if (!$this->totp->verify($code, $pendingSecret)) {
-            return $this->renderSetupForm(
-                $user,
-                $pendingSecret,
-                $this->translator->translate('totp.error.code-invalid'),
-                null,
-                $guard,
-                400,
-            );
-        }
-
-        $this->secrets->enable($user->id, $pendingSecret);
-        $session->unset(self::SESSION_KEY);
-        $this->audit->recordTotpEnabled($request, $user->id);
-
-        return $this->renderDisableForm(
-            $user,
-            null,
-            $this->translator->translate('totp.success.enabled'),
-            $guard,
-        );
-    }
-
-    private function disable(
-        User $user,
-        CsrfGuardInterface $guard,
-        string $code,
-        ServerRequestInterface $request,
-    ): ResponseInterface {
-        if (!$this->secrets->isEnabled($user->id)) {
-            return new RedirectResponse('/profile/totp');
-        }
-
-        if ($code === '') {
-            return $this->renderDisableForm($user, $this->translator->translate('totp.error.code-required'), null, $guard);
-        }
-
-        if (!$this->secrets->verify($user->id, $code)) {
-            return $this->renderDisableForm($user, $this->translator->translate('totp.error.code-invalid'), null, $guard, 400);
-        }
-
-        $this->secrets->disable($user->id);
-        $this->audit->recordTotpDisabled($request, $user->id);
-
-        return $this->renderSetupForm(
-            $user,
-            $this->generateFreshSecret(),
-            null,
-            $this->translator->translate('totp.success.disabled'),
-            $guard,
-        );
-    }
-
-    private function generateFreshSecret(): string
+    private function enable(ServerRequestInterface $request, SessionInterface $session, User $user, CsrfGuardInterface $guard, string $code): ResponseInterface
     {
-        // Generate new secret but do NOT store it yet — the user must confirm
-        return $this->totp->generateSecret();
+        $pending = $this->pending($session, $user->id);
+        if ($pending === null) {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.setup-expired'), null, 409);
+        }
+        $secret = $pending['secret'];
+        if ($code === '' || $secret === '' || !$this->totp->verify($code, $secret)) {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.code-invalid'), null, 401);
+        }
+
+        $proof = $this->stepUp->consume($request, $user->id, StepUpAction::PROFILE_TOTP_ENROLL, $user->id);
+        if (!$proof instanceof \TowerDNS\Application\DTO\StepUpProof) {
+            return $this->stepUp->challengeAction($request, $user->id, StepUpAction::PROFILE_TOTP_ENROLL, $user->id);
+        }
+
+        try {
+            $this->secrets->enable($user->id, $secret, $pending['label']);
+        } catch (TotpCredentialLimitException) {
+            $session->unset(self::SESSION_KEY);
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.limit-reached'), null, 409);
+        }
+        $session->unset(self::SESSION_KEY);
+        $this->audit->record($request, 'user.totp.credential.added', 'user', $user->id, $user->id, null, null, null, null, $user->id, null, null, ['step_up_method' => $proof->method]);
+
+        return $this->renderPage($user, $session, $guard, null, $this->translator->translate('totp.success.enabled'));
     }
 
-    private function renderSetupForm(
-        User $user,
-        string $secret,
-        ?string $error,
-        ?string $success,
-        CsrfGuardInterface $guard,
-        int $status = 200,
-    ): HtmlResponse {
-        $provisioningUri = $this->totp->getProvisioningUri($secret, $user->email, self::ISSUER);
+    private function delete(ServerRequestInterface $request, SessionInterface $session, User $user, CsrfGuardInterface $guard, string $credentialId): ResponseInterface
+    {
+        if ($credentialId === '') {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.credential-not-found'), null, 404);
+        }
+        if (!array_any($this->secrets->list($user->id), static fn(array $entry): bool => $entry['id'] === $credentialId)) {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.credential-not-found'), null, 404);
+        }
+        $stepUpTarget = hash('sha256', $credentialId);
+        if (!$this->stepUp->hasProof($request, $user->id, StepUpAction::PROFILE_TOTP_DELETE, $stepUpTarget)) {
+            return $this->stepUp->challengeAction($request, $user->id, StepUpAction::PROFILE_TOTP_DELETE, $stepUpTarget);
+        }
 
-        return new HtmlResponse(
-            $this->renderer->render('app::profile/totp', [
-                'user'            => $user,
-                'totpActive'      => false,
-                'provisioningUri' => $provisioningUri,
-                'secret'          => $secret,
-                'secretFormatted' => implode(' ', str_split($secret, 4)),
-                'error'           => $error,
-                'success'         => $success,
-                'csrfToken'       => $guard->generateToken(),
-            ]),
-            $status,
-        );
+        $result = $this->connection->transactional(function (Connection $connection) use ($request, $user, $credentialId, $stepUpTarget): string {
+            if (!PlatformDetector::isSqlite($connection)) {
+                $connection->fetchOne('SELECT id FROM users WHERE id = ? FOR UPDATE', [$user->id]);
+            }
+            $count = $this->secrets->count($user->id);
+            if ($count < 1 || !array_any($this->secrets->list($user->id), static fn(array $entry): bool => $entry['id'] === $credentialId)) {
+                return 'missing';
+            }
+            if (!AuthenticationPathPolicy::permitsTotpRemoval($count - 1, $this->webAuthnCredentials->countByUserId($user->id))) {
+                return 'last-path';
+            }
+            $proof = $this->stepUp->consume($request, $user->id, StepUpAction::PROFILE_TOTP_DELETE, $stepUpTarget);
+            if (!$proof instanceof \TowerDNS\Application\DTO\StepUpProof) {
+                return 'step-up';
+            }
+
+            $this->secrets->delete($user->id, $credentialId);
+            $this->audit->record($request, 'user.totp.credential.removed', 'user', $user->id, $user->id, null, null, null, null, $user->id, null, null, ['step_up_method' => $proof->method]);
+
+            return 'deleted';
+        });
+
+        if ($result === 'missing') {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.credential-not-found'), null, 404);
+        }
+        if ($result === 'last-path') {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.last-factor'), null, 409);
+        }
+        if ($result === 'step-up') {
+            return $this->stepUp->challengeAction($request, $user->id, StepUpAction::PROFILE_TOTP_DELETE, $stepUpTarget);
+        }
+
+        return $this->renderPage($user, $session, $guard, null, $this->translator->translate('totp.success.disabled'));
     }
 
-    private function renderDisableForm(
-        User $user,
-        ?string $error,
-        ?string $success,
-        CsrfGuardInterface $guard,
-        int $status = 200,
-    ): HtmlResponse {
-        return new HtmlResponse(
-            $this->renderer->render('app::profile/totp', [
-                'user'            => $user,
-                'totpActive'      => true,
-                'provisioningUri' => null,
-                'secret'          => null,
-                'secretFormatted' => null,
-                'error'           => $error,
-                'success'         => $success,
-                'csrfToken'       => $guard->generateToken(),
-            ]),
-            $status,
-        );
+    /** @return array{user_id: string, secret: string, label: string, created_at: int, expires_at: int, purpose: string}|null */
+    private function pending(SessionInterface $session, string $userId): ?array
+    {
+        $pending = $session->get(self::SESSION_KEY);
+        $now     = time();
+        if (!is_array($pending)
+            || ($pending['user_id'] ?? null) !== $userId
+            || !is_string($pending['secret'] ?? null)
+            || !is_string($pending['label'] ?? null)
+            || !is_int($pending['created_at'] ?? null)
+            || !is_int($pending['expires_at'] ?? null)
+            || ($pending['purpose'] ?? null) !== 'totp.enrollment'
+            || $pending['created_at'] > $now
+            || $pending['expires_at'] < $now
+            || $pending['expires_at'] - $pending['created_at'] > self::PENDING_TTL_SECONDS) {
+            $session->unset(self::SESSION_KEY);
+            return null;
+        }
+
+        /** @var array{user_id: string, secret: string, label: string, created_at: int, expires_at: int, purpose: string} $pending */
+        return $pending;
+    }
+
+    private function renderPage(User $user, SessionInterface $session, CsrfGuardInterface $guard, ?string $error, ?string $success, int $status = 200): HtmlResponse
+    {
+        $pending = $this->pending($session, $user->id);
+        $secret  = $pending['secret'] ?? null;
+        return new HtmlResponse($this->renderer->render('app::profile/totp', [
+            'user'            => $user,
+            'totpCredentials' => $this->secrets->list($user->id),
+            'totpCount'       => $this->secrets->count($user->id),
+            'totpLimit'       => $this->secrets->maxCredentialsPerUser(),
+            'provisioningUri' => is_string($secret) ? $this->totp->getProvisioningUri($secret, $user->email, self::ISSUER) : null,
+            'secret'          => $secret,
+            'secretFormatted' => is_string($secret) ? implode(' ', str_split($secret, 4)) : null,
+            'pendingLabel'    => $pending['label'] ?? null,
+            'error'           => $error,
+            'success'         => $success,
+            'csrfToken'       => $guard->generateToken(),
+        ]), $status);
     }
 }

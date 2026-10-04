@@ -77,6 +77,7 @@ use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\StepUpProofNonceRepositoryInterface;
 use TowerDNS\Application\Repository\SystemProviderConfigurationStoreInterface;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
+use TowerDNS\Application\Repository\TotpCredentialRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
@@ -136,6 +137,7 @@ use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
 use TowerDNS\Infrastructure\Persistence\DbalStepUpProofNonceRepository;
 use TowerDNS\Infrastructure\Persistence\DbalSystemSettingsRepository;
+use TowerDNS\Infrastructure\Persistence\DbalTotpCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\DbalTransactionRunner;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
@@ -282,6 +284,7 @@ final class ContainerFactory
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
             PasswordResetTokenRepositoryInterface::class        => \DI\autowire(DbalPasswordResetTokenRepository::class),
             SystemSettingsRepositoryInterface::class            => \DI\autowire(DbalSystemSettingsRepository::class),
+            TotpCredentialRepositoryInterface::class            => \DI\autowire(DbalTotpCredentialRepository::class),
             StepUpProofNonceRepositoryInterface::class          => \DI\autowire(DbalStepUpProofNonceRepository::class),
             SystemProviderConfigurationStoreInterface::class    => \DI\factory(static fn(): TomlSystemProviderConfigurationStore => new TomlSystemProviderConfigurationStore($projectRoot . '/configs/providers.toml')),
             TransactionRunnerInterface::class                   => \DI\autowire(DbalTransactionRunner::class),
@@ -346,13 +349,56 @@ final class ContainerFactory
             RequireAuthMiddleware::class    => \DI\autowire(),
             ClientIpMiddleware::class       => \DI\autowire(),
             WebAuthnService::class          => \DI\factory(
-                static function (SerializerInterface $serializer) use ($appConf): WebAuthnService {
+                static function (\Psr\Container\ContainerInterface $c, SerializerInterface $serializer) use ($appConf): WebAuthnService {
                     $app = (array) ($appConf['app'] ?? []);
                     // Both installers persist the public host as app.domain.
                     // Keep hostname as a backwards-compatible override for
                     // existing deployments that used the older key.
                     $rpId   = (string) ($app['hostname'] ?? $app['domain'] ?? 'localhost');
                     $rpName = (string) ($app['name'] ?? 'TowerDNS');
+
+                    /** @var Connection $connection */
+                    $connection     = $c->get(Connection::class);
+                    $schema         = $connection->createSchemaManager();
+                    $hasSettings    = $schema->tablesExist(['system_settings']);
+                    $hasCredentials = $schema->tablesExist(['webauthn_credentials']);
+                    if ($hasSettings !== $hasCredentials) {
+                        throw new \RuntimeException('Apply TowerDNS schema migrations before using WebAuthn.');
+                    }
+                    if ($hasSettings && $hasCredentials) {
+                        /** @var SystemSettingsRepositoryInterface $settings */
+                        $settings = $c->get(SystemSettingsRepositoryInterface::class);
+                        /** @var WebAuthnCredentialRepositoryInterface $credentials */
+                        $credentials      = $c->get(WebAuthnCredentialRepositoryInterface::class);
+                        $credentialCount  = $credentials->countAll();
+                        $effectiveOrigin  = 'https://' . $rpId;
+                        $effectiveBaseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
+                        $pinnedRpId       = $settings->get('security.webauthn.rp_id');
+                        $pinnedOrigin     = $settings->get('security.webauthn.origin');
+                        $pinnedBaseUrl    = $settings->get('security.webauthn.base_url');
+                        if ($credentialCount > 0
+                            && ((is_string($pinnedRpId) && $pinnedRpId !== '' && !hash_equals($pinnedRpId, $rpId))
+                                || (is_string($pinnedOrigin) && $pinnedOrigin !== '' && !hash_equals($pinnedOrigin, $effectiveOrigin))
+                                || (is_string($pinnedBaseUrl) && $pinnedBaseUrl !== '' && !hash_equals($pinnedBaseUrl, $effectiveBaseUrl)))) {
+                            throw new \RuntimeException(sprintf(
+                                'WebAuthn RP ID/origin/base URL configuration changed from "%s" / "%s" to "%s" / "%s" while credentials exist. Restore the pinned WebAuthn configuration before serving authentication requests.',
+                                is_string($pinnedRpId) ? $pinnedRpId : '(unset)',
+                                is_string($pinnedBaseUrl) ? $pinnedBaseUrl : (is_string($pinnedOrigin) ? $pinnedOrigin : '(unset)'),
+                                $rpId,
+                                $effectiveBaseUrl,
+                            ));
+                        }
+                        if (!is_string($pinnedRpId) || $pinnedRpId === '' || $credentialCount === 0 && $pinnedRpId !== $rpId) {
+                            $settings->set('security.webauthn.rp_id', $rpId, null);
+                        }
+                        if (!is_string($pinnedOrigin) || $pinnedOrigin === '' || $credentialCount === 0 && $pinnedOrigin !== $effectiveOrigin) {
+                            $settings->set('security.webauthn.origin', $effectiveOrigin, null);
+                        }
+                        if (!is_string($pinnedBaseUrl) || $pinnedBaseUrl === '' || $credentialCount === 0 && $pinnedBaseUrl !== $effectiveBaseUrl) {
+                            $settings->set('security.webauthn.base_url', $effectiveBaseUrl, null);
+                        }
+                    }
+
                     return new WebAuthnService($serializer, $rpId, $rpName);
                 }
             ),
@@ -376,6 +422,8 @@ final class ContainerFactory
                     SystemSettingsRepositoryInterface  $settings,
                     ThemeManager                       $themes,
                     TranslatorInterface                $translator,
+                    WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
+                    AuditLogService $audit,
                 ): SystemSettingsHandler => new SystemSettingsHandler(
                     $renderer,
                     $authz,
@@ -384,6 +432,8 @@ final class ContainerFactory
                     $projectRoot . '/configs/config.local.toml',
                     new \TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter(),
                     $translator,
+                    $webAuthnCredentials,
+                    $audit,
                 )
             ),
             SchemaMigrationHandler::class => \DI\autowire(),
