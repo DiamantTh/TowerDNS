@@ -32,11 +32,17 @@ final readonly class StepUpProofService
         string $targetId,
         ?string $impersonationSessionId,
         string $method,
+        ?string $credentialIdHash = null,
     ): StepUpProof {
         if (!in_array($method, ['password', 'totp', 'webauthn'], true)) {
             throw new \InvalidArgumentException('Unsupported step-up method.');
         }
-
+        if ($credentialIdHash !== null && preg_match('/^[a-f0-9]{64}$/D', $credentialIdHash) !== 1) {
+            throw new \InvalidArgumentException('Credential ID hash must be a SHA-256 hex digest.');
+        }
+        if ($method !== 'password' && $credentialIdHash === null) {
+            throw new \InvalidArgumentException('Factor step-up proofs must identify the verified credential.');
+        }
         $proof = new StepUpProof(
             $actorUserId,
             $action,
@@ -46,6 +52,7 @@ final readonly class StepUpProofService
             $this->clock->now()->getTimestamp(),
             bin2hex(random_bytes(16)),
             '',
+            $credentialIdHash,
         );
 
         return new StepUpProof(
@@ -57,6 +64,7 @@ final readonly class StepUpProofService
             $proof->verifiedAt,
             $proof->nonce,
             hash_hmac('sha256', $this->payload($proof), $this->signingKey),
+            $proof->credentialIdHash,
         );
     }
 
@@ -73,6 +81,8 @@ final readonly class StepUpProofService
             || $proof->targetId               !== $targetId
             || $proof->impersonationSessionId !== $impersonationSessionId
             || !in_array($proof->method, ['password', 'totp', 'webauthn'], true)
+            || ($proof->method !== 'password' && !is_string($proof->credentialIdHash))
+            || ($proof->credentialIdHash !== null && preg_match('/^[a-f0-9]{64}$/D', $proof->credentialIdHash) !== 1)
             || preg_match('/^[a-f0-9]{32}$/D', $proof->nonce)     !== 1
             || preg_match('/^[a-f0-9]{64}$/D', $proof->signature) !== 1) {
             return false;
@@ -113,9 +123,10 @@ final readonly class StepUpProofService
             'target'      => $proof->targetId,
             'switch'      => $proof->impersonationSessionId,
             'method'      => $proof->method,
+            'credential'  => $proof->credentialIdHash,
             'verified_at' => $proof->verifiedAt,
             'nonce'       => $proof->nonce,
-            'purpose'     => 'towerdns-step-up-v1',
+            'purpose'     => 'towerdns-step-up-v2',
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
 }

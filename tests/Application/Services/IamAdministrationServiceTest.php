@@ -107,7 +107,7 @@ final class IamAdministrationServiceTest extends TestCase
 
         $users->expects(self::once())->method('syncRoles')->with('target', ['dns-editor']);
 
-        $proof = $proofs->issue('effective-admin', StepUpAction::IAM_USER_ROLES, 'target', 'switch-1', 'totp');
+        $proof = $proofs->issue('effective-admin', StepUpAction::IAM_USER_ROLES, 'target', 'switch-1', 'totp', hash('sha256', 'totp'));
         $service->syncRoles($effectiveActor, 'target', ['dns-editor'], new AuditContext('root', 'effective-admin', impersonationSessionId: 'switch-1'), $proof);
     }
 

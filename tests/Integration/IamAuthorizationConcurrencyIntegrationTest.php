@@ -164,7 +164,7 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
                         throw new \RuntimeException('Synthetic actor could not be loaded.');
                     }
                     $action  = $scenario === 'role-removal' ? StepUpAction::IAM_USER_ROLES : StepUpAction::IAM_USER_STATUS;
-                    $proof   = $services['proofs']->issue($actorId, $action, $targetId, null, 'totp');
+                    $proof   = $services['proofs']->issue($actorId, $action, $targetId, null, 'totp', hash('sha256', 'totp'));
                     $context = new AuditContext($actorId, $actorId);
 
                     if (!$this->publishWorkerFile($preparedPath, "PREPARED\n")) {

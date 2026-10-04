@@ -17,6 +17,7 @@ use Mezzio\Template\TemplateRendererInterface;
 use OTPHP\TOTP;
 use PHPUnit\Framework\TestCase;
 use Psr\Clock\ClockInterface;
+use Symfony\Component\Uid\Uuid;
 use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
 use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
@@ -34,6 +35,8 @@ use TowerDNS\Infrastructure\Http\StepUpRequestService;
 use TowerDNS\Infrastructure\Persistence\DbalStepUpProofNonceRepository;
 use TowerDNS\Infrastructure\Persistence\DbalTotpCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
+use Webauthn\CredentialRecord;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class TotpSetupHandlerTest extends TestCase
@@ -57,6 +60,12 @@ final class TotpSetupHandlerTest extends TestCase
         $stepUp   = new StepUpRequestService(new SessionSecurity($clock), $proofs);
         $webAuthn = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
         $webAuthn->method('countByUserId')->with($user->id)->willReturn(1);
+        $fidoCredential = new CredentialRecord('fido-credential', 'public-key', [], 'none', EmptyTrustPath::create(), Uuid::fromString('00000000-0000-0000-0000-000000000000'), 'public-key', $user->id, 0);
+        $webAuthn->method('findByUserId')->with($user->id)->willReturn([[
+            'credential_id'   => 'fido-credential', 'name' => 'Key', 'created_at' => '2026-01-01 00:00:00', 'last_used_at' => null,
+            'attachment'      => 'cross-platform', 'aaguid' => '00000000-0000-0000-0000-000000000000', 'transports' => [],
+            'backup_eligible' => false, 'backup_state' => false, 'source' => $fidoCredential,
+        ]]);
         $auditRepo = $this->createMock(AuditLogRepositoryInterface::class);
         $auditRepo->expects(self::exactly(2))->method('append')->with(self::anything(), self::anything());
         $rendered = [];
@@ -95,7 +104,7 @@ final class TotpSetupHandlerTest extends TestCase
         self::assertFalse($session->has('totp_setup_pending'));
         $credentialId = $secrets->list($user->id)[0]['id'];
 
-        $this->setProof($session, $proofs, $user->id, StepUpAction::PROFILE_TOTP_DELETE, hash('sha256', $credentialId));
+        $this->setProof($session, $proofs, $user->id, StepUpAction::PROFILE_TOTP_DELETE, hash('sha256', $credentialId), 'webauthn', hash('sha256', 'fido-credential'));
         self::assertSame(200, $handler->handle($this->postRequest($user, $session, ['action' => 'delete', 'credential_id' => $credentialId]))->getStatusCode());
         self::assertSame(0, $secrets->count($user->id));
         self::assertFalse($session->has('totp_setup_pending'));
@@ -110,9 +119,10 @@ final class TotpSetupHandlerTest extends TestCase
         self::assertNotSame($pending['secret'], $newPending['secret']);
     }
 
-    private function setProof(TotpSetupTestSession $session, StepUpProofService $proofs, string $userId, string $action, string $target): void
+    private function setProof(TotpSetupTestSession $session, StepUpProofService $proofs, string $userId, string $action, string $target, string $method = 'webauthn', ?string $credentialIdHash = null): void
     {
-        $session->set('step_up_proof', $proofs->issue($userId, $action, $target, null, 'webauthn')->toArray());
+        $credentialIdHash ??= hash('sha256', 'fido-credential');
+        $session->set('step_up_proof', $proofs->issue($userId, $action, $target, null, $method, $credentialIdHash)->toArray());
     }
 
     private function currentCode(string $secret, ClockInterface $clock): string

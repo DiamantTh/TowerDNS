@@ -10,6 +10,7 @@
         csrf = '',
         action = null,
         actionText = '',
+        confirmMessage = null,
         detailCols = [],
         detailLabels = [],
     }: {
@@ -19,13 +20,15 @@
         csrf?: string;
         action?: ((row: DataTableRow) => string | null) | null;
         actionText?: string;
+        confirmMessage?: ((row: DataTableRow) => string | null) | null;
         detailCols?: string[];
         detailLabels?: string[];
     } = $props();
 
     const t = useI18n();
-    const ask = (event: SubmitEvent): void => {
-        if (!confirm(t('table.confirm-action', { action: actionText }))) event.preventDefault();
+    const ask = (event: SubmitEvent, row: DataTableRow): void => {
+        const message = confirmMessage?.(row) ?? t('table.confirm-action', { action: actionText });
+        if (message !== '' && !window.confirm(message)) event.preventDefault();
     };
     const cellText = (value: unknown): string => value === null || value === undefined ? '–' : String(value);
 </script>
@@ -54,7 +57,7 @@
                     {/each}
                     <td>
                         {#if actionUrl}
-                            <form method="post" action={actionUrl} onsubmit={ask}>
+                            <form method="post" action={actionUrl} onsubmit={(event) => ask(event, row)}>
                                 <input type="hidden" name="csrf_token" value={csrf}>
                                 <button class="button is-small is-danger">{actionText}</button>
                             </form>

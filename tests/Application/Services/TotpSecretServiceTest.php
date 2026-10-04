@@ -55,6 +55,18 @@ final class TotpSecretServiceTest extends TestCase
         self::assertFalse($service->verify('user-1', $this->code($firstSecret)));
     }
 
+    public function testVerificationReturnsCredentialIdentityAndCanRequireASeparateCredential(): void
+    {
+        $repo    = new InMemoryTotpCredentialRepository();
+        $service = $this->service($repo, new TestTotpCipher('test-key'));
+        $target  = $service->enable('user-1', 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', 'Target');
+        $other   = $service->enable('user-1', 'KRSXG5DSNFXGOIDBMJSGCY3QOZUWY4R2', 'Other');
+
+        self::assertSame($target, $service->verifyCredential('user-1', $this->code('JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP')));
+        self::assertNull($service->verifyCredential('user-1', $this->code('JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP'), $target));
+        self::assertSame($other, $service->verifyCredential('user-1', $this->code('KRSXG5DSNFXGOIDBMJSGCY3QOZUWY4R2'), $target));
+    }
+
     public function testConfiguredLimitBlocksOnlyAdditionalEnrollment(): void
     {
         $repo    = new InMemoryTotpCredentialRepository();

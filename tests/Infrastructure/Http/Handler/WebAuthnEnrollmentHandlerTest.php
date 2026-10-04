@@ -125,7 +125,7 @@ final class WebAuthnEnrollmentHandlerTest extends TestCase
             }
         };
         $proofs = new StepUpProofService('01234567890123456789012345678901', $clock, $this->createMock(StepUpProofNonceRepositoryInterface::class));
-        $session->set('step_up_proof', $proofs->issue($userId, $action, $target, null, 'webauthn')->toArray());
+        $session->set('step_up_proof', $proofs->issue($userId, $action, $target, null, 'webauthn', hash('sha256', 'key'))->toArray());
 
         return new StepUpRequestService(new SessionSecurity($clock), $proofs);
     }

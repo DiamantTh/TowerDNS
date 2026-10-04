@@ -76,17 +76,32 @@ final readonly class TotpSecretService
      */
     public function verify(string $userId, string $code): bool
     {
+        return $this->verifyCredential($userId, $code) !== null;
+    }
+
+    /**
+     * Verifies a code against an enrolled credential and returns its ID.
+     * An optional excluded ID supports actions that must be confirmed by a
+     * different TOTP credential. No secret or code leaves this service.
+     */
+    public function verifyCredential(string $userId, string $code, ?string $excludedCredentialId = null): ?string
+    {
         if ($code === '') {
-            return false;
+            return null;
         }
 
+        $matchingCredentialId      = null;
+        $excludedCredentialMatched = false;
         foreach ($this->credentials->findByUserId($userId) as $credential) {
             $secret = '';
             try {
                 $secret = $this->cipher->decrypt($credential['secret_encrypted']);
                 if ($this->totp->verify($code, $secret)) {
-                    $this->credentials->markUsed($credential['id'], $userId);
-                    return true;
+                    if ($credential['id'] === $excludedCredentialId) {
+                        $excludedCredentialMatched = true;
+                    } elseif ($matchingCredentialId === null) {
+                        $matchingCredentialId = $credential['id'];
+                    }
                 }
             } catch (\Throwable) {
                 // A damaged credential must not prevent other enrolled factors from working.
@@ -97,7 +112,15 @@ final readonly class TotpSecretService
             }
         }
 
-        return false;
+        // With an excluded target, reject ambiguous codes that also validate
+        // against that target: the submitted digits cannot identify which
+        // secret the user proved possession of.
+        if ($matchingCredentialId === null || $excludedCredentialMatched) {
+            return null;
+        }
+
+        $this->credentials->markUsed($matchingCredentialId, $userId);
+        return $matchingCredentialId;
     }
 
     public function delete(string $userId, string $credentialId): void

@@ -117,16 +117,45 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             return new RedirectResponse('/');
         }
 
-        $hasPasskey = $this->credentials->findByUserId($user->id) !== [];
-        $hasTotp    = $this->totpSecrets->isEnabled($user->id);
-        $error      = $request->getQueryParams()['error'] ?? null;
+        $registeredWebAuthn = $this->credentials->findByUserId($user->id);
+        $registeredTotp     = $this->totpSecrets->list($user->id);
+        $hasPasskey         = $registeredWebAuthn !== [];
+        $hasTotp            = $registeredTotp     !== [];
+        $factorHint         = null;
+        $recoveryRequired   = false;
+
+        if ($pending->action === StepUpAction::PROFILE_WEBAUTHN_DELETE) {
+            $hasPasskey = count($registeredWebAuthn) >= 2;
+            $hasTotp    = false;
+            if (count($registeredWebAuthn) === 2) {
+                $factorHint = 'security.step-up.webauthn-delete-other-key';
+            }
+        } elseif ($pending->action === StepUpAction::PROFILE_TOTP_DELETE) {
+            if (count($registeredTotp) === 1) {
+                $hasTotp = false;
+                if (!$hasPasskey) {
+                    $recoveryRequired = true;
+                } else {
+                    $factorHint = 'security.step-up.totp-delete-fido2-required';
+                }
+            } elseif (count($registeredTotp) === 2) {
+                $factorHint = 'security.step-up.totp-delete-other-factor';
+            }
+        }
+        $error             = $request->getQueryParams()['error'] ?? null;
+        $passwordAvailable = !in_array($pending->action, [StepUpAction::PROFILE_WEBAUTHN_DELETE, StepUpAction::PROFILE_TOTP_DELETE], true)
+            && !$hasPasskey
+            && !$hasTotp
+            && $this->users->fetchPasswordHash($user->email) !== null;
 
         return $this->render($guard, [
             'completed'         => false,
             'returnUrl'         => null,
             'totpAvailable'     => $hasTotp,
             'passkeyAvailable'  => $hasPasskey,
-            'passwordAvailable' => !$hasPasskey && !$hasTotp && $this->users->fetchPasswordHash($user->email) !== null,
+            'passwordAvailable' => $passwordAvailable,
+            'factorHint'        => $factorHint,
+            'recoveryRequired'  => $recoveryRequired,
             'error'             => is_string($error) ? $error : null,
         ]);
     }
@@ -142,7 +171,11 @@ final readonly class StepUpHandler implements RequestHandlerInterface
 
         $intent = $this->sessionSecurity->pendingStepUp($session, $user->id, $switchId);
         $hash   = $this->users->fetchPasswordHash($user->email);
-        if (!$intent instanceof StepUpIntent || $hash === null || $this->credentials->findByUserId($user->id) !== [] || $this->totpSecrets->isEnabled($user->id)) {
+        if (!$intent instanceof StepUpIntent
+            || in_array($intent->action, [StepUpAction::PROFILE_WEBAUTHN_DELETE, StepUpAction::PROFILE_TOTP_DELETE], true)
+            || $hash === null
+            || $this->credentials->findByUserId($user->id) !== []
+            || $this->totpSecrets->isEnabled($user->id)) {
             return $this->render($guard, ['error' => $this->translator->translate('security.step-up.unavailable')], 403);
         }
         if (!$this->hitRateLimit('password', $user->id)) {
@@ -174,7 +207,9 @@ final readonly class StepUpHandler implements RequestHandlerInterface
         }
 
         $intent = $this->sessionSecurity->pendingStepUp($session, $user->id, $switchId);
-        if (!$intent instanceof StepUpIntent || !$this->totpSecrets->isEnabled($user->id)) {
+        if (!$intent instanceof StepUpIntent
+            || $intent->action === StepUpAction::PROFILE_WEBAUTHN_DELETE
+            || !$this->totpSecrets->isEnabled($user->id)) {
             return $this->render($guard, ['error' => $this->translator->translate('security.step-up.unavailable')], 403);
         }
 
@@ -182,13 +217,40 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             return $this->render($guard, ['error' => $this->translator->translate('auth.error.rate-limited')], 429);
         }
 
-        $code = trim((string) ($body['code'] ?? ''));
-        if ($code === '' || !$this->totpSecrets->verify($user->id, $code)) {
+        $code                 = trim((string) ($body['code'] ?? ''));
+        $totpCredentials      = $this->totpSecrets->list($user->id);
+        $excludedCredentialId = null;
+        if ($intent->action === StepUpAction::PROFILE_TOTP_DELETE) {
+            if (count($totpCredentials) < 2) {
+                return $this->render($guard, ['error' => $this->translator->translate('security.step-up.unavailable')], 403);
+            }
+            if (count($totpCredentials) === 2) {
+                foreach ($totpCredentials as $credential) {
+                    if (hash_equals($intent->targetId, hash('sha256', $credential['id']))) {
+                        $excludedCredentialId = $credential['id'];
+                        break;
+                    }
+                }
+                if ($excludedCredentialId === null) {
+                    return $this->render($guard, ['error' => $this->translator->translate('security.step-up.unavailable')], 403);
+                }
+            }
+        }
+
+        $verifiedCredentialId = $code === '' ? null : $this->totpSecrets->verifyCredential($user->id, $code, $excludedCredentialId);
+        if ($verifiedCredentialId === null) {
             $this->recordAttempt($request, $user, $switchId, $intent, 'totp', false);
             return $this->render($guard, ['error' => $this->translator->translate('totp.error.code-invalid')], 401);
         }
 
-        $proof = $this->sessionSecurity->completeStepUp($session, $user->id, $switchId, 'totp', $this->proofs);
+        $proof = $this->sessionSecurity->completeStepUp(
+            $session,
+            $user->id,
+            $switchId,
+            'totp',
+            $this->proofs,
+            hash('sha256', $verifiedCredentialId),
+        );
         if (!$proof instanceof StepUpProof) {
             return $this->render($guard, ['error' => $this->translator->translate('security.step-up.expired')], 409);
         }
@@ -207,11 +269,23 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             return new JsonResponse(['error' => $this->translator->translate('http.error.invalid-request')], 400);
         }
 
-        if (!$this->sessionSecurity->pendingStepUp($session, $user->id, $switchId) instanceof StepUpIntent) {
+        $intent = $this->sessionSecurity->pendingStepUp($session, $user->id, $switchId);
+        if (!$intent instanceof StepUpIntent) {
             return new JsonResponse(['error' => $this->translator->translate('security.step-up.expired')], 409);
         }
 
         $credentials = $this->credentials->findByUserId($user->id);
+        if ($intent->action === StepUpAction::PROFILE_WEBAUTHN_DELETE) {
+            if (count($credentials) < 2) {
+                return new JsonResponse(['error' => $this->translator->translate('security.step-up.unavailable')], 403);
+            }
+            if (count($credentials) === 2) {
+                $credentials = array_values(array_filter(
+                    $credentials,
+                    static fn(array $credential): bool => !hash_equals($intent->targetId, hash('sha256', $credential['source']->publicKeyCredentialId)),
+                ));
+            }
+        }
         if ($credentials === []) {
             return new JsonResponse(['error' => $this->translator->translate('security.step-up.unavailable')], 403);
         }
@@ -265,6 +339,15 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }
 
+        if ($intent->action === StepUpAction::PROFILE_WEBAUTHN_DELETE) {
+            $ownedCredentials = $this->credentials->findByUserId($user->id);
+            if (count($ownedCredentials) < 2
+                || (count($ownedCredentials) === 2 && hash_equals($intent->targetId, hash('sha256', $credentialId)))) {
+                $this->recordAttempt($request, $user, $switchId, $intent, 'webauthn', false);
+                return new JsonResponse(['error' => $this->translator->translate('security.step-up.webauthn-delete-other-key')], 403);
+            }
+        }
+
         try {
             $options = $this->webAuthn->deserializeRequestOptions($optionsJson);
             $updated = $this->webAuthn->parseAndValidateAuthentication($body, $source, $options, $user->id);
@@ -274,7 +357,14 @@ final readonly class StepUpHandler implements RequestHandlerInterface
         }
 
         $this->credentials->updateAfterAuthentication($updated);
-        $proof = $this->sessionSecurity->completeStepUp($session, $user->id, $switchId, 'webauthn', $this->proofs);
+        $proof = $this->sessionSecurity->completeStepUp(
+            $session,
+            $user->id,
+            $switchId,
+            'webauthn',
+            $this->proofs,
+            hash('sha256', $credentialId),
+        );
         if (!$proof instanceof StepUpProof) {
             return new JsonResponse(['error' => $this->translator->translate('security.step-up.expired')], 409);
         }
@@ -293,6 +383,8 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             'totpAvailable'     => false,
             'passkeyAvailable'  => false,
             'passwordAvailable' => false,
+            'factorHint'        => null,
+            'recoveryRequired'  => false,
             'error'             => null,
             ...$overrides,
         ]), $status);

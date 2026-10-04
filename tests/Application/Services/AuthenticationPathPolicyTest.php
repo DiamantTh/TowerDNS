@@ -13,24 +13,43 @@ use TowerDNS\Application\Services\AuthenticationPathPolicy;
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class AuthenticationPathPolicyTest extends TestCase
 {
-    public function testPasskeyOnlyAccountCannotLoseItsLastKeyButKeepsMultipleKeysManageable(): void
+    public function testFidoRemovalRequiresAtLeastTwoExistingCredentials(): void
     {
-        self::assertFalse(AuthenticationPathPolicy::permitsWebAuthnRemoval(0, false, false));
-        self::assertTrue(AuthenticationPathPolicy::permitsWebAuthnRemoval(1, false, false));
+        self::assertTrue(AuthenticationPathPolicy::permitsWebAuthnRemoval(3));
+        self::assertTrue(AuthenticationPathPolicy::permitsWebAuthnRemoval(2));
+        self::assertFalse(AuthenticationPathPolicy::permitsWebAuthnRemoval(1));
+        self::assertFalse(AuthenticationPathPolicy::permitsWebAuthnRemoval(0));
     }
 
-    public function testLastWebAuthnKeyCanBeRemovedWhenPasswordAndTotpRemainAsMfa(): void
+    public function testThreeOrMoreTotpCredentialsPermitAnyEnrolledTotpOrFidoStepUp(): void
     {
-        self::assertTrue(AuthenticationPathPolicy::permitsWebAuthnRemoval(0, true, true));
-        self::assertFalse(AuthenticationPathPolicy::permitsWebAuthnRemoval(0, true, false));
-        self::assertFalse(AuthenticationPathPolicy::permitsWebAuthnRemoval(0, false, true));
+        $credential = hash('sha256', 'authenticator');
+        $target     = hash('sha256', 'target');
+
+        self::assertTrue(AuthenticationPathPolicy::permitsTotpRemoval(3, 0, 'totp', $credential, $target));
+        self::assertTrue(AuthenticationPathPolicy::permitsTotpRemoval(4, 1, 'webauthn', $credential, $target));
+        self::assertFalse(AuthenticationPathPolicy::permitsTotpRemoval(3, 0, 'password', $credential, $target));
     }
 
-    public function testFinalTotpCredentialRequiresAnotherPrimaryLoginFactor(): void
+    public function testTwoTotpCredentialsRequireTheOtherTotpOrFido(): void
     {
-        self::assertFalse(AuthenticationPathPolicy::permitsTotpRemoval(0, 0));
-        self::assertTrue(AuthenticationPathPolicy::permitsTotpRemoval(1, 0));
-        self::assertTrue(AuthenticationPathPolicy::permitsTotpRemoval(0, 1));
+        $other  = hash('sha256', 'other');
+        $target = hash('sha256', 'target');
+
+        self::assertTrue(AuthenticationPathPolicy::permitsTotpRemoval(2, 0, 'totp', $other, $target));
+        self::assertFalse(AuthenticationPathPolicy::permitsTotpRemoval(2, 0, 'totp', $target, $target));
+        self::assertTrue(AuthenticationPathPolicy::permitsTotpRemoval(2, 1, 'webauthn', $target, $target));
+        self::assertFalse(AuthenticationPathPolicy::permitsTotpRemoval(2, 0, 'webauthn', $target, $target));
+    }
+
+    public function testLastTotpCanOnlyBeRemovedWithFidoWhenFidoCredentialExists(): void
+    {
+        $fido   = hash('sha256', 'fido');
+        $target = hash('sha256', 'target');
+
+        self::assertTrue(AuthenticationPathPolicy::permitsTotpRemoval(1, 1, 'webauthn', $fido, $target));
+        self::assertFalse(AuthenticationPathPolicy::permitsTotpRemoval(1, 1, 'totp', $target, $target));
+        self::assertFalse(AuthenticationPathPolicy::permitsTotpRemoval(1, 0, 'webauthn', $fido, $target));
     }
 
     public function testPasswordCanOnlyBeDisabledWhilePasswordlessWebAuthnRemains(): void

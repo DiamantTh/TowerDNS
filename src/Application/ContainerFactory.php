@@ -305,7 +305,7 @@ final class ContainerFactory
                     throw new \RuntimeException('security.encryption_key must decode to at least 32 bytes.');
                 }
 
-                return new StepUpProofService(hash_hkdf('sha256', $rawKey, 32, 'towerdns/step-up-proof/v1'), $clock, $nonces);
+                return new StepUpProofService(hash_hkdf('sha256', $rawKey, 32, 'towerdns/step-up-proof/v2'), $clock, $nonces);
             }),
 
             // ── Multi-Tenant services ─────────────────────────────────────────

@@ -11,6 +11,8 @@
         totpAvailable: boolean;
         passkeyAvailable: boolean;
         passwordAvailable: boolean;
+        factorHint?: string | null;
+        recoveryRequired?: boolean;
         error: string | null;
     };
     type SerializedCredentialDescriptor = { id: string; type: PublicKeyCredentialType; transports?: AuthenticatorTransport[] };
@@ -92,15 +94,18 @@
         </section>
     {:else if !data.totpAvailable && !data.passkeyAvailable && !data.passwordAvailable}
         <section class="box">
-            <Notice kind="warning" text={t('security.step-up.no-factor')} />
-            <p>{t('security.step-up.enrollment-hint')}</p>
-            <div class="buttons mt-4">
-                <a class="button" href="/profile/totp">TOTP</a>
-                <a class="button" href="/profile/webauthn">{t('profile.passkeys.title')}</a>
-            </div>
+            <Notice kind="warning" text={t(data.recoveryRequired ? 'security.step-up.recovery-required' : 'security.step-up.no-factor')} />
+            {#if !data.recoveryRequired}
+                <p>{t('security.step-up.enrollment-hint')}</p>
+                <div class="buttons mt-4">
+                    <a class="button" href="/profile/totp">TOTP</a>
+                    <a class="button" href="/profile/webauthn">{t('profile.passkeys.title')}</a>
+                </div>
+            {/if}
         </section>
     {:else}
         <section class="box">
+            {#if data.factorHint}<Notice kind="warning" text={t(data.factorHint)} />{/if}
             {#if data.totpAvailable}
                 <form method="post" action="/security/step-up/totp">
                     <input type="hidden" name="csrf_token" value={data.csrfToken}>

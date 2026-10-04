@@ -20,7 +20,7 @@ final class StepUpProofServiceTest extends TestCase
     public function testProofIsValidOnlyForItsActorActionTargetAndImpersonationContext(): void
     {
         $service = new StepUpProofService(str_repeat('s', 32), $this->clock(1000), $this->nonceRepository());
-        $proof   = $service->issue('actor-1', StepUpAction::IAM_USER_ROLES, 'user-2', 'switch-1', 'webauthn');
+        $proof   = $service->issue('actor-1', StepUpAction::IAM_USER_ROLES, 'user-2', 'switch-1', 'webauthn', hash('sha256', 'key'));
 
         self::assertTrue($service->isValid($proof, 'actor-1', StepUpAction::IAM_USER_ROLES, 'user-2', 'switch-1'));
         self::assertFalse($service->isValid($proof, 'actor-2', StepUpAction::IAM_USER_ROLES, 'user-2', 'switch-1'));
@@ -32,7 +32,7 @@ final class StepUpProofServiceTest extends TestCase
     public function testProofIsShortLivedAndTamperEvident(): void
     {
         $key     = str_repeat('s', 32);
-        $proof   = new StepUpProofService($key, $this->clock(1000), $this->nonceRepository())->issue('actor', StepUpAction::IAM_ROLE_DELETE, 'role', null, 'totp');
+        $proof   = new StepUpProofService($key, $this->clock(1000), $this->nonceRepository())->issue('actor', StepUpAction::IAM_ROLE_DELETE, 'role', null, 'totp', hash('sha256', 'totp'));
         $expired = new StepUpProofService($key, $this->clock(1301), $this->nonceRepository());
         self::assertFalse($expired->isValid($proof, 'actor', StepUpAction::IAM_ROLE_DELETE, 'role', null));
 
@@ -45,6 +45,7 @@ final class StepUpProofServiceTest extends TestCase
             $proof->verifiedAt,
             $proof->nonce,
             $proof->signature,
+            $proof->credentialIdHash,
         );
         self::assertFalse(new StepUpProofService($key, $this->clock(1001), $this->nonceRepository())->isValid($tampered, 'actor', StepUpAction::IAM_ROLE_DELETE, 'other-role', null));
     }
@@ -54,7 +55,7 @@ final class StepUpProofServiceTest extends TestCase
         $nonces = $this->createMock(StepUpProofNonceRepositoryInterface::class);
         $nonces->expects(self::exactly(2))->method('claim')->with(self::callback('is_string'), 1300)->willReturnOnConsecutiveCalls(true, false);
         $service = new StepUpProofService(str_repeat('s', 32), $this->clock(1000), $nonces);
-        $proof   = $service->issue('actor', StepUpAction::IAM_ROLE_DELETE, 'role', null, 'totp');
+        $proof   = $service->issue('actor', StepUpAction::IAM_ROLE_DELETE, 'role', null, 'totp', hash('sha256', 'totp'));
 
         self::assertTrue($service->consumeOnce($proof, 'actor', StepUpAction::IAM_ROLE_DELETE, 'role', null));
         self::assertFalse($service->consumeOnce($proof, 'actor', StepUpAction::IAM_ROLE_DELETE, 'role', null));
@@ -67,6 +68,30 @@ final class StepUpProofServiceTest extends TestCase
 
         self::assertSame('password', $proof->method);
         self::assertTrue($service->isValid($proof, 'actor', StepUpAction::PROFILE_WEBAUTHN_ENROLL, 'actor', null));
+    }
+
+    public function testVerifiedCredentialIdentityIsSignedIntoTheStepUpProof(): void
+    {
+        $service          = new StepUpProofService(str_repeat('s', 32), $this->clock(1000), $this->nonceRepository());
+        $targetCredential = hash('sha256', 'target-key');
+        $otherCredential  = hash('sha256', 'other-key');
+        $proof            = $service->issue('actor', StepUpAction::PROFILE_WEBAUTHN_DELETE, 'target', null, 'webauthn', $otherCredential);
+
+        self::assertSame($otherCredential, StepUpProof::fromArray($proof->toArray())?->credentialIdHash);
+        self::assertTrue($service->isValid($proof, 'actor', StepUpAction::PROFILE_WEBAUTHN_DELETE, 'target', null));
+
+        $tampered = new StepUpProof(
+            $proof->actorUserId,
+            $proof->action,
+            $proof->targetId,
+            $proof->impersonationSessionId,
+            $proof->method,
+            $proof->verifiedAt,
+            $proof->nonce,
+            $proof->signature,
+            $targetCredential,
+        );
+        self::assertFalse($service->isValid($tampered, 'actor', StepUpAction::PROFILE_WEBAUTHN_DELETE, 'target', null));
     }
 
     private function nonceRepository(): StepUpProofNonceRepositoryInterface

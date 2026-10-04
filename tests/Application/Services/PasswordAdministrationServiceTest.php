@@ -68,7 +68,7 @@ final class PasswordAdministrationServiceTest extends TestCase
         ));
         $users->expects(self::once())->method('invalidateApiKeys')->with('target')->willReturn(2);
 
-        $proof  = $proofs->issue('actor', StepUpAction::IAM_USER_PASSWORD, 'target', null, 'totp');
+        $proof  = $proofs->issue('actor', StepUpAction::IAM_USER_PASSWORD, 'target', null, 'totp', hash('sha256', 'totp'));
         $result = $service->setByAdministrator(
             $actor,
             'target',

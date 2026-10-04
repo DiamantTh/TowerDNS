@@ -109,7 +109,7 @@ final class SessionSecurityTest extends TestCase
         self::assertNull($security->pendingStepUp($session, 'user-1', null));
         $session = $security->beginStepUp(new Session([]), 'user-1', StepUpAction::IAM_USER_ROLES, 'target-1', 'switch-1');
 
-        $proof = $security->completeStepUp($session, 'user-1', 'switch-1', 'totp', $proofs);
+        $proof = $security->completeStepUp($session, 'user-1', 'switch-1', 'totp', $proofs, hash('sha256', 'totp'));
         self::assertNotNull($proof);
         self::assertSame('totp', $proof->method);
         self::assertNull($security->pendingStepUp($session, 'user-1', 'switch-1'));
@@ -124,7 +124,7 @@ final class SessionSecurityTest extends TestCase
         $security = new SessionSecurity($this->clock(1000));
         $proofs   = new StepUpProofService(str_repeat('k', 32), $this->clock(1000), $this->nonceRepository());
         $session  = $security->beginStepUp($session, 'user-1', StepUpAction::IAM_USER_STATUS, 'target-1', null);
-        self::assertNotNull($security->completeStepUp($session, 'user-1', null, 'webauthn', $proofs));
+        self::assertNotNull($security->completeStepUp($session, 'user-1', null, 'webauthn', $proofs, hash('sha256', 'key')));
 
         $expired = new SessionSecurity($this->clock(1301))->consumeStepUpProof($session, 'user-1', StepUpAction::IAM_USER_STATUS, 'target-1', null, new StepUpProofService(str_repeat('k', 32), $this->clock(1301), $this->nonceRepository()));
         self::assertNull($expired);
@@ -132,7 +132,7 @@ final class SessionSecurityTest extends TestCase
         $session  = new Session([]);
         $security = new SessionSecurity($this->clock(1000));
         $session  = $security->beginStepUp($session, 'user-1', StepUpAction::IAM_USER_STATUS, 'target-1', null);
-        $security->completeStepUp($session, 'user-1', null, 'totp', $proofs);
+        $security->completeStepUp($session, 'user-1', null, 'totp', $proofs, hash('sha256', 'totp'));
         $security->invalidate($session);
         self::assertSame([], $session->toArray());
     }
@@ -144,7 +144,7 @@ final class SessionSecurityTest extends TestCase
         $security  = new SessionSecurity($clock);
         $proofs    = new StepUpProofService(str_repeat('k', 32), $clock, $this->nonceRepository());
         $session   = $security->beginStepUp($session, 'user-1', StepUpAction::IAM_USER_ROLES, 'target-1', null);
-        $completed = $security->completeStepUp($session, 'user-1', null, 'totp', $proofs);
+        $completed = $security->completeStepUp($session, 'user-1', null, 'totp', $proofs, hash('sha256', 'totp'));
 
         self::assertNotNull($completed);
         self::assertNull($security->pendingStepUp($session, 'user-1', null));

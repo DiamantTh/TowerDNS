@@ -165,6 +165,7 @@ final readonly class SessionSecurity
         ?string $impersonationSessionId,
         string $method,
         StepUpProofService $proofs,
+        ?string $credentialIdHash = null,
     ): ?StepUpProof {
         $intent = $this->pendingStepUp($session, $actorUserId, $impersonationSessionId);
         if (!$intent instanceof StepUpIntent) {
@@ -177,6 +178,7 @@ final readonly class SessionSecurity
             $intent->targetId,
             $intent->impersonationSessionId,
             $method,
+            $credentialIdHash,
         );
         $session->set('step_up_proof', $proof->toArray());
         $session->unset('step_up_pending');

@@ -160,6 +160,9 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         if (!array_any($this->secrets->list($user->id), static fn(array $entry): bool => $entry['id'] === $credentialId)) {
             return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.credential-not-found'), null, 404);
         }
+        if ($this->secrets->count($user->id) === 1 && $this->webAuthnCredentials->countByUserId($user->id) === 0) {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.last-factor-recovery'), null, 409);
+        }
         $stepUpTarget = hash('sha256', $credentialId);
         if (!$this->stepUp->hasProof($request, $user->id, StepUpAction::PROFILE_TOTP_DELETE, $stepUpTarget)) {
             return $this->stepUp->challengeAction($request, $user->id, StepUpAction::PROFILE_TOTP_DELETE, $stepUpTarget);
@@ -173,12 +176,38 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
             if ($count < 1 || !array_any($this->secrets->list($user->id), static fn(array $entry): bool => $entry['id'] === $credentialId)) {
                 return 'missing';
             }
-            if (!AuthenticationPathPolicy::permitsTotpRemoval($count - 1, $this->webAuthnCredentials->countByUserId($user->id))) {
-                return 'last-path';
-            }
             $proof = $this->stepUp->consume($request, $user->id, StepUpAction::PROFILE_TOTP_DELETE, $stepUpTarget);
             if (!$proof instanceof \TowerDNS\Application\DTO\StepUpProof) {
                 return 'step-up';
+            }
+
+            $proofCredentialIdHash = $proof->credentialIdHash;
+            if (!is_string($proofCredentialIdHash)) {
+                return 'step-up';
+            }
+            $webAuthnCredentials         = $this->webAuthnCredentials->findByUserId($user->id);
+            $proofMatchesOwnedCredential = match ($proof->method) {
+                'webauthn' => array_any(
+                    $webAuthnCredentials,
+                    static fn(array $entry): bool => hash_equals($proofCredentialIdHash, hash('sha256', $entry['source']->publicKeyCredentialId)),
+                ),
+                'totp' => array_any(
+                    $this->secrets->list($user->id),
+                    static fn(array $entry): bool => hash_equals($proofCredentialIdHash, hash('sha256', $entry['id'])),
+                ),
+                default => false,
+            };
+            if (!$proofMatchesOwnedCredential) {
+                return 'step-up';
+            }
+            if (!AuthenticationPathPolicy::permitsTotpRemoval(
+                $count,
+                count($webAuthnCredentials),
+                $proof->method,
+                $proofCredentialIdHash,
+                $stepUpTarget,
+            )) {
+                return $count === 1 ? 'last-path' : 'wrong-factor';
             }
 
             $this->secrets->delete($user->id, $credentialId);
@@ -191,7 +220,10 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
             return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.credential-not-found'), null, 404);
         }
         if ($result === 'last-path') {
-            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.last-factor'), null, 409);
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.last-factor-recovery'), null, 409);
+        }
+        if ($result === 'wrong-factor') {
+            return $this->renderPage($user, $session, $guard, $this->translator->translate('totp.error.use-other-factor'), null, 409);
         }
         if ($result === 'step-up') {
             return $this->stepUp->challengeAction($request, $user->id, StepUpAction::PROFILE_TOTP_DELETE, $stepUpTarget);
@@ -228,17 +260,18 @@ final readonly class TotpSetupHandler implements RequestHandlerInterface
         $pending = $this->pending($session, $user->id);
         $secret  = $pending['secret'] ?? null;
         return new HtmlResponse($this->renderer->render('app::profile/totp', [
-            'user'            => $user,
-            'totpCredentials' => $this->secrets->list($user->id),
-            'totpCount'       => $this->secrets->count($user->id),
-            'totpLimit'       => $this->secrets->maxCredentialsPerUser(),
-            'provisioningUri' => is_string($secret) ? $this->totp->getProvisioningUri($secret, $user->email, self::ISSUER) : null,
-            'secret'          => $secret,
-            'secretFormatted' => is_string($secret) ? implode(' ', str_split($secret, 4)) : null,
-            'pendingLabel'    => $pending['label'] ?? null,
-            'error'           => $error,
-            'success'         => $success,
-            'csrfToken'       => $guard->generateToken(),
+            'user'             => $user,
+            'totpCredentials'  => $this->secrets->list($user->id),
+            'totpCount'        => $this->secrets->count($user->id),
+            'totpLimit'        => $this->secrets->maxCredentialsPerUser(),
+            'webAuthnKeyCount' => $this->webAuthnCredentials->countByUserId($user->id),
+            'provisioningUri'  => is_string($secret) ? $this->totp->getProvisioningUri($secret, $user->email, self::ISSUER) : null,
+            'secret'           => $secret,
+            'secretFormatted'  => is_string($secret) ? implode(' ', str_split($secret, 4)) : null,
+            'pendingLabel'     => $pending['label'] ?? null,
+            'error'            => $error,
+            'success'          => $success,
+            'csrfToken'        => $guard->generateToken(),
         ]), $status);
     }
 }

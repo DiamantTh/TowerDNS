@@ -19,9 +19,10 @@ final readonly class StepUpProof
         public int $verifiedAt,
         public string $nonce,
         public string $signature,
+        public ?string $credentialIdHash = null,
     ) {}
 
-    /** @return array{actorUserId: string, action: string, targetId: string, impersonationSessionId: ?string, method: string, verifiedAt: int, nonce: string, signature: string} */
+    /** @return array{actorUserId: string, action: string, targetId: string, impersonationSessionId: ?string, method: string, credentialIdHash: ?string, verifiedAt: int, nonce: string, signature: string} */
     public function toArray(): array
     {
         return [
@@ -30,6 +31,7 @@ final readonly class StepUpProof
             'targetId'               => $this->targetId,
             'impersonationSessionId' => $this->impersonationSessionId,
             'method'                 => $this->method,
+            'credentialIdHash'       => $this->credentialIdHash,
             'verifiedAt'             => $this->verifiedAt,
             'nonce'                  => $this->nonce,
             'signature'              => $this->signature,
@@ -44,6 +46,7 @@ final readonly class StepUpProof
             || !is_string($value['targetId'] ?? null)
             || !is_string($value['impersonationSessionId'] ?? null) && ($value['impersonationSessionId'] ?? null) !== null
             || !is_string($value['method'] ?? null)
+            || !is_string($value['credentialIdHash'] ?? null) && ($value['credentialIdHash'] ?? null) !== null
             || !is_int($value['verifiedAt'] ?? null)
             || !is_string($value['nonce'] ?? null)
             || !is_string($value['signature'] ?? null)) {
@@ -59,6 +62,7 @@ final readonly class StepUpProof
             $value['verifiedAt'],
             $value['nonce'],
             $value['signature'],
+            $value['credentialIdHash'] ?? null,
         );
     }
 }
