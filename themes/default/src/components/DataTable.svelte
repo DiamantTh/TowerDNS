@@ -10,6 +10,8 @@
         csrf = '',
         action = null,
         actionText = '',
+        detailCols = [],
+        detailLabels = [],
     }: {
         rows: DataTableRow[];
         cols: string[];
@@ -17,6 +19,8 @@
         csrf?: string;
         action?: ((row: DataTableRow) => string | null) | null;
         actionText?: string;
+        detailCols?: string[];
+        detailLabels?: string[];
     } = $props();
 
     const t = useI18n();
@@ -39,7 +43,15 @@
             {#each rows as row}
                 {@const actionUrl = action?.(row) ?? null}
                 <tr>
-                    {#each cols as column}<td>{cellText(row[column])}</td>{/each}
+                    {#each cols as column, index}
+                        <td>{cellText(row[column])}
+                            {#if index === 0 && detailCols.length > 0}
+                                <details class="mt-1"><summary>{t('common.details')}</summary>
+                                    <dl class="mt-2">{#each detailCols as detail, detailIndex}<dt>{detailLabels[detailIndex] ?? detail}</dt><dd><code>{cellText(row[detail])}</code></dd>{/each}</dl>
+                                </details>
+                            {/if}
+                        </td>
+                    {/each}
                     <td>
                         {#if actionUrl}
                             <form method="post" action={actionUrl} onsubmit={ask}>

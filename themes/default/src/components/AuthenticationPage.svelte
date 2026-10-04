@@ -17,6 +17,8 @@
     let score = $state<number | null>(null);
     let busy = $state(false);
     let passkeyError = $state('');
+    let email = $state('');
+    let usePassword = $state(false);
     const t = useI18n();
 
     const strength = (event: Event): void => {
@@ -30,18 +32,50 @@
     };
 
     const toBase64Url = (value: ArrayBuffer): string => btoa(String.fromCharCode(...new Uint8Array(value)))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=/g, '');
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
-    async function loginWithPasskey(): Promise<void> {
+    async function finishAssertion(credential: PublicKeyCredential): Promise<void> {
+        const response = credential.response as AuthenticatorAssertionResponse;
+        const result = await fetch('/login/webauthn/finish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: toBase64Url(credential.rawId),
+                rawId: toBase64Url(credential.rawId),
+                type: credential.type,
+                response: {
+                    clientDataJSON: toBase64Url(response.clientDataJSON),
+                    authenticatorData: toBase64Url(response.authenticatorData),
+                    signature: toBase64Url(response.signature),
+                    userHandle: response.userHandle ? toBase64Url(response.userHandle) : null,
+                },
+            }),
+        });
+        const body = await result.json() as FinishResponse;
+        if (!result.ok) throw new Error(typeof body.error === 'string' ? body.error : t('auth.error.login-failed'));
+        window.location.href = typeof body.redirect === 'string' ? body.redirect : url('dashboard');
+    }
+
+    async function loginWithPasskey(hardwareHint = false): Promise<void> {
         busy = true;
         passkeyError = '';
-
         try {
-            if (!data.optionsJson) throw new Error(t('auth.error.login-failed'));
+            let serialized: SerializedRequestOptions;
+            if (page === 'login_webauthn') {
+                if (!data.optionsJson) throw new Error(t('auth.error.login-failed'));
+                serialized = JSON.parse(data.optionsJson) as SerializedRequestOptions;
+            } else {
+                if (!email.trim()) throw new Error(t('auth.error.email-required'));
+                const begin = await fetch('/login/webauthn/begin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: new URLSearchParams({ email: email.trim(), csrf_token: data.csrfToken ?? '' }),
+                });
+                const body = await begin.json() as SerializedRequestOptions & { error?: unknown };
+                if (!begin.ok) throw new Error(typeof body.error === 'string' ? body.error : t('auth.error.login-failed'));
+                serialized = body;
+            }
 
-            const serialized = JSON.parse(data.optionsJson) as SerializedRequestOptions;
             const options: PublicKeyCredentialRequestOptions = {
                 ...serialized,
                 challenge: toBuffer(serialized.challenge),
@@ -49,35 +83,21 @@
                     ...credential,
                     id: toBuffer(credential.id),
                 })),
+                ...(hardwareHint ? { hints: ['security-key'] } : {}),
             };
             const credential = await navigator.credentials.get({ publicKey: options }) as PublicKeyCredential | null;
             if (!credential) throw new Error(t('passkey.error.no-authenticator-response'));
-
-            const response = credential.response as AuthenticatorAssertionResponse;
-            const result = await fetch('/login/webauthn/finish', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: toBase64Url(credential.rawId),
-                    rawId: toBase64Url(credential.rawId),
-                    type: credential.type,
-                    response: {
-                        clientDataJSON: toBase64Url(response.clientDataJSON),
-                        authenticatorData: toBase64Url(response.authenticatorData),
-                        signature: toBase64Url(response.signature),
-                        userHandle: response.userHandle ? toBase64Url(response.userHandle) : null,
-                    },
-                }),
-            });
-            const body = await result.json() as FinishResponse;
-            if (!result.ok) {
-                throw new Error(typeof body.error === 'string' ? body.error : t('auth.error.login-failed'));
-            }
-
-            window.location.href = typeof body.redirect === 'string' ? body.redirect : url('dashboard');
+            await finishAssertion(credential);
         } catch (cause) {
             passkeyError = cause instanceof Error ? cause.message : t('auth.error.login-failed');
             busy = false;
+        }
+    }
+
+    function submitPassword(event: SubmitEvent): void {
+        if (page === 'login' && !usePassword) {
+            event.preventDefault();
+            void loginWithPasskey(false);
         }
     }
 </script>
@@ -87,7 +107,13 @@
         <a class="wordmark" href={url('dashboard')}>TowerDNS</a>
         <h1 class="title is-4">{t('auth.login-with-passkey')}</h1>
         {#if data.error || passkeyError}<Notice kind="danger" text={data.error || passkeyError} />{/if}
-        <button class:loading={busy} class="button is-primary is-fullwidth" onclick={loginWithPasskey}>{t('auth.use-passkey')}</button>
+        <button type="button" class:loading={busy} class="button is-primary is-fullwidth" onclick={() => loginWithPasskey(true)}>{t('auth.use-security-key-recommended')}</button>
+        <details class="mt-4"><summary>{t('auth.more-authentication-options')}</summary>
+            <button type="button" class="button is-fullwidth mt-3" onclick={() => loginWithPasskey(false)}>{t('auth.use-passkey')}</button>
+            {#if (data as AuthenticationPageData & { totpAvailable?: boolean }).totpAvailable}
+                <a class="button is-fullwidth mt-3" href="/login/totp">{t('auth.use-totp')}</a>
+            {/if}
+        </details>
         <div class="auth-links"><a href={url('login')}>{t('auth.other-login-method')}</a></div>
     </section>
 {:else}
@@ -96,18 +122,34 @@
         <h1 class="title is-4">
             {page === 'login' ? t('auth.welcome-back') : page === 'forgot_password' ? t('auth.forgot-password') : page === 'reset_password' ? t('auth.new-password') : t('auth.two-factor')}
         </h1>
-        {#if data.error}<Notice kind="danger" text={data.error} />{/if}
+        {#if data.error || passkeyError}<Notice kind="danger" text={data.error || passkeyError} />{/if}
         {#if data.sent}
             <Notice kind="success" text={t('auth.reset-email-sent')} />
+        {:else if page === 'login'}
+            {#if !usePassword}
+                <Field label={t('field.email')}><input class="input" name="email" type="email" autocomplete="username" bind:value={email} required></Field>
+                <button type="button" class:loading={busy} class="button is-primary is-fullwidth mt-4" onclick={() => loginWithPasskey(true)}>{t('auth.use-security-key-recommended')}</button>
+                <details class="mt-4"><summary>{t('auth.more-authentication-options')}</summary>
+                    <button type="button" class="button is-fullwidth mt-3" onclick={() => loginWithPasskey(false)}>{t('auth.use-passkey')}</button>
+                    <button type="button" class="button is-fullwidth mt-3" onclick={() => usePassword = true}>{t('auth.use-password-alternative')}</button>
+                </details>
+                <div class="auth-links"><a href="/password/forgot">{t('auth.forgot-password-question')}</a></div>
+            {:else}
+                <form id="password-login-form" method="post" action={url('login')} onsubmit={submitPassword}>
+                    <input type="hidden" name="csrf_token" value={data.csrfToken ?? ''}>
+                    <Field label={t('field.email')}><input class="input" name="email" type="email" autocomplete="username" bind:value={email} required></Field>
+                    <Field label={t('field.password')}><input class="input" name="password" type="password" autocomplete="current-password" required></Field>
+                    <button class="button is-primary is-fullwidth mt-4">{t('auth.login')}</button>
+                    <button type="button" class="button is-ghost is-fullwidth mt-2" onclick={() => usePassword = false}>{t('auth.back-to-passkey')}</button>
+                </form>
+                <div class="auth-links"><a href="/password/forgot">{t('auth.forgot-password-question')}</a></div>
+            {/if}
         {:else}
-            <form method="post" action={page === 'login' ? url('login') : page === 'forgot_password' ? '/password/forgot' : page === 'reset_password' ? '/password/reset' : '/login/totp'}>
+            <form method="post" action={page === 'forgot_password' ? '/password/forgot' : page === 'reset_password' ? '/password/reset' : '/login/totp'}>
                 <input type="hidden" name="csrf_token" value={data.csrfToken ?? ''}>
                 {#if data.token}<input type="hidden" name="token" value={data.token}>{/if}
-                {#if page === 'login' || page === 'forgot_password'}
+                {#if page === 'forgot_password'}
                     <Field label={t('field.email')}><input class="input" name="email" type="email" autocomplete="email" required></Field>
-                {/if}
-                {#if page === 'login'}
-                    <Field label={t('field.password')}><input class="input" name="password" type="password" autocomplete="current-password" required></Field>
                 {/if}
                 {#if page === 'reset_password'}
                     <Field label={t('field.new-password')}><input class="input" name="password" type="password" oninput={strength} required><Strength value={score} /></Field>
@@ -117,14 +159,10 @@
                     <Field label={t('field.authenticator-code')}><input class="input code-input" name="code" inputmode="numeric" pattern={'[0-9]{6,8}'} required></Field>
                 {/if}
                 <button class="button is-primary is-fullwidth">
-                    {page === 'login' ? t('auth.login') : page === 'forgot_password' ? t('auth.send-reset-link') : page === 'reset_password' ? t('common.save') : t('common.confirm')}
+                    {page === 'forgot_password' ? t('auth.send-reset-link') : page === 'reset_password' ? t('common.save') : t('common.confirm')}
                 </button>
             </form>
+            <div class="auth-links"><a href={url('login')}>{t('auth.back-to-login')}</a></div>
         {/if}
-        <div class="auth-links">
-            <a href={page === 'login' ? '/password/forgot' : url('login')}>
-                {page === 'login' ? t('auth.forgot-password-question') : t('auth.back-to-login')}
-            </a>
-        </div>
     </section>
 {/if}

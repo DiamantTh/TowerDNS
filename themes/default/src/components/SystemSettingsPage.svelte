@@ -13,6 +13,8 @@
         theme_name?: string;
         pwd_min_length?: number;
         pwd_min_score?: number;
+        webauthn_max_credentials?: number;
+        totp_max_credentials?: number;
         hibp_enabled?: boolean;
         hibp_fail_open?: boolean;
         hibp_timeout?: number;
@@ -66,6 +68,8 @@
             <div class="form-grid">
                 <Field label={t('settings.password-min-length')}><input class="input" type="number" min="8" max="128" name="pwd_min_length" value={fields.pwd_min_length ?? 16}></Field>
                 <Field label={t('settings.password-min-score')}><input class="input" type="number" min="0" max="4" name="pwd_min_score" value={fields.pwd_min_score ?? 2}></Field>
+                <Field label={t('settings.webauthn-limit')}><input class="input" type="number" min="1" max="100" name="webauthn_max_credentials" value={fields.webauthn_max_credentials ?? 10}></Field>
+                <Field label={t('settings.totp-limit')}><input class="input" type="number" min="1" max="100" name="totp_max_credentials" value={fields.totp_max_credentials ?? 5}></Field>
                 <Field label={t('settings.hibp.timeout')}><input class="input" type="number" min="1" max="10" step="0.5" name="hibp_timeout" value={fields.hibp_timeout ?? 3}></Field>
             </div>
             <div class="settings-options">

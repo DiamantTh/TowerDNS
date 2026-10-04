@@ -10,6 +10,7 @@
         returnUrl: string | null;
         totpAvailable: boolean;
         passkeyAvailable: boolean;
+        passwordAvailable: boolean;
         error: string | null;
     };
     type SerializedCredentialDescriptor = { id: string; type: PublicKeyCredentialType; transports?: AuthenticatorTransport[] };
@@ -89,7 +90,7 @@
             <p>{t('security.step-up.resubmit-hint')}</p>
             <a class="button is-primary mt-4" href={data.returnUrl}>{t('security.step-up.return')}</a>
         </section>
-    {:else if !data.totpAvailable && !data.passkeyAvailable}
+    {:else if !data.totpAvailable && !data.passkeyAvailable && !data.passwordAvailable}
         <section class="box">
             <Notice kind="warning" text={t('security.step-up.no-factor')} />
             <p>{t('security.step-up.enrollment-hint')}</p>
@@ -111,6 +112,13 @@
             {/if}
             {#if data.passkeyAvailable}
                 <button class="button" class:loading={busy} disabled={busy} onclick={verifyPasskey}>{t('security.step-up.confirm-passkey')}</button>
+            {/if}
+            {#if data.passwordAvailable}
+                <form method="post" action="/security/step-up/password" class="mt-4">
+                    <input type="hidden" name="csrf_token" value={data.csrfToken}>
+                    <Field label={t('field.password')}><input class="input" type="password" name="password" autocomplete="current-password" required></Field>
+                    <button class="button">{t('security.step-up.confirm-password')}</button>
+                </form>
             {/if}
         </section>
     {/if}
