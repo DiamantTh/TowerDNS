@@ -14,7 +14,7 @@ interface WebAuthnCredentialRepositoryInterface
     /**
      * Returns all credentials registered for a given user.
      *
-     * @return list<array{credential_id: string, name: string, created_at: string, last_used_at: string|null, source: CredentialRecord}>
+     * @return list<array{credential_id: string, name: string, created_at: string, last_used_at: string|null, attachment: string|null, aaguid: string, transports: list<string>, backup_eligible: bool|null, backup_state: bool|null, source: CredentialRecord}>
      */
     public function findByUserId(string $userId): array;
 
@@ -23,15 +23,24 @@ interface WebAuthnCredentialRepositoryInterface
      */
     public function findByCredentialId(string $credentialId): ?CredentialRecord;
 
+    /** Looks up a credential only when it belongs to the supplied user. */
+    public function findByCredentialIdForUser(string $credentialId, string $userId): ?CredentialRecord;
+
+    /** Returns the number of credentials stored by all users. */
+    public function countAll(): int;
+
+    /** Returns the number of credentials registered for one user. */
+    public function countByUserId(string $userId): int;
+
     /**
      * Persists a new credential for a user.
      */
-    public function save(string $userId, string $name, CredentialRecord $source): void;
+    public function save(string $userId, string $name, CredentialRecord $source, ?string $attachment = null, int $maxCredentials = 10): void;
 
     /**
      * Updates the counter and last-used timestamp after a successful assertion.
      */
-    public function updateAfterAuthentication(string $credentialId, int $counter): void;
+    public function updateAfterAuthentication(CredentialRecord $source): void;
 
     /**
      * Deletes a specific credential that belongs to the given user.

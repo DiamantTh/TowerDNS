@@ -7,6 +7,7 @@ namespace TowerDNS\Tests\Infrastructure\Persistence;
 use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Serializer\SerializerInterface;
+use TowerDNS\Application\Exception\WebAuthnCredentialLimitException;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
@@ -25,6 +26,7 @@ final class DbalWebAuthnCredentialRepositoryTest extends TestCase
                 user_id TEXT NOT NULL,
                 name TEXT NOT NULL,
                 data TEXT NOT NULL,
+                attachment TEXT NULL,
                 created_at TEXT NOT NULL,
                 last_used_at TEXT NULL
             )',
@@ -49,8 +51,20 @@ final class DbalWebAuthnCredentialRepositoryTest extends TestCase
         self::assertInstanceOf(CredentialRecord::class, $record);
         self::assertSame(1, $record->counter);
         self::assertSame('credential-id', $record->publicKeyCredentialId);
+        self::assertSame(1, $repository->countAll());
+        self::assertSame(1, $repository->countByUserId('user-1'));
+        self::assertInstanceOf(CredentialRecord::class, $repository->findByCredentialIdForUser('credential-id', 'user-1'));
+        self::assertNull($repository->findByCredentialIdForUser('credential-id', 'someone-else'));
 
-        $repository->updateAfterAuthentication('credential-id', 2);
+        try {
+            $repository->save('user-1', 'Second key', $record, maxCredentials: 1);
+            self::fail('The configured WebAuthn limit must be enforced.');
+        } catch (WebAuthnCredentialLimitException) {
+            self::assertSame(1, $repository->countByUserId('user-1'));
+        }
+
+        $record->counter = 2;
+        $repository->updateAfterAuthentication($record);
         self::assertSame(2, $repository->findByCredentialId('credential-id')?->counter);
     }
 

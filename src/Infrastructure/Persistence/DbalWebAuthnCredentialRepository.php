@@ -9,6 +9,7 @@ namespace TowerDNS\Infrastructure\Persistence;
 
 use Doctrine\DBAL\Connection;
 use Symfony\Component\Serializer\SerializerInterface;
+use TowerDNS\Application\Exception\WebAuthnCredentialLimitException;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use Webauthn\CredentialRecord;
 
@@ -23,7 +24,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
     public function findByUserId(string $userId): array
     {
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT credential_id, name, data, created_at, last_used_at
+            'SELECT credential_id, name, data, created_at, last_used_at, attachment
                FROM webauthn_credentials
               WHERE user_id = ?
            ORDER BY created_at ASC',
@@ -38,11 +39,16 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
                 'json',
             );
             $result[] = [
-                'credential_id' => (string) $row['credential_id'],
-                'name'          => (string) $row['name'],
-                'created_at'    => (string) $row['created_at'],
-                'last_used_at'  => isset($row['last_used_at']) ? (string) $row['last_used_at'] : null,
-                'source'        => $source,
+                'credential_id'   => (string) $row['credential_id'],
+                'name'            => (string) $row['name'],
+                'created_at'      => (string) $row['created_at'],
+                'last_used_at'    => isset($row['last_used_at']) ? (string) $row['last_used_at'] : null,
+                'attachment'      => isset($row['attachment']) ? (string) $row['attachment'] : null,
+                'aaguid'          => $source->aaguid->toRfc4122(),
+                'transports'      => array_values(array_filter($source->transports, is_string(...))),
+                'backup_eligible' => $source->backupEligible,
+                'backup_state'    => $source->backupStatus,
+                'source'          => $source,
             ];
         }
 
@@ -69,32 +75,62 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
     }
 
     #[\Override]
-    public function save(string $userId, string $name, CredentialRecord $source): void
+    public function findByCredentialIdForUser(string $credentialId, string $userId): ?CredentialRecord
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT data FROM webauthn_credentials WHERE credential_id = ? AND user_id = ?',
+            [$credentialId, $userId],
+        );
+        if ($row === false) {
+            return null;
+        }
+
+        return $this->serializer->deserialize((string) $row['data'], CredentialRecord::class, 'json');
+    }
+
+    #[\Override]
+    public function countAll(): int
+    {
+        return (int) $this->connection->fetchOne('SELECT COUNT(*) FROM webauthn_credentials');
+    }
+
+    #[\Override]
+    public function countByUserId(string $userId): int
+    {
+        return (int) $this->connection->fetchOne('SELECT COUNT(*) FROM webauthn_credentials WHERE user_id = ?', [$userId]);
+    }
+
+    #[\Override]
+    public function save(string $userId, string $name, CredentialRecord $source, ?string $attachment = null, int $maxCredentials = 10): void
     {
         $now  = new \DateTimeImmutable()->format('Y-m-d H:i:s');
         $data = $this->serializer->serialize($source, 'json');
 
-        $this->connection->insert('webauthn_credentials', [
-            'credential_id' => $source->publicKeyCredentialId,
-            'user_id'       => $userId,
-            'name'          => $name,
-            'data'          => $data,
-            'created_at'    => $now,
-            'last_used_at'  => null,
-        ]);
+        $this->connection->transactional(function (Connection $connection) use ($userId, $name, $source, $attachment, $maxCredentials, $now, $data): void {
+            if (!PlatformDetector::isSqlite($connection)) {
+                $connection->fetchOne('SELECT id FROM users WHERE id = ? FOR UPDATE', [$userId]);
+            }
+            $count = (int) $connection->fetchOne('SELECT COUNT(*) FROM webauthn_credentials WHERE user_id = ?', [$userId]);
+            if ($count >= max(1, min(100, $maxCredentials))) {
+                throw new WebAuthnCredentialLimitException('The configured WebAuthn credential limit has been reached.');
+            }
+
+            $connection->insert('webauthn_credentials', [
+                'credential_id' => $source->publicKeyCredentialId,
+                'user_id'       => $userId,
+                'name'          => $name,
+                'data'          => $data,
+                'created_at'    => $now,
+                'last_used_at'  => null,
+                'attachment'    => in_array($attachment, ['platform', 'cross-platform'], true) ? $attachment : null,
+            ]);
+        });
     }
 
     #[\Override]
-    public function updateAfterAuthentication(string $credentialId, int $counter): void
+    public function updateAfterAuthentication(CredentialRecord $source): void
     {
-        $source = $this->findByCredentialId($credentialId);
-        if (!$source instanceof CredentialRecord) {
-            return;
-        }
-
-        // Update the counter in the stored source object.
-        $source->counter = $counter;
-        $data            = $this->serializer->serialize($source, 'json');
+        $data = $this->serializer->serialize($source, 'json');
 
         $this->connection->update(
             'webauthn_credentials',
@@ -102,7 +138,7 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
                 'data'         => $data,
                 'last_used_at' => new \DateTimeImmutable()->format('Y-m-d H:i:s'),
             ],
-            ['credential_id' => $credentialId],
+            ['credential_id' => $source->publicKeyCredentialId],
         );
     }
 

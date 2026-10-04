@@ -30,6 +30,7 @@ final readonly class SchemaMigrationManager
         Migrations\Version20260919000100::class,
         Migrations\Version20260919000200::class,
         Migrations\Version20260927000100::class,
+        Migrations\Version20261004000100::class,
     ];
 
     public function __construct(

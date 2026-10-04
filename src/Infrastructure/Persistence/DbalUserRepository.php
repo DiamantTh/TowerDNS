@@ -128,27 +128,6 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     }
 
     #[\Override]
-    public function fetchEncryptedTotpSecret(string $userId): ?string
-    {
-        $secret = $this->connection->fetchOne(
-            'SELECT totp_secret_encrypted FROM users WHERE id = ?',
-            [$userId],
-        );
-
-        return is_string($secret) && $secret !== '' ? $secret : null;
-    }
-
-    #[\Override]
-    public function saveEncryptedTotpSecret(string $userId, ?string $ciphertext): void
-    {
-        $this->connection->update(
-            'users',
-            ['totp_secret_encrypted' => $ciphertext, 'updated_at' => $this->clock->now()->format('Y-m-d H:i:s')],
-            ['id' => $userId],
-        );
-    }
-
-    #[\Override]
     public function updateLastLoginAt(string $userId): void
     {
         $this->connection->update(

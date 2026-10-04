@@ -8,6 +8,7 @@ use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Schema\Index;
 use Doctrine\DBAL\Schema\Index\IndexType;
 use PHPUnit\Framework\TestCase;
+use TowerDNS\Infrastructure\Persistence\Migrations\Version20261004000100;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 
@@ -22,12 +23,12 @@ final class SchemaMigrationManagerTest extends TestCase
         $status = $manager->migrate();
         self::assertSame([], $status->pending);
         self::assertTrue($status->schemaCurrent);
-        self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
+        self::assertSame(4, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
         self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles'));
 
         $second = $manager->migrate();
         self::assertSame([], $second->pending);
-        self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
+        self::assertSame(4, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
     }
 
     public function testCurrentSchemaIsBaselinedWithoutChangingExistingData(): void
@@ -65,6 +66,31 @@ final class SchemaMigrationManagerTest extends TestCase
         self::assertSame([], $status->pending);
         self::assertSame('de-DE', $connection->fetchOne('SELECT language FROM users WHERE id = ?', ['user-2']));
         self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts WHERE personal_user_id = ?', ['user-2']));
+    }
+
+    public function testAuthMigrationMovesLegacyEncryptedTotpSecretWithoutLosingIt(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $schema     = new SchemaManager($connection);
+        $schema->createTablesIfNotExist();
+        $schema->seedSystemRoles();
+        $schema->seedSystemSettingsDefaults();
+        $schema->seedFirstUser('legacy-totp-user', 'legacy-totp@example.test', password_hash('safe-password', PASSWORD_ARGON2ID), 'Legacy TOTP');
+        $encrypted = 'versioned-encrypted-secret-that-must-survive';
+        $connection->update('users', ['totp_secret_encrypted' => $encrypted], ['id' => 'legacy-totp-user']);
+
+        $manager = $this->manager($connection);
+        $manager->migrate();
+        $connection->executeStatement('DROP TABLE totp_credentials');
+        $connection->executeStatement('ALTER TABLE webauthn_credentials DROP COLUMN attachment');
+        $connection->delete(SchemaMigrationManager::METADATA_TABLE, ['version' => Version20261004000100::class]);
+
+        $status = $manager->migrate();
+
+        self::assertTrue($status->schemaCurrent);
+        self::assertSame($encrypted, $connection->fetchOne('SELECT secret_encrypted FROM totp_credentials WHERE user_id = ?', ['legacy-totp-user']));
+        self::assertNull($connection->fetchOne('SELECT totp_secret_encrypted FROM users WHERE id = ?', ['legacy-totp-user']));
+        self::assertSame('Migrated authenticator', $connection->fetchOne('SELECT label FROM totp_credentials WHERE user_id = ?', ['legacy-totp-user']));
     }
 
     public function testLegacyAccountTypeGapIsReportedWithoutFailingStatusInspection(): void

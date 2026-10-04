@@ -82,6 +82,28 @@ final readonly class SchemaManager
             ->create();
     }
 
+    private function totpCredentialTableBuilder(): CanonicalTableBuilder
+    {
+        $table = new CanonicalTableBuilder('totp_credentials');
+        $table->addColumn('id', Types::GUID);
+        $table->addColumn('user_id', Types::GUID);
+        $table->addColumn('secret_encrypted', Types::STRING, ['length' => 512]);
+        $table->addColumn('label', Types::STRING, ['length' => 100]);
+        $table->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $table->addColumn('last_used_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $table->setPrimaryKey(['id']);
+        $table->addIndex(['user_id'], 'idx_totp_credentials_user_id');
+        $table->addForeignKeyConstraint(
+            'users',
+            ['user_id'],
+            ['id'],
+            ['onDelete' => 'CASCADE'],
+            'fk_totp_credentials_user_id',
+        );
+
+        return $table;
+    }
+
     /**
      * Merges the canonical schema into Doctrine's migration schema object.
      * Missing tables, columns, indexes and foreign keys are added only; no
@@ -594,11 +616,14 @@ final readonly class SchemaManager
         $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
 
         $defaults = [
-            'security.password.min_length'     => 16,
-            'security.password.min_score'      => 2,
-            'security.password.hibp_enabled'   => false,
-            'security.password.hibp_fail_open' => true,
-            'security.password.hibp_timeout'   => 3.0,
+            'security.password.min_length'               => 16,
+            'security.password.min_score'                => 2,
+            'security.password.hibp_enabled'             => false,
+            'security.password.hibp_fail_open'           => true,
+            'security.password.hibp_timeout'             => 3.0,
+            'security.webauthn.max_credentials_per_user' => 10,
+            'security.totp.max_credentials_per_user'     => 5,
+            'security.webauthn.base_url'                 => '',
         ];
 
         foreach ($defaults as $key => $value) {
@@ -722,6 +747,7 @@ final readonly class SchemaManager
         $waCredentials->addColumn('data', Types::TEXT);
         $waCredentials->addColumn('created_at', Types::DATETIME_MUTABLE);
         $waCredentials->addColumn('last_used_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $waCredentials->addColumn('attachment', Types::STRING, ['length' => 32, 'notnull' => false]);
         $waCredentials->setPrimaryKey(['credential_id']);
         $waCredentials->addIndex(['user_id'], 'idx_wac_user_id');
         $waCredentials->addForeignKeyConstraint(
@@ -1023,7 +1049,7 @@ final readonly class SchemaManager
             ->setPrimaryKey(['nonce']);
 
         return array_map(static fn(CanonicalTableBuilder $table): Table => $table->create(), [
-            $roles, $rolePerms, $users, $userRoles, $waCredentials, $apiKeys,
+            $roles, $rolePerms, $users, $userRoles, $waCredentials, $this->totpCredentialTableBuilder(), $apiKeys,
             $accounts, $resourceLimits, $accMembers, $accountInvitations, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
             $pwResetTokens, $systemSettings, $stepUpProofNonces,
         ]);

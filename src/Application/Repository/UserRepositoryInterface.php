@@ -48,18 +48,6 @@ interface UserRepositoryInterface
     public function fetchPasswordHash(string $email): ?string;
 
     /**
-     * Returns the encrypted TOTP secret for the given user, or null when TOTP
-     * is not configured. Callers must never interpret this value as plaintext.
-     */
-    public function fetchEncryptedTotpSecret(string $userId): ?string;
-
-    /**
-     * Persists (or clears) an encrypted TOTP secret for a user.
-     * Pass null to disable TOTP.
-     */
-    public function saveEncryptedTotpSecret(string $userId, ?string $ciphertext): void;
-
-    /**
      * Records the current timestamp as the user's last successful login.
      */
     public function updateLastLoginAt(string $userId): void;
@@ -75,7 +63,9 @@ interface UserRepositoryInterface
     /**
      * Replaces the stored password hash for the given user.
      *
-     * $passwordHash MUST be the output of {@see password_hash()}.
+     * $passwordHash MUST be the output of {@see password_hash()}. An empty
+     * string represents a deliberately disabled optional password factor for
+     * compatibility with installations whose column is NOT NULL.
      */
     public function updatePasswordHash(string $userId, string $passwordHash): void;
 

@@ -33,12 +33,12 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $first = $manager->migrate();
             self::assertSame([], $first->pending, $backend);
             self::assertTrue($first->schemaCurrent, $backend);
-            self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(4, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles'), $backend);
 
             $second = $manager->migrate();
             self::assertSame([], $second->pending, $backend);
-            self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(4, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
 
             $bootstrap = new FreshInstallBootstrapper($connection);
             $result    = $bootstrap->bootstrap(new FreshInstallBootstrapRequest(
@@ -86,7 +86,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             self::assertSame($passwordHash, $connection->fetchOne('SELECT password_hash FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('de-DE', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('ciphertext-that-must-survive', $connection->fetchOne('SELECT credentials_encrypted FROM provider_accounts WHERE account_id = ?', [$accountId]), $backend);
-            self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(4, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
         });
     }
 
@@ -108,7 +108,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $status = $manager->migrate();
 
             self::assertTrue($status->schemaCurrent, $backend);
-            self::assertSame(3, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(4, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertTrue($connection->createSchemaManager()->tablesExist(['step_up_proof_nonces']), $backend);
             self::assertSame($userId, $connection->fetchOne('SELECT id FROM users WHERE email = ?', ['step-up-migration@example.test']), $backend);
         });
