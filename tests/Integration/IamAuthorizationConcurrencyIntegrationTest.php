@@ -12,6 +12,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\DTO\AuditContext;
 use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Exception\AuthorizationException;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\IamAdministrationService;
@@ -407,7 +408,7 @@ final class IamAuthorizationConcurrencyIntegrationTest extends TestCase
         );
 
         return [
-            'iam'    => new IamAdministrationService($users, $roles, new AuthorizationService(), new PermissionRegistry(), $transactions, $audit, $lifecycle, $proofs),
+            'iam'    => new IamAdministrationService($users, $roles, new AuthorizationService(), new PermissionRegistry(), $transactions, $audit, $lifecycle, $proofs, $this->createMock(WebAuthnCredentialRepositoryInterface::class)),
             'users'  => $users,
             'proofs' => $proofs,
         ];

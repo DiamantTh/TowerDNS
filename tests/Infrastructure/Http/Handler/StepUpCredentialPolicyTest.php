@@ -88,6 +88,49 @@ final class StepUpCredentialPolicyTest extends TestCase
         self::assertSame(1, $secrets->count($user->id));
     }
 
+    public function testAdminCredentialRecoveryStepUpOnlyOffersAdministratorFidoWithUvRequired(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $schema     = new SchemaManager($connection);
+        $schema->createTablesIfNotExist();
+        $schema->seedSystemRoles();
+        $userId = '33333333-3333-4333-8333-333333333333';
+        $schema->seedFirstUser($userId, 'admin@example.test', 'password-hash');
+        $user        = new User($userId, 'admin@example.test');
+        $clock       = $this->clock();
+        $session     = new SessionSecurity($clock)->beginStepUp(new Session([]), $userId, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::iamUserWebAuthnCredentialTarget('target-user', 'lost-key'), null);
+        $credentials = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
+        $credentials->method('findByUserId')->with($userId)->willReturn([$this->fidoRow('administrator-key', $userId)]);
+        $proofs   = new StepUpProofService(str_repeat('k', 32), $clock, new DbalStepUpProofNonceRepository($connection));
+        $rendered = [];
+        $renderer = $this->createMock(TemplateRendererInterface::class);
+        $renderer->method('render')->willReturnCallback(static function (string $_template, array $variables) use (&$rendered): string {
+            $rendered = $variables;
+            return '<html></html>';
+        });
+        $handler = $this->handler($connection, $clock, $credentials, $this->createMock(UserRepositoryInterface::class), proofs: $proofs, renderer: $renderer);
+
+        $showResponse = $handler->handle($this->request('/security/step-up', $user, $session)->withMethod('GET'));
+        self::assertSame(200, $showResponse->getStatusCode());
+        self::assertTrue($rendered['passkeyAvailable']);
+        self::assertFalse($rendered['totpAvailable']);
+        self::assertFalse($rendered['passwordAvailable']);
+
+        $totpResponse = $handler->handle($this->request('/security/step-up/totp', $user, $session)->withParsedBody(['csrf_token' => 'csrf', 'code' => '00000000']));
+        self::assertSame(403, $totpResponse->getStatusCode());
+        $passwordResponse = $handler->handle($this->request('/security/step-up/password', $user, $session)->withParsedBody(['csrf_token' => 'csrf', 'password' => 'password']));
+        self::assertSame(403, $passwordResponse->getStatusCode());
+
+        $beginResponse = $handler->handle($this->request('/security/step-up/webauthn/begin', $user, $session));
+        self::assertSame(200, $beginResponse->getStatusCode());
+        $options = json_decode((string) $beginResponse->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('required', $options['userVerification']);
+        self::assertSame(['administrator-key'], array_map(static function (array $entry): string {
+            $credentialId = base64_decode(strtr($entry['id'], '-_', '+/'), true);
+            return $credentialId === false ? '' : $credentialId;
+        }, $options['allowCredentials']));
+    }
+
     public function testFidoTwoToOneStepUpOptionsExcludeTheTargetCredential(): void
     {
         $clock      = $this->clock();
@@ -161,7 +204,7 @@ final class StepUpCredentialPolicyTest extends TestCase
         return [$this->handler($connection, $clock, $credentials, $this->createMock(UserRepositoryInterface::class), $totp, $proofs), new Session([]), $user, $totp, $clock, $proofs];
     }
 
-    private function handler(Connection $connection, ClockInterface $clock, WebAuthnCredentialRepositoryInterface $credentials, UserRepositoryInterface $users, ?TotpSecretService $totp = null, ?StepUpProofService $proofs = null): StepUpHandler
+    private function handler(Connection $connection, ClockInterface $clock, WebAuthnCredentialRepositoryInterface $credentials, UserRepositoryInterface $users, ?TotpSecretService $totp = null, ?StepUpProofService $proofs = null, ?TemplateRendererInterface $renderer = null): StepUpHandler
     {
         $audit = $this->createMock(AuditLogRepositoryInterface::class);
         $audit->method('append');
@@ -188,7 +231,7 @@ final class StepUpCredentialPolicyTest extends TestCase
         $translator = $this->createMock(TranslatorInterface::class);
         $translator->method('translate')->willReturnArgument(0);
         return new StepUpHandler(
-            $this->createMock(TemplateRendererInterface::class),
+            $renderer ?? $this->createMock(TemplateRendererInterface::class),
             $totp,
             new WebAuthnService($this->serializer(), 'example.test', 'TowerDNS'),
             $credentials,

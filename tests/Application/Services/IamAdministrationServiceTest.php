@@ -9,6 +9,7 @@ namespace TowerDNS\Tests\Application\Services;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Uid\Uuid;
 use TowerDNS\Application\Contracts\TransactionRunnerInterface;
 use TowerDNS\Application\DTO\AuditContext;
 use TowerDNS\Application\DTO\StepUpAction;
@@ -22,6 +23,7 @@ use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\StepUpProofNonceRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\IamAdministrationService;
@@ -32,6 +34,8 @@ use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\Role;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Clock\SystemClock;
+use Webauthn\CredentialRecord;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class IamAdministrationServiceTest extends TestCase
@@ -101,14 +105,19 @@ final class IamAdministrationServiceTest extends TestCase
         $effectiveActor = new User('effective-admin', 'effective-admin@example.test', [
             new Role('limited-iam', 'Scoped IAM administrator', [Permission::USER_MANAGE, Permission::ROLE_MANAGE, Permission::RECORD_UPDATE]),
         ]);
-        $target                       = new User('target', 'target@example.test');
-        $assigned                     = new Role('dns-editor', 'DNS editor', [Permission::RECORD_UPDATE]);
-        [$service, $users, , $proofs] = $this->service($effectiveActor, $target, $assigned, new AuditContext('root', 'effective-admin', impersonationSessionId: 'switch-1'));
+        $target                                        = new User('target', 'target@example.test');
+        $assigned                                      = new Role('dns-editor', 'DNS editor', [Permission::RECORD_UPDATE]);
+        [$service, $users, , $proofs, , $auditEntries] = $this->service($effectiveActor, $target, $assigned);
 
         $users->expects(self::once())->method('syncRoles')->with('target', ['dns-editor']);
 
         $proof = $proofs->issue('effective-admin', StepUpAction::IAM_USER_ROLES, 'target', 'switch-1', 'totp', hash('sha256', 'totp'));
         $service->syncRoles($effectiveActor, 'target', ['dns-editor'], new AuditContext('root', 'effective-admin', impersonationSessionId: 'switch-1'), $proof);
+        $entry = $auditEntries[0] ?? null;
+        self::assertInstanceOf(AuditLogEntry::class, $entry);
+        self::assertSame('root', $entry->actorUserId);
+        self::assertSame('effective-admin', $entry->effectiveUserId);
+        self::assertSame('switch-1', $entry->impersonationSessionId);
     }
 
     public function testOriginalSuperadminDoesNotAuthorizeImpersonatedUsersRoleAssignment(): void
@@ -118,12 +127,7 @@ final class IamAdministrationServiceTest extends TestCase
         ]);
         $target            = new User('target', 'target@example.test');
         $elevated          = new Role('settings-admin', 'Settings administrator', [Permission::SYSTEM_SETTINGS_MANAGE]);
-        [$service, $users] = $this->service(
-            $effectiveActor,
-            $target,
-            $elevated,
-            new AuditContext('root', 'effective-viewer', impersonationSessionId: 'switch-2'),
-        );
+        [$service, $users] = $this->service($effectiveActor, $target, $elevated);
         $users->expects(self::never())->method('syncRoles');
 
         $this->expectException(AuthorizationException::class);
@@ -147,6 +151,153 @@ final class IamAdministrationServiceTest extends TestCase
 
         $this->expectException(AuthorizationException::class);
         $service->syncRoles($actor, 'target', ['superadmin'], new AuditContext('actor', 'actor'));
+    }
+
+    public function testAuthorizedAdminCanRevokeOnlyTheTargetsFinalKeyWithFidoStepUpAndAudit(): void
+    {
+        $actor                                                     = new User('actor', 'actor@example.test', [new Role('user-manager', 'User manager', [Permission::USER_MANAGE])]);
+        $target                                                    = new User('target', 'target@example.test');
+        [$service, $users, , $proofs, $credentials, $auditEntries] = $this->service($actor, $target, new Role('unused', 'Unused', []));
+        $users->method('fetchPasswordHash')->with($target->email)->willReturn(password_hash('temporary-password', PASSWORD_BCRYPT));
+        $adminCredential  = $this->credentialRow('admin-key', $actor->id);
+        $targetCredential = $this->credentialRow('target-key', $target->id);
+        $credentials->method('findByUserId')->willReturnCallback(static fn(string $userId): array => match ($userId) {
+            'actor'  => [$adminCredential],
+            'target' => [$targetCredential],
+            default  => [],
+        });
+        $credentials->expects(self::once())->method('delete')->with('target-key', 'target');
+        $targetBinding = StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'target-key');
+        $proof         = $proofs->issue($actor->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, $targetBinding, null, 'webauthn', hash('sha256', 'admin-key'));
+
+        $service->revokeLastWebAuthnCredential($actor, $target->id, 'target-key', new AuditContext($actor->id, $actor->id), $proof);
+
+        $revocations = array_values(array_filter($auditEntries->getArrayCopy(), static fn(AuditLogEntry $entry): bool => $entry->action === 'iam.user.webauthn.credential.revoked'));
+        self::assertCount(1, $revocations);
+        $revocation = $revocations[0] ?? null;
+        self::assertInstanceOf(AuditLogEntry::class, $revocation);
+        self::assertSame($actor->id, $revocation->actorUserId);
+        self::assertSame($target->id, $revocation->targetId);
+        self::assertSame($actor->id, $revocation->effectiveUserId);
+        self::assertSame('webauthn', $revocation->metadataJson['step_up_method'] ?? null);
+        self::assertSame(hash('sha256', 'target-key'), $revocation->metadataJson['credential_id_hash'] ?? null);
+        self::assertSame('password', $revocation->metadataJson['remaining_login_path'] ?? null);
+        self::assertStringNotContainsString('target-key', json_encode($revocation, JSON_THROW_ON_ERROR));
+    }
+
+    public function testAdminCredentialRevocationRequiresUserManagePermissionAndTargetCeiling(): void
+    {
+        $target                                                                                  = new User('target', 'target@example.test');
+        $noPermission                                                                            = new User('viewer', 'viewer@example.test');
+        [$deniedService, $deniedUsers, , $deniedProofs, $deniedCredentials, $deniedAuditEntries] = $this->service($noPermission, $target, new Role('unused', 'Unused', []));
+        $deniedUsers->method('fetchPasswordHash')->willReturn(password_hash('temporary-password', PASSWORD_BCRYPT));
+        $deniedCredentials->method('findByUserId')->willReturn([$this->credentialRow('target-key', $target->id)]);
+        $deniedCredentials->expects(self::never())->method('delete');
+        $proof = $deniedProofs->issue($noPermission->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'target-key'), null, 'webauthn', hash('sha256', 'admin-key'));
+        try {
+            $deniedService->revokeLastWebAuthnCredential($noPermission, $target->id, 'target-key', new AuditContext($noPermission->id, $noPermission->id), $proof);
+            self::fail('A user without USER_MANAGE must not revoke credentials.');
+        } catch (AuthorizationException) {
+            // Expected: authentication recovery remains behind existing IAM permission checks.
+        }
+        $deniedEntry = $deniedAuditEntries[0] ?? null;
+        self::assertInstanceOf(AuditLogEntry::class, $deniedEntry);
+        self::assertSame('iam.user.webauthn.credential.revoke.denied', $deniedEntry->action);
+        self::assertSame($noPermission->id, $deniedEntry->actorUserId);
+
+        $limited                                                                = new User('limited', 'limited@example.test', [new Role('user-manager', 'User manager', [Permission::USER_MANAGE])]);
+        $elevatedTarget                                                         = new User('elevated', 'elevated@example.test', [new Role('settings-admin', 'Settings administrator', [Permission::SYSTEM_SETTINGS_MANAGE])]);
+        [$ceilingService, $ceilingUsers, , $ceilingProofs, $ceilingCredentials] = $this->service($limited, $elevatedTarget, new Role('unused', 'Unused', []));
+        $ceilingUsers->method('fetchPasswordHash')->willReturn(password_hash('temporary-password', PASSWORD_BCRYPT));
+        $ceilingCredentials->method('findByUserId')->willReturn([$this->credentialRow('target-key', $elevatedTarget->id)]);
+        $ceilingCredentials->expects(self::never())->method('delete');
+        $ceilingProof = $ceilingProofs->issue($limited->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::iamUserWebAuthnCredentialTarget($elevatedTarget->id, 'target-key'), null, 'webauthn', hash('sha256', 'admin-key'));
+        $this->expectException(AuthorizationException::class);
+        $ceilingService->revokeLastWebAuthnCredential($limited, $elevatedTarget->id, 'target-key', new AuditContext($limited->id, $limited->id), $ceilingProof);
+    }
+
+    public function testTotpPasswordAndMismatchedTargetProofsCannotRevokeFinalKey(): void
+    {
+        $actor  = new User('actor', 'actor@example.test', [new Role('user-manager', 'User manager', [Permission::USER_MANAGE])]);
+        $target = new User('target', 'target@example.test');
+        foreach (['totp', 'password'] as $method) {
+            [$service, $users, , $proofs, $credentials] = $this->service($actor, $target, new Role('unused', 'Unused', []));
+            $users->method('fetchPasswordHash')->willReturn(password_hash('temporary-password', PASSWORD_BCRYPT));
+            $credentials->method('findByUserId')->willReturnCallback(fn(string $userId): array => [$this->credentialRow($userId === $actor->id ? 'admin-key' : 'target-key', $userId)]);
+            $credentials->expects(self::never())->method('delete');
+            $proof = $proofs->issue($actor->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'target-key'), null, $method, $method === 'totp' ? hash('sha256', 'totp') : null);
+            try {
+                $service->revokeLastWebAuthnCredential($actor, $target->id, 'target-key', new AuditContext($actor->id, $actor->id), $proof);
+                self::fail('TOTP and password proofs must not authorize FIDO2 recovery.');
+            } catch (AuthorizationException) {
+                // Expected: the administrative operation accepts only WebAuthn proofs.
+            }
+        }
+
+        [$unownedService, $unownedUsers, , $unownedProofs, $unownedCredentials] = $this->service($actor, $target, new Role('unused', 'Unused', []));
+        $unownedUsers->method('fetchPasswordHash')->willReturn(password_hash('temporary-password', PASSWORD_BCRYPT));
+        $unownedCredentials->method('findByUserId')->willReturnCallback(fn(string $userId): array => [$this->credentialRow($userId === $actor->id ? 'admin-key' : 'target-key', $userId)]);
+        $unownedCredentials->expects(self::never())->method('delete');
+        $unownedProof = $unownedProofs->issue(
+            $actor->id,
+            StepUpAction::IAM_USER_WEBAUTHN_REVOKE,
+            StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'target-key'),
+            null,
+            'webauthn',
+            hash('sha256', 'credential-not-owned-by-admin'),
+        );
+        try {
+            $unownedService->revokeLastWebAuthnCredential($actor, $target->id, 'target-key', new AuditContext($actor->id, $actor->id), $unownedProof);
+            self::fail('The WebAuthn step-up credential must belong to the active administrator.');
+        } catch (AuthorizationException) {
+            // Expected: the assertion credential must be registered to the administrator.
+        }
+
+        [$service, $users, , $proofs, $credentials] = $this->service($actor, $target, new Role('unused', 'Unused', []));
+        $users->method('fetchPasswordHash')->willReturn(password_hash('temporary-password', PASSWORD_BCRYPT));
+        $credentials->method('findByUserId')->willReturnCallback(fn(string $userId): array => [$this->credentialRow($userId === $actor->id ? 'admin-key' : 'target-key', $userId)]);
+        $credentials->expects(self::never())->method('delete');
+        $wrongTargetProof = $proofs->issue($actor->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'different-key'), null, 'webauthn', hash('sha256', 'admin-key'));
+        $this->expectException(StepUpRequiredException::class);
+        $service->revokeLastWebAuthnCredential($actor, $target->id, 'target-key', new AuditContext($actor->id, $actor->id), $wrongTargetProof);
+    }
+
+    public function testImpersonationMissingPasswordAndNonFinalKeysCannotBeRevoked(): void
+    {
+        $actor                                                                                      = new User('actor', 'actor@example.test', [new Role('user-manager', 'User manager', [Permission::USER_MANAGE])]);
+        $target                                                                                     = new User('target', 'target@example.test');
+        [$impersonatedService, $impersonatedUsers, , $impersonatedProofs, $impersonatedCredentials] = $this->service($actor, $target, new Role('unused', 'Unused', []));
+        $impersonatedUsers->method('fetchPasswordHash')->willReturn(password_hash('temporary-password', PASSWORD_BCRYPT));
+        $impersonatedCredentials->method('findByUserId')->willReturnCallback(fn(string $userId): array => [$this->credentialRow($userId === $actor->id ? 'admin-key' : 'target-key', $userId)]);
+        $impersonatedCredentials->expects(self::never())->method('delete');
+        $switchContext = new AuditContext('original-admin', $actor->id, impersonationSessionId: 'switch-1');
+        $switchProof   = $impersonatedProofs->issue($actor->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'target-key'), 'switch-1', 'webauthn', hash('sha256', 'admin-key'));
+        try {
+            $impersonatedService->revokeLastWebAuthnCredential($actor, $target->id, 'target-key', $switchContext, $switchProof);
+            self::fail('Impersonation must not be accepted for administrative recovery.');
+        } catch (AuthorizationException) {
+            // Expected: the original administrator identity cannot be used through a switched session.
+        }
+
+        [$passwordlessService, $passwordlessUsers, , $passwordlessProofs, $passwordlessCredentials] = $this->service($actor, $target, new Role('unused', 'Unused', []));
+        $passwordlessUsers->method('fetchPasswordHash')->willReturn(null);
+        $passwordlessCredentials->method('findByUserId')->willReturn([$this->credentialRow('target-key', $target->id)]);
+        $passwordlessCredentials->expects(self::never())->method('delete');
+        $validProof = $passwordlessProofs->issue($actor->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'target-key'), null, 'webauthn', hash('sha256', 'admin-key'));
+        try {
+            $passwordlessService->revokeLastWebAuthnCredential($actor, $target->id, 'target-key', new AuditContext($actor->id, $actor->id), $validProof);
+            self::fail('A passwordless target needs an authorized admin password reset before key revocation.');
+        } catch (\DomainException) {
+            // Expected: password login must be restored before removing the only key.
+        }
+
+        [$multipleService, $multipleUsers, , $multipleProofs, $multipleCredentials] = $this->service($actor, $target, new Role('unused', 'Unused', []));
+        $multipleUsers->method('fetchPasswordHash')->willReturn(password_hash('temporary-password', PASSWORD_BCRYPT));
+        $multipleCredentials->method('findByUserId')->willReturn([$this->credentialRow('target-key', $target->id), $this->credentialRow('other-key', $target->id)]);
+        $multipleCredentials->expects(self::never())->method('delete');
+        $multipleProof = $multipleProofs->issue($actor->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'target-key'), null, 'webauthn', hash('sha256', 'admin-key'));
+        $this->expectException(\DomainException::class);
+        $multipleService->revokeLastWebAuthnCredential($actor, $target->id, 'target-key', new AuditContext($actor->id, $actor->id), $multipleProof);
     }
 
     public function testAuthorizedRoleChangeStillRequiresFreshActionBoundStepUp(): void
@@ -188,9 +339,9 @@ final class IamAdministrationServiceTest extends TestCase
     }
 
     /**
-     * @return array{IamAdministrationService, UserRepositoryInterface&MockObject, RoleRepositoryInterface&MockObject, StepUpProofService}
+     * @return array{IamAdministrationService, UserRepositoryInterface&MockObject, RoleRepositoryInterface&MockObject, StepUpProofService, WebAuthnCredentialRepositoryInterface&MockObject, \ArrayObject<int, AuditLogEntry>}
      */
-    private function service(User $actor, User $target, Role $candidate, ?AuditContext $context = null): array
+    private function service(User $actor, User $target, Role $candidate): array
     {
         /** @var UserRepositoryInterface&MockObject $users */
         $users = $this->createMock(UserRepositoryInterface::class);
@@ -206,14 +357,11 @@ final class IamAdministrationServiceTest extends TestCase
         $transactions = $this->createMock(TransactionRunnerInterface::class);
         $transactions->method('run')->willReturnCallback(static fn(callable $operation): mixed => $operation());
 
-        $auditContext    = $context ?? new AuditContext('actor', 'actor');
         $auditRepository = $this->createMock(AuditLogRepositoryInterface::class);
-        $auditRepository->expects(self::atLeastOnce())->method('append')->with(
-            self::callback(static fn(AuditLogEntry $entry): bool => $entry->actorUserId === $auditContext->actorUserId
-                && $entry->effectiveUserId                                              === $auditContext->effectiveUserId
-                && $entry->impersonationSessionId                                       === $auditContext->impersonationSessionId),
-            self::callback('is_string'),
-        );
+        $auditEntries    = new \ArrayObject();
+        $auditRepository->method('append')->willReturnCallback(static function (AuditLogEntry $entry, string $_createdAt) use ($auditEntries): void {
+            $auditEntries->append($entry);
+        });
         $audit = new AuditLogService($auditRepository);
 
         $lifecycle = new UserLifecycleService(
@@ -227,8 +375,9 @@ final class IamAdministrationServiceTest extends TestCase
 
         $nonces = $this->createMock(StepUpProofNonceRepositoryInterface::class);
         $nonces->method('claim')->willReturn(true);
-        $stepUpProofs = new StepUpProofService(str_repeat('k', 32), new SystemClock(), $nonces);
-        $service      = new IamAdministrationService(
+        $stepUpProofs        = new StepUpProofService(str_repeat('k', 32), new SystemClock(), $nonces);
+        $webAuthnCredentials = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
+        $service             = new IamAdministrationService(
             $users,
             $roles,
             new AuthorizationService(),
@@ -237,8 +386,27 @@ final class IamAdministrationServiceTest extends TestCase
             $audit,
             $lifecycle,
             $stepUpProofs,
+            $webAuthnCredentials,
         );
 
-        return [$service, $users, $roles, $stepUpProofs];
+        return [$service, $users, $roles, $stepUpProofs, $webAuthnCredentials, $auditEntries];
+    }
+
+    /** @return array{credential_id: string, name: string, created_at: string, last_used_at: null, attachment: string, aaguid: string, transports: list<string>, backup_eligible: false, backup_state: false, source: CredentialRecord} */
+    private function credentialRow(string $credentialId, string $userId): array
+    {
+        $source = new CredentialRecord($credentialId, 'public-key', [], 'none', EmptyTrustPath::create(), Uuid::fromString('00000000-0000-0000-0000-000000000000'), 'public-key', $userId, 0);
+        return [
+            'credential_id'   => $credentialId,
+            'name'            => 'Security key',
+            'created_at'      => '2026-01-01 00:00:00',
+            'last_used_at'    => null,
+            'attachment'      => 'cross-platform',
+            'aaguid'          => '00000000-0000-0000-0000-000000000000',
+            'transports'      => [],
+            'backup_eligible' => false,
+            'backup_state'    => false,
+            'source'          => $source,
+        ];
     }
 }

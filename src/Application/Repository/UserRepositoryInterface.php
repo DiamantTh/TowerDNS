@@ -102,6 +102,9 @@ interface UserRepositoryInterface
      */
     public function lockSuperadminRoleForMutation(): void;
 
+    /** Serializes authentication-path mutations for one user inside a transaction. */
+    public function lockUserForAuthenticationMutation(string $userId): void;
+
     /**
      * Deactivates all API keys belonging to the given user.
      *

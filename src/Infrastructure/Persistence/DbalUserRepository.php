@@ -319,6 +319,17 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     }
 
     #[\Override]
+    public function lockUserForAuthenticationMutation(string $userId): void
+    {
+        if (PlatformDetector::isSqlite($this->connection)) {
+            $this->connection->executeStatement('UPDATE users SET id = id WHERE id = ?', [$userId]);
+            return;
+        }
+
+        $this->connection->fetchOne('SELECT id FROM users WHERE id = ? FOR UPDATE', [$userId]);
+    }
+
+    #[\Override]
     public function invalidateApiKeys(string $userId): int
     {
         return (int) $this->connection->executeStatement(

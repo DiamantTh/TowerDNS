@@ -22,6 +22,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\IamAdministrationService;
@@ -46,6 +47,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         private PasswordAdministrationService $passwords,
         private TranslatorInterface       $translator,
         private StepUpRequestService      $stepUpRequests,
+        private WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
     ) {}
 
     #[\Override]
@@ -69,7 +71,7 @@ final readonly class UserEditHandler implements RequestHandlerInterface
             // Valid, CSRF-protected role/status mutations must reach the IAM
             // service so it can enforce and audit the denial at the application
             // boundary. Other user-management actions remain blocked here.
-            if ($request->getMethod() !== 'POST' || !in_array($action, ['roles', 'status'], true)) {
+            if ($request->getMethod() !== 'POST' || !in_array($action, ['roles', 'status', 'revoke_last_webauthn'], true)) {
                 return new HtmlResponse(
                     $this->renderer->render('app::iam/user_edit', [
                         'currentUser' => $currentUser,
@@ -102,17 +104,29 @@ final readonly class UserEditHandler implements RequestHandlerInterface
         $allRoles = $this->roles->findAll();
 
         if ($request->getMethod() === 'GET') {
-            $flashError   = $request->getQueryParams()['error']   ?? null;
-            $flashSuccess = $request->getQueryParams()['success'] ?? null;
+            $flashError             = $request->getQueryParams()['error']   ?? null;
+            $flashSuccess           = $request->getQueryParams()['success'] ?? null;
+            $credentials            = $this->webAuthnCredentials->findByUserId($targetId);
+            $lastWebAuthnCredential = null;
+            if (count($credentials) === 1) {
+                $lastWebAuthnCredential = [
+                    'credential_id' => rtrim(strtr(base64_encode($credentials[0]['credential_id']), '+/', '-_'), '='),
+                    'name'          => $credentials[0]['name'],
+                    'created_at'    => $credentials[0]['created_at'],
+                ];
+            }
+            $passwordHash = $this->users->fetchPasswordHash($target->email);
 
             return new HtmlResponse(
                 $this->renderer->render('app::iam/user_edit', [
-                    'currentUser' => $currentUser,
-                    'target'      => $target,
-                    'allRoles'    => $allRoles,
-                    'csrfToken'   => $csrfToken,
-                    'error'       => $flashError,
-                    'success'     => $flashSuccess,
+                    'currentUser'            => $currentUser,
+                    'target'                 => $target,
+                    'allRoles'               => $allRoles,
+                    'csrfToken'              => $csrfToken,
+                    'lastWebAuthnCredential' => $lastWebAuthnCredential,
+                    'passwordLoginEnabled'   => $passwordHash !== null && password_get_info($passwordHash)['algo'] !== null,
+                    'error'                  => $flashError,
+                    'success'                => $flashSuccess,
                 ]),
             );
         }
@@ -183,6 +197,36 @@ final readonly class UserEditHandler implements RequestHandlerInterface
                 $msg .= ' ' . strtr($this->translator->translate('users.success.api-keys-revoked'), ['{count}' => (string) $revokedCount]);
             }
             return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode($msg));
+        }
+
+        if ($action === 'revoke_last_webauthn') {
+            $encodedCredentialId = $body['credential_id'] ?? '';
+            $credentialId        = is_string($encodedCredentialId) && $encodedCredentialId !== ''
+                ? base64_decode(strtr($encodedCredentialId, '-_', '+/'), true)
+                : false;
+            if (!is_string($credentialId) || $credentialId === '') {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.auth-recovery-path-required')));
+            }
+
+            $stepUpTarget = StepUpAction::iamUserWebAuthnCredentialTarget($targetId, $credentialId);
+            try {
+                $proof = $this->stepUpRequests->consume($request, $currentUser->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, $stepUpTarget);
+                $this->iam->revokeLastWebAuthnCredential(
+                    $currentUser,
+                    $targetId,
+                    $credentialId,
+                    $this->auditContext($request, $currentUser),
+                    $proof,
+                );
+            } catch (StepUpRequiredException $required) {
+                return $this->stepUpRequests->challenge($request, $currentUser->id, $required);
+            } catch (AuthorizationException) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('http.error.forbidden')));
+            } catch (\DomainException) {
+                return new RedirectResponse('/users/' . rawurlencode($targetId) . '?error=' . rawurlencode($this->translator->translate('users.error.auth-recovery-path-required')));
+            }
+
+            return new RedirectResponse('/users/' . rawurlencode($targetId) . '?success=' . rawurlencode($this->translator->translate('users.success.webauthn-credential-revoked')));
         }
 
         /** @var list<string> $selectedRoles */

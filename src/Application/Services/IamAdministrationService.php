@@ -12,6 +12,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\StepUpRequiredException;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Domain\Auth\Role;
@@ -28,6 +29,7 @@ final readonly class IamAdministrationService
         private AuditLogService $audit,
         private UserLifecycleService $lifecycle,
         private StepUpProofService $stepUpProofs,
+        private WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
     ) {}
 
     /** @param list<string> $roleIds */
@@ -164,6 +166,86 @@ final readonly class IamAdministrationService
             $this->audit->recordWithContext($context, 'iam.user.deleted', 'user', $userId, ['role_ids' => $this->roleIds($target), 'active' => $target->active], null, ['step_up_method' => $stepUp?->method]);
             return $target;
         }));
+    }
+
+    public function revokeLastWebAuthnCredential(
+        User $effectiveActor,
+        string $targetUserId,
+        string $credentialId,
+        AuditContext $context,
+        ?StepUpProof $stepUp = null,
+    ): void {
+        $this->guardAndAuditDenial(
+            $context,
+            'iam.user.webauthn.credential.revoke.denied',
+            'user',
+            $targetUserId,
+            ['credential_id_hash' => hash('sha256', $credentialId)],
+            function () use ($effectiveActor, $targetUserId, $credentialId, $context, $stepUp): void {
+                $this->transactions->run(function () use ($effectiveActor, $targetUserId, $credentialId, $context, $stepUp): void {
+                    $this->users->lockSuperadminRoleForMutation();
+                    $this->users->lockUserForAuthenticationMutation($targetUserId);
+
+                    $actor = $this->requireActiveActor($effectiveActor->id);
+                    if ($context->effectiveUserId !== $actor->id || $context->impersonationSessionId !== null) {
+                        throw new AuthorizationException('Administrative credential recovery is unavailable during impersonation.');
+                    }
+                    $this->authorization->assert($actor, Permission::USER_MANAGE);
+
+                    $target = $this->users->findByIdForAdministration($targetUserId);
+                    if (!$target instanceof User || !$target->active) {
+                        throw new \DomainException('Target user is unavailable for authentication recovery.');
+                    }
+                    $this->assertTargetWithinActorAuthority($actor, $target);
+
+                    $targetCredentials = $this->webAuthnCredentials->findByUserId($targetUserId);
+                    if (count($targetCredentials) !== 1 || $targetCredentials[0]['source']->publicKeyCredentialId !== $credentialId) {
+                        throw new \DomainException('Administrative recovery only revokes the target user’s final WebAuthn credential.');
+                    }
+
+                    $passwordHash = $this->users->fetchPasswordHash($target->email);
+                    if ($passwordHash === null || password_get_info($passwordHash)['algo'] === null) {
+                        throw new \DomainException('A usable administrator-set password login is required before the final WebAuthn credential can be revoked.');
+                    }
+
+                    $targetId = StepUpAction::iamUserWebAuthnCredentialTarget($targetUserId, $credentialId);
+                    if (!$this->stepUpProofs->isValid($stepUp, $actor->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, $targetId, null)) {
+                        throw new StepUpRequiredException(StepUpAction::IAM_USER_WEBAUTHN_REVOKE, $targetId);
+                    }
+                    if (!$stepUp instanceof StepUpProof || $stepUp->method !== 'webauthn' || !is_string($stepUp->credentialIdHash)) {
+                        throw new AuthorizationException('Final WebAuthn credential recovery requires administrator FIDO2 confirmation.');
+                    }
+                    $stepUpCredentialIdHash = $stepUp->credentialIdHash;
+                    $adminCredentialIsOwned = array_any(
+                        $this->webAuthnCredentials->findByUserId($actor->id),
+                        static fn(array $entry): bool => hash_equals($stepUpCredentialIdHash, hash('sha256', $entry['source']->publicKeyCredentialId)),
+                    );
+                    if (!$adminCredentialIsOwned) {
+                        throw new AuthorizationException('The FIDO2 confirmation credential does not belong to the active administrator.');
+                    }
+                    if (!$this->stepUpProofs->consumeOnce($stepUp, $actor->id, StepUpAction::IAM_USER_WEBAUTHN_REVOKE, $targetId, null)) {
+                        throw new AuthorizationException('The step-up proof has already been used.');
+                    }
+
+                    $credentialIdHash = hash('sha256', $credentialId);
+                    $this->webAuthnCredentials->delete($credentialId, $targetUserId);
+                    $this->audit->recordWithContext(
+                        $context,
+                        'iam.user.webauthn.credential.revoked',
+                        'user',
+                        $targetUserId,
+                        ['webauthn_credentials' => 1],
+                        ['webauthn_credentials' => 0],
+                        [
+                            'credential_id_hash'      => $credentialIdHash,
+                            'remaining_login_path'    => 'password',
+                            'step_up_method'          => 'webauthn',
+                            'step_up_credential_hash' => $stepUpCredentialIdHash,
+                        ],
+                    );
+                });
+            },
+        );
     }
 
     private function requireActiveActor(string $actorId): User
