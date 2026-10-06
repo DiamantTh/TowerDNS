@@ -27,7 +27,7 @@ final readonly class SecurityHeaderMiddleware implements MiddlewareInterface
         $response = $response
             ->withHeader('X-Frame-Options', 'DENY')
             ->withHeader('X-Content-Type-Options', 'nosniff')
-            ->withHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+            ->withHeader('Referrer-Policy', $request->getUri()->getPath() === '/account/recovery' ? 'no-referrer' : 'strict-origin-when-cross-origin')
             ->withHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
             ->withHeader('Content-Security-Policy', implode('; ', [
                 "default-src 'self'",

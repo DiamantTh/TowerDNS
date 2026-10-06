@@ -22,6 +22,7 @@ use TowerDNS\Application\Exception\PasswordResetException;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\PasswordResetService;
+use TowerDNS\Domain\Auth\PasswordResetMethod;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
 use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
@@ -165,7 +166,9 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
     private function tokenIsValid(string $rawToken): bool
     {
         $record = $this->tokens->findByHash(hash('sha256', $rawToken));
-        return $record instanceof \TowerDNS\Domain\Auth\PasswordResetToken && $record->isValidAt($this->clock->now());
+        return $record instanceof \TowerDNS\Domain\Auth\PasswordResetToken
+            && $record->method === PasswordResetMethod::EMAIL_LINK
+            && $record->isValidAt($this->clock->now());
     }
 
     private function auditExpiredTokenAttempt(ServerRequestInterface $request, string $rawToken): void
@@ -176,6 +179,7 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
 
         $record = $this->tokens->findByHash(hash('sha256', $rawToken));
         if ($record instanceof \TowerDNS\Domain\Auth\PasswordResetToken
+            && $record->method === PasswordResetMethod::EMAIL_LINK
             && !$record->isUsed()
             && $record->isExpiredAt($this->clock->now())) {
             $this->audit->recordPasswordResetTicketExpired($request, $record->userId);

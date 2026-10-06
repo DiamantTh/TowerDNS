@@ -30,7 +30,7 @@ final readonly class SessionSecurity
 
     public function __construct(private ClockInterface $clock) {}
 
-    public function beginMfa(SessionInterface $session, string $userId, string $type): SessionInterface
+    public function beginMfa(SessionInterface $session, string $userId, string $type, int $authSessionVersion = 0): SessionInterface
     {
         $session = $session->regenerate();
         $this->clearAuthenticatedState($session);
@@ -39,6 +39,7 @@ final readonly class SessionSecurity
         $session->set('mfa_pending', $userId);
         $session->set('mfa_type', $type);
         $session->set('mfa_pending_started_at', $this->now());
+        $session->set('mfa_auth_session_version', $authSessionVersion);
         return $session;
     }
 
@@ -55,7 +56,13 @@ final readonly class SessionSecurity
         return $userId;
     }
 
-    public function completeLogin(SessionInterface $session, string $userId): SessionInterface
+    public function pendingMfaSessionVersion(SessionInterface $session): ?int
+    {
+        $version = $session->get('mfa_auth_session_version');
+        return is_int($version) && $version >= 0 ? $version : null;
+    }
+
+    public function completeLogin(SessionInterface $session, string $userId, int $authSessionVersion = 0): SessionInterface
     {
         $session = $session->regenerate();
         $this->clearAuthenticatedState($session);
@@ -63,9 +70,29 @@ final readonly class SessionSecurity
         $this->clearPendingMfa($session);
         $now = $this->now();
         $session->set('user_id', $userId);
+        $session->set('auth_session_version', $authSessionVersion);
         $session->set('authenticated_at', $now);
         $session->set('last_activity_at', $now);
         return $session;
+    }
+
+    public function beginRecovery(SessionInterface $session): SessionInterface
+    {
+        $session = $session->regenerate();
+        $this->clearAuthenticatedState($session);
+        $this->clearPendingMfa($session);
+        $this->clearPasswordVerification($session);
+        $session->unset('webauthn_register_pending');
+        $this->clearStepUp($session);
+        return $session;
+    }
+
+    public function endRecovery(SessionInterface $session): void
+    {
+        $session->unset('account_recovery');
+        $session->unset('webauthn_register_pending');
+        $this->clearStepUp($session);
+        $this->clearPendingMfa($session);
     }
 
     /** Record the successful password part of authentication for safe factor enrollment. */
@@ -252,6 +279,7 @@ final readonly class SessionSecurity
         $session->unset('mfa_pending');
         $session->unset('mfa_type');
         $session->unset('mfa_pending_started_at');
+        $session->unset('mfa_auth_session_version');
         $session->unset('webauthn_auth_options');
     }
 
@@ -263,10 +291,13 @@ final readonly class SessionSecurity
     private function clearAuthenticatedState(SessionInterface $session): void
     {
         $session->unset('user_id');
+        $session->unset('auth_session_version');
         $session->unset('authenticated_at');
         $session->unset('last_activity_at');
         $session->unset('admin_switch_session_id');
         $session->unset('active_account_id');
+        $session->unset('account_recovery');
+        $session->unset('webauthn_register_pending');
         $this->clearStepUp($session);
     }
 

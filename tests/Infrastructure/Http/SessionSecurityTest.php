@@ -54,17 +54,74 @@ final class SessionSecurityTest extends TestCase
         self::assertSame('csrf-token', $session->get('__csrf'));
     }
 
+    public function testStartingRecoveryClearsIdentityStepUpAndFreshPasswordState(): void
+    {
+        $session = new Session([
+            'user_id'                   => 'admin-1',
+            'auth_session_version'      => 8,
+            'authenticated_at'          => 1000,
+            'last_activity_at'          => 1000,
+            'admin_switch_session_id'   => 'switch-1',
+            'password_verified_user_id' => 'admin-1',
+            'password_verified_at'      => 1000,
+            'step_up_proof'             => ['opaque' => 'proof'],
+            'webauthn_register_pending' => ['opaque' => 'pending'],
+        ]);
+
+        $session = new SessionSecurity($this->clock(1001))->beginRecovery($session);
+
+        self::assertTrue($session->isRegenerated());
+        self::assertFalse($session->has('user_id'));
+        self::assertFalse($session->has('admin_switch_session_id'));
+        self::assertFalse($session->has('password_verified_user_id'));
+        self::assertFalse($session->has('step_up_proof'));
+        self::assertFalse($session->has('webauthn_register_pending'));
+    }
+
+    public function testEndingRecoveryConsumesItsRestrictedSessionState(): void
+    {
+        $session = new Session([
+            'account_recovery'          => ['user_id' => 'user-1', 'recovery_id' => 'recovery-1'],
+            'webauthn_register_pending' => ['opaque' => 'pending'],
+            'step_up_proof'             => ['opaque' => 'proof'],
+            'mfa_pending'               => 'user-1',
+        ]);
+
+        new SessionSecurity($this->clock(1000))->endRecovery($session);
+
+        self::assertFalse($session->has('account_recovery'));
+        self::assertFalse($session->has('webauthn_register_pending'));
+        self::assertFalse($session->has('step_up_proof'));
+        self::assertFalse($session->has('mfa_pending'));
+    }
+
     public function testPendingMfaExpiresAndCannotBecomeAnAuthenticatedSession(): void
     {
         $session  = new Session([]);
         $security = new SessionSecurity($this->clock(1000));
-        $session  = $security->beginMfa($session, 'user-1', 'totp');
+        $session  = $security->beginMfa($session, 'user-1', 'totp', 7);
 
         self::assertTrue($session->isRegenerated());
         self::assertSame('user-1', $security->pendingMfaUserId($session));
+        self::assertSame(7, $security->pendingMfaSessionVersion($session));
         self::assertNull(new SessionSecurity($this->clock(1301))->pendingMfaUserId($session));
         self::assertFalse($session->has('mfa_pending'));
+        self::assertFalse($session->has('mfa_auth_session_version'));
         self::assertFalse($session->has('webauthn_auth_options'));
+    }
+
+    public function testCompletingLoginConsumesTheMfaSessionVersionSnapshot(): void
+    {
+        $session  = new Session([]);
+        $security = new SessionSecurity($this->clock(1000));
+        $session  = $security->beginMfa($session, 'user-1', 'webauthn', 4);
+
+        self::assertSame(4, $security->pendingMfaSessionVersion($session));
+
+        $session = $security->completeLogin($session, 'user-1', 4);
+
+        self::assertNull($security->pendingMfaSessionVersion($session));
+        self::assertSame(4, $session->get('auth_session_version'));
     }
 
     public function testLoginCompletionClearsPendingMfaAndLogoutClearsEverything(): void

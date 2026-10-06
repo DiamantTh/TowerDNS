@@ -704,6 +704,7 @@ final readonly class SchemaManager
         $users->addColumn('last_login_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
         $users->addColumn('created_at', Types::DATETIME_MUTABLE);
         $users->addColumn('updated_at', Types::DATETIME_MUTABLE);
+        $users->addColumn('auth_session_version', Types::INTEGER, ['default' => 0]);
         $users->setPrimaryKey(['id']);
         $users->addUniqueIndex(['email'], 'uq_users_email');
 
@@ -1025,6 +1026,36 @@ final readonly class SchemaManager
             'fk_prt_user_id',
         );
 
+        // account_recoveries -----------------------------------------------
+        $recoveries = new CanonicalTableBuilder('account_recoveries');
+        $recoveries->addColumn('id', Types::GUID);
+        $recoveries->addColumn('user_id', Types::GUID);
+        $recoveries->addColumn('authorized_by', Types::GUID, ['notnull' => false]);
+        $recoveries->addColumn('ticket_id', Types::INTEGER);
+        $recoveries->addColumn('status', Types::STRING, ['length' => 16]);
+        $recoveries->addColumn('created_at', Types::STRING, ['length' => 19]);
+        $recoveries->addColumn('expires_at', Types::STRING, ['length' => 19]);
+        $recoveries->addColumn('redeemed_at', Types::STRING, ['length' => 19, 'notnull' => false]);
+        $recoveries->addColumn('session_id_hash', Types::STRING, ['length' => 64, 'notnull' => false]);
+        $recoveries->addColumn('session_expires_at', Types::STRING, ['length' => 19, 'notnull' => false]);
+        $recoveries->addColumn('completed_at', Types::STRING, ['length' => 19, 'notnull' => false]);
+        $recoveries->setPrimaryKey(['id']);
+        $recoveries->addUniqueIndex(['ticket_id'], 'uq_account_recoveries_ticket');
+        $recoveries->addIndex(['user_id', 'status'], 'idx_account_recoveries_user_status');
+        $recoveries->addForeignKeyConstraint('users', ['user_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_ar_user_id');
+        $recoveries->addForeignKeyConstraint('users', ['authorized_by'], ['id'], ['onDelete' => 'SET NULL'], 'fk_ar_authorized_by');
+        $recoveries->addForeignKeyConstraint('password_reset_tokens', ['ticket_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_ar_ticket_id');
+
+        $recoveryCredentials = new CanonicalTableBuilder('account_recovery_credentials');
+        $recoveryCredentials->addColumn('recovery_id', Types::GUID);
+        $recoveryCredentials->addColumn('credential_type', Types::STRING, ['length' => 16]);
+        $recoveryCredentials->addColumn('credential_id_hash', Types::STRING, ['length' => 64]);
+        $recoveryCredentials->addColumn('pre_recovery', Types::BOOLEAN);
+        $recoveryCredentials->addColumn('created_at', Types::STRING, ['length' => 19]);
+        $recoveryCredentials->setPrimaryKey(['recovery_id', 'credential_type', 'credential_id_hash']);
+        $recoveryCredentials->addIndex(['recovery_id', 'pre_recovery'], 'idx_arc_recovery_pre');
+        $recoveryCredentials->addForeignKeyConstraint('account_recoveries', ['recovery_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_arc_recovery_id');
+
         // system_settings ----------------------------------------------------
         // Runtime-konfigurierbare Werte (UI-editierbar). Bootstrap-Werte
         // (DB-Connection, encryption_key, app.hostname) bleiben in TOML.
@@ -1051,7 +1082,7 @@ final readonly class SchemaManager
         return array_map(static fn(CanonicalTableBuilder $table): Table => $table->create(), [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $this->totpCredentialTableBuilder(), $apiKeys,
             $accounts, $resourceLimits, $accMembers, $accountInvitations, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
-            $pwResetTokens, $systemSettings, $stepUpProofNonces,
+            $pwResetTokens, $recoveries, $recoveryCredentials, $systemSettings, $stepUpProofNonces,
         ]);
     }
 

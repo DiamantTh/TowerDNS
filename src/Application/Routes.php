@@ -10,6 +10,9 @@ namespace TowerDNS\Application;
 use Mezzio\Application;
 use TowerDNS\Infrastructure\Http\Handler\AccountHandler;
 use TowerDNS\Infrastructure\Http\Handler\AccountInvitationHandler;
+use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryActionHandler;
+use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryAuthorizationHandler;
+use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryHandler;
 use TowerDNS\Infrastructure\Http\Handler\ActiveAccountHandler;
 use TowerDNS\Infrastructure\Http\Handler\AdminOverviewHandler;
 use TowerDNS\Infrastructure\Http\Handler\AdminSwitchHandler;
@@ -88,6 +91,14 @@ final class Routes
         $app->get('/password/reset', ResetPasswordHandler::class, 'password.reset.form');
         $app->post('/password/reset', ResetPasswordHandler::class, 'password.reset.submit');
 
+        // Password-independent, restricted FIDO2 account recovery.
+        $app->get('/account/recovery', AccountRecoveryHandler::class, 'account.recovery.form');
+        $app->post('/account/recovery', AccountRecoveryHandler::class, 'account.recovery.redeem');
+        $app->post('/account/recovery/webauthn/register/begin', WebAuthnRegisterBeginHandler::class, 'account.recovery.webauthn.begin');
+        $app->post('/account/recovery/webauthn/register/finish', WebAuthnRegisterFinishHandler::class, 'account.recovery.webauthn.finish');
+        $app->post('/account/recovery/complete', AccountRecoveryActionHandler::class, 'account.recovery.complete');
+        $app->post('/account/recovery/abort', AccountRecoveryActionHandler::class, 'account.recovery.abort');
+
         // ── Dashboard ─────────────────────────────────────────────────────────
         $app->get('/', [RequireAuthMiddleware::class, DashboardHandler::class], 'dashboard');
         $app->get('/admin', [RequireAuthMiddleware::class, AdminOverviewHandler::class], 'admin.overview');
@@ -113,6 +124,7 @@ final class Routes
         $app->get('/users/{id}', [RequireAuthMiddleware::class, UserEditHandler::class], 'users.edit.form');
         $app->post('/users/{id}', [RequireAuthMiddleware::class, UserEditHandler::class], 'users.edit.submit');
         $app->post('/users/{id}/delete', [RequireAuthMiddleware::class, UserDeleteHandler::class], 'users.delete');
+        $app->post('/users/{id}/account-recovery', [RequireAuthMiddleware::class, AccountRecoveryAuthorizationHandler::class], 'users.account-recovery');
         $app->get('/roles', [RequireAuthMiddleware::class, RoleListHandler::class], 'roles.list');
         $app->post('/roles', [RequireAuthMiddleware::class, RoleCreateHandler::class], 'roles.create');
         $app->get('/roles/{id}', [RequireAuthMiddleware::class, RoleEditHandler::class], 'roles.edit.form');

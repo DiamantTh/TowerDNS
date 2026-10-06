@@ -178,6 +178,7 @@ final class SvelteRenderer implements TemplateRendererInterface
             'security/step_up'                           => 'security.step-up.title',
             'forgot_password'                            => 'page.forgot-password.title',
             'reset_password'                             => 'page.reset-password.title',
+            'account/recovery'                           => 'recovery.title',
             'dashboard'                                  => 'page.dashboard.title',
             'zones/list'                                 => 'page.zones.title',
             'settings'                                   => 'page.settings.title',

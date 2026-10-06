@@ -19,6 +19,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Services\AccountRecoveryService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
@@ -47,6 +48,7 @@ final readonly class TotpHandler implements RequestHandlerInterface
         private TranslatorInterface       $translator,
         private SessionSecurity           $sessionSecurity,
         private CacheInterface            $cache,
+        private ?AccountRecoveryService    $recoveries = null,
     ) {}
 
     #[\Override]
@@ -58,9 +60,14 @@ final readonly class TotpHandler implements RequestHandlerInterface
             return new RedirectResponse('/login');
         }
 
-        $pendingUserId = $this->sessionSecurity->pendingMfaUserId($session);
-        $mfaType       = $session->get('mfa_type');
-        if ($pendingUserId === null || !in_array($mfaType, ['totp', 'webauthn'], true)) {
+        $pendingUserId      = $this->sessionSecurity->pendingMfaUserId($session);
+        $authSessionVersion = $this->sessionSecurity->pendingMfaSessionVersion($session);
+        $mfaType            = $session->get('mfa_type');
+        if ($pendingUserId === null || $authSessionVersion === null || !in_array($mfaType, ['totp', 'webauthn'], true)) {
+            return new RedirectResponse('/login');
+        }
+        if ($request->getMethod() === 'GET' && $this->recoveries?->isUserLocked($pendingUserId) === true) {
+            $this->sessionSecurity->clearPendingMfa($session);
             return new RedirectResponse('/login');
         }
 
@@ -120,8 +127,13 @@ final readonly class TotpHandler implements RequestHandlerInterface
             return $this->renderError($this->translator->translate('totp.error.code-invalid'), $guard);
         }
 
-        // Code correct — complete login.
-        $this->sessionSecurity->completeLogin($session, $userId);
+        // Code correct — complete login only if the account was not placed in recovery meanwhile.
+        $user = $this->users->findById($userId);
+        if (!$user instanceof \TowerDNS\Domain\Auth\User || $user->authSessionVersion !== $authSessionVersion || $this->recoveries?->isUserLocked($userId) === true) {
+            $this->sessionSecurity->clearPendingMfa($session);
+            return $this->renderError($this->translator->translate('auth.error.invalid-credentials'), $guard);
+        }
+        $this->sessionSecurity->completeLogin($session, $userId, $user->authSessionVersion);
         $this->users->updateLastLoginAt($userId);
         $this->audit->recordLogin($request, $userId);
         $this->audit->recordPasswordBreakGlassUsed($request, $userId, 'totp');

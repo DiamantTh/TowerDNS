@@ -24,6 +24,7 @@ use TowerDNS\Application\Repository\RoleRepositoryInterface;
 use TowerDNS\Application\Repository\StepUpProofNonceRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AccountRecoveryIssuerInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\IamAdministrationService;
@@ -356,6 +357,76 @@ final class IamAdministrationServiceTest extends TestCase
         $service->syncRoles($actor, $target->id, [$assignable->id], new AuditContext('actor', 'actor'));
     }
 
+    public function testAccountRecoveryAuthorizationRequiresUserManageFido2TargetBindingAndNoImpersonation(): void
+    {
+        $actor  = new User('actor', 'actor@example.test', [new Role('user-manager', 'User manager', [Permission::USER_MANAGE])]);
+        $target = new User('target', 'target@example.test'); // Deliberately passwordless/passkey-only.
+        $issuer = $this->createMock(AccountRecoveryIssuerInterface::class);
+        $issuer->expects(self::once())->method('authorize')->with($target, $actor->id, self::isInstanceOf(AuditContext::class))->willReturn([
+            'recovery_id' => 'recovery-id', 'raw_ticket' => str_repeat('a', 64), 'expires_at' => '2026-10-08 00:00:00',
+        ]);
+        [$service, , , $proofs, $credentials] = $this->service($actor, $target, new Role('unused', 'Unused', []), $issuer);
+        $credentials->method('findByUserId')->willReturn([$this->credentialRow('admin-key', $actor->id)]);
+        $proof = $proofs->issue($actor->id, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, $target->id, null, 'webauthn', hash('sha256', 'admin-key'));
+        self::assertSame('recovery-id', $service->authorizeAccountRecovery($actor, $target->id, new AuditContext($actor->id, $actor->id), $proof)['recovery_id']);
+    }
+
+    public function testAccountRecoveryRejectsOtherFactorsWrongTargetPermissionCeilingAndImpersonation(): void
+    {
+        $actor  = new User('actor', 'actor@example.test', [new Role('user-manager', 'User manager', [Permission::USER_MANAGE])]);
+        $target = new User('target', 'target@example.test');
+        $issuer = $this->createMock(AccountRecoveryIssuerInterface::class);
+        $issuer->expects(self::never())->method('authorize');
+        [$service, , , $proofs, $credentials] = $this->service($actor, $target, new Role('unused', 'Unused', []), $issuer);
+        $credentials->method('findByUserId')->willReturn([$this->credentialRow('admin-key', $actor->id)]);
+
+        foreach (['password', 'totp'] as $method) {
+            $proof = $proofs->issue($actor->id, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, $target->id, null, $method, $method === 'password' ? null : hash('sha256', 'admin-key'));
+            try {
+                $service->authorizeAccountRecovery($actor, $target->id, new AuditContext($actor->id, $actor->id), $proof);
+                self::fail('Password and TOTP must not authorize administrative account recovery.');
+            } catch (AuthorizationException) {
+                // Expected: only a WebAuthn proof is accepted.
+            }
+        }
+
+        $wrongTargetProof = $proofs->issue($actor->id, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, 'another-target', null, 'webauthn', hash('sha256', 'admin-key'));
+        try {
+            $service->authorizeAccountRecovery($actor, $target->id, new AuditContext($actor->id, $actor->id), $wrongTargetProof);
+            self::fail('Recovery step-up must be target-bound.');
+        } catch (StepUpRequiredException) {
+            // Expected.
+        }
+
+        $ownedSwitchProof = $proofs->issue($actor->id, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, $target->id, 'switch-1', 'webauthn', hash('sha256', 'admin-key'));
+        try {
+            $service->authorizeAccountRecovery($actor, $target->id, new AuditContext('root', $actor->id, impersonationSessionId: 'switch-1'), $ownedSwitchProof);
+            self::fail('Administrative recovery cannot run while impersonating another user.');
+        } catch (AuthorizationException) {
+            // Expected.
+        }
+
+        $delegated                            = new User('delegated', 'delegated@example.test', [new Role('restricted', 'Restricted', [Permission::SYSTEM_SETTINGS_MANAGE])]);
+        [$ceilingService, , , $ceilingProofs] = $this->service($actor, $delegated, new Role('unused', 'Unused', []), $issuer);
+        $ceilingProof                         = $ceilingProofs->issue($actor->id, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, $delegated->id, null, 'webauthn', hash('sha256', 'admin-key'));
+        $this->expectException(AuthorizationException::class);
+        $ceilingService->authorizeAccountRecovery($actor, $delegated->id, new AuditContext($actor->id, $actor->id), $ceilingProof);
+    }
+
+    public function testAccountRecoveryRequiresUserManage(): void
+    {
+        $actor  = new User('viewer', 'viewer@example.test');
+        $target = new User('target', 'target@example.test');
+        $issuer = $this->createMock(AccountRecoveryIssuerInterface::class);
+        $issuer->expects(self::never())->method('authorize');
+        [$service, , , $proofs, $credentials] = $this->service($actor, $target, new Role('unused', 'Unused', []), $issuer);
+        $credentials->method('findByUserId')->willReturn([$this->credentialRow('viewer-key', $actor->id)]);
+        $proof = $proofs->issue($actor->id, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, $target->id, null, 'webauthn', hash('sha256', 'viewer-key'));
+
+        $this->expectException(AuthorizationException::class);
+        $service->authorizeAccountRecovery($actor, $target->id, new AuditContext($actor->id, $actor->id), $proof);
+    }
+
     public function testNonSuperadminCannotChangeBuiltInSuperadminEvenWithEveryPermission(): void
     {
         $actor = new User('actor', 'actor@example.test', [
@@ -383,7 +454,7 @@ final class IamAdministrationServiceTest extends TestCase
     /**
      * @return array{IamAdministrationService, UserRepositoryInterface&MockObject, RoleRepositoryInterface&MockObject, StepUpProofService, WebAuthnCredentialRepositoryInterface&MockObject, \ArrayObject<int, AuditLogEntry>}
      */
-    private function service(User $actor, User $target, Role $candidate): array
+    private function service(User $actor, User $target, Role $candidate, ?AccountRecoveryIssuerInterface $recoveryIssuer = null): array
     {
         /** @var UserRepositoryInterface&MockObject $users */
         $users = $this->createMock(UserRepositoryInterface::class);
@@ -429,6 +500,7 @@ final class IamAdministrationServiceTest extends TestCase
             $lifecycle,
             $stepUpProofs,
             $webAuthnCredentials,
+            $recoveryIssuer,
         );
 
         return [$service, $users, $roles, $stepUpProofs, $webAuthnCredentials, $auditEntries];

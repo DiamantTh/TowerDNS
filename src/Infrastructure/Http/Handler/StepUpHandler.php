@@ -130,7 +130,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             if (count($registeredWebAuthn) === 2) {
                 $factorHint = 'security.step-up.webauthn-delete-other-key';
             }
-        } elseif ($pending->action === StepUpAction::IAM_USER_WEBAUTHN_REVOKE) {
+        } elseif (in_array($pending->action, [StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::IAM_USER_ACCOUNT_RECOVERY], true)) {
             $hasTotp    = false;
             $factorHint = 'security.step-up.admin-webauthn-only';
         } elseif ($pending->action === StepUpAction::PROFILE_TOTP_DELETE) {
@@ -146,7 +146,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
             }
         }
         $error             = $request->getQueryParams()['error'] ?? null;
-        $passwordAvailable = !in_array($pending->action, [StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::PROFILE_WEBAUTHN_DELETE, StepUpAction::PROFILE_TOTP_DELETE], true)
+        $passwordAvailable = !in_array($pending->action, [StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, StepUpAction::PROFILE_WEBAUTHN_DELETE, StepUpAction::PROFILE_TOTP_DELETE], true)
             && !$hasPasskey
             && !$hasTotp
             && $this->users->fetchPasswordHash($user->email) !== null;
@@ -175,7 +175,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
         $intent = $this->sessionSecurity->pendingStepUp($session, $user->id, $switchId);
         $hash   = $this->users->fetchPasswordHash($user->email);
         if (!$intent instanceof StepUpIntent
-            || in_array($intent->action, [StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::PROFILE_WEBAUTHN_DELETE, StepUpAction::PROFILE_TOTP_DELETE], true)
+            || in_array($intent->action, [StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, StepUpAction::PROFILE_WEBAUTHN_DELETE, StepUpAction::PROFILE_TOTP_DELETE], true)
             || $hash === null
             || $this->credentials->findByUserId($user->id) !== []
             || $this->totpSecrets->isEnabled($user->id)) {
@@ -211,7 +211,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
 
         $intent = $this->sessionSecurity->pendingStepUp($session, $user->id, $switchId);
         if (!$intent instanceof StepUpIntent
-            || in_array($intent->action, [StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::PROFILE_WEBAUTHN_DELETE], true)
+            || in_array($intent->action, [StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, StepUpAction::PROFILE_WEBAUTHN_DELETE], true)
             || !$this->totpSecrets->isEnabled($user->id)) {
             return $this->render($guard, ['error' => $this->translator->translate('security.step-up.unavailable')], 403);
         }
@@ -421,7 +421,8 @@ final readonly class StepUpHandler implements RequestHandlerInterface
     {
         return match ($proof->action) {
             StepUpAction::IAM_USER_ROLES, StepUpAction::IAM_USER_STATUS, StepUpAction::IAM_USER_PASSWORD => '/users/' . rawurlencode($proof->targetId),
-            StepUpAction::IAM_USER_DELETE, StepUpAction::IAM_USER_WEBAUTHN_REVOKE                        => '/users',
+            StepUpAction::IAM_USER_DELETE                                                                => '/users',
+            StepUpAction::IAM_USER_WEBAUTHN_REVOKE, StepUpAction::IAM_USER_ACCOUNT_RECOVERY              => '/users/' . rawurlencode($proof->targetId),
             StepUpAction::IAM_ROLE_CREATE, StepUpAction::IAM_ROLE_SAVE, StepUpAction::IAM_ROLE_DELETE    => '/roles',
             StepUpAction::ADMIN_SWITCH                                                                   => '/admin/switch',
             StepUpAction::PROFILE_WEBAUTHN_ENROLL, StepUpAction::PROFILE_WEBAUTHN_DELETE                 => '/profile/webauthn',

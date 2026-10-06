@@ -16,6 +16,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AccountRecoveryService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Http\SessionSecurity;
@@ -46,6 +47,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         private TranslatorInterface                   $translator,
         private SessionSecurity                       $sessionSecurity,
         private CacheInterface                        $cache,
+        private ?AccountRecoveryService               $recoveries = null,
     ) {}
 
     #[\Override]
@@ -54,11 +56,12 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
         $session = $request->getAttribute(SessionInterface::class);
         assert($session instanceof SessionInterface);
 
-        $userId      = $this->sessionSecurity->pendingMfaUserId($session);
-        $optionsJson = $session->get('webauthn_auth_options');
+        $userId             = $this->sessionSecurity->pendingMfaUserId($session);
+        $authSessionVersion = $this->sessionSecurity->pendingMfaSessionVersion($session);
+        $optionsJson        = $session->get('webauthn_auth_options');
 
         $mfaType = $session->get('mfa_type');
-        if ($userId === null || !in_array($mfaType, ['webauthn', 'passwordless'], true) || !is_string($optionsJson) || $optionsJson === '') {
+        if ($userId === null || $authSessionVersion === null || !in_array($mfaType, ['webauthn', 'passwordless'], true) || !is_string($optionsJson) || $optionsJson === '') {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-pending')], 400);
         }
 
@@ -113,11 +116,17 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }
 
+        $user = $this->users->findById($userId);
+        if (!$user instanceof \TowerDNS\Domain\Auth\User || $user->authSessionVersion !== $authSessionVersion || $this->recoveries?->isUserLocked($userId) === true) {
+            $this->sessionSecurity->clearPendingMfa($session);
+            return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 401);
+        }
+
         // Persist updated counter + backup flags.
         $this->credentialRepo->updateAfterAuthentication($updatedSource);
 
         // Complete login.
-        $this->sessionSecurity->completeLogin($session, $userId);
+        $this->sessionSecurity->completeLogin($session, $userId, $user->authSessionVersion);
         $this->users->updateLastLoginAt($userId);
         $this->audit->recordLogin($request, $userId);
         if ($mfaType === 'webauthn') {

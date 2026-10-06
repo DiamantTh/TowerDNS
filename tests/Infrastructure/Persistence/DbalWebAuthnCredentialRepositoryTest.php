@@ -7,12 +7,14 @@ namespace TowerDNS\Tests\Infrastructure\Persistence;
 use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Serializer\SerializerInterface;
+use Symfony\Component\Uid\Uuid;
 use TowerDNS\Application\Exception\WebAuthnCredentialLimitException;
 use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
 use Webauthn\CredentialRecord;
 use Webauthn\Denormalizer\WebauthnSerializerFactory;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class DbalWebAuthnCredentialRepositoryTest extends TestCase
@@ -61,6 +63,16 @@ final class DbalWebAuthnCredentialRepositoryTest extends TestCase
             self::fail('The configured WebAuthn limit must be enforced.');
         } catch (WebAuthnCredentialLimitException) {
             self::assertSame(1, $repository->countByUserId('user-1'));
+        }
+
+        $replacement = new CredentialRecord('replacement-id', 'public-key', [], 'none', EmptyTrustPath::create(), Uuid::fromString('00000000-0000-0000-0000-000000000000'), 'public-key', 'user-1', 0);
+        $repository->saveDuringRecovery('user-1', 'Recovery key', $replacement, 'cross-platform', 2);
+        self::assertSame(2, $repository->countByUserId('user-1'), 'Recovery must keep the old factor until a replacement has been verified.');
+        try {
+            $repository->save('user-1', 'Third key', $replacement, maxCredentials: 1);
+            self::fail('Ordinary enrollment must remain limited while recovery has its temporary slot.');
+        } catch (WebAuthnCredentialLimitException) {
+            self::assertSame(2, $repository->countByUserId('user-1'));
         }
 
         $record->counter = 2;

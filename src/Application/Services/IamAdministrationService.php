@@ -30,6 +30,7 @@ final readonly class IamAdministrationService
         private UserLifecycleService $lifecycle,
         private StepUpProofService $stepUpProofs,
         private WebAuthnCredentialRepositoryInterface $webAuthnCredentials,
+        private ?AccountRecoveryIssuerInterface $accountRecovery = null,
     ) {}
 
     /** @param list<string> $roleIds */
@@ -245,6 +246,60 @@ final readonly class IamAdministrationService
                     );
                 });
             },
+        );
+    }
+
+    /** @return array{recovery_id:string,raw_ticket:string,expires_at:string} */
+    public function authorizeAccountRecovery(
+        User $effectiveActor,
+        string $targetUserId,
+        AuditContext $context,
+        ?StepUpProof $stepUp = null,
+    ): array {
+        return $this->guardAndAuditDenial(
+            $context,
+            'iam.user.account_recovery.authorization.denied',
+            'user',
+            $targetUserId,
+            null,
+            fn(): array => $this->transactions->run(function () use ($effectiveActor, $targetUserId, $context, $stepUp): array {
+                $this->users->lockSuperadminRoleForMutation();
+                $this->users->lockUserForAuthenticationMutation($targetUserId);
+                $actor = $this->requireActiveActor($effectiveActor->id);
+                if ($context->effectiveUserId !== $actor->id || $context->impersonationSessionId !== null) {
+                    throw new AuthorizationException('Account recovery authorization is unavailable during impersonation.');
+                }
+                $this->authorization->assert($actor, Permission::USER_MANAGE);
+                $target = $this->users->findByIdForAdministration($targetUserId);
+                if (!$target instanceof User || !$target->active) {
+                    throw new \DomainException('Target user is unavailable for account recovery.');
+                }
+                $this->assertTargetWithinActorAuthority($actor, $target);
+
+                $targetBoundId = $targetUserId;
+                if (!$this->stepUpProofs->isValid($stepUp, $actor->id, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, $targetBoundId, null)) {
+                    throw new StepUpRequiredException(StepUpAction::IAM_USER_ACCOUNT_RECOVERY, $targetBoundId);
+                }
+                if (!$stepUp instanceof StepUpProof || $stepUp->method !== 'webauthn' || !is_string($stepUp->credentialIdHash)) {
+                    throw new AuthorizationException('Account recovery authorization requires administrator FIDO2 confirmation.');
+                }
+                $stepUpCredentialIdHash = $stepUp->credentialIdHash;
+                $ownsCredential         = array_any(
+                    $this->webAuthnCredentials->findByUserId($actor->id),
+                    static fn(array $entry): bool => hash_equals($stepUpCredentialIdHash, hash('sha256', $entry['source']->publicKeyCredentialId)),
+                );
+                if (!$ownsCredential) {
+                    throw new AuthorizationException('The FIDO2 confirmation credential does not belong to the active administrator.');
+                }
+                if (!$this->stepUpProofs->consumeOnce($stepUp, $actor->id, StepUpAction::IAM_USER_ACCOUNT_RECOVERY, $targetBoundId, null)) {
+                    throw new AuthorizationException('The step-up proof has already been used.');
+                }
+                if (!$this->accountRecovery instanceof AccountRecoveryIssuerInterface) {
+                    throw new \LogicException('Account recovery service is not configured.');
+                }
+
+                return $this->accountRecovery->authorize($target, $actor->id, $context);
+            }),
         );
     }
 

@@ -198,6 +198,9 @@ final class TestWebAuthnCredentialRepository implements WebAuthnCredentialReposi
     public function save(string $userId, string $name, CredentialRecord $source, ?string $attachment = null, int $maxCredentials = 10): void {}
 
     #[\Override]
+    public function saveDuringRecovery(string $userId, string $name, CredentialRecord $source, ?string $attachment, int $recoveryCeiling): void {}
+
+    #[\Override]
     public function updateAfterAuthentication(CredentialRecord $source): void {}
 
     #[\Override]

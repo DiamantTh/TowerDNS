@@ -48,6 +48,12 @@ final readonly class TowerDNSSessionAuthentication implements AuthenticationInte
             return null;
         }
 
+        $sessionVersion = $session->get('auth_session_version', 0);
+        if (!is_int($sessionVersion) || $sessionVersion !== $user->authSessionVersion) {
+            $this->sessionSecurity->invalidate($session);
+            return null;
+        }
+
         return new TowerDNSAuthenticatedUser($user);
     }
 

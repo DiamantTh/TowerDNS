@@ -20,6 +20,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AccountRecoveryService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Validation\LoginInputFilter;
@@ -56,6 +57,7 @@ final readonly class LoginHandler implements RequestHandlerInterface
         private AuditLogService                       $audit,
         private TranslatorInterface                   $translator,
         private SessionSecurity                       $sessionSecurity,
+        private ?AccountRecoveryService               $recoveries = null,
     ) {}
 
     #[\Override]
@@ -190,6 +192,10 @@ final readonly class LoginHandler implements RequestHandlerInterface
             $this->audit->recordLoginFailed($request, $email);
             return $this->translator->translate('auth.error.invalid-credentials');
         }
+        if ($this->recoveries?->isUserLocked($user->id) === true) {
+            $this->audit->recordLoginFailed($request, $email);
+            return $this->translator->translate('auth.error.invalid-credentials');
+        }
 
         // Valid legacy hashes remain supported, but are upgraded to the
         // configured Argon2id parameters after a successful authentication.
@@ -202,17 +208,17 @@ final readonly class LoginHandler implements RequestHandlerInterface
         // TOTP endpoint remains available as an explicit fallback.
         $webAuthnKeys = $this->webAuthnCredentials->findByUserId($user->id);
         if ($webAuthnKeys !== []) {
-            $session = $this->sessionSecurity->beginMfa($session, $user->id, 'webauthn');
+            $session = $this->sessionSecurity->beginMfa($session, $user->id, 'webauthn', $user->authSessionVersion);
             return null;
         }
 
         if ($this->totpSecrets->isEnabled($user->id)) {
-            $session = $this->sessionSecurity->beginMfa($session, $user->id, 'totp');
+            $session = $this->sessionSecurity->beginMfa($session, $user->id, 'totp', $user->authSessionVersion);
             return null;
         }
 
         // No MFA → complete login immediately.
-        $session = $this->sessionSecurity->completeLogin($session, $user->id);
+        $session = $this->sessionSecurity->completeLogin($session, $user->id, $user->authSessionVersion);
         $this->users->updateLastLoginAt($user->id);
         $this->audit->recordLogin($request, $user->id);
         $this->audit->recordPasswordBreakGlassUsed($request, $user->id, 'none');

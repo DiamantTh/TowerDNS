@@ -26,6 +26,7 @@ final readonly class PasswordResetService
         private UserRepositoryInterface              $users,
         private PasswordPolicy                       $policy,
         private ClockInterface                       $clock,
+        private ?AccountRecoveryService $recoveries = null,
     ) {}
 
     /**
@@ -47,6 +48,9 @@ final readonly class PasswordResetService
 
                 if (!$this->users->findById($token->userId) instanceof \TowerDNS\Domain\Auth\User) {
                     throw new PasswordResetException('Password reset token target is unavailable.');
+                }
+                if ($this->recoveries?->isUserLocked($token->userId) === true) {
+                    throw new PasswordResetException('Password reset is unavailable during account recovery.');
                 }
 
                 if (!$this->tokens->consumeIfValid($token->id, $now)) {

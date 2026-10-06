@@ -65,6 +65,7 @@ use TowerDNS\Application\Module\ModulePermissionRegistryFactory;
 use TowerDNS\Application\Module\ProviderModuleRegistry;
 use TowerDNS\Application\Provider\ProviderRegistry;
 use TowerDNS\Application\Repository\AccountInvitationRepositoryInterface;
+use TowerDNS\Application\Repository\AccountRecoveryRepositoryInterface;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AccountResourceLimitsRepositoryInterface;
 use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface;
@@ -81,12 +82,15 @@ use TowerDNS\Application\Repository\TotpCredentialRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface;
+use TowerDNS\Application\Services\AccountRecoveryIssuerInterface;
+use TowerDNS\Application\Services\AccountRecoveryService;
 use TowerDNS\Application\Services\ActiveAccountService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Services\BreachedPasswordCheckerInterface;
 use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Services\HealthStatusService;
+use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Application\Services\MailService;
 use TowerDNS\Application\Services\NullBreachedPasswordChecker;
 use TowerDNS\Application\Services\PasswordAdministrationService;
@@ -114,18 +118,29 @@ use TowerDNS\Infrastructure\Console\SchemaStatusCommand;
 use TowerDNS\Infrastructure\Console\SchemaValidateCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
+use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryActionHandler;
+use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryAuthorizationHandler;
+use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryHandler;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
+use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderCredentialsHandler;
 use TowerDNS\Infrastructure\Http\Handler\SchemaMigrationHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
+use TowerDNS\Infrastructure\Http\Handler\TotpHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnAuthBeginHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnAuthFinishHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnRegisterBeginHandler;
+use TowerDNS\Infrastructure\Http\Handler\WebAuthnRegisterFinishHandler;
 use TowerDNS\Infrastructure\Http\Middleware\AuthenticationMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ClientIpMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\LocaleMiddleware;
+use TowerDNS\Infrastructure\Http\Middleware\RecoverySessionMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\RequireAuthMiddleware;
 use TowerDNS\Infrastructure\Http\Middleware\SecurityHeaderMiddleware;
 use TowerDNS\Infrastructure\Persistence\DbalAccountInvitationRepository;
+use TowerDNS\Infrastructure\Persistence\DbalAccountRecoveryRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAccountResourceLimitsRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAdminImpersonationSessionRepository;
@@ -283,6 +298,7 @@ final class ContainerFactory
             ZoneMembershipRepositoryInterface::class            => \DI\autowire(DbalZoneMembershipRepository::class),
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
             PasswordResetTokenRepositoryInterface::class        => \DI\autowire(DbalPasswordResetTokenRepository::class),
+            AccountRecoveryRepositoryInterface::class           => \DI\autowire(DbalAccountRecoveryRepository::class),
             SystemSettingsRepositoryInterface::class            => \DI\autowire(DbalSystemSettingsRepository::class),
             TotpCredentialRepositoryInterface::class            => \DI\autowire(DbalTotpCredentialRepository::class),
             StepUpProofNonceRepositoryInterface::class          => \DI\autowire(DbalStepUpProofNonceRepository::class),
@@ -314,6 +330,8 @@ final class ContainerFactory
             ActiveAccountService::class               => \DI\factory(static fn(\Psr\Container\ContainerInterface $c): ActiveAccountService => new ActiveAccountService($c->get(AccountRepositoryInterface::class), $c->get(UserLifecycleService::class))),
             AuditLogService::class                    => \DI\autowire(),
             PasswordResetService::class               => \DI\autowire(),
+            AccountRecoveryService::class             => \DI\autowire(),
+            AccountRecoveryIssuerInterface::class     => \DI\get(AccountRecoveryService::class),
             PasswordAdministrationService::class      => \DI\autowire(),
             SystemProviderConfigurationService::class => \DI\autowire(),
             AccountProviderFactoryInterface::class    => \DI\autowire(ProviderAccountAdapterFactory::class),
@@ -339,16 +357,26 @@ final class ContainerFactory
             ActionGroupRegistry::class => \DI\factory(
                 static fn(PermissionRegistry $permissions): ActionGroupRegistry => new ModuleActionGroupRegistryFactory($moduleDiscovery, $permissions)->create()
             ),
-            AuthorizationService::class     => \DI\autowire(),
-            TotpService::class              => \DI\autowire(),
-            TotpSecretService::class        => \DI\autowire(),
-            ThemeManager::class             => $themeManager,
-            AuthenticationMiddleware::class => \DI\autowire(),
-            AuthenticationInterface::class  => \DI\autowire(\TowerDNS\Infrastructure\Http\TowerDNSSessionAuthentication::class),
-            LocaleMiddleware::class         => \DI\factory(static fn(\Psr\Container\ContainerInterface $c): LocaleMiddleware => new LocaleMiddleware($c->get(TranslatorInterface::class), SupportedLocales::normalize((string) ($appConf['app']['locale'] ?? '')) ?? SupportedLocales::DEFAULT)),
-            RequireAuthMiddleware::class    => \DI\autowire(),
-            ClientIpMiddleware::class       => \DI\autowire(),
-            WebAuthnService::class          => \DI\factory(
+            AuthorizationService::class          => \DI\autowire(),
+            IamAdministrationService::class      => \DI\autowire(),
+            TotpService::class                   => \DI\autowire(),
+            TotpSecretService::class             => \DI\autowire(),
+            ThemeManager::class                  => $themeManager,
+            AuthenticationMiddleware::class      => \DI\autowire(),
+            AuthenticationInterface::class       => \DI\autowire(\TowerDNS\Infrastructure\Http\TowerDNSSessionAuthentication::class),
+            LocaleMiddleware::class              => \DI\factory(static fn(\Psr\Container\ContainerInterface $c): LocaleMiddleware => new LocaleMiddleware($c->get(TranslatorInterface::class), SupportedLocales::normalize((string) ($appConf['app']['locale'] ?? '')) ?? SupportedLocales::DEFAULT)),
+            RequireAuthMiddleware::class         => \DI\autowire(),
+            RecoverySessionMiddleware::class     => \DI\autowire(),
+            AccountRecoveryHandler::class        => \DI\autowire(),
+            AccountRecoveryActionHandler::class  => \DI\autowire(),
+            LoginHandler::class                  => \DI\autowire(),
+            TotpHandler::class                   => \DI\autowire(),
+            WebAuthnAuthBeginHandler::class      => \DI\autowire(),
+            WebAuthnAuthFinishHandler::class     => \DI\autowire(),
+            WebAuthnRegisterBeginHandler::class  => \DI\autowire(),
+            WebAuthnRegisterFinishHandler::class => \DI\autowire(),
+            ClientIpMiddleware::class            => \DI\autowire(),
+            WebAuthnService::class               => \DI\factory(
                 static function (\Psr\Container\ContainerInterface $c, SerializerInterface $serializer) use ($appConf): WebAuthnService {
                     $app = (array) ($appConf['app'] ?? []);
                     // Both installers persist the public host as app.domain.
@@ -452,6 +480,21 @@ final class ContainerFactory
                     $app     = (array) ($appConf['app'] ?? []);
                     $baseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
                     return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator, $cache, $clock, $audit);
+                }
+            ),
+
+            AccountRecoveryAuthorizationHandler::class => \DI\factory(
+                static function (
+                    UserRepositoryInterface $users,
+                    IamAdministrationService $iam,
+                    \TowerDNS\Infrastructure\Http\StepUpRequestService $stepUp,
+                    MailService $mail,
+                    AuditLogService $audit,
+                    TranslatorInterface $translator,
+                ) use ($appConf): AccountRecoveryAuthorizationHandler {
+                    $app     = (array) ($appConf['app'] ?? []);
+                    $baseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
+                    return new AccountRecoveryAuthorizationHandler($users, $iam, $stepUp, $mail, $audit, $translator, $baseUrl);
                 }
             ),
 

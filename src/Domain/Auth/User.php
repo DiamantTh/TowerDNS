@@ -38,5 +38,6 @@ final readonly class User
         public ?string $lastLoginAt = null,
         public ?string $createdAt = null,
         public ?string $updatedAt = null,
+        public int $authSessionVersion = 0,
     ) {}
 }

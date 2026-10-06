@@ -37,7 +37,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findById(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE id = ? AND active = TRUE',
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at, auth_session_version FROM users WHERE id = ? AND active = TRUE',
             [$id],
         );
 
@@ -52,7 +52,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findByIdForAdministration(string $id): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE id = ?',
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at, auth_session_version FROM users WHERE id = ?',
             [$id],
         );
         return is_array($raw) ? $this->hydrate($raw, $this->loadRolesForUser((string) $raw['id'])) : null;
@@ -71,7 +71,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         }
 
         $rows = $this->connection->fetchAllAssociative(
-            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE id IN (?)',
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at, auth_session_version FROM users WHERE id IN (?)',
             [$ids],
             [ArrayParameterType::STRING],
         );
@@ -94,7 +94,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findByEmail(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE email = ? AND active = TRUE',
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at, auth_session_version FROM users WHERE email = ? AND active = TRUE',
             [$email],
         );
 
@@ -109,7 +109,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
     public function findByEmailForAdministration(string $email): ?User
     {
         $raw = $this->connection->fetchAssociative(
-            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users WHERE email = ?',
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at, auth_session_version FROM users WHERE email = ?',
             [strtolower(trim($email))],
         );
 
@@ -265,7 +265,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
         $types[]  = ParameterType::INTEGER;
         $types[]  = ParameterType::INTEGER;
         $rows     = $this->connection->fetchAllAssociative(
-            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at FROM users' . $where . ' ORDER BY email LIMIT ? OFFSET ?',
+            'SELECT id, email, active, display_name, theme, language, locale, timezone, first_name, last_name, alternate_email, phone, mobile, street, street2, postal_code, city, region, country, external_reference, last_login_at, created_at, updated_at, auth_session_version FROM users' . $where . ' ORDER BY email LIMIT ? OFFSET ?',
             $params,
             $types,
         );
@@ -456,6 +456,7 @@ final readonly class DbalUserRepository implements UserRepositoryInterface
             isset($row['last_login_at']) ? (string) $row['last_login_at'] : null,
             isset($row['created_at']) ? (string) $row['created_at'] : null,
             isset($row['updated_at']) ? (string) $row['updated_at'] : null,
+            (int) ($row['auth_session_version'] ?? 0),
         );
     }
 

@@ -37,6 +37,9 @@ interface WebAuthnCredentialRepositoryInterface
      */
     public function save(string $userId, string $name, CredentialRecord $source, ?string $attachment = null, int $maxCredentials = 10): void;
 
+    /** Allows only the recovery-scoped total ceiling while pre-recovery keys remain intact. */
+    public function saveDuringRecovery(string $userId, string $name, CredentialRecord $source, ?string $attachment, int $recoveryCeiling): void;
+
     /**
      * Updates the counter and last-used timestamp after a successful assertion.
      */

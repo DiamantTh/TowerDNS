@@ -18,6 +18,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AccountRecoveryService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
@@ -41,6 +42,7 @@ final readonly class WebAuthnAuthBeginHandler implements RequestHandlerInterface
         private AuditLogService $audit,
         private TranslatorInterface $translator,
         private CacheInterface $cache,
+        private ?AccountRecoveryService $recoveries = null,
     ) {}
 
     #[\Override]
@@ -68,13 +70,13 @@ final readonly class WebAuthnAuthBeginHandler implements RequestHandlerInterface
         $email       = mb_strtolower(trim($body['email'] ?? ''));
         $user        = $email !== '' ? $this->users->findByEmail($email) : null;
         $credentials = $user instanceof \TowerDNS\Domain\Auth\User ? $this->credentials->findByUserId($user->id) : [];
-        if (!$user instanceof \TowerDNS\Domain\Auth\User || $credentials === []) {
+        if (!$user instanceof \TowerDNS\Domain\Auth\User || $credentials === [] || $this->recoveries?->isUserLocked($user->id) === true) {
             $this->audit->recordLoginFailed($request, $email);
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 401);
         }
 
         $this->sessionSecurity->clearPasswordVerification($session);
-        $this->sessionSecurity->beginMfa($session, $user->id, 'passwordless');
+        $this->sessionSecurity->beginMfa($session, $user->id, 'passwordless', $user->authSessionVersion);
         $ids        = [];
         $transports = [];
         foreach ($credentials as $credential) {

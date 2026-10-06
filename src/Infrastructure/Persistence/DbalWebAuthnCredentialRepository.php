@@ -103,15 +103,29 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
     #[\Override]
     public function save(string $userId, string $name, CredentialRecord $source, ?string $attachment = null, int $maxCredentials = 10): void
     {
+        $this->persist($userId, $name, $source, $attachment, $maxCredentials, 100);
+    }
+
+    #[\Override]
+    public function saveDuringRecovery(string $userId, string $name, CredentialRecord $source, ?string $attachment, int $recoveryCeiling): void
+    {
+        // Keep every pre-recovery credential available until the replacement
+        // is verified. The recovery service computes a cap of max(configured
+        // cap, pre-recovery count + one), bounded by the technical maximum.
+        $this->persist($userId, $name, $source, $attachment, max(1, min(101, $recoveryCeiling)), 101);
+    }
+
+    private function persist(string $userId, string $name, CredentialRecord $source, ?string $attachment, int $maxCredentials, int $technicalMax): void
+    {
         $now  = new \DateTimeImmutable()->format('Y-m-d H:i:s');
         $data = $this->serializer->serialize($source, 'json');
 
-        $this->connection->transactional(function (Connection $connection) use ($userId, $name, $source, $attachment, $maxCredentials, $now, $data): void {
+        $this->connection->transactional(function (Connection $connection) use ($userId, $name, $source, $attachment, $maxCredentials, $technicalMax, $now, $data): void {
             if (!PlatformDetector::isSqlite($connection)) {
                 $connection->fetchOne('SELECT id FROM users WHERE id = ? FOR UPDATE', [$userId]);
             }
             $count = (int) $connection->fetchOne('SELECT COUNT(*) FROM webauthn_credentials WHERE user_id = ?', [$userId]);
-            if ($count >= max(1, min(100, $maxCredentials))) {
+            if ($count >= max(1, min($technicalMax, $maxCredentials))) {
                 throw new WebAuthnCredentialLimitException('The configured WebAuthn credential limit has been reached.');
             }
 

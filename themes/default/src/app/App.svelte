@@ -9,6 +9,7 @@
     import AdminPage from '../components/AdminPage.svelte';
     import ProviderCredentialFields from '../components/ProviderCredentialFields.svelte';
     import AuthenticationPage from '../components/AuthenticationPage.svelte';
+    import AccountRecoveryPage from '../components/AccountRecoveryPage.svelte';
     import StepUpPage from '../components/StepUpPage.svelte';
     import DnsRecordsPage from '../components/DnsRecordsPage.svelte';
     import AppShell from '../components/AppShell.svelte';
@@ -27,6 +28,7 @@
     const url = (name: string, parameters: Record<string, string | number> = {}) => pageUrl(boot.urls, name, parameters);
     provideI18n(() => boot.i18n?.messages ?? {});
     const p = $derived(boot.props), user = $derived((p.user ?? p.currentUser ?? null) as UserBootstrap | null), csrf = $derived(p.csrfToken ?? '');
+    const shellUser = $derived(p.recoverySession ? null : user);
     let dark = $state(document.documentElement.classList.contains('dark'));
     let menu = $state(false), filter = $state(''), score = $state<number|null>(null), passkeyError = $state(''), busy = $state(false), keyName = $state('');
     let selectedProviderType = $state('');
@@ -74,11 +76,12 @@
     }
 </script>
 
-<AppShell user={user} csrfToken={csrf} {dark} {menu} can={permission} urls={boot.urls} accountLabel={typeof p.account?.name === 'string' ? p.account.name : null} onToggleTheme={setDark} onToggleMenu={(open) => menu = open}>
-<main class:auth-page={!user} id="main-content">
+<AppShell user={shellUser} csrfToken={csrf} {dark} {menu} can={permission} urls={boot.urls} accountLabel={typeof p.account?.name === 'string' ? p.account.name : null} onToggleTheme={setDark} onToggleMenu={(open) => menu = open}>
+<main class:auth-page={!shellUser} id="main-content">
 {#if boot.debug}<Notice kind="warning" text={t('notice.debug-enabled')}/>{/if}
 {#if isAuthenticationPage(boot.page)}
     <AuthenticationPage page={boot.page} data={p} urls={boot.urls} />
+{:else if boot.page==='account/recovery'}<AccountRecoveryPage data={p} />
 {:else if boot.page==='security/step_up'}<StepUpPage data={p as {csrfToken:string;completed:boolean;returnUrl:string|null;totpAvailable:boolean;passkeyAvailable:boolean;passwordAvailable:boolean;factorHint?:string|null;recoveryRequired?:boolean;error:string|null}} />
 {:else if boot.page==='dashboard' && user}<Page title={t('page.dashboard.title')} subtitle={t('dashboard.welcome',{name:user.displayName||user.email})}><div class="dashboard-grid"><Feature title={t('dashboard.zones.title')} text={t('dashboard.zones.text')} href={url("zones")}/><Feature title={t('dashboard.accounts.title')} text={t('dashboard.accounts.text')} href={url("accounts")}/><Feature title={t('dashboard.security.title')} text={t('dashboard.security.text')} href={url("profile")}/></div></Page>
 {:else if boot.page==='admin'}<Page title={t('navigation.admin')}><div class="settings-list">{#each list<{key:string;href:string}>(p.areas) as area}<Setting title={t(area.key)} text="" href={area.href}/>{:else}<p class="empty">{t('http.error.forbidden')}</p>{/each}</div></Page>
@@ -134,6 +137,16 @@
     <form method="post"><input type="hidden" name="csrf_token" value={csrf}><input type="hidden" name="action" value="display_name"><Field label={t('field.display-name')}><input class="input" name="display_name" value={p.target.displayName??''} maxlength="64"></Field><button class="button is-primary">{t('common.save')}</button></form>
     <form method="post" class="mt-4"><input type="hidden" name="csrf_token" value={csrf}><input type="hidden" name="action" value="status"><input type="hidden" name="active" value={p.target.active?'0':'1'}><button class="button" class:is-danger={p.target.active}>{p.target.active?t('users.status.inactive'):t('users.status.active')}</button></form>
     <form method="post" action={`/users/${enc(p.target.id)}/delete`} class="mt-4" onsubmit={(e)=>ask(e,t('users.confirm-delete'))}><input type="hidden" name="csrf_token" value={csrf}><button class="button is-danger">{t('common.delete')}</button></form>
+   </section>
+   <section class="box">
+    <h2 class="subtitle">{t('recovery.admin-title')}</h2>
+    <p>{t('recovery.admin-help')}</p>
+    {#if p.target.active}
+     <form method="post" action={`/users/${enc(p.target.id)}/account-recovery`} onsubmit={(e)=>ask(e,t('recovery.admin-confirm',{email:p.target.email}))}>
+      <input type="hidden" name="csrf_token" value={csrf}>
+      <button class="button is-danger">{t('recovery.admin-authorize')}</button>
+     </form>
+    {:else}<Notice kind="warning" text={t('users.auth-recovery.active-required')}/>{/if}
    </section>
    {#if p.lastWebAuthnCredential}
     <section class="box">

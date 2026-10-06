@@ -10,6 +10,7 @@ namespace TowerDNS\Infrastructure\Http\Handler;
 use Laminas\Diactoros\Response\JsonResponse;
 use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfMiddleware;
+use Mezzio\Session\SessionIdentifierAwareInterface;
 use Mezzio\Session\SessionInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -17,6 +18,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\DTO\StepUpAction;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
+use TowerDNS\Application\Services\AccountRecoveryService;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Domain\Account\AdminImpersonationSession;
@@ -43,6 +45,7 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         private StepUpRequestService                  $stepUp,
         private SystemSettingsRepositoryInterface     $settings,
         private AuditLogService                       $audit,
+        private ?AccountRecoveryService               $recoveryService = null,
     ) {}
 
     #[\Override]
@@ -71,15 +74,34 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
 
         $session = $request->getAttribute(SessionInterface::class);
         assert($session instanceof SessionInterface);
+        $recoveryState = $request->getAttribute('account_recovery');
+        $recoveryMode  = is_array($recoveryState);
+        $sessionIdHash = null;
+        if ($recoveryMode) {
+            if (!$this->recoveryService instanceof AccountRecoveryService
+                || !$session instanceof SessionIdentifierAwareInterface
+                || !is_string($recoveryState['recovery_id'] ?? null)) {
+                return new JsonResponse(['error' => $this->translator->translate('recovery.session-expired')], 410);
+            }
+            $sessionIdHash = hash('sha256', $session->getId());
+            if (!$this->recoveryService->validateSession($currentUser->id, $recoveryState['recovery_id'], $sessionIdHash)) {
+                return new JsonResponse(['error' => $this->translator->translate('recovery.session-expired')], 410);
+            }
+        }
         if ($request->getAttribute('impersonation_session') instanceof AdminImpersonationSession) {
             return new JsonResponse(['error' => $this->translator->translate('http.error.forbidden')], 403);
         }
 
-        $maxCredentials = max(1, min(100, (int) $this->settings->get('security.webauthn.max_credentials_per_user', 10)));
-        if ($this->credentialRepo->countByUserId($currentUser->id) >= $maxCredentials) {
+        $maxCredentials    = max(1, min(100, (int) $this->settings->get('security.webauthn.max_credentials_per_user', 10)));
+        $credentialCount   = $this->credentialRepo->countByUserId($currentUser->id);
+        $enrollmentCeiling = $recoveryMode
+            ? $this->recoveryService?->webAuthnEnrollmentCeiling($recoveryState['recovery_id'], $maxCredentials)
+            : $maxCredentials;
+        $enrollmentCeiling ??= $maxCredentials;
+        if ($credentialCount >= $enrollmentCeiling) {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.limit-reached')], 409);
         }
-        if (!$this->stepUp->hasProof($request, $currentUser->id, StepUpAction::PROFILE_WEBAUTHN_ENROLL, $currentUser->id)) {
+        if (!$recoveryMode && !$this->stepUp->hasProof($request, $currentUser->id, StepUpAction::PROFILE_WEBAUTHN_ENROLL, $currentUser->id)) {
             return $this->stepUp->challengeAction($request, $currentUser->id, StepUpAction::PROFILE_WEBAUTHN_ENROLL, $currentUser->id, json: true);
         }
 
@@ -98,14 +120,16 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
 
         $createdAt = time();
         $session->set('webauthn_register_pending', [
-            'user_id'    => $currentUser->id,
-            'options'    => $this->webAuthn->serializeCreationOptions($options),
-            'label'      => $name,
-            'created_at' => $createdAt,
-            'expires_at' => $createdAt + 300,
-            'purpose'    => $purpose,
+            'user_id'         => $currentUser->id,
+            'options'         => $this->webAuthn->serializeCreationOptions($options),
+            'label'           => $name,
+            'created_at'      => $createdAt,
+            'expires_at'      => $createdAt + 300,
+            'purpose'         => $purpose,
+            'recovery_id'     => $recoveryMode ? $recoveryState['recovery_id'] : null,
+            'session_id_hash' => $sessionIdHash,
         ]);
-        $this->audit->record($request, 'security.webauthn.enrollment.started', 'user', $currentUser->id, $currentUser->id, null, null, null, null, $currentUser->id, null, null, ['purpose' => $purpose]);
+        $this->audit->record($request, $recoveryMode ? 'security.account_recovery.webauthn.enrollment.started' : 'security.webauthn.enrollment.started', 'user', $currentUser->id, $currentUser->id, null, null, null, null, $currentUser->id, null, null, ['purpose' => $purpose]);
 
         return new JsonResponse(
             json_decode($this->webAuthn->serializeCreationOptions($options), true),
