@@ -446,10 +446,12 @@ final class ContainerFactory
                     MailService $mail,
                     TranslatorInterface $translator,
                     CacheInterface $cache,
+                    ClockInterface $clock,
+                    AuditLogService $audit,
                 ) use ($appConf): ForgotPasswordHandler {
                     $app     = (array) ($appConf['app'] ?? []);
                     $baseUrl = rtrim((string) ($app['base_url'] ?? 'http://localhost'), '/');
-                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator, $cache);
+                    return new ForgotPasswordHandler($renderer, $users, $tokens, $mail, $baseUrl, $translator, $cache, $clock, $audit);
                 }
             ),
 

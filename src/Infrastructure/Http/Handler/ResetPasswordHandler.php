@@ -65,6 +65,7 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         $rawToken = trim((string) ($request->getQueryParams()['token'] ?? ''));
 
         if ($rawToken === '' || !$this->tokenIsValid($rawToken)) {
+            $this->auditExpiredTokenAttempt($request, $rawToken);
             return new HtmlResponse(
                 $this->renderer->render('app::reset_password', [
                     'csrfToken' => $guard->generateToken(),
@@ -147,11 +148,13 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
         } catch (\InvalidArgumentException) {
             return $renderError($this->translator->translate('auth.error.password-policy'));
         } catch (PasswordResetException) {
+            $this->auditExpiredTokenAttempt($request, $rawToken);
             return $renderError($this->translator->translate('auth.error.reset-link-invalid'));
         } catch (\Throwable) {
             return $renderError($this->translator->translate('auth.error.password-reset-failed'));
         }
 
+        $this->audit->recordPasswordResetTicketRedeemed($request, $userId);
         $this->audit->recordPasswordReset($request, $userId);
 
         return new RedirectResponse('/login?reset=1');
@@ -163,5 +166,19 @@ final readonly class ResetPasswordHandler implements RequestHandlerInterface
     {
         $record = $this->tokens->findByHash(hash('sha256', $rawToken));
         return $record instanceof \TowerDNS\Domain\Auth\PasswordResetToken && $record->isValidAt($this->clock->now());
+    }
+
+    private function auditExpiredTokenAttempt(ServerRequestInterface $request, string $rawToken): void
+    {
+        if ($rawToken === '') {
+            return;
+        }
+
+        $record = $this->tokens->findByHash(hash('sha256', $rawToken));
+        if ($record instanceof \TowerDNS\Domain\Auth\PasswordResetToken
+            && !$record->isUsed()
+            && $record->isExpiredAt($this->clock->now())) {
+            $this->audit->recordPasswordResetTicketExpired($request, $record->userId);
+        }
     }
 }

@@ -13,12 +13,14 @@ use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
+use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\UserRepositoryInterface;
+use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\MailService;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\RateLimit\RateLimiter;
@@ -35,7 +37,7 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
  */
 final readonly class ForgotPasswordHandler implements RequestHandlerInterface
 {
-    private const int TOKEN_TTL_SECONDS = 3600; // 1 hour
+    private const int TOKEN_TTL_SECONDS = 86400; // 24 hours
     private const int RATE_LIMIT        = 5;
     private const int RATE_WINDOW_SECS  = 900; // 15 minutes
 
@@ -47,6 +49,8 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
         private string                              $appBaseUrl,
         private TranslatorInterface                 $translator,
         private CacheInterface                      $cache,
+        private ClockInterface                       $clock,
+        private AuditLogService                      $audit,
     ) {}
 
     #[\Override]
@@ -103,11 +107,12 @@ final readonly class ForgotPasswordHandler implements RequestHandlerInterface
             if ($user instanceof \TowerDNS\Domain\Auth\User) {
                 $rawToken  = bin2hex(random_bytes(32)); // 64-char hex string
                 $tokenHash = hash('sha256', $rawToken);
-                $expiresAt = new \DateTimeImmutable()
+                $expiresAt = $this->clock->now()
                     ->modify('+' . self::TOKEN_TTL_SECONDS . ' seconds')
                     ->format('Y-m-d H:i:s');
 
                 $this->tokens->create($user->id, $tokenHash, $expiresAt);
+                $this->audit->recordPasswordResetTicketCreated($request, $user->id, $expiresAt);
 
                 $resetLink = rtrim($this->appBaseUrl, '/') . '/password/reset?token=' . rawurlencode($rawToken);
                 $htmlLink  = '<a href="' . htmlspecialchars($resetLink, ENT_QUOTES) . '">' . htmlspecialchars($resetLink, ENT_QUOTES) . '</a>';

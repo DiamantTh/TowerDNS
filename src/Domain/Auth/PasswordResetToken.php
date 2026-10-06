@@ -22,7 +22,7 @@ final readonly class PasswordResetToken
 
     public function isExpiredAt(\DateTimeInterface $now): bool
     {
-        return $this->expiresAt < $now->format('Y-m-d H:i:s');
+        return $this->expiresAt <= $now->format('Y-m-d H:i:s');
     }
 
     public function isUsed(): bool

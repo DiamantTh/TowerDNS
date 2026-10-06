@@ -133,6 +133,63 @@ final readonly class AuditLogService
         $this->record($request, 'user.password.reset', 'user', $userId, $userId, null, null, null, null, null, null, null, ['method' => 'email_link']);
     }
 
+    public function recordPasswordResetTicketCreated(ServerRequestInterface $request, string $userId, string $expiresAt): void
+    {
+        $this->record(
+            $request,
+            'security.password.recovery_ticket.created',
+            'user',
+            $userId,
+            $userId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ['purpose' => 'email_password_reset', 'expires_at' => $expiresAt],
+        );
+    }
+
+    public function recordPasswordResetTicketRedeemed(ServerRequestInterface $request, string $userId): void
+    {
+        $this->record(
+            $request,
+            'security.password.recovery_ticket.redeemed',
+            'user',
+            $userId,
+            $userId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ['purpose' => 'email_password_reset'],
+        );
+    }
+
+    public function recordPasswordResetTicketExpired(ServerRequestInterface $request, string $userId): void
+    {
+        $this->record(
+            $request,
+            'security.password.recovery_ticket.expired',
+            'user',
+            $userId,
+            $userId,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            ['purpose' => 'email_password_reset'],
+        );
+    }
+
     public function recordPasswordBreakGlassUsed(ServerRequestInterface $request, string $userId, string $secondFactor): void
     {
         $this->record(

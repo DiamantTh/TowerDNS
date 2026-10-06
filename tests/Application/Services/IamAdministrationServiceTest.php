@@ -185,6 +185,48 @@ final class IamAdministrationServiceTest extends TestCase
         self::assertStringNotContainsString('target-key', json_encode($revocation, JSON_THROW_ON_ERROR));
     }
 
+    public function testExpiredAdminFidoStepUpCannotRevokeFinalKeyEvenWhenTargetHasPasswordRecoveryPath(): void
+    {
+        $actor                               = new User('actor', 'actor@example.test', [new Role('user-manager', 'User manager', [Permission::USER_MANAGE])]);
+        $target                              = new User('target', 'target@example.test');
+        [$service, $users, , , $credentials] = $this->service($actor, $target, new Role('unused', 'Unused', []));
+        $users->method('fetchPasswordHash')->willReturn(password_hash('recovery-password', PASSWORD_BCRYPT));
+        $adminCredential  = $this->credentialRow('admin-key', $actor->id);
+        $targetCredential = $this->credentialRow('target-key', $target->id);
+        $credentials->method('findByUserId')->willReturnCallback(static fn(string $userId): array => $userId === 'actor' ? [$adminCredential] : [$targetCredential]);
+        $credentials->expects(self::never())->method('delete');
+
+        $now      = new \DateTimeImmutable();
+        $oldClock = new readonly class ($now->modify('-301 seconds')) implements \Psr\Clock\ClockInterface {
+            public function __construct(private \DateTimeImmutable $instant) {}
+
+            #[\Override]
+            public function now(): \DateTimeImmutable
+            {
+                return $this->instant;
+            }
+        };
+        $nonces = $this->createMock(StepUpProofNonceRepositoryInterface::class);
+        $nonces->method('claim')->willReturn(true);
+        $expiredProof = new StepUpProofService(str_repeat('k', 32), $oldClock, $nonces)->issue(
+            $actor->id,
+            StepUpAction::IAM_USER_WEBAUTHN_REVOKE,
+            StepUpAction::iamUserWebAuthnCredentialTarget($target->id, 'target-key'),
+            null,
+            'webauthn',
+            hash('sha256', 'admin-key'),
+        );
+
+        $this->expectException(StepUpRequiredException::class);
+        $service->revokeLastWebAuthnCredential(
+            $actor,
+            $target->id,
+            'target-key',
+            new AuditContext($actor->id, $actor->id),
+            $expiredProof,
+        );
+    }
+
     public function testAdminCredentialRevocationRequiresUserManagePermissionAndTargetCeiling(): void
     {
         $target                                                                                  = new User('target', 'target@example.test');

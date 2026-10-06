@@ -29,7 +29,6 @@ final class PasswordResetServiceTest extends TestCase
 {
     private Connection $connection;
     private DbalPasswordResetTokenRepository $tokens;
-    private ClockInterface $clock;
 
     #[\Override]
     protected function setUp(): void
@@ -37,13 +36,6 @@ final class PasswordResetServiceTest extends TestCase
         $this->connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
         $this->connection->executeStatement('CREATE TABLE password_reset_tokens (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id VARCHAR(64) NOT NULL, token_hash VARCHAR(64) NOT NULL UNIQUE, created_at VARCHAR(19) NOT NULL, expires_at VARCHAR(19) NOT NULL, used_at VARCHAR(19) DEFAULT NULL, method VARCHAR(32) NOT NULL DEFAULT \'email_link\')');
         $this->tokens = new DbalPasswordResetTokenRepository($this->connection);
-        $this->clock  = new class implements ClockInterface {
-            #[\Override]
-            public function now(): \DateTimeImmutable
-            {
-                return new \DateTimeImmutable('2026-09-15 12:00:00');
-            }
-        };
     }
 
     public function testItConsumesAnEmailTokenAndUpdatesThePassword(): void
@@ -67,6 +59,38 @@ final class PasswordResetServiceTest extends TestCase
 
         $this->expectException(PasswordResetException::class);
         $this->service($this->userRepository())->consumeEmailLink('raw-token', 'correct horse battery staple');
+    }
+
+    public function testEmailLinkIsAcceptedImmediatelyBeforeExpiry(): void
+    {
+        $this->tokens->create('user-1', hash('sha256', 'raw-token'), '2026-09-15 13:00:00');
+        $users = $this->userRepository();
+        $users->expects(self::once())->method('updatePasswordHash')->with('user-1', self::callback('is_string'));
+
+        self::assertSame(
+            'user-1',
+            $this->service($users, $this->clockAt('2026-09-15 12:59:59'))->consumeEmailLink('raw-token', 'correct horse battery staple'),
+        );
+    }
+
+    public function testEmailLinkIsRejectedAfterExpiry(): void
+    {
+        $this->tokens->create('user-1', hash('sha256', 'raw-token'), '2026-09-15 13:00:00');
+        $users = $this->userRepository();
+        $users->expects(self::never())->method('updatePasswordHash');
+
+        $this->expectException(PasswordResetException::class);
+        $this->service($users, $this->clockAt('2026-09-15 13:00:01'))->consumeEmailLink('raw-token', 'correct horse battery staple');
+    }
+
+    public function testEmailLinkIsRejectedAtTheExactExpiryInstant(): void
+    {
+        $this->tokens->create('user-1', hash('sha256', 'raw-token'), '2026-09-15 13:00:00');
+        $users = $this->userRepository();
+        $users->expects(self::never())->method('updatePasswordHash');
+
+        $this->expectException(PasswordResetException::class);
+        $this->service($users, $this->clockAt('2026-09-15 13:00:00'))->consumeEmailLink('raw-token', 'correct horse battery staple');
     }
 
     public function testEmailLinkConsumptionRejectsTokensForAnotherMethod(): void
@@ -109,15 +133,28 @@ final class PasswordResetServiceTest extends TestCase
         }
     }
 
-    private function service(UserRepositoryInterface $users): PasswordResetService
+    private function service(UserRepositoryInterface $users, ?ClockInterface $clock = null): PasswordResetService
     {
         return new PasswordResetService(
             $this->connection,
             $this->tokens,
             $users,
             new PasswordPolicy(8, 0, new NullBreachedPasswordChecker()),
-            $this->clock,
+            $clock ?? $this->clockAt('2026-09-15 12:00:00'),
         );
+    }
+
+    private function clockAt(string $timestamp): ClockInterface
+    {
+        return new readonly class ($timestamp) implements ClockInterface {
+            public function __construct(private string $timestamp) {}
+
+            #[\Override]
+            public function now(): \DateTimeImmutable
+            {
+                return new \DateTimeImmutable($this->timestamp);
+            }
+        };
     }
 
     /** @return MockObject&UserRepositoryInterface */
