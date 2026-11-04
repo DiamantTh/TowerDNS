@@ -39,6 +39,19 @@ final class SecurityHeaderMiddlewareTest extends TestCase
         self::assertFalse($response->hasHeader('Strict-Transport-Security'));
     }
 
+    public function testHtmlCannotBeCachedAcrossAssetReleases(): void
+    {
+        $handler = new class implements RequestHandlerInterface {
+            #[\Override]
+            public function handle(ServerRequestInterface $request): Response
+            {
+                return new Response()->withHeader('Content-Type', 'text/html; charset=utf-8');
+            }
+        };
+        $response = new SecurityHeaderMiddleware()->process(new ServerRequest(), $handler);
+        self::assertSame('no-store', $response->getHeaderLine('Cache-Control'));
+    }
+
     private function handler(): RequestHandlerInterface
     {
         return new class implements RequestHandlerInterface {

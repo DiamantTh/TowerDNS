@@ -10,6 +10,8 @@ use Laminas\Diactoros\StreamFactory;
 use Laminas\Translator\TranslatorInterface;
 use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
+use Mezzio\Csrf\SessionCsrfGuard;
+use Mezzio\Session\Session;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -57,6 +59,33 @@ final class ImpersonationBannerMiddlewareTest extends TestCase
         self::assertStringContainsString('&lt;Root&gt;', $html);
         self::assertStringNotContainsString('<Root>', $html);
         self::assertFalse($response->hasHeader('Content-Length'));
+    }
+
+    public function testBannerKeepsTheSameSessionTokenAsTheApplication(): void
+    {
+        $translator = $this->createMock(TranslatorInterface::class);
+        $translator->method('translate')->willReturnCallback(static fn(string $key): string => $key === 'admin-switch.active-banner' ? 'Acting as %s; administrator %s.' : 'End');
+        $guard     = new SessionCsrfGuard(new Session([]));
+        $pageToken = $guard->generateToken();
+        $request   = new ServerRequest()
+            ->withMethod('GET')
+            ->withAttribute('actor_user', new User('admin', 'admin@example.test'))
+            ->withAttribute('effective_user', new User('target', 'target@example.test'))
+            ->withAttribute('impersonation_session', new AdminImpersonationSession('switch', 'admin', 'target'))
+            ->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
+        $handler = new readonly class ($pageToken) implements RequestHandlerInterface {
+            public function __construct(private string $token) {}
+
+            #[\Override]
+            public function handle(ServerRequestInterface $request): ResponseInterface
+            {
+                $json = json_encode(['props' => ['csrfToken' => $this->token]], JSON_THROW_ON_ERROR);
+                return new HtmlResponse('<html><body><div id="towerdns-app"></div><script id="towerdns-page" type="application/json">' . $json . '</script></body></html>');
+            }
+        };
+        $html = (string) new ImpersonationBannerMiddleware(new StreamFactory(), $translator)->process($request, $handler)->getBody();
+        self::assertStringContainsString('name="csrf_token" value="' . $pageToken . '"', $html);
+        self::assertTrue($guard->validateToken($pageToken));
     }
 
     public function testDoesNotDecorateNonGetOrNonHtmlResponses(): void

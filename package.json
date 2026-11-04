@@ -5,11 +5,12 @@
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite build --watch",
+    "build": "node scripts/build-frontend.mjs",
+    "dev": "node scripts/build-frontend.mjs --watch",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "frontend:check": "npm run check && npm run typecheck && npm run build"
+    "frontend:check": "npm run check && npm run typecheck && npm run build && npm run frontend:verify",
+    "frontend:verify": "node scripts/verify-frontend.mjs"
   },
   "devDependencies": {
     "@skeletonlabs/skeleton": "^5.0.0",
@@ -17,11 +18,11 @@
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/zxcvbn": "^4.4.4",
-    "svelte": "^5.57.0",
+    "svelte": "^5.57.3",
     "svelte-check": "^4.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.0.0",
-    "vite": "^6.0.0",
+    "vite": "^6.4.5",
     "zxcvbn": "^4.4.2"
   },
   "allowScripts": {

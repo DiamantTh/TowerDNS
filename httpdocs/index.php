@@ -5,6 +5,8 @@
 
 declare(strict_types=1);
 
+header('Cache-Control: no-store');
+
 define('PROJECT_ROOT', dirname(__DIR__));
 
 require_once PROJECT_ROOT . '/src/Infrastructure/Installation/InstallationState.php';
@@ -34,4 +36,11 @@ $app = $container->get(\Mezzio\Application::class);
 \TowerDNS\Application\Pipeline::configure($app);
 \TowerDNS\Application\Routes::configure($app);
 
-$app->run();
+try {
+    $app->run();
+} catch (\TowerDNS\Infrastructure\Ui\AssetManifestException $exception) {
+    error_log('TowerDNS frontend asset validation failed: ' . $exception->getMessage());
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'TowerDNS frontend assets are unavailable.';
+}

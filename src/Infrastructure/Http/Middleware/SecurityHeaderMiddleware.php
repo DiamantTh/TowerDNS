@@ -42,6 +42,10 @@ final readonly class SecurityHeaderMiddleware implements MiddlewareInterface
                 "form-action 'self'",
             ]));
 
+        if (str_starts_with(strtolower($response->getHeaderLine('Content-Type')), 'text/html')) {
+            $response = $response->withHeader('Cache-Control', 'no-store');
+        }
+
         // HSTS is deliberately configuration-gated: enabling it on an HTTP
         // development host would make the browser cache an unusable policy.
         if ($this->hstsEnabled) {

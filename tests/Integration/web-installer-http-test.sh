@@ -402,6 +402,13 @@ grep -qi '^location: /login.php' "$headers_file" || fail 'direct users.php did n
 
 login_code=$(request_get '/login.php')
 [ "$login_code" = '200' ] || fail "login form returned HTTP $login_code"
+asset_file=$(podman exec "$container_id" php -r '$m=json_decode(file_get_contents("/var/www/html/build/asset-manifest.json"),true,512,JSON_THROW_ON_ERROR); echo $m["themes/default/src/app/main.ts"]["file"];')
+podman exec "$container_id" mv "/var/www/html/httpdocs/assets/$asset_file.zst" "/var/www/html/httpdocs/assets/$asset_file.zst.missing"
+missing_asset_code=$(request_get '/login.php')
+podman exec "$container_id" mv "/var/www/html/httpdocs/assets/$asset_file.zst.missing" "/var/www/html/httpdocs/assets/$asset_file.zst"
+[ "$missing_asset_code" = '200' ] || fail "missing compressed variant returned HTTP $missing_asset_code instead of 200"
+login_code=$(request_get '/login.php')
+[ "$login_code" = '200' ] || fail "login did not recover after restoring asset: HTTP $login_code"
 grep -q '"page":"login"' "$body_file" || fail 'login page bootstrap was not rendered.'
 grep -q 'id="towerdns-page" type="application/json"' "$body_file" || fail 'login page did not provide the Svelte bootstrap.'
 login_csrf=$(bootstrap_csrf_token "$body_file")
@@ -427,8 +434,10 @@ dashboard_code=$(request_get '/index.php')
 [ "$dashboard_code" = '200' ] || fail "dashboard returned HTTP $dashboard_code after login"
 grep -q '"page":"dashboard"' "$body_file" || fail 'dashboard bootstrap was not rendered.'
 grep -q '"email":"webadmin@example.test"' "$body_file" || fail 'dashboard bootstrap did not contain the authenticated administrator.'
-grep -q '<script src="/assets/theme-init.bundle.js"></script>' "$body_file" || fail 'dashboard did not reference the theme asset.'
-grep -q '<script type="module" src="/assets/app.bundle.js"></script>' "$body_file" || fail 'dashboard did not reference the application asset.'
+grep -Eq '<script src="/assets/theme-init-[A-Za-z0-9_-]{8}\.js"></script>' "$body_file" || fail 'dashboard did not reference the hashed theme asset.'
+grep -Eq '<script type="module" src="/assets/app-[A-Za-z0-9_-]{8}\.js"></script>' "$body_file" || fail 'dashboard did not reference the hashed application asset.'
+app_asset=$(sed -n 's/.*<script type="module" src="\([^"]*\)"><\/script>.*/\1/p' "$body_file")
+grep -qi '^cache-control:.*no-store' "$headers_file" || fail 'dashboard HTML is cacheable.'
 dashboard_csrf=$(bootstrap_csrf_token "$body_file")
 if grep -q '"page":"login"' "$body_file"; then
     fail 'dashboard response still rendered the login page.'
@@ -523,8 +532,21 @@ unknown_role_code=$(request_get '/roles.php?id=does-not-exist')
 [ "$unknown_role_code" = '404' ] || fail "unknown role returned HTTP $unknown_role_code"
 legacy_roles_code=$(request_get '/roles')
 [ "$legacy_roles_code" = '200' ] || fail "existing /roles URL returned HTTP $legacy_roles_code"
-asset_code=$(request_get '/assets/app.bundle.js')
+asset_code=$(request_get "$app_asset")
 [ "$asset_code" = '200' ] || fail "application asset returned HTTP $asset_code"
+grep -qi '^cache-control:.*immutable' "$headers_file" || fail 'hashed asset lacks immutable cache policy.'
+grep -qi '^vary:.*accept-encoding' "$headers_file" || fail 'asset response lacks Vary: Accept-Encoding.'
+for encoding in br zstd; do
+    asset_code=$("$curl_bin" --silent --show-error --max-time 30 --header "Accept-Encoding: $encoding" \
+        --dump-header "$headers_file" --output "$body_file" --write-out '%{http_code}' "$base_url$app_asset")
+    [ "$asset_code" = '200' ] || fail "$encoding asset returned HTTP $asset_code"
+    grep -qi "^content-encoding: $encoding" "$headers_file" || fail "$encoding encoding was not negotiated."
+    case "$encoding" in br) suffix=br ;; zstd) suffix=zst ;; esac
+    podman exec "$container_id" cat "/var/www/html/httpdocs$app_asset.$suffix" > "$temporary_dir/expected-asset"
+    cmp "$body_file" "$temporary_dir/expected-asset" || fail "$encoding asset bytes did not match the built sidecar."
+done
+sidecar_code=$(request_get "$app_asset.br")
+[ "$sidecar_code" = '404' ] || fail "direct compressed sidecar returned HTTP $sidecar_code"
 
 switch_target_id=$(podman exec --user www-data "$container_id" php -r '
     require "/var/www/html/vendor/autoload.php";

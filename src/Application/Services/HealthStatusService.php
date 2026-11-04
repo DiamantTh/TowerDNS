@@ -44,9 +44,14 @@ final readonly class HealthStatusService
         $this->addCheck($checks, 'writable_paths', $this->writablePathsOk());
         $this->addCheck($checks, 'module_discovery', $this->moduleDiscoveryOk());
         $this->addCheck($checks, 'schema', $this->schemaOk());
-        $ready = array_all($checks, fn(array $check): bool => $check['ok']);
+        if ($this->projectRoot !== '') {
+            $assetStatus = new \TowerDNS\Infrastructure\Ui\AssetManifest($this->projectRoot)->status();
+            $this->addCheck($checks, 'frontend_assets', $assetStatus === 'healthy', $assetStatus);
+        }
+        $ready   = array_all($checks, static fn(array $check, string $name): bool => $check['ok'] || ($name === 'frontend_assets' && $check['summary'] === 'degraded'));
+        $healthy = array_all($checks, static fn(array $check): bool => $check['ok']);
         return [
-            'status' => $ready ? 'ok' : 'degraded',
+            'status' => $healthy ? 'ok' : 'degraded',
             'ready'  => $ready,
             'checks' => $checks,
         ];

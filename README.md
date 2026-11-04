@@ -72,10 +72,10 @@ erst nach den betroffenen Datenbank-, HTTP- und statischen Tests übernommen.
 
 ```
 composer install
-composer check       # lint + PHP-CS-Fixer + PHPCS + Rector + PHPStan + Psalm + PHPUnit
-npm install
-npm run check
-npm run build        # Frontend-Assets -> httpdocs/assets/
+npm ci
+npm run frontend:check  # Svelte, TypeScript, Produktionsbuild und Assetprüfung
+php scripts/activate-frontend.php  # Vollständig geprüften Asset-Stand freigeben
+composer check          # lint + PHP-CS-Fixer + PHPCS + Rector + PHPStan + Psalm + PHPUnit
 ```
 
 Der Frontend-Build wird für die lokale Anwendung und die Entwicklungsprüfung

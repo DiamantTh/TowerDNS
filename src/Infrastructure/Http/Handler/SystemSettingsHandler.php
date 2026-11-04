@@ -210,7 +210,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         $pinnedOrigin  = $this->settings->get('security.webauthn.origin', 'https://' . $oldRpId);
         $pinnedBaseUrl = $this->settings->get('security.webauthn.base_url', $oldBaseUrl);
         if (($this->webAuthnCredentials?->countAll() ?? 0) > 0
-            && (!is_string($pinnedRpId) || $hostname                   !== $pinnedRpId
+            && (!is_string($pinnedRpId) || $hostname                                           !== $pinnedRpId
                                         || !is_string($pinnedOrigin) || 'https://' . $hostname !== $pinnedOrigin
                                         || !is_string($pinnedBaseUrl) || $oldBaseUrl           !== $pinnedBaseUrl)) {
             return new HtmlResponse(

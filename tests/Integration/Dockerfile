@@ -6,6 +6,10 @@ WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY themes ./themes
+COPY src ./src
+COPY httpdocs ./httpdocs
+COPY install ./install
+COPY scripts ./scripts
 COPY vite.config.ts svelte.config.js tsconfig.json ./
 RUN npm run build
 
@@ -34,11 +38,14 @@ WORKDIR /var/www/html
 COPY . /var/www/html/
 COPY --from=dependencies /app/vendor /var/www/html/vendor
 COPY --from=frontend /build/httpdocs/assets /var/www/html/httpdocs/assets
+COPY --from=frontend /build/build/asset-manifest.json /var/www/html/build/asset-manifest.json
+COPY --from=frontend /build/build/asset-release.json /var/www/html/build/asset-release.json
 COPY docker/towerdns-dev-entrypoint.sh /usr/local/bin/towerdns-dev-entrypoint
 
 RUN chmod 755 /usr/local/bin/towerdns-dev-entrypoint \
     && mkdir -p configs data logs cache install \
     && chown -R www-data:www-data configs data logs cache install \
-    && chmod 755 httpdocs
+    && chmod 755 httpdocs \
+    && php scripts/activate-frontend.php
 
 ENTRYPOINT ["towerdns-dev-entrypoint"]

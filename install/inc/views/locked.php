@@ -12,8 +12,10 @@ http_response_code(403);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <title><?= e(t('locked.title')) ?> — TowerDNS</title>
-    <script src="/assets/theme-init.bundle.js"></script>
-    <link rel="stylesheet" href="/assets/app.css">
+    <script src="/assets/<?= htmlspecialchars($GLOBALS['_installer_assets']['theme'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></script>
+    <?php foreach ($GLOBALS['_installer_assets']['css'] as $assetCss): ?>
+    <link rel="stylesheet" href="/assets/<?= htmlspecialchars($assetCss, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+    <?php endforeach; ?>
     <style>
         :root { color-scheme: light; }
         body { background: #f5f5f5; }
@@ -31,6 +33,5 @@ http_response_code(403);
         <a href="/" class="button is-primary">→ <?= e(t('layout.to_app')) ?></a>
     </div>
 </section>
-<script type="module" src="/assets/app.bundle.js"></script>
 </body>
 </html>

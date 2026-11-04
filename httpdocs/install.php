@@ -12,7 +12,19 @@ declare(strict_types=1);
  * Der Installer prüft selbst, ob er bereits gesperrt ist (Marker außerhalb
  * von install/ oder der Legacy-Lockdatei).
  */
+header('Cache-Control: no-store');
 $projectRoot = dirname(__DIR__);
+require_once $projectRoot . '/src/Infrastructure/Ui/AssetManifestException.php';
+require_once $projectRoot . '/src/Infrastructure/Ui/AssetManifest.php';
+try {
+    $GLOBALS['_installer_assets'] = (new \TowerDNS\Infrastructure\Ui\AssetManifest($projectRoot))->resolve();
+} catch (\RuntimeException $exception) {
+    error_log($exception->getMessage());
+    http_response_code(503);
+    echo 'TowerDNS frontend assets are unavailable.';
+    exit;
+}
+
 $installer   = $projectRoot . '/install/index.php';
 
 if (!is_file($installer)) {

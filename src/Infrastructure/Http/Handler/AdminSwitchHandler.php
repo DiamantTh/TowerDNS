@@ -197,7 +197,7 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
 
         $now       = new \DateTimeImmutable();
         $expiresAt = $now->modify('+' . self::SESSION_TTL_SECONDS . ' seconds');
-        $sessionId = bin2hex(random_bytes(16));
+        $sessionId = \Symfony\Component\Uid\Uuid::v4()->toRfc4122();
         /** @var \Mezzio\Session\SessionInterface $session */
         $session = $request->getAttribute(\Mezzio\Session\SessionInterface::class);
         $session = $session->regenerate();
@@ -258,8 +258,9 @@ final readonly class AdminSwitchHandler implements RequestHandlerInterface
         /** @var \Mezzio\Session\SessionInterface $session */
         $session = $request->getAttribute(\Mezzio\Session\SessionInterface::class);
         if (!$activeSession instanceof \TowerDNS\Domain\Account\AdminImpersonationSession
-            || $activeSession->actorUserId      !== $user->id
-            || $session->get(self::SESSION_KEY) !== $activeSession->id) {
+            || $activeSession->actorUserId !== $user->id
+            || !is_string($session->get(self::SESSION_KEY))
+            || str_replace('-', '', $session->get(self::SESSION_KEY)) !== str_replace('-', '', $activeSession->id)) {
             return new RedirectResponse('/admin/switch?error=' . rawurlencode($this->translator->translate('admin-switch.error.no-active-session')));
         }
 

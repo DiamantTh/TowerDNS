@@ -27,7 +27,7 @@ network access for the Composer and npm dependency stages):
 ```sh
 podman compose -f tests/Integration/compose.yaml --profile app up -d --build
 curl -I http://127.0.0.1:18080/install.php
-curl -I http://127.0.0.1:18080/assets/app.bundle.js
+curl -I http://127.0.0.1:18080/login.php
 podman compose -f tests/Integration/compose.yaml --profile app stop
 ```
 
@@ -105,3 +105,15 @@ The MariaDB account is scoped to the test database. PostgreSQL uses the
 The SQLite run has no server credentials. No production credentials are used.
 When the optional profile is not needed, start only the database services as
 shown above.
+
+The frontend asset checks can also run without containers after `npm run build`:
+
+```sh
+npm run frontend:verify
+sh tests/Integration/asset-http-test.sh
+sh tests/Integration/rolling-assets-test.sh
+```
+
+The HTTP check uses a temporary local PHP server. The rolling check builds a
+second disposable release against a shared asset directory and verifies both
+old and new releases as well as rejected incomplete or mixed metadata.

@@ -28,6 +28,7 @@ final class SvelteRenderer implements TemplateRendererInterface
         private readonly bool $debug = false,
         private readonly ?TranslatorInterface $translator = null,
         private readonly PageUrls $urls = new PageUrls(),
+        private readonly ?AssetManifest $assets = null,
     ) {}
 
     #[\Override]
@@ -50,9 +51,13 @@ final class SvelteRenderer implements TemplateRendererInterface
                 'messages' => $this->clientMessages(),
             ],
         ];
-        $json  = json_encode($payload, JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-        $theme = htmlspecialchars($activeTheme->skeletonTheme, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $title = htmlspecialchars($this->titleFor($page), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $json        = json_encode($payload, JSON_THROW_ON_ERROR | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        $theme       = htmlspecialchars($activeTheme->skeletonTheme, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $title       = htmlspecialchars($this->titleFor($page), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $assets      = ($this->assets ?? new AssetManifest(dirname(__DIR__, 3)))->resolve();
+        $app         = htmlspecialchars($assets['app'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $themeScript = htmlspecialchars($assets['theme'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $styles      = implode("\n", array_map(static fn(string $file): string => '<link rel="stylesheet" href="/assets/' . htmlspecialchars($file, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">', $assets['css']));
 
         return <<<HTML
             <!doctype html>
@@ -62,13 +67,13 @@ final class SvelteRenderer implements TemplateRendererInterface
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <meta name="color-scheme" content="light dark">
                 <title>{$title}</title>
-                <script src="/assets/theme-init.bundle.js"></script>
-                <link rel="stylesheet" href="/assets/app.css">
+                <script src="/assets/{$themeScript}"></script>
+                {$styles}
             </head>
             <body>
                 <div id="towerdns-app"></div>
                 <script id="towerdns-page" type="application/json">{$json}</script>
-                <script type="module" src="/assets/app.bundle.js"></script>
+                <script type="module" src="/assets/{$app}"></script>
             </body>
             </html>
             HTML;

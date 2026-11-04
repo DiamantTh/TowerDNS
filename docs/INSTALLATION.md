@@ -50,19 +50,22 @@ Für lokale Entwicklung werden Composer- und Node.js-Abhängigkeiten benötigt:
 composer install
 npm ci
 npm run frontend:check
+php scripts/activate-frontend.php
 composer check
 ```
 
-`npm run build` erzeugt die für den Browser benötigten Frontend-Assets unter
-`httpdocs/assets/`. Dieser normale Entwicklungsbuild erzeugt keine Distribution.
-Der Checkout enthält absichtlich keine eigene Paketierungs- oder
-Veröffentlichungslogik.
+`npm run build` benötigt Node.js 22.15 oder neuer und erzeugt gehashte JS- und
+CSS-Dateien mit Brotli- und Zstandard-Varianten unter `httpdocs/assets/`.
+Der Build veröffentlicht Dateien zuerst und schreibt anschließend das zum
+Release gehörende Vite-Manifest und die Integritätsliste unter `build/`.
+Ältere Assets werden beim Build nicht entfernt. `npm run dev` verwendet
+denselben Veröffentlichungsablauf im Watch-Modus.
 
 ## Webroot und Dateisystem
 
 Der öffentliche DocumentRoot muss auf `httpdocs/` zeigen. Für die
 Anwendung liegen dort nur `index.php` als Front-Controller und `install.php`
-als separater Installer; Favicon und gebaute Assets werden direkt ausgeliefert.
+als separater Installer; Favicon und gebaute Assets werden über den Webserver bereitgestellt. Gehashte JS- und CSS-Dateien werden über `asset.php` anhand von `Accept-Encoding` ausgeliefert.
 `src/`, `modules/`, `templates/`, `translations/`, `vendor/`, `configs/`,
 `data/`, `cache/`, `logs/`, `tests/` und `install/` bleiben außerhalb des
 öffentlichen Webroots.
@@ -120,7 +123,7 @@ Berechtigungsprüfungen. Die `.htaccess` schreibt nur bekannte virtuelle
 Pfadrouten ebenfalls an den Front-Controller. Die ursprüngliche URL und
 ihre Ressourcenparameter bleiben erhalten. Ein browserseitig gesetztes oder
 doppeltes `entry` wird verworfen; unbekannte `.php`-Namen liefern 404.
-Physische Assets werden direkt ausgeliefert. Sie verhindert Directory-Listings und Apache
+Favicon und ältere Assets werden direkt ausgeliefert; gehashte JS- und CSS-Dateien laufen über die Asset-Aushandlung. Die Konfiguration verhindert Directory-Listings und Apache
 MultiViews. Auf Shared Hosting kann eine nicht erlaubte `Options`-Direktive
 einen HTTP-500-Fehler verursachen; dann muss der Provider diese beiden
 Einstellungen im VirtualHost setzen und die Zeile aus `.htaccess` entfernen.
@@ -135,6 +138,17 @@ server {
     root /srv/towerdns/httpdocs;
     index index.php;
 
+    # Vorkomprimierte Varianten werden ausschließlich über asset.php ausgehandelt.
+    location ~ "^/assets/(?<towerdns_asset>[A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.(js|css))$" {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $realpath_root/asset.php;
+        fastcgi_param TOWERDNS_ASSET_NAME $towerdns_asset;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+        gzip off;
+    }
+    location ~ ^/assets/.*\.(br|zst)$ { return 404; }
+    location /assets/ { gzip off; try_files $uri =404; }
+
     location / {
         try_files $uri $uri/ /index.php$is_args$args;
     }
@@ -146,7 +160,7 @@ server {
     location ~ ^/(index|install)\.php$ {
         try_files $uri =404;
         include fastcgi_params;
-        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
         fastcgi_pass unix:/run/php/php8.4-fpm.sock;
     }
 
@@ -161,6 +175,57 @@ Die interne Weiterleitung muss die ursprüngliche `REQUEST_URI` für die
 Prüfung des sichtbaren Seitennamens erhalten. Nginx ergänzt vorhandene
 Query-Parameter beim gezeigten Rewrite; `entry` bleibt ausschließlich ein
 interner Routinghinweis.
+
+
+### Rolling Updates und Asset-Caching
+
+Für den kontrollierten Single-Server-Betrieb liegt jede PHP-Version in einem
+eigenen Release-Verzeichnis. `build/asset-manifest.json` und
+`build/asset-release.json` bleiben im jeweiligen Release; `httpdocs/assets/`
+zeigt in allen Releases auf dasselbe beständige Asset-Verzeichnis. Die persistenten
+Verzeichnisse `configs/`, `data/`, `logs/` und `cache/` müssen ebenfalls mit den
+bestehenden Daten eingebunden werden; jedes Release benötigt sein passendes
+`vendor/`. PHP-FPM muss physische Release-Pfade verwenden (`$realpath_root` im Nginx-Beispiel), damit
+ein laufender alter Request weiterhin sein eigenes Manifest liest.
+
+1. Neues Release vollständig neben dem aktiven Release vorbereiten und dessen
+   `httpdocs/assets` mit dem gemeinsamen Asset-Verzeichnis verbinden. Bestehende
+   alte Dateien einschließlich der ursprünglichen festen Assetnamen erhalten.
+   Beim ersten Umstieg den vollständigen bisherigen Asset-Bestand zuerst in
+   dieses gemeinsame Verzeichnis kopieren.
+2. In diesem neuen Release `npm ci` und `npm run build` ausführen. Der Build
+   kopiert Original, `.br` und `.zst` für jedes neue Asset unter gehashtem Namen
+   exklusiv in das gemeinsame Verzeichnis. Bereits vorhandene Namen werden
+   geprüft und niemals überschrieben; das Release-Manifest wird zuletzt erstellt.
+3. Vor dem Umschalten im neuen Release die vollständige Prüfung ausführen:
+   `php scripts/activate-frontend.php`. Dieser Befehl prüft alle Dateien vollständig und schreibt den releasegebundenen Aktivierungsnachweis atomar.
+   Ein fehlendes, beschädigtes oder zum Source nicht passendes Asset verhindert
+   die Freigabe. Nach erfolgreicher Aktivierung führen fehlende oder beschädigte
+   Kompressionsvarianten zu einem Fallback und zu `degraded` in `/ready`; ein
+   fehlendes oder beschädigtes Original ergibt `broken` und HTTP 503 für das Asset.
+4. Den `current`-Symlink atomar auf das neue Release umstellen. Alte Releases
+   und ihre Manifeste für laufende Requests erhalten. Falls OPcache ohne
+   Timestamp-Prüfung betrieben wird, PHP-FPM beim Umschalten kontrolliert neu
+   laden. Rollback erfolgt über dieselbe atomare Umschaltung. Auf einem System
+   mit GNU `mv` kann die Umschaltung beispielsweise mit einem vorbereiteten
+   temporären Symlink erfolgen:
+
+   ```sh
+   ln -s /srv/towerdns/releases/NEUES_RELEASE /srv/towerdns/current.next
+   mv -Tf /srv/towerdns/current.next /srv/towerdns/current
+   ```
+
+Gehashte Assets werden mit `Cache-Control: public, max-age=31536000, immutable`
+und `Vary: Accept-Encoding` ausgeliefert. Dynamische HTML-Seiten tragen
+`Cache-Control: no-store`. Der Build löscht keine früheren Assets. Ein separates
+Aufräumen ist erst sicher, wenn keine alten Releases, Browser-Caches oder lange
+geöffneten Tabs mehr auf die Dateien verweisen; im Zweifel bleiben sie erhalten.
+Die Datensätze unter `httpdocs/assets/.releases/` gehören zum gemeinsamen Asset-Verzeichnis und bleiben für alte Releases erhalten. Nach Ablauf der Retention können nicht mehr benötigte Dateien entfernt werden; anschließend entfernt `php scripts/prune-frontend-release.php RELEASE_ID` den zugehörigen Datensatz nur, wenn keine exklusiv diesem Release zugeordneten Dateien mehr vorhanden sind. Der aktive Datensatz wird niemals entfernt. Deployment und Aufräumen dürfen nicht gleichzeitig laufen.
+Diesen Ablauf nicht durch einen Build direkt im aktiven Release ersetzen.
+Apache benötigt `mod_rewrite`; die mitgelieferte `.htaccess` leitet gehashte
+Assets an `asset.php` und verhindert den direkten Zugriff auf Sidecars. Für
+Nginx ist die obige FastCGI-Regel erforderlich. Ohne diese Serverregeln findet
+keine automatische Brotli-/Zstandard-Aushandlung statt.
 
 ## Browser-Installer
 
@@ -199,7 +264,7 @@ Worker werden zur Laufzeit nicht benötigt, müssen aber für einen
 Repository-Checkout während der Entwicklung vorhanden sein. Für einen Betrieb
 ohne SSH, Composer und Node.js muss ein extern vorbereitetes
 Deployment-Verzeichnis bereits `vendor/` und die gebauten Dateien unter
-`httpdocs/assets/` enthalten. Der Entwicklungscheckout allein ist dafür nicht
+`httpdocs/assets/`, `build/asset-manifest.json`, `build/asset-release.json` und die zugehörigen Frontend-Quelldateien enthalten. Der Entwicklungscheckout allein ist dafür nicht
 vollständig; die Erstellung eines solchen Verzeichnisses ist nicht Bestandteil
 der Anwendung.
 

@@ -65,7 +65,16 @@ final readonly class ImpersonationBannerMiddleware implements MiddlewareInterfac
             $effectiveName,
             $actorName,
         ), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $token     = htmlspecialchars($guard->generateToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        // SessionCsrfGuard replaces the previous token on every generation.
+        // Reuse the page token so the banner does not invalidate app forms.
+        $pageToken = null;
+        if (preg_match('~<script id="towerdns-page" type="application/json">(.*?)</script>~s', $body, $matches) === 1) {
+            $bootstrap = json_decode($matches[1], true);
+            if (is_array($bootstrap) && is_array($bootstrap['props'] ?? null) && is_string($bootstrap['props']['csrfToken'] ?? null)) {
+                $pageToken = $bootstrap['props']['csrfToken'];
+            }
+        }
+        $token     = htmlspecialchars($pageToken !== null && $pageToken !== '' ? $pageToken : $guard->generateToken(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $label     = htmlspecialchars($this->translator->translate('admin-switch.end'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $banner    = '<aside class="impersonation-banner" role="alert"><p>' . $message . '</p><form method="post" action="/admin/switch/end"><input type="hidden" name="csrf_token" value="' . $token . '"><button class="button is-danger" type="submit">' . $label . '</button></form></aside>';
         $decorated = preg_replace('/(<body(?:\s[^>]*)?>)/i', '$1' . $banner, $body, 1);

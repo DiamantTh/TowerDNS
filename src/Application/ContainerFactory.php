@@ -706,6 +706,7 @@ final class ContainerFactory
                     $debug,
                     $c->get(TranslatorInterface::class),
                     $pageUrls,
+                    new \TowerDNS\Infrastructure\Ui\AssetManifest($projectRoot),
                 )
             ),
 

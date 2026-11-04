@@ -28,8 +28,10 @@ $displayStep  ??= 1;
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <meta name="color-scheme" content="light">
     <title><?= e($pageTitle ?? 'TowerDNS — ' . t('layout.title')) ?></title>
-    <script src="/assets/theme-init.bundle.js"></script>
-    <link rel="stylesheet" href="/assets/app.css">
+    <script src="/assets/<?= htmlspecialchars($GLOBALS['_installer_assets']['theme'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></script>
+    <?php foreach ($GLOBALS['_installer_assets']['css'] as $assetCss): ?>
+    <link rel="stylesheet" href="/assets/<?= htmlspecialchars($assetCss, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+    <?php endforeach; ?>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <style>
         :root { --primary: #1565c0; --primary-dark: #0d47a1; color-scheme: light; }
@@ -104,6 +106,5 @@ $displayStep  ??= 1;
 
     </div>
 </div>
-<script type="module" src="/assets/app.bundle.js"></script>
 </body>
 </html>

@@ -26,6 +26,8 @@ final class HealthStatusServiceTest extends TestCase
         mkdir($base . '/cache/ratelimit', 0o750, true);
         mkdir($base . '/logs', 0o750, true);
 
+        $this->prepareFrontend($base);
+
         $configPath   = $base . '/configs/config.local.toml';
         $providerPath = $base . '/configs/providers.toml';
         file_put_contents($configPath, "[security]\nencryption_key = \"" . CredentialService::generateKey() . "\"\n");
@@ -50,6 +52,16 @@ final class HealthStatusServiceTest extends TestCase
         self::assertTrue($status['ready']);
         self::assertSame('ok', $status['checks']['database']['summary']);
         self::assertStringNotContainsString('encryption_key', $payload);
+        unlink($base . '/httpdocs/assets/app-abcdefgh.js.br');
+        self::assertSame('degraded', $service->readiness()['status']);
+        self::assertTrue($service->readiness()['ready']);
+        self::assertSame('degraded', $service->readiness()['checks']['frontend_assets']['summary']);
+        $request = new \Laminas\Diactoros\ServerRequest()->withUri(new \Laminas\Diactoros\Uri('/ready'));
+        self::assertSame(200, new \TowerDNS\Infrastructure\Http\Handler\HealthHandler($service)->handle($request)->getStatusCode());
+        unlink($base . '/httpdocs/assets/app-abcdefgh.js');
+        self::assertSame('broken', $service->readiness()['checks']['frontend_assets']['summary']);
+        self::assertFalse($service->readiness()['ready']);
+        self::assertSame(503, new \TowerDNS\Infrastructure\Http\Handler\HealthHandler($service)->handle($request)->getStatusCode());
     }
 
     public function testReadinessFailsCleanlyWhenConfigIsBroken(): void
@@ -97,5 +109,30 @@ final class HealthStatusServiceTest extends TestCase
         self::assertDirectoryDoesNotExist($base . '/data');
         self::assertDirectoryDoesNotExist($base . '/cache/ratelimit');
         self::assertDirectoryDoesNotExist($base . '/logs');
+    }
+    private function prepareFrontend(string $root): void
+    {
+        mkdir($root . '/themes/default/src', 0o750, true);
+        mkdir($root . '/httpdocs/assets', 0o750, true);
+        mkdir($root . '/build', 0o750, true);
+        $sources = [];
+        foreach (['package.json', 'package-lock.json', 'vite.config.ts', 'svelte.config.js', 'tsconfig.json'] as $name) {
+            file_put_contents($root . '/' . $name, $name);
+            $sources[$name] = hash('sha256', $name);
+        }
+        $assets = [];
+        foreach (['app-abcdefgh.js', 'app-abcdefgh.css', 'theme-abcdefgh.js'] as $name) {
+            foreach (['', '.br', '.zst'] as $suffix) {
+                file_put_contents($root . '/httpdocs/assets/' . $name . $suffix, $name . $suffix);
+                $assets[$name . $suffix] = hash('sha256', $name . $suffix);
+            }
+        }
+        $manifest = json_encode([
+            'themes/default/src/app/main.ts'       => ['file' => 'app-abcdefgh.js', 'isEntry' => true, 'css' => ['app-abcdefgh.css']],
+            'themes/default/src/app/theme-init.ts' => ['file' => 'theme-abcdefgh.js', 'isEntry' => true],
+        ], JSON_THROW_ON_ERROR);
+        file_put_contents($root . '/build/asset-manifest.json', $manifest);
+        file_put_contents($root . '/build/asset-release.json', json_encode(['manifestSha256' => hash('sha256', $manifest), 'sources' => $sources, 'assets' => $assets, 'phpSources' => []], JSON_THROW_ON_ERROR));
+        new \TowerDNS\Infrastructure\Ui\AssetManifest($root)->activate();
     }
 }

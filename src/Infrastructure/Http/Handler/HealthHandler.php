@@ -30,6 +30,9 @@ final readonly class HealthHandler implements RequestHandlerInterface
             'fail'     => 503,
             default    => 503,
         };
+        if (str_ends_with($path, '/ready') && !$payload['ready']) {
+            $status = 503;
+        }
 
         return new JsonResponse($payload, $status);
     }
