@@ -43,6 +43,11 @@ final class SchemaValidateCommand extends Command
             return self::FAILURE;
         }
 
+        if (!$status->metadataInitialized || $status->pending !== []) {
+            $io->error('Migration metadata is missing or migrations are pending. Run schema status and migrate before using this database.');
+            return self::FAILURE;
+        }
+
         $io->success('The database schema is structurally valid.');
         return self::SUCCESS;
     }
