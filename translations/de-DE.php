@@ -333,6 +333,8 @@ return [
     'profile.security.totp'                     => ['Keine TOTP-Credentials registriert', '{count} TOTP-Credential registriert', '{count} TOTP-Credentials registriert'],
     'profile.security.password-configured'      => 'Optionales Break-glass-Passwort eingerichtet',
     'profile.security.password-absent'          => 'Kein Passwort eingerichtet; Anmeldung mit einem registrierten Passkey',
+    'profile.security.back'                     => 'Zurück zum Sicherheitscenter',
+    'profile.passkeys.credentials-title'        => 'Registrierte FIDO2-Credentials',
     'profile.passkeys.name'                     => 'Bezeichnung',
     'profile.passkeys.register'                 => 'Registrieren',
     'profile.api-keys.title'                    => 'API-Schlüssel',
