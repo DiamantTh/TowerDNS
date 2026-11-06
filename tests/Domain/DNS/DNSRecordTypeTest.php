@@ -10,6 +10,15 @@ use TowerDNS\Domain\DNS\DNSRecordType;
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class DnsRecordTypeTest extends TestCase
 {
+    public function testSuggestionsUseTheCanonicalTypeRegistry(): void
+    {
+        foreach (DNSRecordType::knownPresentations() as $name) {
+            self::assertTrue(DNSRecordType::parse($name)->isKnown);
+        }
+        self::assertContains('HTTPS', DNSRecordType::knownPresentations());
+        self::assertContains('SVCB', DNSRecordType::knownPresentations());
+    }
+
     public function testKnownTypesAreCanonicalized(): void
     {
         $type = DNSRecordType::parse('tlsa');

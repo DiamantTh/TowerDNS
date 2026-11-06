@@ -96,6 +96,7 @@ export type DnsRecordsPageProps = {
     csrfToken: string;
     error: string | null;
     success: string | null;
+    recordTypes: string[];
     canReplaceRrsets: boolean;
     canDeleteRrsets: boolean;
 };
@@ -114,6 +115,8 @@ export type DnsProviderAccountBootstrap = {
 
 /** Props assembled by ZoneListHandler for the account-scoped zone view. */
 export type DnsZonesPageProps = {
+    canCreateZones: boolean;
+    canDeleteZones: boolean;
     accountId: number;
     managedZones: DnsZoneBootstrap[];
     providerAccounts: DnsProviderAccountBootstrap[];

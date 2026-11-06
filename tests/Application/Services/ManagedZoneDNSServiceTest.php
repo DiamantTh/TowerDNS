@@ -410,10 +410,62 @@ final class ManagedZoneDNSServiceTest extends TestCase
         }
     }
 
+    public function testZoneActionsRemainReadOnlyForViewer(): void
+    {
+        $service = $this->serviceForZone(new RecordingDNSProvider([]), role: TeamRole::VIEWER);
+        self::assertSame(['canCreateZones' => false, 'canDeleteZones' => false], $service->zoneActions(new User('owner', 'owner@example.test'), 42));
+    }
+
+    public function testDnssecNavigationUsesAuthorizedZoneName(): void
+    {
+        $service = $this->serviceForZone(new RecordingDNSProvider([]));
+        self::assertSame('example.org', $service->dnssecZoneName(new User('owner', 'owner@example.test'), 42, 7));
+    }
+
+    public function testReadOnlyUserCannotReplaceRrset(): void
+    {
+        $service = $this->serviceForZone(new RecordingDNSProvider([Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true]), role: TeamRole::VIEWER);
+        $this->expectException(\TowerDNS\Application\Exception\AuthorizationException::class);
+        $service->replaceRrset(new User('owner', 'owner@example.test'), 42, 7, new Rrset('', '@', DNSRecordType::parse('A'), 300, ['192.0.2.1']));
+    }
+
+    public function testZoneListDoesNotRequireZoneCreatePermission(): void
+    {
+        $service  = $this->serviceForZone(new RecordingDNSProvider([]), role: TeamRole::VIEWER);
+        $renderer = $this->createMock(\Mezzio\Template\TemplateRendererInterface::class);
+        $renderer->expects(self::once())->method('render')->with('app::zones/list', self::callback(static fn(array $data): bool => count($data['managedZones']) === 1 && $data['canCreateZones'] === false && $data['canDeleteZones'] === false))->willReturn('zones');
+        $handler = new \TowerDNS\Infrastructure\Http\Handler\ZoneListHandler($renderer, $service, $this->createMock(\Laminas\Translator\TranslatorInterface::class));
+        $request = new \Laminas\Diactoros\ServerRequest()->withAttribute(User::class, new User('owner', 'owner@example.test'))->withAttribute('account', 42);
+        self::assertSame(200, $handler->handle($request)->getStatusCode());
+    }
+
+    public function testRrsetDeleteUsesScopedOwnerAndType(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::RECORD_LIST => true, Capability::RECORD_DELETE => true]);
+        $service  = $this->serviceForZone($provider);
+        $service->deleteRrset(new User('owner', 'owner@example.test'), 42, 7, 'WWW.Example.org.', 'a');
+        self::assertSame([['provider-zone', 'www', 'A']], $provider->deletedRrsets);
+    }
+
+    public function testViewerCannotDeleteRrset(): void
+    {
+        $service = $this->serviceForZone(new RecordingDNSProvider([Capability::RECORD_LIST => true, Capability::RECORD_DELETE => true]), role: TeamRole::VIEWER);
+        $this->expectException(\TowerDNS\Application\Exception\AuthorizationException::class);
+        $service->deleteRrset(new User('owner', 'owner@example.test'), 42, 7, 'www', 'A');
+    }
+
+    public function testDnssecActionsRemainUnavailableToViewer(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::DNSSEC_STATUS_READ => true, Capability::DNSSEC_ACTION_EXECUTE => true]);
+        $service  = $this->serviceForZone($provider, role: TeamRole::VIEWER);
+        self::assertFalse($service->dnssecProfile(new User('owner', 'owner@example.test'), 42, 7)->features['manual_actions']);
+    }
+
     private function serviceForZone(RecordingDNSProvider $provider, bool $providerActive = true, int $providerAccountTenant = 42, TeamRole $role = TeamRole::OWNER): ManagedZoneDNSService
     {
         $zone  = new ManagedZone(7, 42, 9, 'provider-zone', 'example.org', '2026-09-17 12:00:00');
         $zones = $this->createMock(ManagedZoneRepositoryInterface::class);
+        $zones->method('findByAccountId')->with(42)->willReturn([$zone]);
         $zones->method('findByIdForAccount')->willReturnCallback(static fn(int $id, int $accountId): ?ManagedZone => $id === $zone->id && $accountId === $zone->accountId ? $zone : null);
 
         $accounts = $this->createMock(AccountRepositoryInterface::class);
@@ -454,6 +506,9 @@ final class RecordingDNSProvider implements DNSProviderInterface, ProviderConstr
     public ?Rrset $replacedRrset = null;
 
     public ?Rrset $rrsetReadback = null;
+
+    /** @var list<array{string, string, string}> */
+    public array $deletedRrsets = [];
 
     /** @param array<string, bool> $capabilities
      *  @param array<string, scalar|list<string>> $constraintDetails
@@ -529,7 +584,10 @@ final class RecordingDNSProvider implements DNSProviderInterface, ProviderConstr
         return $this->rrsetReadback ?? $rrset;
     }
     #[\Override]
-    public function deleteRrset(string $zoneId, string $ownerName, string $type): void {}
+    public function deleteRrset(string $zoneId, string $ownerName, string $type): void
+    {
+        $this->deletedRrsets[] = [$zoneId, $ownerName, $type];
+    }
     #[\Override]
     public function getDnssecProfile(string $zoneId): DNSSECProfile
     {

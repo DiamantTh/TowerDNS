@@ -11,5 +11,5 @@
     const url = (name: string, parameters: Record<string, string | number> = {}) => pageUrl(boot.urls, name, parameters);
 </script>
 
-{#if boot.page==='dashboard' && user}<Page title={t('page.dashboard.title')} subtitle={t('dashboard.welcome',{name:user.displayName||user.email})}><div class="dashboard-grid"><Feature title={t('dashboard.zones.title')} text={t('dashboard.zones.text')} href={url("zones")}/><Feature title={t('dashboard.accounts.title')} text={t('dashboard.accounts.text')} href={url("accounts")}/><Feature title={t('dashboard.security.title')} text={t('dashboard.security.text')} href={url("profile")}/></div></Page>
+{#if boot.page==='dashboard' && user}<Page title={t('page.dashboard.title')} subtitle={t('dashboard.welcome',{name:user.displayName||user.email})}>{#if p.account}<p class="box">{t('dns.active-account')}: <strong>{p.account.name}</strong> · <a href={url('accountZones', { account: p.account.id })}>{t('navigation.zones')}</a></p>{/if}<div class="dashboard-grid"><Feature title={t('dashboard.zones.title')} text={t('dashboard.zones.text')} href={url("zones")}/><Feature title={t('dashboard.accounts.title')} text={t('dashboard.accounts.text')} href={url("accounts")}/><Feature title={t('dashboard.security.title')} text={t('dashboard.security.text')} href={url("profile")}/></div></Page>
 {/if}

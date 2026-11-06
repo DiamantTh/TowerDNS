@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { visibleZones } from '../app/pages/dns-workspace';
     import Field from './Field.svelte';
     import Page from './Page.svelte';
     import { useI18n } from '../lib/i18n';
@@ -6,6 +7,11 @@
 
     let { page, urls }: { page: DnsZonesPageProps; urls?: PageUrlTemplates } = $props();
     const t = useI18n();
+    let query = $state('');
+    let providerFilter = $state('');
+    const zones = $derived(visibleZones(page.managedZones, query, providerFilter));
+    const providers = $derived([...new Set(page.managedZones.map(zone => String(zone.providerAccountId)))].sort((a,b) => (page.providerNames[a] ?? a).localeCompare(page.providerNames[b] ?? b)));
+
     const url = (name: string, parameters: Record<string, string | number>) => pageUrl(urls, name, parameters);
 
     const confirmDelete = (event: SubmitEvent, name: string): void => {
@@ -15,7 +21,7 @@
 
 <Page title={t('page.zones.title')} error={page.error}>
     <section class="box zones-workspace">
-        {#if page.providerAccounts.length}
+        {#if page.canCreateZones && page.providerAccounts.length}
             <div class="zones-toolbar">
                 <div>
                     <h2 class="subtitle">{t('zones.create')}</h2>
@@ -35,25 +41,30 @@
                 </form>
             </div>
         {:else}
-            <p class="empty">{t('zones.provider-required')}</p>
+            <p class="empty">{t(page.canCreateZones ? 'zones.provider-required' : 'rrset.action-unavailable')}</p>
         {/if}
     </section>
 
+    <section class="box form-grid" aria-label={t('dns.filters')}>
+        <Field label={t('common.search')}><input class="input" type="search" bind:value={query} placeholder={t('dns.zone-search')}></Field>
+        <Field label={t('zones.provider')}><select class="input" bind:value={providerFilter}><option value="">{t('common.all')}</option>{#each providers as id}<option value={id}>{page.providerNames[id] ?? t('zones.provider-connection-unavailable')}</option>{/each}</select></Field>
+        <p role="status">{t('dns.results', { shown: zones.length, total: page.managedZones.length })}</p>
+    </section>
     <section class="resource-grid zones-list" aria-label={t('page.zones.title')}>
-        {#each page.managedZones as zone}
+        {#each zones as zone (zone.id)}
             {@const providerName = page.providerNames[String(zone.providerAccountId)]}
             <article class="resource-card zone-card">
                 <div class="zone-card__summary">
                     <a class="resource-title" href={url('records', { account: page.accountId, zone: zone.id })}>{zone.canonicalName}</a>
                     {#if providerName}<span class="status">{t('zones.provider')}: {providerName}</span>{:else}<span class="status">{t('zones.provider-connection-unavailable')}</span>{/if}
                 </div>
-                <form method="post" action={url('zoneDelete', { account: page.accountId, zone: zone.id })} onsubmit={(event) => confirmDelete(event, zone.canonicalName)}>
+                {#if page.canDeleteZones}<form method="post" action={url('zoneDelete', { account: page.accountId, zone: zone.id })} onsubmit={(event) => confirmDelete(event, zone.canonicalName)}>
                     <input type="hidden" name="csrf_token" value={page.csrfToken}>
                     <button class="button is-small is-danger">{t('common.delete')}</button>
-                </form>
+                </form>{/if}
             </article>
         {:else}
-            <p class="empty">{t('zones.empty')}</p>
+            <p class="empty">{t(page.managedZones.length ? 'dns.no-matches' : 'zones.empty')}</p>
         {/each}
     </section>
 </Page>

@@ -6,6 +6,22 @@
 declare(strict_types=1);
 
 return [
+    'dns.filters'              => 'Search and filters',
+    'dns.zone-search'          => 'Search zone name',
+    'dns.record-search'        => 'Search owner or RDATA',
+    'dns.results'              => '{shown} of {total} results',
+    'dns.no-matches'           => 'No matches. Adjust the search or filter.',
+    'dns.edit-rrset'           => 'Edit RRset',
+    'dns.custom-type'          => 'Other type (TYPE####)',
+    'dns.rdata-help'           => 'One RDATA value per line. TTL in seconds applies to all values. @ represents the zone apex. Known types are suggestions; provider rules still apply.',
+    'dns.new-rrset'            => 'New RRset / discard edit',
+    'dns.confirm-delete-rrset' => 'Delete RRset {owner} ({type}) in zone {zone}, including all values?',
+    'dns.edit-label'           => 'Edit RRset {owner} ({type})',
+    'dns.context'              => 'DNS navigation',
+    'dns.account'              => 'Account {id}',
+    'dns.active-account'       => 'Active account',
+    'dns.back-records'         => 'Back to records',
+    'dns.confirm-disable'      => 'Disable DNSSEC for zone {zone}? Check DS records at the registrar first to avoid DNS outages.',
     'common.all'                                => 'All',
     'common.yes'                                => 'Yes',
     'common.no'                                 => 'No',

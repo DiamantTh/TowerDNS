@@ -52,20 +52,22 @@ final readonly class DNSSECHandler implements RequestHandlerInterface
             }
             return new RedirectResponse($back . '?success=' . rawurlencode($this->translator->translate(['enable' => 'dnssec.success.enabled', 'disable' => 'dnssec.success.disabled'][$action] ?? 'dnssec.success.action-executed')));
         }
+        $zoneName = null;
         try {
-            $profile = $this->dns->dnssecProfile($user, $accountId, $zoneId);
+            $zoneName = $this->dns->dnssecZoneName($user, $accountId, $zoneId);
+            $profile  = $this->dns->dnssecProfile($user, $accountId, $zoneId);
         } catch (AuthorizationException) {
             return $this->render($user, $accountId, $zoneId, null, $csrfToken, $this->translator->translate('dnssec.error.read-denied'), 403);
         } catch (CapabilityException) {
-            return $this->render($user, $accountId, $zoneId, null, $csrfToken, null, 200);
+            return $this->render($user, $accountId, $zoneId, null, $csrfToken, null, 200, null, $zoneName);
         } catch (\Throwable) {
             return $this->render($user, $accountId, $zoneId, null, $csrfToken, $this->translator->translate('dnssec.error.read-failed'), 500);
         }
         $query = $request->getQueryParams();
-        return $this->render($user, $accountId, $zoneId, $profile, $csrfToken, is_string($query['error'] ?? null) ? $query['error'] : null, 200, is_string($query['success'] ?? null) ? $query['success'] : null);
+        return $this->render($user, $accountId, $zoneId, $profile, $csrfToken, is_string($query['error'] ?? null) ? $query['error'] : null, 200, is_string($query['success'] ?? null) ? $query['success'] : null, $zoneName);
     }
-    private function render(User $user, int $accountId, int $zoneId, ?DNSSECProfile $profile, string $csrfToken, ?string $error, int $status, ?string $success = null): HtmlResponse
+    private function render(User $user, int $accountId, int $zoneId, ?DNSSECProfile $profile, string $csrfToken, ?string $error, int $status, ?string $success = null, ?string $zoneName = null): HtmlResponse
     {
-        return new HtmlResponse($this->renderer->render('app::zones/dnssec', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'profile' => $profile, 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success]), $status);
+        return new HtmlResponse($this->renderer->render('app::zones/dnssec', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'profile' => $profile, 'managedZoneName' => $zoneName, 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success]), $status);
     }
 }

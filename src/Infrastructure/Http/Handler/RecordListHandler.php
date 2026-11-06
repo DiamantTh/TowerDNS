@@ -65,6 +65,6 @@ final readonly class RecordListHandler implements RequestHandlerInterface
     /** @param list<array{ownerName: string, type: array{presentation: string, code: int, isKnown: bool}, ttl: int, rdata: list<string>}> $rrsets */
     private function render(User $user, int $accountId, int $zoneId, array $rrsets, string $csrfToken, ?string $error, int $status, ?string $success = null, ?string $managedZoneName = null, bool $canReplaceRrsets = false, bool $canDeleteRrsets = false): HtmlResponse
     {
-        return new HtmlResponse($this->renderer->render('app::zones/records', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'managedZoneName' => $managedZoneName, 'rrsets' => $rrsets, 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success, 'canReplaceRrsets' => $canReplaceRrsets, 'canDeleteRrsets' => $canDeleteRrsets]), $status);
+        return new HtmlResponse($this->renderer->render('app::zones/records', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'managedZoneName' => $managedZoneName, 'rrsets' => $rrsets, 'recordTypes' => \TowerDNS\Domain\DNS\DNSRecordType::knownPresentations(), 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success, 'canReplaceRrsets' => $canReplaceRrsets, 'canDeleteRrsets' => $canDeleteRrsets]), $status);
     }
 }

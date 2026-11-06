@@ -35,9 +35,11 @@ final readonly class DashboardHandler implements RequestHandlerInterface
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
 
+        $context = $request->getAttribute(\TowerDNS\Infrastructure\Http\ActiveAccountContext::class);
         return new HtmlResponse(
             $this->renderer->render('app::dashboard', [
                 'user'      => $user,
+                'account'   => $context instanceof \TowerDNS\Infrastructure\Http\ActiveAccountContext ? $context->account : null,
                 'csrfToken' => $guard->generateToken(),
             ])
         );

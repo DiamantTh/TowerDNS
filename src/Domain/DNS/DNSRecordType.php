@@ -31,6 +31,12 @@ final readonly class DNSRecordType
         public bool $isKnown,
     ) {}
 
+    /** @return list<string> Known suggestions; provider constraints still apply. */
+    public static function knownPresentations(): array
+    {
+        return array_keys(self::KNOWN);
+    }
+
     public static function parse(string $value): self
     {
         $value = strtoupper(trim($value));

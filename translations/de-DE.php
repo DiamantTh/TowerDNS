@@ -6,6 +6,22 @@
 declare(strict_types=1);
 
 return [
+    'dns.filters'              => 'Suche und Filter',
+    'dns.zone-search'          => 'Zonenname suchen',
+    'dns.record-search'        => 'Owner oder RDATA suchen',
+    'dns.results'              => '{shown} von {total} Treffern',
+    'dns.no-matches'           => 'Keine Treffer. Suche oder Filter anpassen.',
+    'dns.edit-rrset'           => 'RRset bearbeiten',
+    'dns.custom-type'          => 'Anderer Typ (TYPE####)',
+    'dns.rdata-help'           => 'Ein RDATA-Wert pro Zeile. TTL in Sekunden gilt für alle Werte. @ bezeichnet die Zone selbst. Bekannte Typen sind Vorschläge; Provider-Regeln gelten weiterhin.',
+    'dns.new-rrset'            => 'Neues RRset / Bearbeitung verwerfen',
+    'dns.confirm-delete-rrset' => 'RRset {owner} ({type}) in Zone {zone} mit allen Werten löschen?',
+    'dns.edit-label'           => 'RRset {owner} ({type}) bearbeiten',
+    'dns.context'              => 'DNS-Navigation',
+    'dns.account'              => 'Account {id}',
+    'dns.active-account'       => 'Aktiver Account',
+    'dns.back-records'         => 'Zur Record-Übersicht',
+    'dns.confirm-disable'      => 'DNSSEC für Zone {zone} deaktivieren? Vorher die DS-Einträge beim Registrar prüfen, um DNS-Ausfälle zu vermeiden.',
     'common.all'                                => 'Alle',
     'common.yes'                                => 'Ja',
     'common.no'                                 => 'Nein',

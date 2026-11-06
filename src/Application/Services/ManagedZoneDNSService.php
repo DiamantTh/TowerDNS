@@ -93,6 +93,40 @@ final readonly class ManagedZoneDNSService
         return array_values(array_filter($this->providerAccounts->findByAccountId($accountId), static fn(ProviderAccount $account): bool => $account->isActive));
     }
 
+    /** @return array{canCreateZones: bool, canDeleteZones: bool} */
+    public function zoneActions(User $user, int $accountId): array
+    {
+        $this->permissions->assertAccount($user, Permission::ZONE_LIST, $accountId);
+        $active = $this->accounts->findById($accountId)?->isActive === true;
+        return [
+            'canCreateZones' => $active && $this->permissions->authorizeAccount($user, Permission::ZONE_CREATE, $accountId),
+            'canDeleteZones' => $active && $this->permissions->authorizeAccount($user, Permission::ZONE_DELETE, $accountId),
+        ];
+    }
+
+    /** @return array<int, string> Display names only; no provider credentials leave this service. */
+    public function providerNames(User $user, int $accountId): array
+    {
+        $this->permissions->assertAccount($user, Permission::ZONE_LIST, $accountId);
+        $names = [];
+        foreach ($this->providerAccounts->findByAccountId($accountId) as $provider) {
+            $names[$provider->id] = $provider->name;
+        }
+        return $names;
+    }
+
+    public function dnssecZoneName(User $user, int $accountId, int $zoneId): string
+    {
+        if (!$this->permissions->authorizeManagedZone($user, Permission::DNSSEC_STATUS_READ, $accountId, $zoneId)) {
+            throw new \TowerDNS\Application\Exception\AuthorizationException('Managed-zone access denied.');
+        }
+        $zone = $this->managedZones->findByIdForAccount($zoneId, $accountId);
+        if (!$zone instanceof ManagedZone) {
+            throw new \DomainException('Managed zone not found.');
+        }
+        return $zone->canonicalName;
+    }
+
     public function delete(User $user, int $accountId, int $managedZoneId): void
     {
         $zone = $this->managedZones->findByIdForAccount($managedZoneId, $accountId);
@@ -227,7 +261,7 @@ final readonly class ManagedZoneDNSService
         return new DNSSECProfile(
             $profile->zoneId,
             $profile->state,
-            [...$profile->features, 'manual_actions' => $provider->capabilities()->supports(Capability::DNSSEC_ACTION_EXECUTE)],
+            [...$profile->features, 'manual_actions' => $this->accounts->findById($accountId)?->isActive === true && $provider->capabilities()->supports(Capability::DNSSEC_ACTION_EXECUTE) && $this->permissions->authorizeManagedZone($user, Permission::DNSSEC_ACTION_EXECUTE, $accountId, $managedZoneId)],
             $profile->metadata,
         );
     }

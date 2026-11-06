@@ -51,12 +51,14 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
         $csrfToken = $guard instanceof CsrfGuardInterface ? $guard->generateToken() : '';
 
         try {
-            $zones            = $this->dns->list($user, $accountId);
-            $providerAccounts = $this->dns->availableProviderAccounts($user, $accountId);
-            $providerNames    = [];
-            foreach ($providerAccounts as $providerAccount) {
-                $providerNames[$providerAccount->id] = $providerAccount->name;
+            $zones   = $this->dns->list($user, $accountId);
+            $actions = $this->dns->zoneActions($user, $accountId);
+            try {
+                $providerAccounts = $this->dns->availableProviderAccounts($user, $accountId);
+            } catch (AuthorizationException) {
+                $providerAccounts = [];
             }
+            $providerNames = $this->dns->providerNames($user, $accountId);
         } catch (AuthorizationException) {
             return new HtmlResponse(
                 $this->renderer->render('app::zones/list', [
@@ -83,6 +85,7 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
                 'providerNames'    => $providerNames,
                 'csrfToken'        => $csrfToken,
                 'error'            => is_string($flashError) ? $flashError : null,
+                ...$actions,
             ]),
         );
     }
