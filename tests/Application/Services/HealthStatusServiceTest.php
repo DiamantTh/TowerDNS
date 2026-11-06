@@ -34,7 +34,7 @@ final class HealthStatusServiceTest extends TestCase
         file_put_contents($providerPath, "# provider config\n");
 
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
-        new SchemaManager($connection)->createTablesIfNotExist();
+        $this->prepareSchema($connection);
 
         $service = new HealthStatusService(
             $connection,
@@ -78,7 +78,7 @@ final class HealthStatusServiceTest extends TestCase
         file_put_contents($providerPath, "# provider config\n");
 
         $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
-        new SchemaManager($connection)->createTablesIfNotExist();
+        $this->prepareSchema($connection);
 
         $service = new HealthStatusService(
             $connection,
@@ -110,6 +110,31 @@ final class HealthStatusServiceTest extends TestCase
         self::assertDirectoryDoesNotExist($base . '/cache/ratelimit');
         self::assertDirectoryDoesNotExist($base . '/logs');
     }
+
+    public function testSchemaReadinessRejectsPendingMissingAndInvalidMigrationState(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $this->prepareSchema($connection);
+        $service = new HealthStatusService($connection);
+        self::assertTrue($service->readiness()['checks']['schema']['ok']);
+        $connection->executeStatement('DELETE FROM towerdns_schema_migrations WHERE version = (SELECT MAX(version) FROM towerdns_schema_migrations)');
+        self::assertFalse($service->readiness()['checks']['schema']['ok']);
+        self::assertFalse($service->readiness()['ready']);
+        $connection->executeStatement('DROP TABLE towerdns_schema_migrations');
+        self::assertFalse($service->readiness()['checks']['schema']['ok']);
+        $connection->executeStatement('DROP TABLE system_settings');
+        self::assertFalse($service->readiness()['checks']['schema']['ok']);
+    }
+    private function prepareSchema(\Doctrine\DBAL\Connection $connection): void
+    {
+        $schema = new SchemaManager($connection);
+        $schema->createTablesIfNotExist();
+        $schema->seedSystemRoles();
+        $schema->seedSystemSettingsDefaults();
+        $schema->seedFirstUser('health-admin', 'admin@example.test', password_hash('safe-password', PASSWORD_ARGON2ID), 'Admin');
+        new \TowerDNS\Infrastructure\Persistence\SchemaMigrationManager($connection)->migrate();
+    }
+
     private function prepareFrontend(string $root): void
     {
         mkdir($root . '/themes/default/src', 0o750, true);

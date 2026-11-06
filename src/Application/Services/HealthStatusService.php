@@ -205,9 +205,8 @@ final readonly class HealthStatusService
         }
 
         try {
-            return $this->connection->createSchemaManager()->tablesExist([
-                'users', 'accounts', 'account_memberships', 'provider_accounts', 'managed_zones',
-            ]);
+            $status = new \TowerDNS\Infrastructure\Persistence\SchemaMigrationManager($this->connection)->status();
+            return $status->metadataInitialized && $status->schemaCurrent && $status->pending === [] && $status->dataIssues === [];
         } catch (\Throwable) {
             return false;
         }
