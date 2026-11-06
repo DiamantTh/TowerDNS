@@ -39,13 +39,22 @@ final readonly class ProviderAccountManagementService
     public function list(User $actor, int $accountId): ProviderAccountListing
     {
         $account = $this->account($accountId);
-        $this->permissions->assertCanManageProviderAccounts($account->id, $actor);
+        $this->permissions->assertAccount($actor, \TowerDNS\Domain\Auth\Permission::ACCOUNT_READ, $account->id);
+        $canManage = $this->permissions->authorizeAccount($actor, \TowerDNS\Domain\Auth\Permission::PROVIDER_CREDENTIALS_MANAGE, $account->id);
 
         $types       = [];
         $definitions = [];
         foreach ($this->schemas->definitions() as $id => $definition) {
             if ($definition['user_managed']) {
-                $types[]          = $id;
+                if ($canManage) {
+                    $types[] = $id;
+                }
+                foreach ($definition['credentials'] as &$field) {
+                    if ($field['secret']) {
+                        unset($field['default']);
+                    }
+                }
+                unset($field);
                 $definitions[$id] = $definition;
             }
         }
@@ -53,7 +62,7 @@ final readonly class ProviderAccountManagementService
 
         ksort($definitions, SORT_STRING);
 
-        return new ProviderAccountListing($account, $this->providerAccounts->findByAccountId($accountId), $types, $definitions);
+        return new ProviderAccountListing($account, $this->providerAccounts->findByAccountId($accountId), $types, $definitions, $canManage, $this->permissions->authorizeAccount($actor, \TowerDNS\Domain\Auth\Permission::ZONE_LIST, $accountId));
     }
 
     /**

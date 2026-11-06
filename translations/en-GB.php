@@ -6,6 +6,13 @@
 declare(strict_types=1);
 
 return [
+    'provider.workflow-required' => 'Fields marked * are required.',
+    'provider.workflow-validation' => 'Inputs are validated locally and stored encrypted. This is not a live provider connection test.',
+    'provider.workflow-empty' => 'Create a connection using the form above. Then start managing zones.',
+    'provider.workflow-readonly' => 'Contact an account administrator to create or change a connection.',
+    'provider.workflow-replace' => 'Enter the complete new set. Blank required fields do not retain existing secrets. The connection stays assigned to this account.',
+    'provider.workflow-deactivate' => 'Deactivate connection {name} in account {account}? Existing zones remain; DNS changes through this connection will be blocked.',
+
     'account.workflow-empty' => 'Create an account or clear the filters. Then open provider connections and zones to start managing DNS.',
     'dns.filters'              => 'Search and filters',
     'dns.zone-search'          => 'Search zone name',

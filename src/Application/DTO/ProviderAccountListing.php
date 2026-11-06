@@ -23,5 +23,7 @@ final readonly class ProviderAccountListing
         public array $providerAccounts,
         public array $allowedTypes,
         public array $providerDefinitions,
+        public bool $canManageCredentials = false,
+        public bool $canListZones = false,
     ) {}
 }

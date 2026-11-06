@@ -115,6 +115,9 @@ final readonly class ProviderCredentialsHandler implements RequestHandlerInterfa
                 $values[$field['input']] = $field['secret']
                     ? ''
                     : (string) ($stored[$key] ?? $field['default'] ?? '');
+                if ($field['secret']) {
+                    unset($field['default']);
+                }
                 $field['label'] = $this->translator->translate($field['label']);
             }
             unset($field);

@@ -20,3 +20,13 @@ multiple providers, search and filtering, RRset editing, contextual delete
 confirmation, long TXT values, a narrow viewport, read-only controls and DNSSEC
 navigation. It never performs provider writes. Service tests separately cover
 provider capabilities, scoped mutations and authorization.
+
+Account/provider form regression checks use the same prerequisites and ports:
+
+```sh
+python3 tests/Frontend/account-provider-browser-test.py
+```
+
+They verify metadata defaults, cleared secrets on provider changes, duplicate
+submit protection, account context, read-only connections and narrow layouts
+in both languages. All form submissions are intercepted in the fixture.

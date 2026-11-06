@@ -116,11 +116,45 @@ final class ProviderAccountManagementServiceTest extends TestCase
     }
 
     /** @return MockObject&AccountRepositoryInterface */
-    private function accounts(): AccountRepositoryInterface
+    public function testViewerCanReadConnectionsWithoutCredentialWriteActions(): void
+    {
+        $providers = $this->createMock(ProviderAccountRepositoryInterface::class);
+        $providers->method('findByAccountId')->with(42)->willReturn([new ProviderAccount(9, 42, 'example', 'Primary', 'encrypted', 3, true, '2026-01-01')]);
+        $listing = $this->service($this->accounts(TeamRole::VIEWER), $providers)->list(new User('member', 'member@example.test'), 42);
+        self::assertCount(1, $listing->providerAccounts);
+        self::assertFalse($listing->canManageCredentials);
+        self::assertTrue($listing->canListZones);
+        self::assertSame([], $listing->allowedTypes);
+        self::assertArrayNotHasKey('default', $listing->providerDefinitions['example']['credentials']['token']);
+    }
+
+    public function testViewerCannotMutateProviderCredentials(): void
+    {
+        $providers = $this->createMock(ProviderAccountRepositoryInterface::class);
+        $providers->expects(self::never())->method('create');
+        $providers->expects(self::never())->method('replaceCredentials');
+        $providers->expects(self::never())->method('deactivate');
+        $service = $this->service($this->accounts(TeamRole::VIEWER), $providers);
+        $user    = new User('member', 'member@example.test');
+        foreach (['create', 'replace', 'deactivate'] as $action) {
+            try {
+                match ($action) {
+                    'create'  => $service->create($user, 42, 'example', 'Primary', ['token' => 'secret']),
+                    'replace' => $service->replaceCredentials($user, 42, 9, ['token' => 'secret']),
+                    default   => $service->deactivate($user, 42, 9),
+                };
+                self::fail('Viewer mutation must be denied.');
+            } catch (\TowerDNS\Application\Exception\AuthorizationException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    private function accounts(TeamRole $role = TeamRole::ADMIN): AccountRepositoryInterface
     {
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('findById')->willReturn(new Account(42, 'Example', 'example', 'owner', true, '2026-09-15 00:00:00'));
-        $accounts->method('getEffectiveRole')->willReturn(TeamRole::ADMIN);
+        $accounts->method('getEffectiveRole')->willReturn($role);
         return $accounts;
     }
 
@@ -167,9 +201,9 @@ final class ExampleAccountProviderCredentialSchema implements ProviderCredential
     public function definitions(): array
     {
         return [
-            'example'        => ['label' => 'Example', 'user_managed' => true, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
-            'second-example' => ['label' => 'Second example', 'user_managed' => true, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
-            'system-only'    => ['label' => 'System only', 'user_managed' => false, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true]]],
+            'example'        => ['label' => 'Example', 'user_managed' => true, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true, 'default' => 'secret-default-fixture']]],
+            'second-example' => ['label' => 'Second example', 'user_managed' => true, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true, 'default' => 'secret-default-fixture']]],
+            'system-only'    => ['label' => 'System only', 'user_managed' => false, 'system_configurable' => true, 'credentials' => ['token' => ['input' => 'token', 'label' => 'Token', 'required' => true, 'secret' => true, 'default' => 'secret-default-fixture']]],
         ];
     }
 

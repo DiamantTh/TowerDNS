@@ -6,6 +6,13 @@
 declare(strict_types=1);
 
 return [
+    'provider.workflow-required' => 'Mit * gekennzeichnete Felder sind Pflichtfelder.',
+    'provider.workflow-validation' => 'Die Eingaben werden lokal geprüft und verschlüsselt gespeichert. Dies ist kein Verbindungstest beim Provider.',
+    'provider.workflow-empty' => 'Über das Formular oben eine Verbindung anlegen. Danach können Zonen verwaltet werden.',
+    'provider.workflow-readonly' => 'Zum Anlegen oder Ändern einer Verbindung einen Account-Administrator kontaktieren.',
+    'provider.workflow-replace' => 'Vollständigen neuen Satz eingeben. Leere Pflichtfelder behalten keine bisherigen Secrets. Die Verbindung bleibt demselben Account zugeordnet.',
+    'provider.workflow-deactivate' => 'Verbindung {name} im Account {account} deaktivieren? Bestehende Zonen bleiben erhalten; DNS-Änderungen über diese Verbindung sind danach gesperrt.',
+
     'account.workflow-empty' => 'Einen Account anlegen oder den Filter zurücksetzen. Für den DNS-Workflow anschließend Provider-Verbindungen und Zonen öffnen.',
     'dns.filters'              => 'Suche und Filter',
     'dns.zone-search'          => 'Zonenname suchen',
