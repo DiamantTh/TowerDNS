@@ -48,6 +48,8 @@ try:
  for locale in ['en-GB','de-DE']:
   navigate('provider_accounts/list', locale=locale)
   assert 'Example Account' in execute('return document.querySelector("main").textContent')
+  assert execute('return [...document.querySelectorAll(".provider-card")][1].querySelectorAll("form").length') == 0
+  assert execute('return document.querySelector(".provider-card a").getAttribute("href")') == '/zones.php?account=42&provider=9'
   assert 'secret-ciphertext-fixture' not in execute('return document.documentElement.innerHTML')
   assert execute('return document.querySelector("textarea[name=zones]").value') == 'example.test'
   execute('document.querySelector("input[name=token]").value="temporary-secret"; const s=document.querySelector("select[name=provider_type]"); s.value="second"; s.dispatchEvent(new Event("change",{bubbles:true}));')
@@ -70,7 +72,19 @@ try:
   navigate('provider_accounts/list', readonly=True, locale=locale)
   assert execute('return document.querySelectorAll("main form").length') == 0
   assert 'Primary' in execute('return document.querySelector("main").textContent')
-  print(locale+': provider defaults, secret reset, account context, duplicate-submit guard, readonly connections and mobile layout passed')
+  navigate('accounts/list', readonly=True, locale=locale)
+  assert execute('return document.querySelectorAll(".resource-card").length') == 2
+  assert execute('return document.querySelector(".resource-card[aria-current=true]").textContent.includes("Example Account")')
+  assert execute('return [...document.querySelectorAll(".resource-card")][1].querySelector("form") === null')
+  navigate('accounts/edit', readonly=True, locale=locale)
+  assert execute('return document.querySelectorAll("main form").length') == 0
+  assert execute('return [...document.querySelectorAll("main a")].some(e=>e.getAttribute("href") === "/accounts.php?id=42&view=providers")')
+  navigate('accounts/edit&inactive=1', locale=locale)
+  assert execute('return !!document.querySelector("button[value=activate]")')
+  assert execute('return !document.querySelector("button[value=delete]")')
+  navigate('accounts/members', locale=locale)
+  assert execute('return !document.querySelector("form[action$=ownership]")')
+  print(locale+': provider defaults, secret reset, account context, duplicate-submit guard, readonly connections, account lifecycle/ownership controls and mobile layout passed')
 
 finally:
  if sock: sock.close()

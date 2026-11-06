@@ -116,12 +116,9 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $loaded   = $this->accounts->findByUserId($user->id, $search, $type, $pageSize + 1, ($page - 1) * $pageSize, true, $role, $active);
         $hasNext  = count($loaded) > $pageSize;
         $accounts = array_map(fn(Account $account): array => [
-            'id'                 => $account->id, 'name' => $account->name, 'slug' => $account->slug,
-            'kind'               => $account->kind()->value, 'isActive' => $account->isActive,
-            'canEdit'            => $account->isActive ? $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::ACCOUNT_UPDATE, $account->id) : $this->permissions->canReactivateAccount($account->id, $user),
-            'canManageMembers'   => $account->kind() !== AccountKind::PERSONAL && $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::ACCOUNT_MEMBERS_MANAGE, $account->id),
-            'canManageProviders' => $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::PROVIDER_CREDENTIALS_MANAGE, $account->id),
-            'canListZones'       => $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::ZONE_LIST, $account->id),
+            'id'   => $account->id, 'name' => $account->name, 'slug' => $account->slug,
+            'kind' => $account->kind()->value, 'isActive' => $account->isActive,
+            ...$this->accountManagement->viewActions($user, $account),
         ], array_slice($loaded, 0, $pageSize));
         $flashError      = $query['error'] ?? null;
         $activeContext   = $request->getAttribute(ActiveAccountContext::class);
@@ -129,18 +126,20 @@ final readonly class AccountHandler implements RequestHandlerInterface
 
         return new HtmlResponse(
             $this->renderer->render('app::accounts/list', [
-                'user'            => $user,
-                'accounts'        => $accounts,
-                'search'          => $search ?? '',
-                'type'            => $type instanceof AccountKind ? $type->value : 'all',
-                'role'            => $role instanceof TeamRole ? $role->value : 'all',
-                'status'          => $status,
-                'roles'           => TeamRole::cases(),
-                'page'            => $page,
-                'hasNext'         => $hasNext,
-                'csrfToken'       => $csrfToken,
-                'activeAccountId' => $activeAccountId,
-                'error'           => is_string($flashError) ? $flashError : null,
+                'user'               => $user,
+                'accounts'           => $accounts,
+                'search'             => $search ?? '',
+                'type'               => $type instanceof AccountKind ? $type->value : 'all',
+                'role'               => $role instanceof TeamRole ? $role->value : 'all',
+                'status'             => $status,
+                'roles'              => TeamRole::cases(),
+                'page'               => $page,
+                'hasNext'            => $hasNext,
+                'csrfToken'          => $csrfToken,
+                'activeAccountId'    => $activeAccountId,
+                'activeAccount'      => $activeContext instanceof ActiveAccountContext ? $activeContext->account : null,
+                'canListActiveZones' => $activeAccountId !== null && $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::ZONE_LIST, $activeAccountId),
+                'error'              => is_string($flashError) ? $flashError : null,
             ]),
         );
     }
@@ -186,13 +185,8 @@ final readonly class AccountHandler implements RequestHandlerInterface
             return new HtmlResponse($this->translator->translate('http.error.not-found'), 404);
         }
 
-        try {
-            if ($account->isActive) {
-                $this->permissions->assertCanManageAccount($accountId, $user);
-            } elseif (!$this->permissions->canReactivateAccount($accountId, $user)) {
-                throw new AuthorizationException('Account reactivation denied.');
-            }
-        } catch (AuthorizationException) {
+        $actions = $this->accountManagement->viewActions($user, $account);
+        if (!$actions['canViewAccount']) {
             return new HtmlResponse($this->translator->translate('http.error.forbidden'), 403);
         }
 
@@ -207,8 +201,9 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 'user'      => $user,
                 'account'   => $account,
                 'csrfToken' => $csrfToken,
-                'usage'     => $account->isActive ? $this->resourceUsage->forUser($user, $accountId) : null,
-                'error'     => is_string($flashError) ? $flashError : null,
+                ...$actions,
+                'usage' => $account->isActive ? $this->resourceUsage->forUser($user, $accountId) : null,
+                'error' => is_string($flashError) ? $flashError : null,
             ]),
         );
     }
@@ -349,13 +344,14 @@ final readonly class AccountHandler implements RequestHandlerInterface
 
         return new HtmlResponse(
             $this->renderer->render('app::accounts/members', [
-                'user'        => $user,
-                'account'     => $account,
-                'members'     => $members,
-                'invitations' => $invitations,
-                'roles'       => TeamRole::cases(),
-                'csrfToken'   => $csrfToken,
-                'error'       => is_string($flashError) ? $flashError : null,
+                'user'                 => $user,
+                'account'              => $account,
+                'members'              => $members,
+                'canTransferOwnership' => $this->accountManagement->viewActions($user, $account)['canTransferOwnership'],
+                'invitations'          => $invitations,
+                'roles'                => TeamRole::cases(),
+                'csrfToken'            => $csrfToken,
+                'error'                => is_string($flashError) ? $flashError : null,
             ]),
         );
     }

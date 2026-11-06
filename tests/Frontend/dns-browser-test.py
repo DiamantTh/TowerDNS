@@ -54,6 +54,9 @@ try:
   execute('const e=document.querySelector("input[type=search]"); e.value=""; e.dispatchEvent(new Event("input",{bubbles:true})); const s=document.querySelector("section[aria-label] select"); s.value="2"; s.dispatchEvent(new Event("change",{bubbles:true}));')
   time.sleep(.1)
   assert execute('return document.querySelectorAll(".zone-card").length') == 2
+  navigate('zones/list&provider=2', locale=locale)
+  time.sleep(.1)
+  assert execute('return [...document.querySelectorAll(".resource-title")].map(e=>e.textContent)') == ['b.example','z.example']
   navigate('zones/records', locale=locale)
   assert execute('return document.querySelectorAll("tbody tr").length') == 2
   execute('document.querySelectorAll(".actions button")[2].click();')

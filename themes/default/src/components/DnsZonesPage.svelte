@@ -9,8 +9,9 @@
     const t = useI18n();
     let query = $state('');
     let providerFilter = $state('');
+    $effect(() => { providerFilter = page.providerFilter ?? ''; });
     const zones = $derived(visibleZones(page.managedZones, query, providerFilter));
-    const providers = $derived([...new Set(page.managedZones.map(zone => String(zone.providerAccountId)))].sort((a,b) => (page.providerNames[a] ?? a).localeCompare(page.providerNames[b] ?? b)));
+    const providers = $derived([...new Set([...Object.keys(page.providerNames), ...page.managedZones.map(zone => String(zone.providerAccountId))])].sort((a,b) => (page.providerNames[a] ?? a).localeCompare(page.providerNames[b] ?? b)));
 
     const url = (name: string, parameters: Record<string, string | number>) => pageUrl(urls, name, parameters);
 
@@ -31,7 +32,7 @@
                     <input type="hidden" name="csrf_token" value={page.csrfToken}>
                     <Field label={t('zones.provider')}>
                         <select class="input" name="provider_account_id" required>
-                            {#each page.providerAccounts as provider}<option value={provider.id}>{provider.name}</option>{/each}
+                            {#each page.providerAccounts as provider}<option value={provider.id} selected={String(provider.id) === page.providerFilter}>{provider.name}</option>{/each}
                         </select>
                     </Field>
                     <Field label={t('field.name')}>
@@ -41,7 +42,7 @@
                 </form>
             </div>
         {:else}
-            <p class="empty">{t(page.canCreateZones ? 'zones.provider-required' : 'rrset.action-unavailable')}</p>
+            <p class="empty">{t(page.canCreateZones ? 'zones.provider-required' : 'rrset.action-unavailable')}</p>{#if page.canManageProviders}<a class="button" href={url('accountProviders', { id: page.accountId })}>{t('navigation.providers')}</a>{/if}
         {/if}
     </section>
 

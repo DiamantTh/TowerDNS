@@ -29,6 +29,28 @@ final readonly class AccountManagementService
         private ProviderAccountRepositoryInterface $providers,
     ) {}
 
+    /**
+     * Read and mutation availability for account screens.
+     * @return array{canViewAccount: bool, canEditAccount: bool, canDeleteAccount: bool, canReactivateAccount: bool, canManageMembers: bool, canTransferOwnership: bool, canViewProviders: bool, canManageProviders: bool, canListZones: bool, canCreateZones: bool}
+     */
+    public function viewActions(User $actor, Account $account): array
+    {
+        $organization = $account->kind() !== AccountKind::PERSONAL;
+        $can          = fn(Permission $permission): bool => $this->permissions->authorizeAccount($actor, $permission, $account->id);
+        return [
+            'canViewAccount'       => $can(Permission::ACCOUNT_READ) || $this->permissions->canReactivateAccount($account->id, $actor),
+            'canEditAccount'       => $organization && $can(Permission::ACCOUNT_UPDATE),
+            'canDeleteAccount'     => $organization && $can(Permission::ACCOUNT_DELETE),
+            'canReactivateAccount' => $organization && !$account->isActive && $this->permissions->canReactivateAccount($account->id, $actor),
+            'canManageMembers'     => $organization && $can(Permission::ACCOUNT_MEMBERS_MANAGE),
+            'canTransferOwnership' => $organization && $can(Permission::ACCOUNT_OWNERSHIP_TRANSFER),
+            'canViewProviders'     => $can(Permission::ACCOUNT_READ),
+            'canManageProviders'   => $can(Permission::PROVIDER_CREDENTIALS_MANAGE),
+            'canListZones'         => $can(Permission::ZONE_LIST),
+            'canCreateZones'       => $can(Permission::ZONE_CREATE),
+        ];
+    }
+
     public function create(User $owner, string $name, string $slug): Account
     {
         $name = trim($name);

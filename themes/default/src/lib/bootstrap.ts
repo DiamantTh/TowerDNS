@@ -115,7 +115,9 @@ export type DnsProviderAccountBootstrap = {
 
 /** Props assembled by ZoneListHandler for the account-scoped zone view. */
 export type DnsZonesPageProps = {
+    providerFilter?: string;
     canCreateZones: boolean;
+    canManageProviders: boolean;
     canDeleteZones: boolean;
     accountId: number;
     managedZones: DnsZoneBootstrap[];

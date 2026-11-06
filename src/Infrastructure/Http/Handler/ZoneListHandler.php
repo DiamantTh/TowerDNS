@@ -74,6 +74,8 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
             );
         }
 
+        $filter     = (string) (filter_var($request->getQueryParams()['provider'] ?? '', FILTER_VALIDATE_INT) ?: '');
+        $filter     = isset($providerNames[(int) $filter]) ? $filter : '';
         $flashError = $request->getQueryParams()['error'] ?? null;
 
         return new HtmlResponse(
@@ -81,6 +83,7 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
                 'user'             => $user,
                 'accountId'        => $accountId,
                 'managedZones'     => $zones,
+                'providerFilter'   => $filter,
                 'providerAccounts' => $providerAccounts,
                 'providerNames'    => $providerNames,
                 'csrfToken'        => $csrfToken,

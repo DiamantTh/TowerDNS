@@ -14,7 +14,7 @@ $page = $_GET['page'] ?? 'zones/list';
 $readonly = isset($_GET['readonly']);
 $props = ['csrfToken' => 'fixture', 'user' => new TowerDNS\Domain\Auth\User('fixture', 'fixture@example.test'), 'accountId' => 42];
 if ($page === 'zones/list') {
-    $props += ['canCreateZones' => !$readonly, 'canDeleteZones' => !$readonly, 'providerAccounts' => [], 'providerNames' => ['1' => 'Provider A', '2' => 'Provider B'], 'managedZones' => [
+    $props += ['canManageProviders' => !$readonly, 'providerFilter' => (string) ($_GET['provider'] ?? ''), 'canCreateZones' => !$readonly, 'canDeleteZones' => !$readonly, 'providerAccounts' => [], 'providerNames' => ['1' => 'Provider A', '2' => 'Provider B'], 'managedZones' => [
         ['id' => 3, 'canonicalName' => 'z.example', 'providerAccountId' => 2],
         ['id' => 2, 'canonicalName' => 'a.example', 'providerAccountId' => 1],
         ['id' => 1, 'canonicalName' => 'b.example', 'providerAccountId' => 2],

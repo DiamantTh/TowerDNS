@@ -93,14 +93,15 @@ final readonly class ManagedZoneDNSService
         return array_values(array_filter($this->providerAccounts->findByAccountId($accountId), static fn(ProviderAccount $account): bool => $account->isActive));
     }
 
-    /** @return array{canCreateZones: bool, canDeleteZones: bool} */
+    /** @return array{canCreateZones: bool, canDeleteZones: bool, canManageProviders: bool} */
     public function zoneActions(User $user, int $accountId): array
     {
         $this->permissions->assertAccount($user, Permission::ZONE_LIST, $accountId);
         $active = $this->accounts->findById($accountId)?->isActive === true;
         return [
-            'canCreateZones' => $active && $this->permissions->authorizeAccount($user, Permission::ZONE_CREATE, $accountId),
-            'canDeleteZones' => $active && $this->permissions->authorizeAccount($user, Permission::ZONE_DELETE, $accountId),
+            'canManageProviders' => $active && $this->permissions->authorizeAccount($user, Permission::PROVIDER_CREDENTIALS_MANAGE, $accountId),
+            'canCreateZones'     => $active     && $this->permissions->authorizeAccount($user, Permission::ZONE_CREATE, $accountId),
+            'canDeleteZones'     => $active     && $this->permissions->authorizeAccount($user, Permission::ZONE_DELETE, $accountId),
         ];
     }
 

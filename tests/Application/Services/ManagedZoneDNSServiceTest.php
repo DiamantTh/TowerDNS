@@ -413,7 +413,7 @@ final class ManagedZoneDNSServiceTest extends TestCase
     public function testZoneActionsRemainReadOnlyForViewer(): void
     {
         $service = $this->serviceForZone(new RecordingDNSProvider([]), role: TeamRole::VIEWER);
-        self::assertSame(['canCreateZones' => false, 'canDeleteZones' => false], $service->zoneActions(new User('owner', 'owner@example.test'), 42));
+        self::assertSame(['canManageProviders' => false, 'canCreateZones' => false, 'canDeleteZones' => false], $service->zoneActions(new User('owner', 'owner@example.test'), 42));
     }
 
     public function testDnssecNavigationUsesAuthorizedZoneName(): void
@@ -433,9 +433,9 @@ final class ManagedZoneDNSServiceTest extends TestCase
     {
         $service  = $this->serviceForZone(new RecordingDNSProvider([]), role: TeamRole::VIEWER);
         $renderer = $this->createMock(\Mezzio\Template\TemplateRendererInterface::class);
-        $renderer->expects(self::once())->method('render')->with('app::zones/list', self::callback(static fn(array $data): bool => count($data['managedZones']) === 1 && $data['canCreateZones'] === false && $data['canDeleteZones'] === false))->willReturn('zones');
+        $renderer->expects(self::once())->method('render')->with('app::zones/list', self::callback(static fn(array $data): bool => count($data['managedZones']) === 1 && $data['canCreateZones'] === false && $data['canDeleteZones'] === false && $data['providerNames'][9] === 'Fake' && $data['providerFilter'] === '9'))->willReturn('zones');
         $handler = new \TowerDNS\Infrastructure\Http\Handler\ZoneListHandler($renderer, $service, $this->createMock(\Laminas\Translator\TranslatorInterface::class));
-        $request = new \Laminas\Diactoros\ServerRequest()->withAttribute(User::class, new User('owner', 'owner@example.test'))->withAttribute('account', 42);
+        $request = new \Laminas\Diactoros\ServerRequest()->withAttribute(User::class, new User('owner', 'owner@example.test'))->withAttribute('account', 42)->withQueryParams(['provider' => '9']);
         self::assertSame(200, $handler->handle($request)->getStatusCode());
     }
 
@@ -474,6 +474,7 @@ final class ManagedZoneDNSServiceTest extends TestCase
 
         $providerAccount  = new ProviderAccount(9, $providerAccountTenant, 'fake', 'Fake', 'ciphertext', 3, $providerActive, '2026-09-17 12:00:00');
         $providerAccounts = $this->createMock(ProviderAccountRepositoryInterface::class);
+        $providerAccounts->method('findByAccountId')->willReturn([$providerAccount]);
         $providerAccounts->method('findById')->willReturnCallback(static fn(int $id): ?ProviderAccount => $id === $providerAccount->id ? $providerAccount : null);
 
         $factory = $this->createMock(AccountProviderFactoryInterface::class);

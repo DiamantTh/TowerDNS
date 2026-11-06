@@ -191,6 +191,44 @@ final class AccountManagementServiceTest extends TestCase
         $service->delete(new User('actor', 'actor@example.test'), 42);
     }
 
+    public function testAccountViewActionsMatchMembershipAndLifecycle(): void
+    {
+        foreach ([TeamRole::VIEWER, TeamRole::DNS_MANAGER, TeamRole::ADMIN, TeamRole::OWNER] as $role) {
+            foreach ([true, false] as $active) {
+                $account  = new Account(42, 'Team', 'team', 'owner', $active, '2026-01-01');
+                $accounts = $this->createMock(AccountRepositoryInterface::class);
+                $accounts->method('findById')->with(42)->willReturn($account);
+                $accounts->method('getEffectiveRole')->willReturn($role);
+                $actions = $this->service($accounts)->viewActions(new User('member', 'member@example.test'), $account);
+                $manager = in_array($role, [TeamRole::ADMIN, TeamRole::OWNER], true);
+                self::assertSame($active || $manager, $actions['canViewAccount']);
+                self::assertSame($active && $manager, $actions['canEditAccount']);
+                self::assertSame($active && $role === TeamRole::OWNER, $actions['canDeleteAccount']);
+                self::assertSame($active && $role === TeamRole::OWNER, $actions['canTransferOwnership']);
+                self::assertSame($active && $manager, $actions['canManageMembers']);
+                self::assertSame($active && $manager, $actions['canManageProviders']);
+                self::assertSame($active, $actions['canViewProviders']);
+                self::assertSame(!$active && $manager, $actions['canReactivateAccount']);
+            }
+        }
+    }
+
+    public function testPersonalAccountKeepsProviderWorkflowWithoutOrganizationActions(): void
+    {
+        $account  = new Account(42, 'Personal', 'personal-member', 'member', true, '2026-01-01', \TowerDNS\Domain\Account\AccountKind::PERSONAL, 'member');
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findById')->willReturn($account);
+        $accounts->method('getEffectiveRole')->willReturn(TeamRole::OWNER);
+        $actions = $this->service($accounts)->viewActions(new User('member', 'member@example.test'), $account);
+        self::assertTrue($actions['canViewAccount']);
+        self::assertTrue($actions['canManageProviders']);
+        self::assertTrue($actions['canListZones']);
+        self::assertFalse($actions['canEditAccount']);
+        self::assertFalse($actions['canDeleteAccount']);
+        self::assertFalse($actions['canManageMembers']);
+        self::assertFalse($actions['canTransferOwnership']);
+    }
+
     private function service(AccountRepositoryInterface $accounts): AccountManagementService
     {
         return new AccountManagementService(

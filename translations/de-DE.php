@@ -6,6 +6,10 @@
 declare(strict_types=1);
 
 return [
+    'account.workflow-provider-needed' => 'Dieser Account hat noch keine Provider-Verbindung. Zuerst eine Verbindung anlegen.',
+    'account.workflow-zone-needed' => 'Dieser Account hat noch keine Zonen. Provider-Verbindungen prüfen und anschließend eine Zone anlegen.',
+    'provider.workflow-next' => 'Die Verbindung wurde gespeichert. Als Nächstes Zonen verwalten.',
+
     'provider.workflow-required' => 'Mit * gekennzeichnete Felder sind Pflichtfelder.',
     'provider.workflow-validation' => 'Die Eingaben werden lokal geprüft und verschlüsselt gespeichert. Dies ist kein Verbindungstest beim Provider.',
     'provider.workflow-empty' => 'Über das Formular oben eine Verbindung anlegen. Danach können Zonen verwaltet werden.',

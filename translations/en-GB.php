@@ -6,6 +6,10 @@
 declare(strict_types=1);
 
 return [
+    'account.workflow-provider-needed' => 'This account has no provider connection yet. Create a connection first.',
+    'account.workflow-zone-needed' => 'This account has no zones yet. Check provider connections, then create a zone.',
+    'provider.workflow-next' => 'The connection was saved. Manage zones next.',
+
     'provider.workflow-required' => 'Fields marked * are required.',
     'provider.workflow-validation' => 'Inputs are validated locally and stored encrypted. This is not a live provider connection test.',
     'provider.workflow-empty' => 'Create a connection using the form above. Then start managing zones.',
