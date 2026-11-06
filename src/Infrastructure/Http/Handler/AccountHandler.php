@@ -105,17 +105,24 @@ final readonly class AccountHandler implements RequestHandlerInterface
         $guard     = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
         $csrfToken = $guard->generateToken();
 
-        $query           = $request->getQueryParams();
-        $search          = is_string($query['q'] ?? null) ? trim($query['q']) : null;
-        $type            = AccountKind::tryFrom((string) ($query['type'] ?? ''));
-        $role            = TeamRole::tryFrom((string) ($query['role'] ?? ''));
-        $status          = in_array(($query['status'] ?? 'all'), ['active', 'inactive'], true) ? (string) $query['status'] : 'all';
-        $active          = $status === 'active' ? true : ($status === 'inactive' ? false : null);
-        $page            = max(1, (int) ($query['page'] ?? 1));
-        $pageSize        = 50;
-        $loaded          = $this->accounts->findByUserId($user->id, $search, $type, $pageSize + 1, ($page - 1) * $pageSize, true, $role, $active);
-        $hasNext         = count($loaded) > $pageSize;
-        $accounts        = array_map(static fn(Account $account): array => ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value, 'isActive' => $account->isActive], array_slice($loaded, 0, $pageSize));
+        $query    = $request->getQueryParams();
+        $search   = is_string($query['q'] ?? null) ? trim($query['q']) : null;
+        $type     = AccountKind::tryFrom((string) ($query['type'] ?? ''));
+        $role     = TeamRole::tryFrom((string) ($query['role'] ?? ''));
+        $status   = in_array(($query['status'] ?? 'all'), ['active', 'inactive'], true) ? (string) $query['status'] : 'all';
+        $active   = $status === 'active' ? true : ($status === 'inactive' ? false : null);
+        $page     = max(1, (int) ($query['page'] ?? 1));
+        $pageSize = 50;
+        $loaded   = $this->accounts->findByUserId($user->id, $search, $type, $pageSize + 1, ($page - 1) * $pageSize, true, $role, $active);
+        $hasNext  = count($loaded) > $pageSize;
+        $accounts = array_map(fn(Account $account): array => [
+            'id'                 => $account->id, 'name' => $account->name, 'slug' => $account->slug,
+            'kind'               => $account->kind()->value, 'isActive' => $account->isActive,
+            'canEdit'            => $account->isActive ? $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::ACCOUNT_UPDATE, $account->id) : $this->permissions->canReactivateAccount($account->id, $user),
+            'canManageMembers'   => $account->kind() !== AccountKind::PERSONAL && $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::ACCOUNT_MEMBERS_MANAGE, $account->id),
+            'canManageProviders' => $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::PROVIDER_CREDENTIALS_MANAGE, $account->id),
+            'canListZones'       => $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::ZONE_LIST, $account->id),
+        ], array_slice($loaded, 0, $pageSize));
         $flashError      = $query['error'] ?? null;
         $activeContext   = $request->getAttribute(ActiveAccountContext::class);
         $activeAccountId = $activeContext instanceof ActiveAccountContext ? $activeContext->account?->id : null;

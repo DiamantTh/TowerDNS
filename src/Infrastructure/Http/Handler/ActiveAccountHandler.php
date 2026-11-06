@@ -39,6 +39,6 @@ final readonly class ActiveAccountHandler implements RequestHandlerInterface
             $session->unset('active_account_id');
             return new RedirectResponse('/accounts?error=account-unavailable');
         }
-        return new RedirectResponse('/accounts/' . $account->id);
+        return new RedirectResponse('/accounts/' . $account->id . '/zones');
     }
 }

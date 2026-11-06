@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 return [
+    'account.workflow-empty' => 'Einen Account anlegen oder den Filter zurücksetzen. Für den DNS-Workflow anschließend Provider-Verbindungen und Zonen öffnen.',
     'dns.filters'              => 'Suche und Filter',
     'dns.zone-search'          => 'Zonenname suchen',
     'dns.record-search'        => 'Owner oder RDATA suchen',

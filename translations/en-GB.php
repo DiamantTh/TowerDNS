@@ -6,6 +6,7 @@
 declare(strict_types=1);
 
 return [
+    'account.workflow-empty' => 'Create an account or clear the filters. Then open provider connections and zones to start managing DNS.',
     'dns.filters'              => 'Search and filters',
     'dns.zone-search'          => 'Search zone name',
     'dns.record-search'        => 'Search owner or RDATA',
