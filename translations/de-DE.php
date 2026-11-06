@@ -65,6 +65,7 @@ return [
     'roles.custom'                   => 'Benutzerdefiniert',
     'roles.empty'                    => 'Keine Rollen.',
     'roles.built-in-read-only'       => 'Eingebaute Rollen sind schreibgeschützt.',
+    'roles.sensitive-permission'     => 'Weitreichend',
     'roles.count'                    => ['{count} Rolle', '{count} Rollen'],
     'roles.error.not-found'          => 'Rolle nicht gefunden.',
     'roles.error.invalid-csrf'       => 'Ungültiger CSRF-Token.',

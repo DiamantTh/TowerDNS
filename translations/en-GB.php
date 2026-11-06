@@ -65,6 +65,7 @@ return [
     'roles.custom'                   => 'Custom',
     'roles.empty'                    => 'No roles.',
     'roles.built-in-read-only'       => 'Built-in roles are read-only.',
+    'roles.sensitive-permission'     => 'High impact',
     'roles.count'                    => ['{count} role', '{count} roles'],
     'roles.error.not-found'          => 'Role not found.',
     'roles.error.invalid-csrf'       => 'Invalid CSRF token.',
