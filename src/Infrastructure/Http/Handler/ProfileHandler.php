@@ -17,6 +17,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
+use TowerDNS\Application\Repository\UserRepositoryInterface;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ProfileService;
@@ -39,6 +40,7 @@ final readonly class ProfileHandler implements RequestHandlerInterface
         private WebAuthnCredentialRepositoryInterface $webauthn,
         private TotpSecretService                     $totpSecrets,
         private ProfileService                        $profiles,
+        private UserRepositoryInterface              $users,
         private AccountRepositoryInterface           $accounts,
         private AuditLogService                      $audit,
         private TranslatorInterface                   $translator,
@@ -88,7 +90,7 @@ final readonly class ProfileHandler implements RequestHandlerInterface
             $success = $this->translator->translate('profile.success.updated');
         }
 
-        $totpEnabled   = $this->totpSecrets->isEnabled($currentUser->id);
+        $totpCount     = $this->totpSecrets->count($currentUser->id);
         $webAuthnCount = count($this->webauthn->findByUserId($currentUser->id));
         $memberships   = [];
         $personal      = null;
@@ -107,8 +109,9 @@ final readonly class ProfileHandler implements RequestHandlerInterface
             $this->renderer->render('app::profile/index', [
                 'user'               => $currentUser,
                 'csrfToken'          => $guard->generateToken(),
-                'totpEnabled'        => $totpEnabled,
+                'totpCount'          => $totpCount,
                 'webAuthnKeyCount'   => $webAuthnCount,
+                'passwordConfigured' => $this->users->fetchPasswordHash($currentUser->email) !== null,
                 'personalAccount'    => $personal,
                 'accountMemberships' => $memberships,
                 'activeAccountId'    => $active instanceof ActiveAccountContext ? $active->account?->id : null,

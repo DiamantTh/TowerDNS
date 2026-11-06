@@ -34,12 +34,17 @@ final class ProfileHandlerTest extends TestCase
         $renderer = $this->createMock(TemplateRendererInterface::class);
         $renderer->expects(self::once())->method('render')->with('app::profile/index', self::callback(
             static fn(array $data): bool => $data['success'] === 'Profil aktualisiert.'
+                && $data['webAuthnKeyCount'] === 0
+                && $data['totpCount'] === 0
+                && $data['passwordConfigured'] === false
         ))->willReturn('<html></html>');
         $users           = $this->createMock(UserRepositoryInterface::class);
         $totpCredentials = $this->createMock(TotpCredentialRepositoryInterface::class);
         $settings        = $this->createMock(SystemSettingsRepositoryInterface::class);
         $webauthn        = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
         $webauthn->method('findByUserId')->willReturn([]);
+        $totpCredentials->method('countByUserId')->willReturn(0);
+        $users->method('fetchPasswordHash')->willReturn(null);
         $accounts = $this->createMock(AccountRepositoryInterface::class);
         $accounts->method('findByUserId')->willReturn([]);
         $translator = $this->createMock(TranslatorInterface::class);
@@ -52,6 +57,7 @@ final class ProfileHandlerTest extends TestCase
             $webauthn,
             new TotpSecretService($totpCredentials, new TotpService(new SystemClock()), $this->createMock(CredentialEncryptorInterface::class), $settings),
             new ProfileService($users, new ThemeManager(dirname(__DIR__, 4))),
+            $users,
             $accounts,
             new AuditLogService($this->createMock(AuditLogRepositoryInterface::class)),
             $translator,
