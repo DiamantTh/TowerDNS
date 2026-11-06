@@ -318,6 +318,7 @@ return [
     'profile.password.disable'                   => 'Passwortanmeldung deaktivieren',
     'profile.password.confirm-disable'           => 'Passwortanmeldung deaktivieren? Lasse mindestens einen FIDO2-Sicherheitsschlüssel registriert.',
     'profile.password.passkey-only'               => 'Dieses Konto hat kein Passwort. Anmeldung und Sicherheitsverwaltung funktionieren mit einem Passkey.',
+    'profile.password.disable-requires-passkey'   => 'Registriere vor dem Deaktivieren der Passwortanmeldung ein FIDO2-Credential, damit ein passwortloser Anmeldeweg erhalten bleibt.',
     'password.error.passkey-required'             => 'Registriere ein FIDO2-Credential, bevor du die Passwortanmeldung deaktivierst.',
     'password.error.not-configured'               => 'Die Passwortanmeldung ist bereits deaktiviert.',
     'profile.totp.not-configured'               => 'Nicht eingerichtet',

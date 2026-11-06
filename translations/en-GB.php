@@ -318,6 +318,7 @@ return [
     'profile.password.disable'                   => 'Disable password sign-in',
     'profile.password.confirm-disable'           => 'Disable password sign-in? Keep a FIDO2 security key registered.',
     'profile.password.passkey-only'               => 'This account has no password. Sign in and manage security with a passkey.',
+    'profile.password.disable-requires-passkey'   => 'Register a FIDO2 credential before disabling password sign-in, so a passwordless sign-in path remains available.',
     'password.error.passkey-required'             => 'Register a FIDO2 credential before disabling password sign-in.',
     'password.error.not-configured'               => 'Password sign-in is already disabled.',
     'profile.totp.not-configured'               => 'Not configured',

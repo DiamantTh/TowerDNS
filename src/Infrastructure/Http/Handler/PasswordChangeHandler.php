@@ -161,6 +161,7 @@ final readonly class PasswordChangeHandler implements RequestHandlerInterface
             'error'              => $error,
             'success'            => $success,
             'passwordConfigured' => $passwordConfigured,
+            'webAuthnKeyCount'   => $this->webAuthnCredentials->countByUserId($user->id),
             'active'             => 'profile',
         ]), $status);
     }
