@@ -156,6 +156,8 @@ final class PasswordResetCommand extends Command
     {
         $db     = (array) ($dbConf['database'] ?? []);
         $driver = (string) ($db['driver'] ?? 'pdo_sqlite');
+        $envPassword = getenv('DB_PASSWORD');
+        $defaultPassword = is_string($envPassword) ? $envPassword : '';
 
         if ($driver === 'pdo_sqlite') {
             $params = [
@@ -169,7 +171,7 @@ final class PasswordResetCommand extends Command
                 'port'     => (int) ($db['port'] ?? 5432),
                 'dbname'   => (string) ($db['name'] ?? ''),
                 'user'     => (string) ($db['user'] ?? ''),
-                'password' => (string) ($db['password'] ?? ''),
+                'password' => (string) ($db['password'] ?? $defaultPassword),
             ];
         } else {
             $params = [
@@ -178,12 +180,14 @@ final class PasswordResetCommand extends Command
                 'port'     => (int) ($db['port'] ?? 3306),
                 'dbname'   => (string) ($db['name'] ?? ''),
                 'user'     => (string) ($db['user'] ?? ''),
-                'password' => (string) ($db['password'] ?? ''),
-                'charset'  => 'utf8mb4',
+                'password' => (string) ($db['password'] ?? $defaultPassword),
+                'charset'  => (string) ($db['charset'] ?? 'utf8mb4'),
             ];
         }
 
-        return DriverManager::getConnection($params);
+        $connection = DriverManager::getConnection($params);
+        new \TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator()->configure($connection);
+        return $connection;
     }
 
     /**
