@@ -392,7 +392,9 @@ final class InstallCommand extends Command
             ],
         };
 
-        return DriverManager::getConnection($params);
+        $connection = DriverManager::getConnection($params);
+        new \TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator()->configure($connection);
+        return $connection;
     }
 
     private function writeLocalToml(

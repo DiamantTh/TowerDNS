@@ -55,6 +55,7 @@ function processStep3(): array
         };
 
         $conn = Doctrine\DBAL\DriverManager::getConnection($params);
+        (new TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator())->configure($conn);
 
         // ── Admin-Benutzer-ID vorbereiten ─────────────────────────────────
         $now  = new DateTime()->format('Y-m-d H:i:s');
