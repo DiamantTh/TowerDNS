@@ -19,6 +19,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\Http\FormInput;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationStatus;
 
@@ -55,9 +56,11 @@ final readonly class SchemaMigrationHandler implements RequestHandlerInterface
         $error   = null;
         $success = null;
         if ($request->getMethod() === 'POST') {
-            $body = (array) ($request->getParsedBody() ?? []);
-            if (!$guard->validateToken((string) ($body['csrf_token'] ?? ''))) {
+            $body = FormInput::fromParsedBody($request->getParsedBody());
+            if (!$guard->validateToken($body['csrf_token'] ?? '')) {
                 $error = $this->translator->translate('schema.error.invalid-csrf');
+            } elseif (($body['backup_confirmed'] ?? '') !== '1') {
+                $error = $this->translator->translate('schema.error.backup-required');
             } else {
                 try {
                     $this->migrations->migrate();

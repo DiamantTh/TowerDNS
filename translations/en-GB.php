@@ -682,6 +682,7 @@ return [
     'schema.no-pending'                         => 'No pending migrations.',
     'schema.baseline-available'                 => 'The existing schema can be adopted as the migration baseline.',
     'schema.apply'                              => 'Apply migrations',
+    'schema.backup-confirm'                     => 'I created and verified a current database backup.',
     'schema.backup-hint'                        => 'Create a verified database backup before applying schema changes.',
     'schema.validation-issues'                  => 'The database is not in a recognized schema state:',
     'schema.state.current'                       => 'Schema and migration metadata are current.',
@@ -694,4 +695,5 @@ return [
     'schema.error.failed'                       => 'The schema update could not be completed. No further changes were attempted.',
     'schema.success.updated'                    => 'Database schema updated successfully.',
     'schema.error.invalid-csrf'                 => 'The security token is invalid. Please try again.',
+    'schema.error.backup-required'              => 'Confirm that you created and verified a backup before applying migrations.',
 ];

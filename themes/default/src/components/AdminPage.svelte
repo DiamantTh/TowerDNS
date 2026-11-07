@@ -64,6 +64,7 @@
             <ul>{#each data.status.pending as migration}<li><code>{migration.version}</code> — {migration.description}</li>{/each}</ul>
             <form method="post" class="mt-4" onsubmit={(event) => { if (!confirm(t('schema.confirm-apply'))) event.preventDefault(); }}>
                 <input type="hidden" name="csrf_token" value={csrf}>
+                <div class="settings-option"><input id="schema-backup-confirmed" type="checkbox" name="backup_confirmed" value="1" required><label for="schema-backup-confirmed">{t('schema.backup-confirm')}</label></div>
                 <button class="button is-primary">{t('schema.apply')}</button>
             </form>
         {:else if data.status?.metadataInitialized && data.status?.schemaCurrent && !(data.status?.schemaIssues.length || data.status?.dataIssues.length)}

@@ -43,4 +43,29 @@ final class SchemaMigrationHandlerTest extends TestCase
         self::assertSame(200, $handler->handle($request)->getStatusCode());
         self::assertSame([], $connection->createSchemaManager()->introspectTableNames());
     }
+
+    public function testBackupAcknowledgementIsRequiredBeforeMigration(): void
+    {
+        $renderer = $this->createMock(TemplateRendererInterface::class);
+        $renderer->expects(self::once())->method('render')->with('app::settings/schema', self::callback(
+            static fn(array $data): bool => $data['error'] === 'schema.error.backup-required',
+        ))->willReturn('<html></html>');
+        $translator = $this->createMock(TranslatorInterface::class);
+        $translator->method('translate')->willReturnCallback(static fn(string $key): string => $key);
+        $guard = $this->createMock(CsrfGuardInterface::class);
+        $guard->method('validateToken')->with('csrf')->willReturn(true);
+        $guard->method('generateToken')->willReturn('csrf');
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $manager    = new SchemaMigrationManager($connection, sys_get_temp_dir() . '/towerdns-handler-' . bin2hex(random_bytes(8)) . '.lock');
+        $user       = new User('admin', 'admin@example.test', [new Role('superadmin', 'Super Administrator', [Permission::SYSTEM_SCHEMA_MANAGE])]);
+
+        $request = new ServerRequest([], [], 'https://example.test/settings/schema', 'POST')
+            ->withParsedBody(['csrf_token' => 'csrf'])
+            ->withAttribute(User::class, $user)
+            ->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
+        $handler = new SchemaMigrationHandler($renderer, new AuthorizationService(), $manager, $translator);
+
+        self::assertSame(200, $handler->handle($request)->getStatusCode());
+        self::assertSame([], $connection->createSchemaManager()->introspectTableNames());
+    }
 }

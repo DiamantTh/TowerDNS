@@ -682,6 +682,7 @@ return [
     'schema.no-pending'                         => 'Keine ausstehenden Migrationen.',
     'schema.baseline-available'                 => 'Das vorhandene Schema kann als Migrations-Baseline übernommen werden.',
     'schema.apply'                              => 'Migrationen ausführen',
+    'schema.backup-confirm'                     => 'Ich habe ein aktuelles Datenbank-Backup erstellt und geprüft.',
     'schema.backup-hint'                        => 'Vor Schemaänderungen ein geprüftes Datenbank-Backup erstellen.',
     'schema.validation-issues'                  => 'Die Datenbank befindet sich nicht in einem erkannten Schema-Zustand:',
     'schema.state.current'                       => 'Schema und Migrationsmetadaten sind aktuell.',
@@ -694,4 +695,5 @@ return [
     'schema.error.failed'                       => 'Die Schemaaktualisierung konnte nicht abgeschlossen werden. Es wurden keine weiteren Änderungen versucht.',
     'schema.success.updated'                    => 'Datenbankschema erfolgreich aktualisiert.',
     'schema.error.invalid-csrf'                 => 'Das Sicherheits-Token ist ungültig. Bitte erneut versuchen.',
+    'schema.error.backup-required'              => 'Bestätige vor dem Anwenden der Migrationen, dass ein Backup erstellt und geprüft wurde.',
 ];
