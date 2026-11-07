@@ -203,7 +203,8 @@ ein laufender alter Request weiterhin sein eigenes Manifest liest.
    die Freigabe. Nach erfolgreicher Aktivierung führen fehlende oder beschädigte
    Kompressionsvarianten zu einem Fallback und zu `degraded` in `/ready`; ein
    fehlendes oder beschädigtes Original ergibt `broken` und HTTP 503 für das Asset.
-4. Den `current`-Symlink atomar auf das neue Release umstellen. Alte Releases
+4. Vor dem Umschalten den Datenbankzustand im neuen Release prüfen: `php bin/towerdns towerdns:schema:status` und `php bin/towerdns towerdns:schema:validate`. Bei ausstehenden Migrationen zuerst ein geprüftes Backup erstellen und anschließend `php bin/towerdns towerdns:schema:migrate --confirm` ausführen. `schema:validate` endet bei fehlenden Migrationsmetadaten, ausstehenden Migrationen oder Validierungsfehlern mit einem Fehlerstatus.
+5. Den `current`-Symlink atomar auf das neue Release umstellen. Alte Releases
    und ihre Manifeste für laufende Requests erhalten. Falls OPcache ohne
    Timestamp-Prüfung betrieben wird, PHP-FPM beim Umschalten kontrolliert neu
    laden. Rollback erfolgt über dieselbe atomare Umschaltung. Auf einem System
@@ -214,6 +215,11 @@ ein laufender alter Request weiterhin sein eigenes Manifest liest.
    ln -s /srv/towerdns/releases/NEUES_RELEASE /srv/towerdns/current.next
    mv -Tf /srv/towerdns/current.next /srv/towerdns/current
    ```
+
+6. Nach dem Umschalten `/ready` prüfen. `ready=true` bestätigt Datenbank,
+   Konfiguration, vollständiges Schema und den aktivierten Frontend-Release.
+   `degraded` bleibt bei fehlenden optionalen Kompressionsvarianten bereit;
+   ein anderer Zustand ist vor der Freigabe zu untersuchen.
 
 Gehashte Assets werden mit `Cache-Control: public, max-age=31536000, immutable`
 und `Vary: Accept-Encoding` ausgeliefert. Dynamische HTML-Seiten tragen
