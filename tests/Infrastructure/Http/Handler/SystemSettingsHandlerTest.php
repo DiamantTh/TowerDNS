@@ -227,4 +227,53 @@ final class SystemSettingsHandlerTest extends TestCase
             @unlink($configPath);
         }
     }
+
+    public function testPostRejectsInvalidOperationalConfigurationValues(): void
+    {
+        $cases = [
+            [['app_hostname' => 'tower.example.test/path'], 'settings.error.invalid-hostname'],
+            [['app_hostname' => 'tower.example.test', 'smtp_encryption' => 'plain'], 'settings.error.invalid-smtp-encryption'],
+            [['app_hostname' => 'tower.example.test', 'mailer_enabled' => '1', 'smtp_host' => 'smtp.example.test/path'], 'settings.error.invalid-smtp-host'],
+            [['app_hostname' => 'tower.example.test', 'mailer_from_address' => 'not-an-email'], 'settings.error.invalid-sender-address'],
+        ];
+
+        foreach ($cases as [$field, $error]) {
+            $configPath = tempnam(sys_get_temp_dir(), 'towerdns-settings-invalid-');
+            self::assertNotFalse($configPath);
+            file_put_contents($configPath, "[app]\ndomain = \"old.example.test\"\n");
+
+            try {
+                $renderer = $this->createMock(TemplateRendererInterface::class);
+                $renderer->expects(self::once())->method('render')->with('app::settings', self::callback(
+                    static fn(array $data): bool => $data['error'] === $error,
+                ))->willReturn('<html></html>');
+                $translator = $this->createMock(TranslatorInterface::class);
+                $translator->method('translate')->willReturnArgument(0);
+                $guard = $this->createMock(CsrfGuardInterface::class);
+                $guard->method('generateToken')->willReturn('csrf');
+                $guard->method('validateToken')->with('csrf')->willReturn(true);
+                $settings = $this->createMock(SystemSettingsRepositoryInterface::class);
+                $settings->method('get')->willReturnCallback(static fn(string $_key, mixed $default): mixed => $default);
+                $settings->expects(self::never())->method('setMany');
+                $handler = new SystemSettingsHandler(
+                    $renderer,
+                    new AuthorizationService(),
+                    $settings,
+                    new ThemeManager(dirname(__DIR__, 4)),
+                    $configPath,
+                    new AtomicConfigurationWriter(),
+                    $translator,
+                );
+                $user    = new User('admin', 'admin@example.test', [new Role('settings', 'Settings', [Permission::SYSTEM_SETTINGS_MANAGE])]);
+                $request = new ServerRequest()->withMethod('POST')->withParsedBody([
+                    'csrf_token' => 'csrf', 'app_name' => 'TowerDNS', 'theme_name' => 'default', ...$field,
+                ])->withAttribute(User::class, $user)->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
+
+                self::assertSame(422, $handler->handle($request)->getStatusCode());
+                self::assertStringContainsString('old.example.test', (string) file_get_contents($configPath));
+            } finally {
+                @unlink($configPath);
+            }
+        }
+    }
 }

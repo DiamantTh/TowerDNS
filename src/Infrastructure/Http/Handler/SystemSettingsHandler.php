@@ -180,11 +180,17 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         if ($appName === '') {
             $appName = 'TowerDNS';
         }
+        if (mb_strlen($appName) > 100) {
+            return $this->invalidSettingsResponse($user, $csrfToken, 'settings.error.invalid-application-name');
+        }
         if ($hostname === '') {
             $hostname = 'localhost';
         }
         if ($themeName === '') {
             $themeName = 'default';
+        }
+        if (!$this->isValidHostname($hostname)) {
+            return $this->invalidSettingsResponse($user, $csrfToken, 'settings.error.invalid-hostname');
         }
         if (!$this->themes->has($themeName)) {
             $fields               = $this->readFields();
@@ -200,6 +206,18 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
                 ]),
                 422,
             );
+        }
+        if (!in_array($smtpEncryption, ['starttls', 'tls', 'none'], true)) {
+            return $this->invalidSettingsResponse($user, $csrfToken, 'settings.error.invalid-smtp-encryption');
+        }
+        if ($mailerEnabled && $smtpHost === '') {
+            return $this->invalidMailerResponse($user, $csrfToken);
+        }
+        if ($mailerEnabled && !$this->isValidHostname($smtpHost)) {
+            return $this->invalidSettingsResponse($user, $csrfToken, 'settings.error.invalid-smtp-host');
+        }
+        if ($mailerFrom !== '' && filter_var($mailerFrom, FILTER_VALIDATE_EMAIL) === false) {
+            return $this->invalidSettingsResponse($user, $csrfToken, 'settings.error.invalid-sender-address');
         }
         $conf = $this->loadConfig();
 
@@ -416,15 +434,36 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
 
     private function invalidMailerResponse(User $user, string $csrfToken): ResponseInterface
     {
+        return $this->invalidSettingsResponse($user, $csrfToken, 'settings.error.smtp-host-required');
+    }
+
+    private function invalidSettingsResponse(User $user, string $csrfToken, string $message): ResponseInterface
+    {
         return new HtmlResponse(
             $this->renderer->render('app::settings', [
                 'user'      => $user,
                 'fields'    => $this->readFields(),
-                'error'     => $this->translator->translate('settings.error.smtp-host-required'),
+                'error'     => $this->translator->translate($message),
                 'success'   => null,
                 'csrfToken' => $csrfToken,
             ]),
             422,
         );
+    }
+
+    private function isValidHostname(string $hostname): bool
+    {
+        if ($hostname === '' || strlen($hostname) > 253) {
+            return false;
+        }
+
+        if (filter_var($hostname, FILTER_VALIDATE_IP) !== false) {
+            return true;
+        }
+
+        return preg_match(
+            '/\A(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/iD',
+            $hostname,
+        ) === 1;
     }
 }

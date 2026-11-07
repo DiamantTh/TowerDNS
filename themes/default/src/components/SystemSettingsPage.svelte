@@ -50,8 +50,8 @@
                 <p class="muted">{t('settings.application.description')}</p>
             </header>
             <div class="form-grid">
-                <Field label={t('settings.application-name')}><input class="input" name="app_name" value={fields.app_name ?? ''}></Field>
-                <Field label={t('settings.hostname')}><input class="input" name="app_hostname" value={fields.app_hostname ?? ''}></Field>
+                <Field label={t('settings.application-name')}><input class="input" name="app_name" maxlength="100" value={fields.app_name ?? ''}></Field>
+                <Field label={t('settings.hostname')}><input class="input" name="app_hostname" maxlength="253" value={fields.app_hostname ?? ''}><p class="help">{t('settings.hostname.help')}</p></Field>
                 <Field label={t('field.theme')}><select class="input" name="theme_name">{#each themes as theme}<option value={theme.name} selected={theme.name === fields.theme_name}>{theme.displayName}</option>{/each}</select></Field>
             </div>
             <div class="settings-options">
@@ -89,7 +89,7 @@
                     <div class="settings-option"><input id="settings-mailer-enabled" type="checkbox" name="mailer_enabled" value="1" checked={fields.mailer_enabled}><label for="settings-mailer-enabled">{t('settings.mailer.enabled')}</label></div>
                 </div>
                 <div class="form-grid">
-                    <Field label={t('settings.smtp-host')}><input class="input" name="smtp_host" value={fields.smtp_host ?? ''} autocomplete="off"></Field>
+                    <Field label={t('settings.smtp-host')}><input class="input" name="smtp_host" maxlength="253" value={fields.smtp_host ?? ''} autocomplete="off"></Field>
                     <Field label={t('settings.smtp-port')}><input class="input" type="number" min="1" max="65535" name="smtp_port" value={fields.smtp_port ?? 587}></Field>
                     <Field label={t('settings.smtp-encryption')}><select class="input" name="smtp_encryption"><option value="starttls" selected={fields.smtp_encryption === 'starttls'}>STARTTLS</option><option value="tls" selected={fields.smtp_encryption === 'tls'}>TLS</option><option value="none" selected={fields.smtp_encryption === 'none'}>{t('settings.smtp-encryption.none')}</option></select></Field>
                     <Field label={t('settings.smtp-username')}><input class="input" name="smtp_username" value={fields.smtp_username ?? ''} autocomplete="username"></Field>
