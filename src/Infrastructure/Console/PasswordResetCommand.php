@@ -154,9 +154,9 @@ final class PasswordResetCommand extends Command
      */
     private function buildConnection(array $dbConf): Connection
     {
-        $db     = (array) ($dbConf['database'] ?? []);
-        $driver = (string) ($db['driver'] ?? 'pdo_sqlite');
-        $envPassword = getenv('DB_PASSWORD');
+        $db              = (array) ($dbConf['database'] ?? []);
+        $driver          = (string) ($db['driver'] ?? 'pdo_sqlite');
+        $envPassword     = getenv('DB_PASSWORD');
         $defaultPassword = is_string($envPassword) ? $envPassword : '';
 
         if ($driver === 'pdo_sqlite') {

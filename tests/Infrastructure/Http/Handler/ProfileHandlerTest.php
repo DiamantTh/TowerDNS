@@ -34,9 +34,9 @@ final class ProfileHandlerTest extends TestCase
         $renderer = $this->createMock(TemplateRendererInterface::class);
         $renderer->expects(self::once())->method('render')->with('app::profile/index', self::callback(
             static fn(array $data): bool => $data['success'] === 'Profil aktualisiert.'
-                && $data['webAuthnKeyCount'] === 0
-                && $data['totpCount'] === 0
-                && $data['passwordConfigured'] === false
+                && $data['webAuthnKeyCount']                 === 0
+                && $data['totpCount']                        === 0
+                && $data['passwordConfigured']               === false
         ))->willReturn('<html></html>');
         $users           = $this->createMock(UserRepositoryInterface::class);
         $totpCredentials = $this->createMock(TotpCredentialRepositoryInterface::class);

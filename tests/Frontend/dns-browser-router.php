@@ -1,4 +1,5 @@
 <?php
+
 // SPDX-License-Identifier: AGPL-3.0-or-later
 declare(strict_types=1);
 $root = dirname(__DIR__, 2);
@@ -8,11 +9,14 @@ if (is_string($path) && preg_match('~^/assets/([A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.
     require $root . '/httpdocs/asset.php';
     return;
 }
-if ($path !== '/fixture') { http_response_code(404); return; }
+if ($path !== '/fixture') {
+    http_response_code(404);
+    return;
+}
 require $root . '/vendor/autoload.php';
-$page = $_GET['page'] ?? 'zones/list';
+$page     = $_GET['page'] ?? 'zones/list';
 $readonly = isset($_GET['readonly']);
-$props = ['csrfToken' => 'fixture', 'user' => new TowerDNS\Domain\Auth\User('fixture', 'fixture@example.test'), 'accountId' => 42];
+$props    = ['csrfToken' => 'fixture', 'user' => new TowerDNS\Domain\Auth\User('fixture', 'fixture@example.test'), 'accountId' => 42];
 if ($page === 'zones/list') {
     $props += ['canManageProviders' => !$readonly, 'providerFilter' => (string) ($_GET['provider'] ?? ''), 'canCreateZones' => !$readonly, 'canDeleteZones' => !$readonly, 'providerAccounts' => [], 'providerNames' => ['1' => 'Provider A', '2' => 'Provider B'], 'managedZones' => [
         ['id' => 3, 'canonicalName' => 'z.example', 'providerAccountId' => 2],
@@ -31,4 +35,4 @@ $translator = new Laminas\I18n\Translator\Translator();
 $translator->setLocale(($_GET['locale'] ?? '') === 'de-DE' ? 'de-DE' : 'en-GB');
 $translator->addTranslationFilePattern('phpArray', $root . '/translations', '%s.php');
 header('Cache-Control: no-store');
-echo (new TowerDNS\Infrastructure\Ui\SvelteRenderer(new TowerDNS\Application\Theme\ThemeManager($root), translator: $translator))->render('app::' . $page, $props);
+echo new TowerDNS\Infrastructure\Ui\SvelteRenderer(new TowerDNS\Application\Theme\ThemeManager($root), translator: $translator)->render('app::' . $page, $props);

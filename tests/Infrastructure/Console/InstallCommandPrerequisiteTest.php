@@ -21,8 +21,8 @@ final class InstallCommandPrerequisiteTest extends TestCase
 
     public function testSqliteInstallerConnectionEnforcesForeignKeys(): void
     {
-        $command = new InstallCommand(sys_get_temp_dir());
-        $method = new \ReflectionMethod($command, 'buildConnection');
+        $command    = new InstallCommand(sys_get_temp_dir());
+        $method     = new \ReflectionMethod($command, 'buildConnection');
         $connection = $method->invoke($command, ['driver' => 'pdo_sqlite', 'path' => ':memory:']);
 
         self::assertSame(1, (int) $connection->fetchOne('PRAGMA foreign_keys'));

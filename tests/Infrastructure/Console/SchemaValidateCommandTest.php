@@ -15,9 +15,9 @@ final class SchemaValidateCommandTest extends TestCase
 {
     public function testValidationExitCodesReflectSchemaAndMigrationState(): void
     {
-        $db = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $db      = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
         $manager = new SchemaMigrationManager($db, sys_get_temp_dir() . '/towerdns-validation-' . bin2hex(random_bytes(8)) . '.lock');
-        $schema = new SchemaManager($db);
+        $schema  = new SchemaManager($db);
         $schema->createTablesIfNotExist();
         $schema->seedSystemRoles();
         $schema->seedSystemSettingsDefaults();
