@@ -1,12 +1,14 @@
 <script lang="ts">
     import DataTable from './DataTable.svelte';
     import Field from './Field.svelte';
+    import Notice from './Notice.svelte';
     import { useI18n } from '../lib/i18n';
 
     type JsonObject = Record<string, unknown>;
     type Migration = { version: string; description: string };
     type SchemaStatus = {
         metadataInitialized: boolean;
+        canBaseline: boolean;
         schemaCurrent: boolean;
         pending: Migration[];
         schemaIssues: string[];
@@ -39,19 +41,32 @@
             <dt>{t('schema.pending')}</dt>
             <dd>{data.status?.pending.length ?? 0}</dd>
         </dl>
+        {#if data.status?.dataIssues.length}
+            <Notice kind="danger" text={t('schema.state.data-invalid')} />
+        {:else if data.status?.schemaIssues.length}
+            <Notice kind="danger" text={t('schema.state.invalid')} />
+        {:else if data.status?.canBaseline}
+            <Notice kind="info" text={t('schema.state.baseline')} />
+        {:else if data.status?.pending.length}
+            <Notice kind="warning" text={t('schema.state.pending')} />
+        {:else if data.status?.metadataInitialized && data.status?.schemaCurrent}
+            <Notice kind="success" text={t('schema.state.current')} />
+        {:else}
+            <Notice kind="danger" text={t('schema.state.metadata-missing')} />
+        {/if}
         {#if data.status && (data.status.schemaIssues.length || data.status.dataIssues.length)}
             <h2 class="subtitle">{t('schema.validation-issues')}</h2>
             <ul>{#each data.status.schemaIssues as issue}<li>{issue}</li>{/each}</ul>
             <ul>{#each data.status.dataIssues as issue}<li>{issue}</li>{/each}</ul>
         {/if}
-        {#if data.status?.pending.length}
+        {#if data.status?.pending.length || data.status?.canBaseline}
             <h2 class="subtitle">{t('schema.pending')}</h2>
             <ul>{#each data.status.pending as migration}<li><code>{migration.version}</code> — {migration.description}</li>{/each}</ul>
-            <form method="post" class="mt-4">
+            <form method="post" class="mt-4" onsubmit={(event) => { if (!confirm(t('schema.confirm-apply'))) event.preventDefault(); }}>
                 <input type="hidden" name="csrf_token" value={csrf}>
                 <button class="button is-primary">{t('schema.apply')}</button>
             </form>
-        {:else}
+        {:else if data.status?.metadataInitialized && data.status?.schemaCurrent && !(data.status?.schemaIssues.length || data.status?.dataIssues.length)}
             <p class="empty">{t('schema.no-pending')}</p>
         {/if}
     </section>
