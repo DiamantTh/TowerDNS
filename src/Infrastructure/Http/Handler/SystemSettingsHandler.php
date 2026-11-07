@@ -23,6 +23,7 @@ use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\AuthorizationService;
 use TowerDNS\Application\Theme\ThemeManager;
+use TowerDNS\Application\Validation\HostnameValidator;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
@@ -189,7 +190,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         if ($themeName === '') {
             $themeName = 'default';
         }
-        if (!$this->isValidHostname($hostname)) {
+        if (!HostnameValidator::isValid($hostname)) {
             return $this->invalidSettingsResponse($user, $csrfToken, 'settings.error.invalid-hostname');
         }
         if (!$this->themes->has($themeName)) {
@@ -213,7 +214,7 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
         if ($mailerEnabled && $smtpHost === '') {
             return $this->invalidMailerResponse($user, $csrfToken);
         }
-        if ($mailerEnabled && !$this->isValidHostname($smtpHost)) {
+        if ($mailerEnabled && !HostnameValidator::isValid($smtpHost)) {
             return $this->invalidSettingsResponse($user, $csrfToken, 'settings.error.invalid-smtp-host');
         }
         if ($mailerFrom !== '' && filter_var($mailerFrom, FILTER_VALIDATE_EMAIL) === false) {
@@ -449,21 +450,5 @@ final readonly class SystemSettingsHandler implements RequestHandlerInterface
             ]),
             422,
         );
-    }
-
-    private function isValidHostname(string $hostname): bool
-    {
-        if ($hostname === '' || strlen($hostname) > 253) {
-            return false;
-        }
-
-        if (filter_var($hostname, FILTER_VALIDATE_IP) !== false) {
-            return true;
-        }
-
-        return preg_match(
-            '/\A(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/iD',
-            $hostname,
-        ) === 1;
     }
 }

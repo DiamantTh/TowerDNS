@@ -17,6 +17,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Theme\ThemeManager;
+use TowerDNS\Application\Validation\HostnameValidator;
 use TowerDNS\Infrastructure\Configuration\AtomicConfigurationWriter;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
@@ -155,14 +156,24 @@ final class InstallCommand extends Command
 
         $themeNames     = array_keys(new ThemeManager($this->projectRoot)->getAvailable());
         $appNameInput   = $io->ask('Application name', 'TowerDNS');
-        $appDomainInput = $io->ask('Domain (optional, e.g. tower.example.com)', '');
-        $appName        = is_string($appNameInput) ? $appNameInput : 'TowerDNS';
-        $appDomain      = is_string($appDomainInput) ? $appDomainInput : '';
-        $appTheme       = (string) $io->choice('Theme', $themeNames, 'default');
-        $appHttps       = $io->confirm('Force HTTPS (HSTS)', true);
-        $sentryDsn      = $io->ask('Sentry DSN (leave blank to skip)', '')                                           ?? '';
-        $mailerDsn      = $io->ask('Mailer DSN (e.g. smtp://user:pass@smtp.example.com:587, or blank for none)', '') ?? '';
-        $mailerFrom     = '';
+        $appDomainInput = $io->ask(
+            'Domain (optional, e.g. tower.example.com)',
+            '',
+            static function (?string $value): string {
+                $hostname = trim($value ?? '');
+                if ($hostname !== '' && !HostnameValidator::isValid($hostname)) {
+                    throw new \RuntimeException('Domain must be a valid hostname or IP address.');
+                }
+                return $hostname;
+            },
+        );
+        $appName    = is_string($appNameInput) ? $appNameInput : 'TowerDNS';
+        $appDomain  = is_string($appDomainInput) ? $appDomainInput : '';
+        $appTheme   = (string) $io->choice('Theme', $themeNames, 'default');
+        $appHttps   = $io->confirm('Force HTTPS (HSTS)', true);
+        $sentryDsn  = $io->ask('Sentry DSN (leave blank to skip)', '')                                           ?? '';
+        $mailerDsn  = $io->ask('Mailer DSN (e.g. smtp://user:pass@smtp.example.com:587, or blank for none)', '') ?? '';
+        $mailerFrom = '';
         if ($mailerDsn !== '') {
             $defaultSender   = $appDomain !== '' ? $appDomain : 'localhost';
             $mailerFromInput = $io->ask('Mail from address', 'noreply@' . $defaultSender);

@@ -226,7 +226,7 @@ function processStep2(): array
     if ($appName === '' || mb_strlen($appName) > 100) {
         $errors[] = t('step2.app_name_invalid');
     }
-    if ($appDomain !== '' && !preg_match('/^[a-zA-Z0-9.\-]{1,253}$/', $appDomain)) {
+    if ($appDomain !== '' && !TowerDNS\Application\Validation\HostnameValidator::isValid($appDomain)) {
         $errors[] = t('step2.app_domain_invalid');
     }
 
