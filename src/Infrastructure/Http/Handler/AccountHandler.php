@@ -202,8 +202,9 @@ final readonly class AccountHandler implements RequestHandlerInterface
                 'account'   => $account,
                 'csrfToken' => $csrfToken,
                 ...$actions,
-                'usage' => $account->isActive ? $this->resourceUsage->forUser($user, $accountId) : null,
-                'error' => is_string($flashError) ? $flashError : null,
+                'canReadAudit' => $this->permissions->authorizeAccount($user, \TowerDNS\Domain\Auth\Permission::AUDIT_READ, $accountId),
+                'usage'        => $account->isActive ? $this->resourceUsage->forUser($user, $accountId) : null,
+                'error'        => is_string($flashError) ? $flashError : null,
             ]),
         );
     }

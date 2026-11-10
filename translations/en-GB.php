@@ -6,6 +6,23 @@
 declare(strict_types=1);
 
 return [
+    'audit.title' => 'Audit log',
+    'audit.action' => 'Event',
+    'audit.target_type' => 'Target type',
+    'audit.target_id' => 'Target ID',
+    'audit.actor_user_id' => 'Actor',
+    'audit.effective_user_id' => 'Effective user',
+    'audit.account_id' => 'Account',
+    'audit.zone_id' => 'Zone',
+    'audit.provider_account_id' => 'Provider connection',
+    'audit.impersonation_session_id' => 'Admin switch session',
+    'audit.since' => 'Since',
+    'audit.filter' => 'Filter',
+    'audit.details' => 'Details',
+    'audit.empty' => 'No matching events.',
+    'audit.pagination' => 'Audit pages',
+    'audit.previous' => 'Previous',
+    'audit.next' => 'Next',
     'account.workflow-provider-needed' => 'This account has no provider connection yet. Create a connection first.',
     'account.workflow-zone-needed' => 'This account has no zones yet. Check provider connections, then create a zone.',
     'provider.workflow-next' => 'The connection was saved. Manage zones next.',

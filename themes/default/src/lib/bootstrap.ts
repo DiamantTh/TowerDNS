@@ -89,6 +89,7 @@ export type DnsRrsetBootstrap = {
 
 /** Props assembled by RecordListHandler for the account-scoped RRset view. */
 export type DnsRecordsPageProps = {
+    canReadAudit?: boolean;
     accountId: number;
     managedZoneId: number;
     managedZoneName: string;

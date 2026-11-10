@@ -6,6 +6,23 @@
 declare(strict_types=1);
 
 return [
+    'audit.title' => 'Audit-Protokoll',
+    'audit.action' => 'Ereignis',
+    'audit.target_type' => 'Zieltyp',
+    'audit.target_id' => 'Ziel-ID',
+    'audit.actor_user_id' => 'Ausführender Benutzer',
+    'audit.effective_user_id' => 'Effektiver Benutzer',
+    'audit.account_id' => 'Account',
+    'audit.zone_id' => 'Zone',
+    'audit.provider_account_id' => 'Provider-Verbindung',
+    'audit.impersonation_session_id' => 'Admin-Switch-Sitzung',
+    'audit.since' => 'Seit',
+    'audit.filter' => 'Filtern',
+    'audit.details' => 'Details',
+    'audit.empty' => 'Keine passenden Ereignisse.',
+    'audit.pagination' => 'Audit-Seiten',
+    'audit.previous' => 'Zurück',
+    'audit.next' => 'Weiter',
     'account.workflow-provider-needed' => 'Dieser Account hat noch keine Provider-Verbindung. Zuerst eine Verbindung anlegen.',
     'account.workflow-zone-needed' => 'Dieser Account hat noch keine Zonen. Provider-Verbindungen prüfen und anschließend eine Zone anlegen.',
     'provider.workflow-next' => 'Die Verbindung wurde gespeichert. Als Nächstes Zonen verwalten.',

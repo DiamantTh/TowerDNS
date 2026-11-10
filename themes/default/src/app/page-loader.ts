@@ -1,4 +1,5 @@
 export async function loadPage(page: string) {
+    if (page === 'audit/index') return (await import('./pages/AuditPage.svelte')).default;
     if (page === 'account/recovery' || page === 'security/step_up') return (await import('./pages/SecurityPages.svelte')).default;
     if (page === 'dashboard') return (await import('./pages/DashboardPages.svelte')).default;
     if (['zones/list', 'zones/records', 'zones/record_edit', 'zones/dnssec'].includes(page)) return (await import('./pages/DnsPages.svelte')).default;

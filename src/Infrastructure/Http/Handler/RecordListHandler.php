@@ -14,6 +14,8 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
+use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 
 /** Lists RRsets for one local managed zone.
@@ -21,7 +23,7 @@ use TowerDNS\Domain\Auth\User;
  */
 final readonly class RecordListHandler implements RequestHandlerInterface
 {
-    public function __construct(private TemplateRendererInterface $renderer, private ManagedZoneDNSService $dns, private TranslatorInterface $translator) {}
+    public function __construct(private TemplateRendererInterface $renderer, private ManagedZoneDNSService $dns, private TranslatorInterface $translator, private PermissionService $permissions) {}
 
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -65,6 +67,6 @@ final readonly class RecordListHandler implements RequestHandlerInterface
     /** @param list<array{ownerName: string, type: array{presentation: string, code: int, isKnown: bool}, ttl: int, rdata: list<string>}> $rrsets */
     private function render(User $user, int $accountId, int $zoneId, array $rrsets, string $csrfToken, ?string $error, int $status, ?string $success = null, ?string $managedZoneName = null, bool $canReplaceRrsets = false, bool $canDeleteRrsets = false): HtmlResponse
     {
-        return new HtmlResponse($this->renderer->render('app::zones/records', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'managedZoneName' => $managedZoneName, 'rrsets' => $rrsets, 'recordTypes' => \TowerDNS\Domain\DNS\DNSRecordType::knownPresentations(), 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success, 'canReplaceRrsets' => $canReplaceRrsets, 'canDeleteRrsets' => $canDeleteRrsets]), $status);
+        return new HtmlResponse($this->renderer->render('app::zones/records', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'managedZoneName' => $managedZoneName, 'rrsets' => $rrsets, 'recordTypes' => \TowerDNS\Domain\DNS\DNSRecordType::knownPresentations(), 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success, 'canReplaceRrsets' => $canReplaceRrsets, 'canDeleteRrsets' => $canDeleteRrsets, 'canReadAudit' => $status === 200 && $this->permissions->authorizeManagedZone($user, Permission::AUDIT_READ, $accountId, $zoneId)]), $status);
     }
 }

@@ -21,6 +21,13 @@ interface AuditLogRepositoryInterface
     public function append(AuditLogEntry $entry, string $createdAt): void;
 
     /**
+     * Lists display-safe event headers for an authorized account, optionally restricted to one zone.
+     * @param array<string, string> $filters
+     * @return list<array<string, mixed>>
+     */
+    public function pageForAccount(int $accountId, ?string $zoneId, array $filters, int $offset): array;
+
+    /**
      * Returns the most recent N entries for an account (descending order).
      * @return list<array<string, mixed>>
      */

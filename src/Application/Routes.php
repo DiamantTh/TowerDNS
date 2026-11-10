@@ -17,6 +17,7 @@ use TowerDNS\Infrastructure\Http\Handler\ActiveAccountHandler;
 use TowerDNS\Infrastructure\Http\Handler\AdminOverviewHandler;
 use TowerDNS\Infrastructure\Http\Handler\AdminSwitchHandler;
 use TowerDNS\Infrastructure\Http\Handler\ApiKeyHandler;
+use TowerDNS\Infrastructure\Http\Handler\AuditLogHandler;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\DNSSECHandler;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
@@ -160,6 +161,8 @@ final class Routes
 
         // ── Accounts (multi-tenant) ───────────────────────────────────────────
         $app->get('/accounts', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.list');
+        $app->get('/accounts/{account}/audit', [RequireAuthMiddleware::class, AuditLogHandler::class], 'accounts.audit');
+        $app->get('/accounts/{account}/zones/{zone}/audit', [RequireAuthMiddleware::class, AuditLogHandler::class], 'zones.audit');
         $app->post('/accounts', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.create');
         $app->post('/accounts/active', [RequireAuthMiddleware::class, ActiveAccountHandler::class], 'accounts.active');
         $app->get('/accounts/{id}', [RequireAuthMiddleware::class, AccountHandler::class], 'accounts.edit.form');

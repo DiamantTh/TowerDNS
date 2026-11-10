@@ -42,6 +42,31 @@ final readonly class DbalAuditLogRepository implements AuditLogRepositoryInterfa
     }
 
     #[\Override]
+    public function pageForAccount(int $accountId, ?string $zoneId, array $filters, int $offset): array
+    {
+        $where  = ['account_id = ?'];
+        $params = [$accountId];
+        if ($zoneId !== null) {
+            $where[]  = 'zone_id = ?';
+            $params[] = $zoneId;
+        }
+        foreach (['action' => 'action', 'target' => 'target_type', 'provider' => 'provider_account_id', 'since' => 'created_at'] as $filter => $column) {
+            if (isset($filters[$filter])) {
+                $where[]  = $column . ($filter === 'since' ? ' >= ?' : ' = ?');
+                $params[] = $filters[$filter];
+            }
+        }
+        return $this->connection->fetchAllAssociative(
+            'SELECT id, action, target_type, target_id, account_id, zone_id, provider_account_id,
+                    actor_user_id, effective_user_id, impersonation_session_id, created_at
+             FROM audit_logs WHERE ' . implode(' AND ', $where) . '
+             ORDER BY created_at DESC, id DESC LIMIT 51 OFFSET ?',
+            [...$params, max(0, $offset)],
+            [...array_fill(0, count($params), \Doctrine\DBAL\ParameterType::STRING), \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+    }
+
+    #[\Override]
     public function findByAccount(int $accountId, int $limit = 100, int $offset = 0): array
     {
         return $this->connection->fetchAllAssociative(

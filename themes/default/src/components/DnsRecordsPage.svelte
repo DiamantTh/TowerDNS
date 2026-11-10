@@ -42,6 +42,7 @@
         <span>{t('dns.account', { id: page.accountId })}</span>
         <a class="button" href={url('accountZones', { account: page.accountId })}>← {t('navigation.zones')}</a>
         <a class="button" href={url('dnssec', { account: page.accountId, zone: page.managedZoneId })}>DNSSEC</a>
+        {#if page.canReadAudit}<a class="button" href={`/accounts/${page.accountId}/zones/${page.managedZoneId}/audit`}>{t('audit.title')}</a>{/if}
     </nav>
 
     <section class="box">
