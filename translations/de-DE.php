@@ -6,6 +6,8 @@
 declare(strict_types=1);
 
 return [
+    'dashboard.no-active-account' => 'Kein Account ausgewählt. Öffne die Account-Übersicht, um einen Account auszuwählen.',
+    'dashboard.add-passkey'       => 'Passkey oder Sicherheitsschlüssel hinzufügen',
     'invitations.incoming' => 'Eingehende Einladungen',
     'invitations.expires'  => 'Läuft ab',
     'invitations.empty'    => 'Du hast keine offenen Account-Einladungen.',
