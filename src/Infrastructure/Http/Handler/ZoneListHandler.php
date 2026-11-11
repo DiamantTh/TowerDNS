@@ -74,7 +74,8 @@ final readonly class ZoneListHandler implements RequestHandlerInterface
             );
         }
 
-        $filter     = (string) (filter_var($request->getQueryParams()['provider'] ?? '', FILTER_VALIDATE_INT) ?: '');
+        $providerId = filter_var($request->getQueryParams()['provider'] ?? '', FILTER_VALIDATE_INT);
+        $filter     = $providerId === false || $providerId === 0 ? '' : (string) $providerId;
         $filter     = isset($providerNames[(int) $filter]) ? $filter : '';
         $flashError = $request->getQueryParams()['error'] ?? null;
 

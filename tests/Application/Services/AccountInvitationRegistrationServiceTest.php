@@ -115,6 +115,8 @@ final class AccountInvitationRegistrationServiceTest extends TestCase
         $incoming      = $invitationRepo->create($secondAccount, $invitee, $recipient->id, TeamRole::VIEWER, $ownerId, str_repeat('c', 64), '2026-09-19 12:00:00', '2999-01-01 00:00:00');
         $declined      = $invitationRepo->create($thirdAccount, $invitee, $recipient->id, TeamRole::VIEWER, $ownerId, str_repeat('d', 64), '2026-09-19 12:00:00', '2999-01-01 00:00:00');
         $invitationRepo->create($thirdAccount, $invitee, $recipient->id, TeamRole::VIEWER, $ownerId, str_repeat('e', 64), '2026-09-19 12:00:00', '2026-09-20 00:00:00');
+        $revoked = $invitationRepo->create($thirdAccount, $invitee, $recipient->id, TeamRole::VIEWER, $ownerId, str_repeat('f', 64), '2026-09-19 12:00:00', '2999-01-01 00:00:00');
+        self::assertTrue($invitationRepo->revoke($revoked, '2026-09-19 13:00:00', '2026-09-19 13:00:00'));
         $owner = new \TowerDNS\Domain\Auth\User($ownerId, $ownerEmail);
         self::assertSame([], $invitationService->incomingPage($owner, 0));
         $rows = $invitationService->incomingPage($recipient, 0);
@@ -124,8 +126,26 @@ final class AccountInvitationRegistrationServiceTest extends TestCase
             $invitationService->respond($owner, $incoming, true);
             self::fail('Another recipient must not accept the invitation.');
         } catch (\DomainException) {
-            self::assertTrue($invitationRepo->findById($incoming)?->isPending());
+            self::assertNull($this->connection->fetchOne('SELECT accepted_at FROM account_invitations WHERE id = ?', [$incoming]));
         }
+        $accounts->deactivate($secondAccount);
+        self::assertCount(1, $invitationService->incomingPage($recipient, 0));
+        try {
+            $invitationService->respond($recipient, $incoming, true);
+            self::fail('An inactive account must not receive new members.');
+        } catch (\DomainException) {
+            self::assertNull($this->connection->fetchOne('SELECT accepted_at FROM account_invitations WHERE id = ?', [$incoming]));
+        }
+        $accounts->activate($secondAccount);
+        $limits->save(new \TowerDNS\Domain\Account\AccountResourceLimits($secondAccount, null, 1, null));
+        try {
+            $invitationService->respond($recipient, $incoming, true);
+            self::fail('The member limit must be checked before creating a membership.');
+        } catch (\TowerDNS\Application\Exception\ResourceLimitExceededException) {
+            self::assertNull($this->connection->fetchOne('SELECT accepted_at FROM account_invitations WHERE id = ?', [$incoming]));
+            self::assertSame(1, (int) $this->connection->fetchOne('SELECT COUNT(*) FROM account_memberships WHERE account_id = ?', [$secondAccount]));
+        }
+        $limits->save(new \TowerDNS\Domain\Account\AccountResourceLimits($secondAccount, null, null, null));
         $invitationService->respond($recipient, $incoming, true);
         $invitationService->respond($recipient, $declined, false);
         self::assertSame([], $invitationService->incomingPage($recipient, 0));

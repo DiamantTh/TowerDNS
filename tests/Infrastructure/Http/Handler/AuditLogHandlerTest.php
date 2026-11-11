@@ -19,6 +19,7 @@ use TowerDNS\Infrastructure\Http\Handler\AuditLogHandler;
 use TowerDNS\Infrastructure\Persistence\DbalAuditLogRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 
+/** @psalm-api PHPUnit discovers this test at runtime. */
 final class AuditLogHandlerTest extends TestCase
 {
     public function testAccountAuditIsScopedPaginatedAndOmitsRawPayloads(): void
@@ -29,6 +30,7 @@ final class AuditLogHandlerTest extends TestCase
             $db->insert('audit_logs', [
                 'id'                       => $id,
                 'account_id'               => $id === 52 ? 2 : 1,
+                'zone_id'                  => $id >= 51 ? '2' : '3',
                 'action'                   => 'record.update',
                 'target_type'              => 'record',
                 'actor_user_id'            => 'operator',
@@ -47,10 +49,10 @@ final class AuditLogHandlerTest extends TestCase
         $renderer    = $this->createMock(TemplateRendererInterface::class);
         $renderer->expects(self::once())->method('render')->with('app::audit/index', self::callback(static function (array $payload): bool {
             $event = $payload['events'][0];
-            return count($payload['events'])   === 50 && $payload['hasMore']
-                                                      && (int) $event['id']          === 51 && $event['actor_user_id'] === 'operator'
-                                                      && $event['effective_user_id'] === 'effective' && $event['impersonation_session_id'] === 'switch-id'
-                                                      && !array_key_exists('metadata_json', $event);
+            return count($payload['events'])                                                                               === 50 && $payload['hasMore']
+                                                                                            && (int) $event['id']          === 51 && $event['actor_user_id'] === 'operator'
+                                                                                            && $event['effective_user_id'] === 'effective' && $event['impersonation_session_id'] === 'switch-id'
+                                                                                            && !array_key_exists('metadata_json', $event);
         }))->willReturn('<html></html>');
         $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('translate')->willReturnArgument(0);
@@ -63,5 +65,8 @@ final class AuditLogHandlerTest extends TestCase
         self::assertSame(403, $handler->handle($request->withAttribute('zone', '2'))->getStatusCode());
         self::assertSame([], $repository->pageForAccount(1, null, ['action' => 'other'], 0));
         self::assertCount(1, $repository->pageForAccount(1, null, [], 50));
+        $zoneEvents = $repository->pageForAccount(1, '2', [], 0);
+        self::assertCount(1, $zoneEvents);
+        self::assertSame(51, (int) $zoneEvents[0]['id']);
     }
 }

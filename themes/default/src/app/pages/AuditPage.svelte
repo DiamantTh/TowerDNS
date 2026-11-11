@@ -36,7 +36,7 @@
                 <dl>
                     {#each columns.slice(2) as column}
                         {#if event[column] != null}
-                            <dt>{t('audit.' + column)}</dt>
+                            <dt>{t(`audit.${column}`)}</dt>
                             <dd class="audit-value">{event[column]}</dd>
                         {/if}
                     {/each}

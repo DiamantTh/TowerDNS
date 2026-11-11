@@ -21,6 +21,7 @@ use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\ActiveAccountContext;
 use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 
+/** @psalm-api PHPUnit discovers this test at runtime. */
 final class DashboardHandlerTest extends TestCase
 {
     public function testOnlyAuthorizedAccountContextQueriesAndRendersLocalCounts(): void

@@ -60,7 +60,7 @@
  {#each (p.invitations ?? []) as invitation (invitation.id)}
   <article class="box">
    <h2 class="subtitle">{invitation.account_name}</h2>
-   <p>{t('profile.role.' + invitation.role)} · {t('account.invitation.status.pending')}</p>
+   <p>{t(`profile.role.${invitation.role}`)} · {t('account.invitation.status.pending')}</p>
    <p>{t('invitations.expires')}: <time>{invitation.expires_at}</time></p>
    <form method="post" action="/profile/invitations" class="buttons">
     <input type="hidden" name="csrf_token" value={csrf}>

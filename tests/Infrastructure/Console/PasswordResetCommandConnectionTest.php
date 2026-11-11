@@ -7,6 +7,7 @@ namespace TowerDNS\Tests\Infrastructure\Console;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Infrastructure\Console\PasswordResetCommand;
 
+/** @psalm-api PHPUnit discovers this test at runtime. */
 final class PasswordResetCommandConnectionTest extends TestCase
 {
     public function testSqliteConnectionUsesRuntimeForeignKeyConfiguration(): void

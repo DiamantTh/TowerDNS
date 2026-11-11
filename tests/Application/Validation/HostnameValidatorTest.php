@@ -7,6 +7,7 @@ namespace TowerDNS\Tests\Application\Validation;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Validation\HostnameValidator;
 
+/** @psalm-api PHPUnit discovers this test at runtime. */
 final class HostnameValidatorTest extends TestCase
 {
     public function testAcceptsHostsUsedByLocalAndNetworkInstallations(): void

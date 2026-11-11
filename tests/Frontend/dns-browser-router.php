@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 declare(strict_types=1);
 $root = dirname(__DIR__, 2);
-$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$path = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
 if (is_string($path) && preg_match('~^/assets/([A-Za-z0-9_-]+-[A-Za-z0-9_-]{8}\.(?:js|css))$~', $path, $match)) {
     $_GET['asset'] = $match[1];
     require $root . '/httpdocs/asset.php';
@@ -14,11 +14,12 @@ if ($path !== '/fixture') {
     return;
 }
 require $root . '/vendor/autoload.php';
-$page     = $_GET['page'] ?? 'zones/list';
-$readonly = isset($_GET['readonly']);
-$props    = ['csrfToken' => 'fixture', 'user' => new TowerDNS\Domain\Auth\User('fixture', 'fixture@example.test'), 'accountId' => 42];
+$requestedPage = $_GET['page'] ?? null;
+$page          = is_string($requestedPage) ? $requestedPage : 'zones/list';
+$readonly      = isset($_GET['readonly']);
+$props         = ['csrfToken' => 'fixture', 'user' => new TowerDNS\Domain\Auth\User('fixture', 'fixture@example.test'), 'accountId' => 42];
 if ($page === 'zones/list') {
-    $props += ['canManageProviders' => !$readonly, 'providerFilter' => (string) ($_GET['provider'] ?? ''), 'canCreateZones' => !$readonly, 'canDeleteZones' => !$readonly, 'providerAccounts' => [], 'providerNames' => ['1' => 'Provider A', '2' => 'Provider B'], 'managedZones' => [
+    $props += ['canManageProviders' => !$readonly, 'providerFilter' => is_string($_GET['provider'] ?? null) ? $_GET['provider'] : '', 'canCreateZones' => !$readonly, 'canDeleteZones' => !$readonly, 'providerAccounts' => [], 'providerNames' => ['1' => 'Provider A', '2' => 'Provider B'], 'managedZones' => [
         ['id' => 3, 'canonicalName' => 'z.example', 'providerAccountId' => 2],
         ['id' => 2, 'canonicalName' => 'a.example', 'providerAccountId' => 1],
         ['id' => 1, 'canonicalName' => 'b.example', 'providerAccountId' => 2],

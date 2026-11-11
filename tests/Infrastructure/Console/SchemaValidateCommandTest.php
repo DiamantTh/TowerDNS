@@ -11,6 +11,7 @@ use TowerDNS\Infrastructure\Console\SchemaValidateCommand;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 
+/** @psalm-api PHPUnit discovers this test at runtime. */
 final class SchemaValidateCommandTest extends TestCase
 {
     public function testValidationExitCodesReflectSchemaAndMigrationState(): void

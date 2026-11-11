@@ -7,7 +7,6 @@ declare(strict_types=1);
 
 namespace TowerDNS\Tests\Application\Services;
 
-use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
 use TowerDNS\Application\Contracts\ProviderCredentialSchemaInterface;
@@ -115,7 +114,6 @@ final class ProviderAccountManagementServiceTest extends TestCase
         );
     }
 
-    /** @return MockObject&AccountRepositoryInterface */
     public function testViewerCanReadConnectionsWithoutCredentialWriteActions(): void
     {
         $providers = $this->createMock(ProviderAccountRepositoryInterface::class);
@@ -144,8 +142,8 @@ final class ProviderAccountManagementServiceTest extends TestCase
                     default   => $service->deactivate($user, 42, 9),
                 };
                 self::fail('Viewer mutation must be denied.');
-            } catch (\TowerDNS\Application\Exception\AuthorizationException) {
-                self::assertTrue(true);
+            } catch (\TowerDNS\Application\Exception\AuthorizationException $error) {
+                self::assertStringContainsString(\TowerDNS\Domain\Auth\Permission::PROVIDER_CREDENTIALS_MANAGE->value, $error->getMessage());
             }
         }
     }
