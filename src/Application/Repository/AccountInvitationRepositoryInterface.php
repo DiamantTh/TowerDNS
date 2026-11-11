@@ -9,6 +9,9 @@ use TowerDNS\Domain\Account\TeamRole;
 
 interface AccountInvitationRepositoryInterface
 {
+    /** @return list<array<string, mixed>> */
+    public function incomingPage(string $email, string $now, int $offset): array;
+
     public function create(
         int $accountId,
         string $email,

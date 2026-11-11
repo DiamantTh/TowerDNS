@@ -22,6 +22,7 @@ use TowerDNS\Infrastructure\Http\Handler\DashboardHandler;
 use TowerDNS\Infrastructure\Http\Handler\DNSSECHandler;
 use TowerDNS\Infrastructure\Http\Handler\ForgotPasswordHandler;
 use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
+use TowerDNS\Infrastructure\Http\Handler\IncomingInvitationsHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
 use TowerDNS\Infrastructure\Http\Handler\PasswordChangeHandler;
@@ -106,6 +107,8 @@ final class Routes
 
         // ── Profile ───────────────────────────────────────────────────────────
         $app->get('/profile', [RequireAuthMiddleware::class, ProfileHandler::class], 'profile');
+        $app->get('/profile/invitations', [RequireAuthMiddleware::class, IncomingInvitationsHandler::class], 'profile.invitations');
+        $app->post('/profile/invitations', [RequireAuthMiddleware::class, IncomingInvitationsHandler::class], 'profile.invitations.respond');
         $app->post('/profile', [RequireAuthMiddleware::class, ProfileHandler::class], 'profile.update');
         $app->get('/profile/totp', [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.form');
         $app->post('/profile/totp', [RequireAuthMiddleware::class, TotpSetupHandler::class], 'profile.totp.submit');

@@ -64,6 +64,20 @@ final readonly class DbalAccountInvitationRepository implements AccountInvitatio
     }
 
     #[\Override]
+    public function incomingPage(string $email, string $now, int $offset): array
+    {
+        return $this->connection->fetchAllAssociative(
+            'SELECT i.id, i.role, i.expires_at, a.name AS account_name
+             FROM account_invitations i JOIN accounts a ON a.id = i.account_id
+             WHERE i.email = ? AND a.is_active = ? AND a.account_type = ?
+             AND i.accepted_at IS NULL AND i.declined_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > ?
+             ORDER BY i.created_at DESC, i.id DESC LIMIT 51 OFFSET ?',
+            [strtolower(trim($email)), true, 'organization', $now, $offset],
+            [\Doctrine\DBAL\ParameterType::STRING, \Doctrine\DBAL\ParameterType::BOOLEAN, \Doctrine\DBAL\ParameterType::STRING, \Doctrine\DBAL\ParameterType::STRING, \Doctrine\DBAL\ParameterType::INTEGER],
+        );
+    }
+
+    #[\Override]
     public function findPendingForUser(string $email, string $now): array
     {
         $rows = $this->connection->fetchAllAssociative(

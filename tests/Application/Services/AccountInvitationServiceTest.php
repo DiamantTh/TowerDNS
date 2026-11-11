@@ -54,11 +54,14 @@ final class AccountInvitationServiceTest extends TestCase
         $rbac        = new RbacPermissionChecker();
         $permissions = new PermissionService($accounts, $this->createMock(\TowerDNS\Application\Repository\ZoneMembershipRepositoryInterface::class), new AuthorizationService($rbac), $rbac);
 
-        new AccountInvitationService($invitations, $accounts, $users, $permissions, $limits, new MailService('null://null', 'noreply@example.test', 'TowerDNS'))->create(new User('owner', 'owner@example.test'), 42, 'target@example.test', TeamRole::VIEWER);
+        $transactions = $this->createStub(\TowerDNS\Application\Contracts\TransactionRunnerInterface::class);
+        $transactions->method('run')->willReturnCallback(static fn(callable $operation): mixed => $operation());
+        $service = new AccountInvitationService($invitations, $accounts, $users, $permissions, $limits, new MailService('null://null', 'noreply@example.test', 'TowerDNS'), $transactions);
+        $service->create(new User('owner', 'owner@example.test'), 42, 'target@example.test', TeamRole::VIEWER);
 
         self::assertIsString($capturedHash);
         self::assertSame(64, strlen($capturedHash));
         self::assertTrue(ctype_xdigit($capturedHash));
-        new AccountInvitationService($invitations, $accounts, $users, $permissions, $limits, new MailService('null://null', 'noreply@example.test', 'TowerDNS'))->accept($target, str_repeat('b', 64));
+        $service->accept($target, str_repeat('b', 64));
     }
 }

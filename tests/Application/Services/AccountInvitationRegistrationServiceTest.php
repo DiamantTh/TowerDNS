@@ -84,6 +84,7 @@ final class AccountInvitationRegistrationServiceTest extends TestCase
             $permissions,
             $resourceLimits,
             new \TowerDNS\Application\Services\MailService('null://null', 'noreply@example.test', 'TowerDNS'),
+            $runner,
         );
         $registration = new AccountInvitationRegistrationService(
             $invitationService,
@@ -107,6 +108,35 @@ final class AccountInvitationRegistrationServiceTest extends TestCase
         $storedHash = (string) $this->connection->fetchOne('SELECT password_hash FROM users WHERE id = ?', [$result->userId]);
         self::assertNotSame('a-secure-invited-password', $storedHash);
         self::assertTrue(password_verify('a-secure-invited-password', $storedHash));
+
+        $recipient     = new \TowerDNS\Domain\Auth\User($result->userId, $invitee);
+        $secondAccount = $accounts->create('Second', 'second', $ownerId, '2026-09-19 12:00:00');
+        $thirdAccount  = $accounts->create('Third', 'third', $ownerId, '2026-09-19 12:00:00');
+        $incoming      = $invitationRepo->create($secondAccount, $invitee, $recipient->id, TeamRole::VIEWER, $ownerId, str_repeat('c', 64), '2026-09-19 12:00:00', '2999-01-01 00:00:00');
+        $declined      = $invitationRepo->create($thirdAccount, $invitee, $recipient->id, TeamRole::VIEWER, $ownerId, str_repeat('d', 64), '2026-09-19 12:00:00', '2999-01-01 00:00:00');
+        $invitationRepo->create($thirdAccount, $invitee, $recipient->id, TeamRole::VIEWER, $ownerId, str_repeat('e', 64), '2026-09-19 12:00:00', '2026-09-20 00:00:00');
+        $owner = new \TowerDNS\Domain\Auth\User($ownerId, $ownerEmail);
+        self::assertSame([], $invitationService->incomingPage($owner, 0));
+        $rows = $invitationService->incomingPage($recipient, 0);
+        self::assertCount(2, $rows);
+        self::assertSame(['id', 'role', 'expires_at', 'account_name'], array_keys($rows[0]));
+        try {
+            $invitationService->respond($owner, $incoming, true);
+            self::fail('Another recipient must not accept the invitation.');
+        } catch (\DomainException) {
+            self::assertTrue($invitationRepo->findById($incoming)?->isPending());
+        }
+        $invitationService->respond($recipient, $incoming, true);
+        $invitationService->respond($recipient, $declined, false);
+        self::assertSame([], $invitationService->incomingPage($recipient, 0));
+        self::assertSame(TeamRole::VIEWER, $accounts->findMembership($secondAccount, $recipient->id)?->role);
+        self::assertNull($accounts->findMembership($thirdAccount, $recipient->id));
+        try {
+            $invitationService->respond($recipient, $incoming, true);
+            self::fail('An accepted invitation must not be reusable.');
+        } catch (\DomainException) {
+            self::assertCount(2, $accounts->findMemberships($secondAccount));
+        }
 
         $this->expectException(\DomainException::class);
         $registration->register($rawToken, $invitee, 'a-secure-invited-password');

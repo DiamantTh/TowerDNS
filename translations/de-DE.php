@@ -6,6 +6,9 @@
 declare(strict_types=1);
 
 return [
+    'invitations.incoming' => 'Eingehende Einladungen',
+    'invitations.expires'  => 'Läuft ab',
+    'invitations.empty'    => 'Du hast keine offenen Account-Einladungen.',
     'audit.title' => 'Audit-Protokoll',
     'audit.action' => 'Ereignis',
     'audit.target_type' => 'Zieltyp',

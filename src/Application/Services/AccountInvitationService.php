@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Services;
 
+use TowerDNS\Application\Contracts\TransactionRunnerInterface;
 use TowerDNS\Application\DTO\AccountInvitationCreationResult;
 use TowerDNS\Application\Repository\AccountInvitationRepositoryInterface;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
@@ -25,6 +26,7 @@ final readonly class AccountInvitationService
         private PermissionService $permissions,
         private ResourceLimitService $resourceLimits,
         private MailService $mail,
+        private TransactionRunnerInterface $transactions,
     ) {}
 
     public function create(User $actor, int $accountId, string $email, TeamRole $role, string $baseUrl = ''): AccountInvitationCreationResult
@@ -85,25 +87,39 @@ final readonly class AccountInvitationService
 
     public function accept(User $user, string $rawToken): void
     {
-        $invitation = $this->pendingByToken($rawToken);
-        if (strtolower($user->email) !== $invitation->email) {
-            throw new \DomainException('This invitation belongs to another email address.');
-        }
-        $account = $this->accountForInvitation($invitation->accountId);
-        if ($this->accounts->findMembership($account->id, $user->id) instanceof \TowerDNS\Domain\Account\AccountMembership) {
-            throw new \DomainException('User is already a member of this account.');
-        }
-        $this->resourceLimits->assertCanAddMember($account->id);
-        $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
-        try {
-            $this->accounts->addMembership($account->id, $user->id, $invitation->role, $now, $invitation->invitedBy);
-        } catch (\Throwable $error) {
-            throw new \DomainException('Invitation could not be accepted.', 0, $error);
-        }
-        if (!$this->invitations->consume($invitation->id, $user->id, $now, $now)) {
-            $this->accounts->removeMembership($account->id, $user->id);
+        $this->acceptInvitation($user, $this->pendingByToken($rawToken));
+    }
+
+    public function respond(User $user, int $id, bool $accept): AccountInvitation
+    {
+        $invitation = $this->invitations->findById($id);
+        if (!$invitation instanceof AccountInvitation || !$invitation->isPending()) {
             throw new \DomainException('Invitation is no longer available.');
         }
+        if ($accept) {
+            $this->acceptInvitation($user, $invitation);
+        } else {
+            $this->declineInvitation($user, $invitation);
+        }
+        return $invitation;
+    }
+
+    private function acceptInvitation(User $user, AccountInvitation $invitation): void
+    {
+        $this->assertRecipient($user, $invitation);
+        $this->transactions->run(function () use ($user, $invitation): void {
+            $this->accounts->lockForInvitationAcceptance($invitation->accountId);
+            $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
+            if (!$this->invitations->consume($invitation->id, $user->id, $now, $now)) {
+                throw new \DomainException('Invitation is no longer available.');
+            }
+            $account = $this->accountForInvitation($invitation->accountId);
+            if ($this->accounts->findMembership($account->id, $user->id) instanceof \TowerDNS\Domain\Account\AccountMembership) {
+                throw new \DomainException('User is already a member of this account.');
+            }
+            $this->resourceLimits->assertCanAddMember($account->id);
+            $this->accounts->addMembership($account->id, $user->id, $invitation->role, $now, $invitation->invitedBy);
+        });
     }
 
     public function preview(string $rawToken): AccountInvitation
@@ -113,13 +129,23 @@ final readonly class AccountInvitationService
 
     public function decline(User $user, string $rawToken): void
     {
-        $invitation = $this->pendingByToken($rawToken);
-        if (strtolower($user->email) !== $invitation->email) {
-            throw new \DomainException('This invitation belongs to another email address.');
-        }
+        $this->declineInvitation($user, $this->pendingByToken($rawToken));
+    }
+
+    private function declineInvitation(User $user, AccountInvitation $invitation): void
+    {
+        $this->assertRecipient($user, $invitation);
+        $this->accountForInvitation($invitation->accountId);
         $now = new \DateTimeImmutable()->format('Y-m-d H:i:s');
         if (!$this->invitations->decline($invitation->id, $now, $now)) {
             throw new \DomainException('Invitation is no longer available.');
+        }
+    }
+
+    private function assertRecipient(User $user, AccountInvitation $invitation): void
+    {
+        if (!$user->active || strtolower($user->email) !== $invitation->email) {
+            throw new \DomainException('This invitation belongs to another email address.');
         }
     }
 
@@ -153,6 +179,12 @@ final readonly class AccountInvitationService
     public function listForUser(User $user): array
     {
         return $this->invitations->findPendingForUser($user->email, new \DateTimeImmutable()->format('Y-m-d H:i:s'));
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function incomingPage(User $user, int $offset): array
+    {
+        return $user->active ? $this->invitations->incomingPage($user->email, new \DateTimeImmutable()->format('Y-m-d H:i:s'), $offset) : [];
     }
 
     private function pendingByToken(string $rawToken): AccountInvitation

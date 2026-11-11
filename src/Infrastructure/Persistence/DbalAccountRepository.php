@@ -20,6 +20,12 @@ final readonly class DbalAccountRepository implements AccountRepositoryInterface
     public function __construct(private Connection $connection) {}
 
     #[\Override]
+    public function lockForInvitationAcceptance(int $accountId): void
+    {
+        $this->connection->executeStatement('UPDATE accounts SET is_active = is_active WHERE id = ?', [$accountId]);
+    }
+
+    #[\Override]
     public function findById(int $id): ?Account
     {
         $row = $this->connection->fetchAssociative(

@@ -15,6 +15,9 @@ use TowerDNS\Domain\Account\TeamRole;
 /** @psalm-api Application persistence port; concrete services use it through DI. */
 interface AccountRepositoryInterface
 {
+    /** Serializes invitation acceptance for the account within a transaction. */
+    public function lockForInvitationAcceptance(int $accountId): void;
+
     public function findById(int $id): ?Account;
 
     public function findBySlug(string $slug): ?Account;

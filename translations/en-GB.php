@@ -6,6 +6,9 @@
 declare(strict_types=1);
 
 return [
+    'invitations.incoming' => 'Incoming invitations',
+    'invitations.expires'  => 'Expires',
+    'invitations.empty'    => 'You have no pending account invitations.',
     'audit.title' => 'Audit log',
     'audit.action' => 'Event',
     'audit.target_type' => 'Target type',
