@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Module\DeSEC;
 
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\DNSSECProfile;
@@ -27,7 +29,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * exposes status reads, but does not expose imperative DNSSEC actions.
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class DeSECProvider extends AbstractDNSProvider
+final class DeSECProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
 {
     public const string ID = 'desec';
 
@@ -40,6 +42,13 @@ final class DeSECProvider extends AbstractDNSProvider
     public function id(): string
     {
         return self::ID;
+    }
+
+    #[\Override]
+    public function verifyConnection(): ProviderConnectionVerification
+    {
+        $this->client->verifyConnection();
+        return ProviderConnectionVerification::success();
     }
 
     #[\Override]

@@ -16,6 +16,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\Record;
@@ -28,6 +29,16 @@ final class ClouDNSProviderTest extends TestCase
 {
     /** @var array<int, array<int|string, mixed>> */
     private array $history = [];
+
+    public function testConnectionVerificationUsesSingleReadOnlyZonePage(): void
+    {
+        $provider = $this->provider([['status' => 'Success']]);
+        self::assertInstanceOf(ConnectionVerifiableProviderInterface::class, $provider);
+        self::assertTrue($provider->verifyConnection()->succeeded());
+        self::assertSame('POST', $this->history[0]['request']->getMethod());
+        self::assertStringContainsString('/dns/list-zones.json', (string) $this->history[0]['request']->getUri());
+        self::assertStringContainsString('rows-per-page=1', (string) $this->history[0]['request']->getBody());
+    }
 
     /** @param list<array<int|string, mixed>> $responses */
     private function provider(array $responses): ClouDNSProvider

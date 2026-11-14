@@ -10,15 +10,19 @@ namespace TowerDNS\Application\Exception;
 /** Stable application failure for tenant provider-account operations. */
 final class ProviderAccountException extends \RuntimeException
 {
-    public const string ACCOUNT_NOT_FOUND         = 'account_not_found';
-    public const string PROVIDER_NOT_FOUND        = 'provider_not_found';
-    public const string PROVIDER_NOT_USER_MANAGED = 'provider_not_user_managed';
-    public const string NAME_REQUIRED             = 'name_required';
-    public const string CREDENTIALS_INCOMPLETE    = 'credentials_incomplete';
-    public const string INSECURE_ENDPOINT         = 'insecure_endpoint';
+    public const string ACCOUNT_NOT_FOUND              = 'account_not_found';
+    public const string PROVIDER_NOT_FOUND             = 'provider_not_found';
+    public const string PROVIDER_NOT_USER_MANAGED      = 'provider_not_user_managed';
+    public const string NAME_REQUIRED                  = 'name_required';
+    public const string CREDENTIALS_INCOMPLETE         = 'credentials_incomplete';
+    public const string INSECURE_ENDPOINT              = 'insecure_endpoint';
+    public const string CONNECTION_VERIFICATION_FAILED = 'connection_verification_failed';
 
-    public function __construct(public readonly string $reason)
-    {
+    public function __construct(
+        public readonly string $reason,
+        public readonly ?string $verificationCategory = null,
+        public readonly ?string $providerType = null,
+    ) {
         parent::__construct('Provider account operation failed: ' . $reason);
     }
 }

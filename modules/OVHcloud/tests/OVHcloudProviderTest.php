@@ -14,6 +14,7 @@ use GuzzleHttp\Psr7\Request;
 use Ovh\Api;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSSECState;
@@ -24,6 +25,16 @@ use TowerDNS\Module\OVHcloud\OVHcloudProvider;
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class OVHcloudProviderTest extends TestCase
 {
+    public function testConnectionVerificationUsesReadOnlyDnsZoneIndex(): void
+    {
+        $api = $this->createMock(Api::class);
+        $api->expects(self::once())->method('get')->with('/domain/zone', null, null, true)->willReturn(['example.org']);
+        $provider = new OVHcloudProvider($api);
+
+        self::assertInstanceOf(ConnectionVerifiableProviderInterface::class, $provider);
+        self::assertTrue($provider->verifyConnection()->succeeded());
+    }
+
     public function testListsZonesUsingDnsDeploymentStatusOnly(): void
     {
         $api = $this->createMock(Api::class);

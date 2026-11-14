@@ -17,6 +17,7 @@ use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
 use TowerDNS\Module\netcup\NetcupAPIClient;
@@ -28,6 +29,21 @@ final class NetcupProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */
     private array $requests = [];
+
+    public function testConnectionVerificationReadsOnlyConfiguredZoneAndClosesSession(): void
+    {
+        $provider = $this->provider([
+            $this->response(['apisessionid' => 'session-fixture']),
+            $this->response(['domainname' => 'example.org']),
+            $this->response([]),
+        ]);
+        self::assertInstanceOf(ConnectionVerifiableProviderInterface::class, $provider);
+        self::assertTrue($provider->verifyConnection()->succeeded());
+        self::assertSame(['login', 'infoDnsZone', 'logout'], array_map(
+            static fn(RequestInterface $request): string => (string) json_decode((string) $request->getBody(), true)['action'],
+            $this->requests,
+        ));
+    }
 
     public function testDoesNotAdvertiseZoneUpdatesWithoutAnUpdateOperation(): void
     {

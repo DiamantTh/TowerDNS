@@ -50,6 +50,8 @@ try:
   assert 'Example Account' in execute('return document.querySelector("main").textContent')
   assert execute('return [...document.querySelectorAll(".provider-card")][1].querySelectorAll("form").length') == 0
   assert execute('return document.querySelector(".provider-card a").getAttribute("href")') == '/zones.php?account=42&provider=9'
+  assert execute('return document.querySelector("form[action=\\"/accounts/42/providers\\"] input[name=request_id]").value.length') == 64
+  assert execute('return document.querySelector(".provider-card form[action$=test]") !== null')
   assert 'secret-ciphertext-fixture' not in execute('return document.documentElement.innerHTML')
   assert execute('return document.querySelector("textarea[name=zones]").value') == 'example.test'
   execute('document.querySelector("input[name=token]").value="temporary-secret"; const s=document.querySelector("select[name=provider_type]"); s.value="second"; s.dispatchEvent(new Event("change",{bubbles:true}));')

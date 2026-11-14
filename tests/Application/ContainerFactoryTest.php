@@ -14,7 +14,9 @@ use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use TowerDNS\Application\ContainerFactory;
+use TowerDNS\Application\Contracts\ProviderConnectionVerifierInterface;
 use TowerDNS\Application\Repository\SystemSettingsRepositoryInterface;
+use TowerDNS\Application\Services\ProviderAccountManagementService;
 use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 
@@ -29,6 +31,27 @@ final class ContainerFactoryTest extends TestCase
         self::assertInstanceOf(ResponseFactoryInterface::class, $container->get(ResponseFactoryInterface::class));
         self::assertInstanceOf(ImplicitHeadMiddleware::class, $container->get(ImplicitHeadMiddleware::class));
         self::assertInstanceOf(ImplicitOptionsMiddleware::class, $container->get(ImplicitOptionsMiddleware::class));
+    }
+
+    public function testProviderManagementResolvesTheSeparateVerificationCapability(): void
+    {
+        $root = sys_get_temp_dir() . '/towerdns-provider-container-' . bin2hex(random_bytes(8));
+        mkdir($root . '/configs', 0o700, true);
+        symlink(dirname(__DIR__, 2) . '/modules', $root . '/modules');
+        file_put_contents($root . '/configs/database.toml', "[database]\ndriver = \"pdo_sqlite\"\n\n[database.sqlite]\npath = \":memory:\"\n");
+        file_put_contents($root . '/configs/config.local.toml', "[security]\nencryption_key = \"" . base64_encode(random_bytes(32)) . "\"\n");
+
+        try {
+            $container = ContainerFactory::create($root);
+            self::assertInstanceOf(ProviderConnectionVerifierInterface::class, $container->get(ProviderConnectionVerifierInterface::class));
+            self::assertInstanceOf(ProviderAccountManagementService::class, $container->get(ProviderAccountManagementService::class));
+        } finally {
+            unlink($root . '/configs/config.local.toml');
+            unlink($root . '/configs/database.toml');
+            rmdir($root . '/configs');
+            unlink($root . '/modules');
+            rmdir($root);
+        }
     }
 
     public function testWebAuthnUsesTheDomainWrittenByBothInstallers(): void

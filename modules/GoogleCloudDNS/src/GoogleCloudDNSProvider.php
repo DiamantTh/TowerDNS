@@ -16,6 +16,8 @@ use Google\Service\Dns\ResourceRecordSetsListResponse;
 use Google\Service\Exception as GoogleException;
 use GuzzleHttp\Exception\GuzzleException;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSRecordType;
@@ -30,7 +32,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 /** Google Cloud DNS managed zones. This adapter does not access Cloud Domains.
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class GoogleCloudDNSProvider extends AbstractDNSProvider
+final class GoogleCloudDNSProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
 {
     public const string ID = 'google-cloud-dns';
 
@@ -46,6 +48,17 @@ final class GoogleCloudDNSProvider extends AbstractDNSProvider
     public function id(): string
     {
         return self::ID;
+    }
+
+    #[\Override]
+    public function verifyConnection(): ProviderConnectionVerification
+    {
+        try {
+            $this->client->managedZones->listManagedZones($this->projectId, ['maxResults' => 1]);
+        } catch (GoogleException | GuzzleException $exception) {
+            throw new ProviderRequestException('Google Cloud DNS connection verification failed (HTTP ' . $exception->getCode() . ').', $exception->getCode(), $exception);
+        }
+        return ProviderConnectionVerification::success();
     }
 
     #[\Override]
@@ -251,10 +264,10 @@ final class GoogleCloudDNSProvider extends AbstractDNSProvider
     private function normalizeDnssecState(string $state): DNSSECState
     {
         return match ($state) {
-            'on'           => DNSSECState::SIGNED,
-            'off'          => DNSSECState::UNSIGNED,
-            'transfer'     => DNSSECState::PARTIAL,
-            default        => DNSSECState::UNKNOWN,
+            'on'       => DNSSECState::SIGNED,
+            'off'      => DNSSECState::UNSIGNED,
+            'transfer' => DNSSECState::PARTIAL,
+            default    => DNSSECState::UNKNOWN,
         };
     }
 
@@ -367,7 +380,7 @@ final class GoogleCloudDNSProvider extends AbstractDNSProvider
 
     private function dnssecState(mixed $configuration): string
     {
-        if (!$configuration instanceof \Google\Service\Dns\ManagedZoneDnsSecConfig) {
+        if (!$configuration instanceof Dns\ManagedZoneDnsSecConfig) {
             return 'unknown';
         }
 

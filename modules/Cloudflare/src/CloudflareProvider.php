@@ -9,7 +9,9 @@ namespace TowerDNS\Module\Cloudflare;
 
 use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
 use TowerDNS\Application\Contracts\ProviderConstraintProfile;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSSECProfile;
@@ -36,7 +38,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * @see https://developers.cloudflare.com/api/
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class CloudflareProvider extends AbstractDNSProvider
+final class CloudflareProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
 {
     public const string ID = 'cloudflare';
 
@@ -52,6 +54,13 @@ final class CloudflareProvider extends AbstractDNSProvider
     public function id(): string
     {
         return self::ID;
+    }
+
+    #[\Override]
+    public function verifyConnection(): ProviderConnectionVerification
+    {
+        $this->client->verifyToken();
+        return ProviderConnectionVerification::success();
     }
 
     #[\Override]

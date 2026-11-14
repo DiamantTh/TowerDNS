@@ -13,6 +13,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Module\DeSEC\DeSECApiClient;
@@ -24,6 +25,16 @@ final class DeSECProviderTest extends TestCase
 {
     /** @var list<RequestInterface> */
     private array $requests = [];
+
+    public function testConnectionVerificationMakesOneBoundedReadOnlyRequest(): void
+    {
+        $provider = $this->provider([$this->json([])]);
+        self::assertInstanceOf(ConnectionVerifiableProviderInterface::class, $provider);
+        self::assertTrue($provider->verifyConnection()->succeeded());
+        self::assertSame('GET', $this->requests[0]->getMethod());
+        self::assertSame('/', $this->requests[0]->getUri()->getPath());
+        self::assertSame('limit=1', $this->requests[0]->getUri()->getQuery());
+    }
 
     public function testReplaceRrsetPatchesAndReadsBack(): void
     {

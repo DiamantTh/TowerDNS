@@ -64,6 +64,12 @@ final class ClouDNSAPIClient
         return $data;
     }
 
+    /** Authenticate with one bounded read-only request (never follow pages). */
+    public function verifyConnection(): void
+    {
+        $this->request('list-zones', ['page' => 1, 'rows-per-page' => 1]);
+    }
+
     /** @param array<string, scalar> $parameters
      *  @return list<array<string, mixed>>
      */

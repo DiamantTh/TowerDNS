@@ -10,6 +10,8 @@ namespace TowerDNS\Module\OVHcloud;
 use GuzzleHttp\Exception\GuzzleException;
 use Ovh\Api;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSSECProfile;
@@ -27,7 +29,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * @see https://github.com/ovh/php-ovh
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class OVHcloudProvider extends AbstractDNSProvider
+final class OVHcloudProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
 {
     public const string ID = 'ovh';
 
@@ -40,6 +42,16 @@ final class OVHcloudProvider extends AbstractDNSProvider
     public function id(): string
     {
         return self::ID;
+    }
+
+    #[\Override]
+    public function verifyConnection(): ProviderConnectionVerification
+    {
+        // This read-only zone index requires DNS read scope and does not fetch records.
+        $zones = $this->request('GET', '/domain/zone');
+        return is_array($zones) && array_is_list($zones)
+            ? ProviderConnectionVerification::success()
+            : ProviderConnectionVerification::failure(ProviderConnectionVerification::MALFORMED_RESPONSE);
     }
 
     #[\Override]

@@ -39,10 +39,10 @@ final readonly class NetcupAPIClient
         }
 
         $this->http = $http ?? new Client([
-            'base_uri'    => $endpoint,
-            'timeout'     => 30,
+            'base_uri'        => $endpoint,
+            'timeout'         => 30,
             'connect_timeout' => 5,
-            'http_errors' => false,
+            'http_errors'     => false,
         ]);
     }
 
@@ -64,6 +64,12 @@ final readonly class NetcupAPIClient
     public function getDnsZone(string $zoneName): array
     {
         return $this->authenticatedRequest('infoDnsZone', ['domainname' => $zoneName]);
+    }
+
+    /** A read-only zone-info call authenticates and validates DNS read access. */
+    public function verifyConnection(string $zoneName): void
+    {
+        $this->getDnsZone($zoneName);
     }
 
     /** @param list<array<string, mixed>> $records */

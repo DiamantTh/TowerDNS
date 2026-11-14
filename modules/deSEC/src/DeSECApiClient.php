@@ -45,10 +45,10 @@ final readonly class DeSECApiClient
         }
 
         $this->http = $http ?? new Client([
-            'base_uri'    => $baseUrl,
-            'timeout'     => 30,
+            'base_uri'        => $baseUrl,
+            'timeout'         => 30,
             'connect_timeout' => 5,
-            'http_errors' => true,
+            'http_errors'     => true,
         ]);
 
         $this->headers = [
@@ -64,6 +64,19 @@ final readonly class DeSECApiClient
     public function listDomains(): array
     {
         return $this->fetchAllPages('');
+    }
+
+    /** Validate the token with a bounded, read-only domain request. */
+    public function verifyConnection(): void
+    {
+        $response = $this->performHttpRequest('GET', '', [
+            RequestOptions::HEADERS => $this->headers,
+            RequestOptions::QUERY   => ['limit' => 1],
+        ]);
+        $decoded = json_decode((string) $response->getBody(), true);
+        if (!is_array($decoded) || ($decoded !== [] && !array_is_list($decoded))) {
+            throw new DeSECApiException('deSEC returned an unexpected verification response.');
+        }
     }
 
     /**

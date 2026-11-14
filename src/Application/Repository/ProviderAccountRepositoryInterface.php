@@ -23,6 +23,8 @@ interface ProviderAccountRepositoryInterface
 
     public function countByAccountId(int $accountId): int;
 
+    public function findByCreationRequestId(int $accountId, string $requestId): ?ProviderAccount;
+
     /**
      * Returns active provider accounts of a specific type for an account.
      * Used by ProviderFactory when resolving the provider for a zone.
@@ -40,7 +42,9 @@ interface ProviderAccountRepositoryInterface
         string $name,
         string $credentialsEncrypted,
         int    $credentialsVersion,
+        string $verifiedAt,
         string $createdAt,
+        ?string $requestId = null,
     ): int;
 
     /**
@@ -52,11 +56,14 @@ interface ProviderAccountRepositoryInterface
         int    $accountId,
         string $credentialsEncrypted,
         int    $credentialsVersion,
+        string $verifiedAt,
     ): void;
 
     public function touchLastUsed(int $id, string $timestamp): void;
 
     public function touchLastTested(int $id, string $timestamp): void;
+
+    public function recordVerification(int $id, int $accountId, string $timestamp, ?string $errorCategory): void;
 
     public function deactivate(int $id, int $accountId): void;
 

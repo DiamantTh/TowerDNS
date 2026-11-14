@@ -45,6 +45,16 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
     }
 
     #[\Override]
+    public function findByCreationRequestId(int $accountId, string $requestId): ?ProviderAccount
+    {
+        $row = $this->connection->fetchAssociative(
+            'SELECT * FROM provider_accounts WHERE account_id = ? AND creation_request_id = ?',
+            [$accountId, $requestId],
+        );
+        return $row !== false ? $this->hydrate($row) : null;
+    }
+
+    #[\Override]
     public function findActiveByAccountAndType(int $accountId, string $providerType): array
     {
         $rows = $this->connection->fetchAllAssociative(
@@ -63,7 +73,9 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         string $name,
         string $credentialsEncrypted,
         int    $credentialsVersion,
+        string $verifiedAt,
         string $createdAt,
+        ?string $requestId = null,
     ): int {
         $this->connection->insert('provider_accounts', [
             'account_id'            => $accountId,
@@ -73,6 +85,9 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
             'credentials_version'   => $credentialsVersion,
             'is_active'             => true,
             'created_at'            => $createdAt,
+            'last_tested_at'        => $verifiedAt,
+            'last_success_at'       => $verifiedAt,
+            'creation_request_id'   => $requestId,
         ]);
         return (int) $this->connection->lastInsertId();
     }
@@ -83,12 +98,16 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
         int    $accountId,
         string $credentialsEncrypted,
         int    $credentialsVersion,
+        string $verifiedAt,
     ): void {
         $this->connection->update(
             'provider_accounts',
             [
                 'credentials_encrypted' => $credentialsEncrypted,
                 'credentials_version'   => $credentialsVersion,
+                'last_tested_at'        => $verifiedAt,
+                'last_success_at'       => $verifiedAt,
+                'last_error_category'   => null,
             ],
             ['id' => $id, 'account_id' => $accountId]
         );
@@ -112,6 +131,16 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
             ['last_tested_at' => $timestamp],
             ['id' => $id]
         );
+    }
+
+    #[\Override]
+    public function recordVerification(int $id, int $accountId, string $timestamp, ?string $errorCategory): void
+    {
+        $values = ['last_tested_at' => $timestamp, 'last_error_category' => $errorCategory];
+        if ($errorCategory === null) {
+            $values['last_success_at'] = $timestamp;
+        }
+        $this->connection->update('provider_accounts', $values, ['id' => $id, 'account_id' => $accountId]);
     }
 
     #[\Override]
@@ -149,6 +178,8 @@ final readonly class DbalProviderAccountRepository implements ProviderAccountRep
             createdAt: (string) ($row['created_at'] ?? ''),
             lastTestedAt: isset($row['last_tested_at']) ? (string) $row['last_tested_at'] : null,
             lastUsedAt: isset($row['last_used_at']) ? (string) $row['last_used_at'] : null,
+            lastSuccessAt: isset($row['last_success_at']) ? (string) $row['last_success_at'] : null,
+            lastErrorCategory: isset($row['last_error_category']) ? (string) $row['last_error_category'] : null,
         );
     }
 }

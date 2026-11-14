@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Module\ClouDNS;
 
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSSECProfile;
@@ -18,7 +20,7 @@ use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /** @psalm-api Loaded through the dynamic provider-module contract. */
-final class ClouDNSProvider extends AbstractDNSProvider
+final class ClouDNSProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
 {
     public const string ID = 'cloudns';
 
@@ -31,6 +33,13 @@ final class ClouDNSProvider extends AbstractDNSProvider
     public function id(): string
     {
         return self::ID;
+    }
+
+    #[\Override]
+    public function verifyConnection(): ProviderConnectionVerification
+    {
+        $this->client->verifyConnection();
+        return ProviderConnectionVerification::success();
     }
 
     #[\Override]

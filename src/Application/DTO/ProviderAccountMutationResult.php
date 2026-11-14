@@ -15,5 +15,6 @@ final readonly class ProviderAccountMutationResult
         public int $providerAccountId,
         public string $providerType,
         public ?string $name = null,
+        public bool $idempotentReplay = false,
     ) {}
 }

@@ -31,5 +31,7 @@ final readonly class ProviderAccount
         public string  $createdAt,
         public ?string $lastTestedAt = null,
         public ?string $lastUsedAt = null,
+        public ?string $lastSuccessAt = null,
+        public ?string $lastErrorCategory = null,
     ) {}
 }

@@ -887,6 +887,9 @@ final readonly class SchemaManager
         $provAccounts->addColumn('created_at', Types::DATETIME_MUTABLE);
         $provAccounts->addColumn('last_tested_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
         $provAccounts->addColumn('last_used_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $provAccounts->addColumn('last_success_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $provAccounts->addColumn('last_error_category', Types::STRING, ['length' => 64, 'notnull' => false]);
+        $provAccounts->addColumn('creation_request_id', Types::STRING, ['length' => 64, 'notnull' => false]);
         $provAccounts->setPrimaryKey(['id']);
         $provAccounts->addIndex(['account_id'], 'idx_pa_account_id');
         $provAccounts->addForeignKeyConstraint(
@@ -897,6 +900,7 @@ final readonly class SchemaManager
             'fk_pa_account_id',
         );
         $provAccounts->addUniqueIndex(['id', 'account_id'], 'uq_provider_accounts_id_account');
+        $provAccounts->addUniqueIndex(['account_id', 'creation_request_id'], 'uq_provider_account_create_request');
 
         // managed_zones ------------------------------------------------------
         $managedZones = new CanonicalTableBuilder('managed_zones');

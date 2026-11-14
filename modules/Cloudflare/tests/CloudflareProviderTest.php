@@ -14,6 +14,7 @@ use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
 use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\Rrset;
 use TowerDNS\Module\Cloudflare\CloudflareAPIException;
@@ -65,6 +66,15 @@ final class CloudflareProviderTest extends TestCase
         } catch (CloudflareAPIException) {
             self::assertCount(1, $this->requests);
         }
+    }
+
+    public function testVerificationUsesDedicatedReadOnlyTokenEndpoint(): void
+    {
+        $provider = $this->provider([$this->json(['result' => ['status' => 'active']])]);
+        self::assertInstanceOf(ConnectionVerifiableProviderInterface::class, $provider);
+        self::assertTrue($provider->verifyConnection()->succeeded());
+        self::assertSame('/client/v4/user/tokens/verify', $this->requests[0]->getUri()->getPath());
+        self::assertSame('GET', $this->requests[0]->getMethod());
     }
 
     /** @param list<Response> $responses */

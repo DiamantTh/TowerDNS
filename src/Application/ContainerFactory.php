@@ -57,6 +57,7 @@ use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
+use TowerDNS\Application\Contracts\ProviderConnectionVerifierInterface;
 use TowerDNS\Application\Contracts\ProviderCredentialSchemaInterface;
 use TowerDNS\Application\Contracts\TransactionRunnerInterface;
 use TowerDNS\Application\Module\LocalModuleDiscovery;
@@ -160,6 +161,7 @@ use TowerDNS\Infrastructure\Persistence\DbalZoneMembershipRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 use TowerDNS\Infrastructure\Persistence\TomlSystemProviderConfigurationStore;
 use TowerDNS\Infrastructure\Provider\DNSProviderFactory;
+use TowerDNS\Infrastructure\Provider\ModuleProviderConnectionVerifier;
 use TowerDNS\Infrastructure\Provider\ModuleProviderCredentialSchemaCatalog;
 use TowerDNS\Infrastructure\Provider\ProviderAccountAdapterFactory;
 use TowerDNS\Infrastructure\Security\HibpRangePasswordChecker;
@@ -337,9 +339,10 @@ final class ContainerFactory
             AccountProviderFactoryInterface::class    => \DI\autowire(ProviderAccountAdapterFactory::class),
 
             // ── Provider registry ─────────────────────────────────────────────
-            DNSProviderFactory::class                => $providerFactory,
-            ProviderCredentialSchemaInterface::class => $providerSchemas,
-            ProviderRegistry::class                  => \DI\factory(static function () use ($provConf, $providerFactory): ProviderRegistry {
+            DNSProviderFactory::class                  => $providerFactory,
+            ProviderCredentialSchemaInterface::class   => $providerSchemas,
+            ProviderConnectionVerifierInterface::class => new ModuleProviderConnectionVerifier($providerModules),
+            ProviderRegistry::class                    => \DI\factory(static function () use ($provConf, $providerFactory): ProviderRegistry {
                 $registry  = new ProviderRegistry();
                 $providers = (array) ($provConf['providers'] ?? []);
 

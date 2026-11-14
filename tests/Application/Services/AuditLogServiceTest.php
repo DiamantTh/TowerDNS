@@ -83,4 +83,26 @@ final class AuditLogServiceTest extends TestCase
 
         new AuditLogService($repository)->record($request, 'zone.record.update', 'record', 'record-1', actorUserId: $target->id);
     }
+
+    public function testProviderVerificationAuditContainsOnlyCategoryAndProviderIdentity(): void
+    {
+        $repository = $this->createMock(AuditLogRepositoryInterface::class);
+        $repository->expects(self::once())->method('append')->with(
+            self::callback(static fn(AuditLogEntry $entry): bool => $entry->action === 'provideraccount.credentials.replacement_failed'
+                && $entry->accountId                                               === 42
+                && $entry->providerAccountId                                       === 9
+                && $entry->metadataJson                                            === ['provider_type' => 'cloudflare', 'category' => 'authentication_failed']),
+            self::callback('is_string'),
+        );
+
+        new AuditLogService($repository)->recordProviderConnectionRejected(
+            new ServerRequest(),
+            'actor',
+            42,
+            9,
+            'cloudflare',
+            'authentication_failed',
+            true,
+        );
+    }
 }

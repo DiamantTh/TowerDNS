@@ -27,7 +27,7 @@ foreach (['first', 'second'] as $id) {
         'zones' => ['input' => 'zones', 'label' => 'Zones', 'required' => false, 'secret' => false, 'type' => 'textarea', 'default' => 'example.test'],
     ]];
 }
-$props   = ['user' => new TowerDNS\Domain\Auth\User('viewer', 'viewer@example.test'), 'account' => $account, 'csrfToken' => 'fixture', 'canManageCredentials' => !$readonly, 'canListZones' => true, 'allowedTypes' => $readonly ? [] : ['first','second'], 'providerDefinitions' => $definitions, 'providers' => [new TowerDNS\Domain\Account\ProviderAccount(9, 42, 'first', 'Primary', 'secret-ciphertext-fixture', 3, true, '2026-01-01'), new TowerDNS\Domain\Account\ProviderAccount(10, 42, 'first', 'Disabled', 'disabled-ciphertext-fixture', 3, false, '2026-01-01')]];
+$props   = ['user' => new TowerDNS\Domain\Auth\User('viewer', 'viewer@example.test'), 'account' => $account, 'csrfToken' => 'fixture', 'requestId' => str_repeat('a', 64), 'canManageCredentials' => !$readonly, 'canListZones' => true, 'allowedTypes' => $readonly ? [] : ['first','second'], 'providerDefinitions' => $definitions, 'providers' => [new TowerDNS\Domain\Account\ProviderAccount(9, 42, 'first', 'Primary', 'secret-ciphertext-fixture', 3, true, '2026-01-01'), new TowerDNS\Domain\Account\ProviderAccount(10, 42, 'first', 'Disabled', 'disabled-ciphertext-fixture', 3, false, '2026-01-01')]];
 $actions = [
     'canViewAccount'   => true, 'canEditAccount' => !$readonly           && !$inactive,
     'canDeleteAccount' => false, 'canReactivateAccount' => !$readonly    && $inactive,

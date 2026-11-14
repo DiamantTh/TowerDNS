@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Module\INWX;
 
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Domain\DNS\DNSSECProfile;
 use TowerDNS\Domain\DNS\DNSSECState;
@@ -28,15 +30,15 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * @see https://www.inwx.de/de/api-documentation
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class INWXProvider extends AbstractDNSProvider
+final class INWXProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
 {
     public const string ID = 'inwx';
 
     private readonly INWXAPIClient $client;
 
-    public function __construct(string $username, string $password)
+    public function __construct(string $username, string $password, ?INWXAPIClient $client = null)
     {
-        $this->client = new INWXAPIClient($username, $password);
+        $this->client = $client ?? new INWXAPIClient($username, $password);
         parent::__construct();
     }
 
@@ -44,6 +46,13 @@ final class INWXProvider extends AbstractDNSProvider
     public function id(): string
     {
         return self::ID;
+    }
+
+    #[\Override]
+    public function verifyConnection(): ProviderConnectionVerification
+    {
+        $this->client->verifyConnection();
+        return ProviderConnectionVerification::success();
     }
 
     #[\Override]

@@ -9,6 +9,8 @@ namespace TowerDNS\Module\INWX;
 
 use INWX\CallFailedException;
 use INWX\Domrobot;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
+use TowerDNS\Application\Exception\ProviderConnectionVerificationException;
 
 /** DNS-only facade over the maintained INWX Domrobot SDK. */
 final class INWXAPIClient
@@ -39,6 +41,13 @@ final class INWXAPIClient
         $result  = $this->call('nameserver.list', ['pagelimit' => 100, 'page' => 1, 'wide' => '1']);
         $entries = (array) ($result['domains'] ?? $result['list'] ?? []);
         return array_values(array_map(fn($e): array => (array) $e, $entries));
+    }
+
+    /** Authenticates and requests one read-only zone row to verify DNS API access. */
+    public function verifyConnection(): void
+    {
+        $this->ensureLoggedIn();
+        $this->call('nameserver.list', ['pagelimit' => 1, 'page' => 1]);
     }
 
     /**
@@ -146,16 +155,12 @@ final class INWXAPIClient
         $tfaRequired  = $tfaIndicator === true || $tfaIndicator === 1
                                                || (is_string($tfaIndicator) && $tfaIndicator !== '' && $tfaIndicator !== '0');
         if ($tfaRequired && ($this->sharedSecret === null || $this->sharedSecret === '')) {
-            throw new INWXAPIException('INWX erfordert einen konfigurierten zweiten Faktor.');
+            throw new ProviderConnectionVerificationException(ProviderConnectionVerification::AUTHENTICATION_FAILED);
         }
 
         $code = (int) ($response['code'] ?? 0);
         if ($code !== 1000) {
-            throw new INWXAPIException(sprintf(
-                'INWX-Login fehlgeschlagen (Code %d): %s',
-                $code,
-                (string) ($response['msg'] ?? 'Unbekannter Fehler'),
-            ));
+            throw new ProviderConnectionVerificationException(ProviderConnectionVerification::AUTHENTICATION_FAILED);
         }
 
         $this->loggedIn = true;

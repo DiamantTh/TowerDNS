@@ -10,6 +10,7 @@ namespace TowerDNS\Tests\Application\DTO;
 use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\DTO\ProviderConnectionVerification;
 
+/** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ProviderConnectionVerificationTest extends TestCase
 {
     public function testSuccessAndFailureExposeOnlyStableCategories(): void

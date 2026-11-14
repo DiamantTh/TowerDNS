@@ -183,6 +183,7 @@ final class Routes
         $app->get('/accounts/{id}/providers', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.list');
         $app->post('/accounts/{id}/providers', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.create');
         $app->post('/accounts/{id}/providers/{pid}/replace', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.replace');
+        $app->post('/accounts/{id}/providers/{pid}/test', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.test');
         $app->post('/accounts/{id}/providers/{pid}/deactivate', [RequireAuthMiddleware::class, ProviderAccountHandler::class], 'provideraccount.deactivate');
 
         // ── Zone members ──────────────────────────────────────────────────────

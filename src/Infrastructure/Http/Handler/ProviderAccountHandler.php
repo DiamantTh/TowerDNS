@@ -17,6 +17,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use TowerDNS\Application\DTO\ProviderAccountListing;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\ProviderAccountException;
 use TowerDNS\Application\Services\AuditLogService;
@@ -45,6 +46,9 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         if ($providerAccountId !== null && str_ends_with($path, '/deactivate')) {
             return $this->deactivate($request, $accountId, (int) $providerAccountId);
         }
+        if ($providerAccountId !== null && str_ends_with($path, '/test')) {
+            return $this->test($request, $accountId, (int) $providerAccountId);
+        }
         if ($providerAccountId !== null && str_ends_with($path, '/replace')) {
             return $this->replace($request, $accountId, (int) $providerAccountId);
         }
@@ -69,7 +73,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
 
         /** @var CsrfGuardInterface $guard */
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
-        return $this->renderList($request, $user, $listing, $guard->generateToken());
+        return $this->renderList($request, $user, $listing, $guard->generateToken(), bin2hex(random_bytes(32)));
     }
 
     private function create(ServerRequestInterface $request, int $accountId): ResponseInterface
@@ -85,11 +89,20 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         $base  = '/accounts/' . $accountId . '/providers';
 
         try {
-            $result = $this->providers->create($user, $accountId, trim((string) ($input['provider_type'] ?? '')), trim((string) ($input['name'] ?? '')), $input);
-            $this->audit->recordProviderAccountCreated($request, $user->id, $result->accountId, $result->providerAccountId, $result->name ?? '', $result->providerType);
+            $requestId = is_string($input['request_id'] ?? null) ? $input['request_id'] : null;
+            if ($requestId === null || preg_match('/^[a-f0-9]{64}$/D', $requestId) !== 1) {
+                return $this->redirectError($base, 'http.error.invalid-request');
+            }
+            $result = $this->providers->create($user, $accountId, trim((string) ($input['provider_type'] ?? '')), trim((string) ($input['name'] ?? '')), $input, $requestId);
+            if (!$result->idempotentReplay) {
+                $this->audit->recordProviderAccountCreated($request, $user->id, $result->accountId, $result->providerAccountId, $result->name ?? '', $result->providerType);
+            }
         } catch (AuthorizationException) {
             return $this->redirectError($base, 'http.error.forbidden');
         } catch (ProviderAccountException $exception) {
+            if ($exception->reason === ProviderAccountException::CONNECTION_VERIFICATION_FAILED && $exception->verificationCategory !== null) {
+                $this->audit->recordProviderConnectionRejected($request, $user->id, $accountId, null, $exception->providerType ?? '', $exception->verificationCategory, false);
+            }
             return $this->redirectError($base, $this->errorKey($exception));
         } catch (\Throwable) {
             return $this->redirectError($base, 'providers.error.account-save-failed');
@@ -116,12 +129,39 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         } catch (AuthorizationException) {
             return $this->redirectError($base, 'http.error.forbidden');
         } catch (ProviderAccountException $exception) {
+            if ($exception->reason === ProviderAccountException::CONNECTION_VERIFICATION_FAILED && $exception->verificationCategory !== null) {
+                $this->audit->recordProviderConnectionRejected($request, $user->id, $accountId, $providerAccountId, $exception->providerType ?? '', $exception->verificationCategory, true);
+            }
             return $this->redirectError($base, $this->errorKey($exception));
         } catch (\Throwable) {
             return $this->redirectError($base, 'providers.error.account-save-failed');
         }
 
         return $this->redirectSuccess($base, 'providers.success.credentials-replaced');
+    }
+
+    private function test(ServerRequestInterface $request, int $accountId, int $providerAccountId): ResponseInterface
+    {
+        if (!($guard = $this->csrfGuard($request)) instanceof CsrfGuardInterface || !$guard->validateToken($this->csrfToken($request))) {
+            return new HtmlResponse($this->translator->translate('http.error.invalid-request'), 400);
+        }
+
+        /** @var User $user */
+        $user = $request->getAttribute(User::class);
+        $base = '/accounts/' . $accountId . '/providers';
+        try {
+            $result = $this->providers->testConnection($user, $accountId, $providerAccountId);
+            $this->audit->recordProviderConnectionTest($request, $user->id, $accountId, $providerAccountId, $result->category);
+            return $result->succeeded()
+                ? $this->redirectSuccess($base, 'providers.success.connection-tested')
+                : $this->redirectError($base, $this->verificationErrorKey($result->category));
+        } catch (AuthorizationException) {
+            return $this->redirectError($base, 'http.error.forbidden');
+        } catch (ProviderAccountException $exception) {
+            return $this->redirectError($base, $this->errorKey($exception));
+        } catch (\Throwable) {
+            return $this->redirectError($base, 'providers.error.account-save-failed');
+        }
     }
 
     private function deactivate(ServerRequestInterface $request, int $accountId, int $providerAccountId): ResponseInterface
@@ -160,7 +200,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
         return is_string($body['csrf_token'] ?? null) ? $body['csrf_token'] : '';
     }
 
-    private function renderList(ServerRequestInterface $request, User $user, ProviderAccountListing $listing, string $csrfToken): ResponseInterface
+    private function renderList(ServerRequestInterface $request, User $user, ProviderAccountListing $listing, string $csrfToken, string $requestId): ResponseInterface
     {
         $flashError   = $request->getQueryParams()['error']   ?? null;
         $flashSuccess = $request->getQueryParams()['success'] ?? null;
@@ -174,6 +214,7 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
             'canListZones'         => $listing->canListZones,
             'providerDefinitions'  => $listing->providerDefinitions,
             'csrfToken'            => $csrfToken,
+            'requestId'            => $requestId,
             'error'                => is_string($flashError) ? $flashError : null,
             'success'              => is_string($flashSuccess) ? $flashSuccess : null,
         ]));
@@ -192,12 +233,27 @@ final readonly class ProviderAccountHandler implements RequestHandlerInterface
     private function errorKey(ProviderAccountException $exception): string
     {
         return match ($exception->reason) {
-            ProviderAccountException::ACCOUNT_NOT_FOUND         => 'accounts.error.not-found',
-            ProviderAccountException::PROVIDER_NOT_FOUND        => 'providers.error.account-not-found',
-            ProviderAccountException::PROVIDER_NOT_USER_MANAGED => 'providers.error.not-user-managed',
-            ProviderAccountException::NAME_REQUIRED             => 'providers.error.name-required',
-            ProviderAccountException::INSECURE_ENDPOINT         => 'providers.error.insecure-endpoint',
-            default                                             => 'providers.error.credentials-incomplete',
+            ProviderAccountException::ACCOUNT_NOT_FOUND              => 'accounts.error.not-found',
+            ProviderAccountException::PROVIDER_NOT_FOUND             => 'providers.error.account-not-found',
+            ProviderAccountException::PROVIDER_NOT_USER_MANAGED      => 'providers.error.not-user-managed',
+            ProviderAccountException::NAME_REQUIRED                  => 'providers.error.name-required',
+            ProviderAccountException::INSECURE_ENDPOINT              => 'providers.error.insecure-endpoint',
+            ProviderAccountException::CONNECTION_VERIFICATION_FAILED => $this->verificationErrorKey($exception->verificationCategory ?? ProviderConnectionVerification::PROVIDER_ERROR),
+            default                                                  => 'providers.error.credentials-incomplete',
         };
+    }
+
+    private function verificationErrorKey(string $category): string
+    {
+        return 'providers.error.connection.' . (in_array($category, [
+            ProviderConnectionVerification::AUTHENTICATION_FAILED,
+            ProviderConnectionVerification::PERMISSION_DENIED,
+            ProviderConnectionVerification::RATE_LIMITED,
+            ProviderConnectionVerification::TIMEOUT,
+            ProviderConnectionVerification::ENDPOINT_UNREACHABLE,
+            ProviderConnectionVerification::TLS_ERROR,
+            ProviderConnectionVerification::PROVIDER_ERROR,
+            ProviderConnectionVerification::MALFORMED_RESPONSE,
+        ], true) ? $category : ProviderConnectionVerification::PROVIDER_ERROR);
     }
 }

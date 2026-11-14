@@ -72,6 +72,15 @@ final class CloudflareAPIClient
         return $results;
     }
 
+    /** Validate the token using Cloudflare's dedicated, read-only token endpoint. */
+    public function verifyToken(): void
+    {
+        $data = $this->apiRequest('GET', 'user/tokens/verify');
+        if ((((array) ($data['result'] ?? []))['status'] ?? null) !== 'active') {
+            throw new CloudflareAPIException('Cloudflare token verification returned an unexpected response.');
+        }
+    }
+
     /** @return array<string, mixed> */
     public function createZone(string $zoneName): array
     {

@@ -287,6 +287,31 @@ final readonly class AuditLogService
         $this->record($request, 'provideraccount.deactivate', 'provider_account', (string) $providerAccountId, $actorId, $accountId, null, $providerAccountId);
     }
 
+    public function recordProviderConnectionTest(ServerRequestInterface $request, string $actorId, int $accountId, int $providerAccountId, string $category): void
+    {
+        $action = $category === 'success' ? 'provideraccount.connection_test.succeeded' : 'provideraccount.connection_test.failed';
+        $this->record($request, $action, 'provider_account', (string) $providerAccountId, $actorId, $accountId, null, $providerAccountId, null, null, null, null, ['category' => $category]);
+    }
+
+    public function recordProviderConnectionRejected(ServerRequestInterface $request, string $actorId, int $accountId, ?int $providerAccountId, string $providerType, string $category, bool $replacement): void
+    {
+        $this->record(
+            $request,
+            $replacement ? 'provideraccount.credentials.replacement_failed' : 'provideraccount.create.verification_failed',
+            'provider_account',
+            $providerAccountId !== null ? (string) $providerAccountId : null,
+            $actorId,
+            $accountId,
+            null,
+            $providerAccountId,
+            null,
+            null,
+            null,
+            null,
+            ['provider_type' => $providerType, 'category' => $category],
+        );
+    }
+
     public function recordAdminSwitchStart(ServerRequestInterface $request, string $actorId, string $sessionId, ?string $effectiveUserId, ?int $effectiveAccountId, string $reason): void
     {
         $this->record($request, 'admin.switch.start', 'impersonation_session', $sessionId, $actorId, $effectiveAccountId, null, null, $sessionId, $effectiveUserId, null, null, ['reason' => $reason]);

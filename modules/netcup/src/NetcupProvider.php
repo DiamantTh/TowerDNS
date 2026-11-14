@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Module\netcup;
 
 use TowerDNS\Application\Contracts\Capability;
+use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Domain\DNS\DNSSECProfile;
 use TowerDNS\Domain\DNS\DNSSECState;
@@ -25,7 +27,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * list is therefore a safety boundary as well as an API limitation.
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class NetcupProvider extends AbstractDNSProvider
+final class NetcupProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
 {
     public const string ID = 'netcup';
 
@@ -46,6 +48,17 @@ final class NetcupProvider extends AbstractDNSProvider
     public function id(): string
     {
         return self::ID;
+    }
+
+    #[\Override]
+    public function verifyConnection(): ProviderConnectionVerification
+    {
+        $zone = $this->zones[0] ?? null;
+        if (!is_string($zone) || trim($zone) === '') {
+            return ProviderConnectionVerification::failure(ProviderConnectionVerification::MALFORMED_RESPONSE);
+        }
+        $this->client->verifyConnection(trim($zone));
+        return ProviderConnectionVerification::success();
     }
 
     #[\Override]

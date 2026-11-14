@@ -90,7 +90,7 @@ final class UserLifecycleServiceTest extends TestCase
         $userId     = 'b9622622-1000-4000-8000-000000000005';
         $account    = $this->lifecycle->create($userId, 'resources@example.test', 'hash');
         $providers  = new DbalProviderAccountRepository($this->connection);
-        $providerId = $providers->create($account->id, 'test', 'Connection', 'encrypted-placeholder', 1, '2026-09-19 12:00:00');
+        $providerId = $providers->create($account->id, 'test', 'Connection', 'encrypted-placeholder', 1, '2026-09-19 12:00:00', '2026-09-19 12:00:00');
         try {
             $this->lifecycle->delete($userId);
             self::fail('A personal account with resources must not be deleted.');

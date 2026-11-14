@@ -157,6 +157,8 @@ final class SvelteRenderer implements TemplateRendererInterface
                 'createdAt'          => $value->createdAt,
                 'lastTestedAt'       => $value->lastTestedAt,
                 'lastUsedAt'         => $value->lastUsedAt,
+                'lastSuccessAt'      => $value->lastSuccessAt,
+                'lastErrorCategory'  => $value->lastErrorCategory,
             ];
         }
         if (is_array($value)) {
