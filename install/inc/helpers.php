@@ -85,12 +85,37 @@ function getRequirements(): array
     $reqs = [];
 
     // PHP-Version
-    $phpOk  = version_compare(PHP_VERSION, '8.4.0', '>=');
+    $phpOk  = version_compare(PHP_VERSION, '8.4.3', '>=');
     $reqs[] = [
         'label'    => t('req.php'),
         'required' => true,
         'ok'       => $phpOk,
         'detail'   => sprintf(t('req.php_detail'), PHP_VERSION),
+    ];
+
+    require_once PROJECT_ROOT . '/src/Infrastructure/Installation/DocumentRootPolicy.php';
+    $documentRootOk = TowerDNS\Infrastructure\Installation\DocumentRootPolicy::matches(
+        PROJECT_ROOT,
+        isset($_SERVER['DOCUMENT_ROOT']) ? (string) $_SERVER['DOCUMENT_ROOT'] : null,
+    );
+    $reqs[] = [
+        'label'    => t('req.document_root'),
+        'required' => true,
+        'ok'       => $documentRootOk,
+        'detail'   => $documentRootOk ? t('req.document_root_ok') : t('req.document_root_invalid'),
+    ];
+
+    $assetStatus = (string) ($GLOBALS['_installer_assets_status'] ?? 'broken');
+    $assetsOk    = $assetStatus === 'healthy' || $assetStatus === 'degraded';
+    $reqs[]      = [
+        'label'    => t('req.frontend_assets'),
+        'required' => true,
+        'ok'       => $assetsOk,
+        'detail'   => match ($assetStatus) {
+            'healthy'  => t('req.frontend_assets_ok'),
+            'degraded' => t('req.frontend_assets_degraded'),
+            default    => t('req.frontend_assets_broken'),
+        },
     ];
 
     // Vendor-Verzeichnis
@@ -124,15 +149,16 @@ function getRequirements(): array
         ];
     }
 
-    // configs/ beschreibbar
-    $configDir = PROJECT_ROOT . '/configs';
-    $writable  = is_dir($configDir) ? is_writable($configDir) : is_writable(dirname($configDir));
-    $reqs[]    = [
-        'label'    => t('req.config_writable'),
-        'required' => true,
-        'ok'       => $writable,
-        'detail'   => $writable ? t('req.ok') : t('req.not_writable'),
-    ];
+    foreach (['configs', 'cache', 'data', 'logs', 'install'] as $name) {
+        $path     = PROJECT_ROOT . '/' . $name;
+        $writable = is_dir($path) ? is_writable($path) : is_writable(dirname($path));
+        $reqs[]   = [
+            'label'    => $name === 'configs' ? t('req.config_writable') : sprintf(t('req.runtime_writable'), $name),
+            'required' => true,
+            'ok'       => $writable,
+            'detail'   => $writable ? t('req.ok') : t('req.not_writable'),
+        ];
+    }
 
     return $reqs;
 }

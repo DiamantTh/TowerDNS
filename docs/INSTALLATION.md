@@ -1,10 +1,10 @@
 # TowerDNS installieren und betreiben
 
-Diese Anleitung beschreibt die technischen Voraussetzungen und den aktuellen
-Installationsweg von TowerDNS. Der Repository-Checkout ist für Entwicklung
-und Tests ausgelegt; eine spätere Distribution kann außerhalb des Repositories
-über einen CI/CD-Workflow erstellt werden. Dieses Repository enthält keine
-eigene Release-Paketierung.
+Diese Anleitung beschreibt die vorbereitete lokale Distribution und ihre
+Laufzeitvoraussetzungen. Betreiber installieren ein vorgebautes Archiv;
+Composer und Node.js werden nur auf der Maschine benötigt, die das Archiv
+erstellt. TowerDNS benötigt weder CI noch gehostete Releases oder einen
+Self-Updater.
 
 ## Voraussetzungen
 
@@ -34,13 +34,51 @@ Tests ersetzen weder einen Test auf dem konkreten Hosting-Paket noch Tests
 gegen echte Provider-APIs.
 
 Der PHP-Prozess benötigt Schreibrechte für die privaten Verzeichnisse
-`configs/`, `cache/`, `data/` und `logs/`. `data/` wird bei SQLite auch für die
-Datenbank verwendet. HTTPS wird dringend empfohlen und ist für den sicheren
+`configs/`, `cache/`, `data/`, `logs/` und während der Installation `install/`.
+`data/` wird bei SQLite auch für die Datenbank verwendet. Programmdateien,
+`vendor/`, `httpdocs/` und aktivierte Frontend-Dateien sollen im Betrieb
+unveränderlich bleiben. HTTPS wird dringend empfohlen und ist für den sicheren
 Betrieb von Passwörtern, Sessions und Einladungstokens praktisch erforderlich.
 OPcache ist optional, aber empfehlenswert. Cronjobs, SSH, Composer, Node.js,
 Shell-Zugriff, Root-Rechte und dauerhaft laufende Worker sind für den normalen
 Webbetrieb nicht erforderlich. SMTP ist optional; ohne Mailer-Konfiguration
 können keine Einladungs- oder Reset-E-Mails zugestellt werden.
+
+## Lokales Distributionspaket
+
+Auf der Build-Maschine werden PHP 8.4.3+, Composer, Node.js 22.15+ und npm
+benötigt. Im Repository ausführen:
+
+```sh
+composer install
+npm ci
+npm run package:distribution
+```
+
+Der Befehl führt die Frontend-Checks und einen Production-Build aus, prüft und
+aktiviert das vollständige Manifest einschließlich Original-, Brotli- und
+Zstandard-Dateien, installiert Composer-Abhängigkeiten ohne Dev-Pakete in ein
+temporäres Staging-Verzeichnis und erzeugt ein normalisiertes
+`dist/towerdns-<commit>.tar.gz`. Das Archiv enthält `vendor/`; der Betreiber
+benötigt zur Installation weder Composer noch Node.js. `SOURCE_DATE_EPOCH`
+kann zur Festlegung des Archiv-Zeitstempels gesetzt werden. Das Paket enthält
+keine Entwicklungsabhängigkeiten, Tests, `.git`-Metadaten, Build-Cache oder
+lokale Konfiguration. Ein anderer Zielpfad kann als Befehl-Argument angegeben
+werden.
+
+Zum Installieren das Archiv außerhalb des Webroots entpacken und den
+Webserver-DocumentRoot auf den darin enthaltenen Ordner `httpdocs/` setzen.
+`configs/`, `cache/`, `data/`, `logs/` und bis zum Abschluss `install/` müssen
+für den PHP-FPM-Benutzer beschreibbar sein; übrige Programm- und Asset-Dateien
+sollen nur lesbar sein. Der Installer prüft DocumentRoot, Frontend-Aktivierung,
+PHP-Version, Erweiterungen und Verzeichniszugriff, bevor er fortfahren lässt.
+Kann ein Hosting-Angebot `httpdocs/` weder als Webroot konfigurieren noch eine
+gleichwertige private Trennung bereitstellen, ist dieses Angebot für TowerDNS
+nicht sicher geeignet. Die PHP-Einstiegspunkte weisen einen falschen
+DocumentRoot zurück; diese Prüfung kann jedoch keine statische Auslieferung
+privater Dateien durch einen falsch konfigurierten Webserver verhindern.
+Darum muss der Hoster die getrennte Webroot-Konfiguration tatsächlich
+unterstützen.
 
 ## Entwicklungscheckout
 
@@ -268,11 +306,13 @@ Schreibrechte für die privaten Verzeichnisse und ein auf `httpdocs/` gesetzter
 DocumentRoot erforderlich. Composer, Node.js, SSH, Root-Rechte und dauerhafte
 Worker werden zur Laufzeit nicht benötigt, müssen aber für einen
 Repository-Checkout während der Entwicklung vorhanden sein. Für einen Betrieb
-ohne SSH, Composer und Node.js muss ein extern vorbereitetes
-Deployment-Verzeichnis bereits `vendor/` und die gebauten Dateien unter
-`httpdocs/assets/`, `build/asset-manifest.json`, `build/asset-release.json` und die zugehörigen Frontend-Quelldateien enthalten. Der Entwicklungscheckout allein ist dafür nicht
-vollständig; die Erstellung eines solchen Verzeichnisses ist nicht Bestandteil
-der Anwendung.
+ohne SSH, Composer und Node.js wird das mit
+`npm run package:distribution` vorbereitete Archiv übertragen. Es enthält
+`vendor/`, die aktivierten Assets und die zugehörigen Manifest- und
+Integritätsdateien; der Entwicklungscheckout allein ist kein
+Installationspaket. Ein Hosting-Angebot, das weder den Webroot noch eine
+gleichwertige sichere Verzeichnisabtrennung setzen kann, wird nicht als
+unterstütztes Deployment behandelt.
 
 Der typische Ablauf auf einem geeigneten Hosting-Paket ist:
 
@@ -285,7 +325,9 @@ Der typische Ablauf auf einem geeigneten Hosting-Paket ist:
    Mail- und Sicherheitseinstellungen prüfen.
 
 Bei PHP-FPM wird `httpdocs/` als Nginx- oder Apache-DocumentRoot konfiguriert;
-private Verzeichnisse liegen daneben und gehören dem PHP-FPM-Benutzer. HTTPS,
+der PHP-FPM-Benutzer benötigt Schreibrechte nur für die privaten Runtime-
+Verzeichnisse. Programmdateien werden nach dem Entpacken durch den
+Deployment-Benutzer bereitgestellt und sind für PHP-FPM nur lesbar. HTTPS,
 OPcache, restriktive Dateirechte und eine externe Datenbanksicherung werden
 empfohlen. Ein Cronjob ist für den normalen Request-Betrieb nicht notwendig.
 

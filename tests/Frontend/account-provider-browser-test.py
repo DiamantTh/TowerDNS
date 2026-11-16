@@ -5,7 +5,7 @@ root=str(Path(__file__).resolve().parents[2])
 profile=tempfile.mkdtemp(prefix='towerdns-firefox-')
 port=28570
 with open(profile+'/user.js','w') as f: f.write('user_pref("marionette.port", %d);\nuser_pref("marionette.enabled", true);\n' % port)
-server=subprocess.Popen(['php','-S','127.0.0.1:28571',root+'/tests/Frontend/account-provider-browser-router.php'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+server=subprocess.Popen(['php','-S','127.0.0.1:28571','-t',root+'/httpdocs',root+'/tests/Frontend/account-provider-browser-router.php'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 env=os.environ.copy(); env['MOZ_DISABLE_CONTENT_SANDBOX']='1'; env['MOZ_HEADLESS']='1'
 browser=subprocess.Popen(['firefox','--headless','--marionette','--no-remote','--profile',profile],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 sock=None
@@ -50,7 +50,7 @@ try:
   assert 'Example Account' in execute('return document.querySelector("main").textContent')
   assert execute('return [...document.querySelectorAll(".provider-card")][1].querySelectorAll("form").length') == 0
   assert execute('return document.querySelector(".provider-card a").getAttribute("href")') == '/zones.php?account=42&provider=9'
-  assert execute('return document.querySelector("form[action=\\"/accounts/42/providers\\"] input[name=request_id]").value.length') == 64
+  assert execute('return document.querySelector("form[action^=\\"/accounts.php?id=42&view=providers\\"] input[name=request_id]").value.length') == 64
   assert execute('return document.querySelector(".provider-card form[action$=test]") !== null')
   assert 'secret-ciphertext-fixture' not in execute('return document.documentElement.innerHTML')
   assert execute('return document.querySelector("textarea[name=zones]").value') == 'example.test'

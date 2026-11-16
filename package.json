@@ -10,7 +10,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "typecheck": "tsc --noEmit",
     "frontend:check": "npm run check && npm run typecheck && npm run build && npm run frontend:verify",
-    "frontend:verify": "node scripts/verify-frontend.mjs"
+    "frontend:verify": "node scripts/verify-frontend.mjs",
+    "package:distribution": "node scripts/package-distribution.mjs"
   },
   "devDependencies": {
     "@skeletonlabs/skeleton": "^5.0.0",

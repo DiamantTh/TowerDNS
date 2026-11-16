@@ -6,6 +6,16 @@
 declare(strict_types=1);
 
 // Preserve the selected representation and its Content-Length.
+$projectRoot = dirname(__DIR__);
+require_once $projectRoot . '/src/Infrastructure/Installation/DocumentRootPolicy.php';
+if (!\TowerDNS\Infrastructure\Installation\DocumentRootPolicy::matches(
+    $projectRoot,
+    isset($_SERVER['DOCUMENT_ROOT']) ? (string) $_SERVER['DOCUMENT_ROOT'] : null,
+)) {
+    http_response_code(503);
+    header('Cache-Control: no-store');
+    exit;
+}
 @ini_set('zlib.output_compression', '0');
 
 // The web server routes only hashed JS/CSS asset requests here. This endpoint

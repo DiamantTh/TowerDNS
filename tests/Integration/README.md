@@ -117,3 +117,25 @@ sh tests/Integration/rolling-assets-test.sh
 The HTTP check uses a temporary local PHP server. The rolling check builds a
 second disposable release against a shared asset directory and verifies both
 old and new releases as well as rejected incomplete or mixed metadata.
+
+### Prepared distribution package
+
+`npm run package:distribution` builds `dist/towerdns-<commit>.tar.gz` with
+production Composer dependencies and a fully activated frontend. It requires
+the local build tools but the install target does not. The distribution smoke
+test extracts that archive and checks the payload and installer/asset HTTP
+responses:
+
+```sh
+sh tests/Integration/distribution-package-test.sh
+```
+
+The smoke test performs a fresh SQLite install from the extracted package,
+administrator password login, dashboard rendering, installer-lock check, and
+HTTP delivery of hashed JavaScript and CSS as identity, Brotli, and Zstandard.
+It also confirms rejection of a wrong DocumentRoot. The package-specific run
+uses PHP's built-in server. The separate `web-installer-http-test.sh` suite
+uses Apache/PHP 8.4 and performs HTTP installs with SQLite, MariaDB, and
+PostgreSQL. The Nginx/PHP-FPM configuration is documented but was not executed
+in an Nginx runtime in this environment. No real shared-hosting account or
+physical WebAuthn authenticator was available for testing.

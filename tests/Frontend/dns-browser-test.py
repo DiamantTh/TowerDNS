@@ -5,7 +5,7 @@ root=str(Path(__file__).resolve().parents[2])
 profile=tempfile.mkdtemp(prefix='towerdns-firefox-')
 port=28570
 with open(profile+'/user.js','w') as f: f.write('user_pref("marionette.port", %d);\nuser_pref("marionette.enabled", true);\n' % port)
-server=subprocess.Popen(['php','-S','127.0.0.1:28571',root+'/tests/Frontend/dns-browser-router.php'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+server=subprocess.Popen(['php','-S','127.0.0.1:28571','-t',root+'/httpdocs',root+'/tests/Frontend/dns-browser-router.php'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 env=os.environ.copy(); env['MOZ_DISABLE_CONTENT_SANDBOX']='1'; env['MOZ_HEADLESS']='1'
 browser=subprocess.Popen(['firefox','--headless','--marionette','--no-remote','--profile',profile],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
 sock=None

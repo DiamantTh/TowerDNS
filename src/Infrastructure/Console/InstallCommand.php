@@ -62,6 +62,13 @@ final class InstallCommand extends Command
             return Command::FAILURE;
         }
 
+        try {
+            new \TowerDNS\Infrastructure\Ui\AssetManifest($this->projectRoot)->verifyComplete();
+        } catch (\Throwable) {
+            $io->error('The frontend release is missing or inconsistent. Rebuild and activate the prepared frontend before installation.');
+            return Command::FAILURE;
+        }
+
         // ── PHP extensions ────────────────────────────────────────────────
         foreach (self::missingRequiredExtensions() as $ext) {
             if (!extension_loaded($ext)) {
@@ -94,6 +101,11 @@ final class InstallCommand extends Command
             ['pdo_mysql', 'pdo_pgsql', 'pdo_sqlite'],
             'pdo_mysql',
         );
+
+        if (!extension_loaded($driver)) {
+            $io->error('The selected PDO driver is not available: ' . $driver);
+            return Command::FAILURE;
+        }
 
         $db = ['driver' => $driver];
 

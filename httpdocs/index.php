@@ -9,6 +9,17 @@ header('Cache-Control: no-store');
 
 define('PROJECT_ROOT', dirname(__DIR__));
 
+require_once PROJECT_ROOT . '/src/Infrastructure/Installation/DocumentRootPolicy.php';
+if (!\TowerDNS\Infrastructure\Installation\DocumentRootPolicy::matches(
+    PROJECT_ROOT,
+    isset($_SERVER['DOCUMENT_ROOT']) ? (string) $_SERVER['DOCUMENT_ROOT'] : null,
+)) {
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'TowerDNS requires the web server DocumentRoot to be the httpdocs directory.';
+    exit;
+}
+
 require_once PROJECT_ROOT . '/src/Infrastructure/Installation/InstallationState.php';
 
 // The marker lives outside the public document root and survives removal of

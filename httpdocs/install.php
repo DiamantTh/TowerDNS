@@ -14,10 +14,26 @@ declare(strict_types=1);
  */
 header('Cache-Control: no-store');
 $projectRoot = dirname(__DIR__);
+require_once $projectRoot . '/src/Infrastructure/Installation/DocumentRootPolicy.php';
+if (!\TowerDNS\Infrastructure\Installation\DocumentRootPolicy::matches(
+    $projectRoot,
+    isset($_SERVER['DOCUMENT_ROOT']) ? (string) $_SERVER['DOCUMENT_ROOT'] : null,
+)) {
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'TowerDNS requires the web server DocumentRoot to be the httpdocs directory.';
+    exit;
+}
 require_once $projectRoot . '/src/Infrastructure/Ui/AssetManifestException.php';
 require_once $projectRoot . '/src/Infrastructure/Ui/AssetManifest.php';
 try {
-    $GLOBALS['_installer_assets'] = (new \TowerDNS\Infrastructure\Ui\AssetManifest($projectRoot))->resolve();
+    $assetManifest = new \TowerDNS\Infrastructure\Ui\AssetManifest($projectRoot);
+    $assetStatus = $assetManifest->status();
+    if ($assetStatus === 'broken') {
+        throw new \TowerDNS\Infrastructure\Ui\AssetManifestException('Active frontend release failed the installer check.');
+    }
+    $GLOBALS['_installer_assets'] = $assetManifest->resolve();
+    $GLOBALS['_installer_assets_status'] = $assetStatus;
 } catch (\RuntimeException $exception) {
     error_log($exception->getMessage());
     http_response_code(503);
