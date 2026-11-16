@@ -10,6 +10,7 @@ use Mezzio\Csrf\CsrfGuardInterface;
 use Mezzio\Csrf\CsrfMiddleware;
 use Mezzio\Template\TemplateRendererInterface;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Uid\Uuid;
 use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
 use TowerDNS\Application\Repository\AccountRepositoryInterface;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
@@ -21,10 +22,13 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ProfileService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\TotpService;
+use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Application\Theme\ThemeManager;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Http\Handler\ProfileHandler;
+use Webauthn\CredentialRecord;
+use Webauthn\TrustPath\EmptyTrustPath;
 
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
 final class ProfileHandlerTest extends TestCase
@@ -35,6 +39,8 @@ final class ProfileHandlerTest extends TestCase
         $renderer->expects(self::once())->method('render')->with('app::profile/index', self::callback(
             static fn(array $data): bool => $data['success'] === 'Profil aktualisiert.'
                 && $data['webAuthnKeyCount']                 === 0
+                && $data['webauthnUserDetails']              === []
+                && $data['profileUpdated']                   === true
                 && $data['totpCount']                        === 0
                 && $data['passwordConfigured']               === false
         ))->willReturn('<html></html>');
@@ -61,11 +67,82 @@ final class ProfileHandlerTest extends TestCase
             $accounts,
             new AuditLogService($this->createMock(AuditLogRepositoryInterface::class)),
             $translator,
+            new WebAuthnService($this->createMock(\Symfony\Component\Serializer\SerializerInterface::class), 'dns.example.test', 'TowerDNS'),
         );
         $request = new ServerRequest()->withQueryParams(['success' => 'updated'])
             ->withAttribute('actor_user', new User('user-1', 'user@example.test', locale: 'de-DE'))
             ->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
 
         self::assertSame(200, $handler->handle($request)->getStatusCode());
+    }
+
+    public function testProfileUpdateSignalsDistinctCredentialBoundHandlesOnlyForTheCurrentUser(): void
+    {
+        $firstHandle  = "legacy\x00handle";
+        $secondHandle = 'another-legacy-handle';
+        $records      = [
+            ['source' => $this->credential('credential-a', $firstHandle)],
+            ['source' => $this->credential('credential-b', $secondHandle)],
+            ['source' => $this->credential('credential-c', $firstHandle)],
+        ];
+        $expected = [];
+        foreach ([$firstHandle, $secondHandle] as $handle) {
+            $expected[] = [
+                'rpId'        => 'dns.example.test',
+                'userId'      => rtrim(strtr(base64_encode($handle), '+/', '-_'), '='),
+                'name'        => 'new@example.test',
+                'displayName' => 'New Name',
+            ];
+        }
+
+        $renderer = $this->createMock(TemplateRendererInterface::class);
+        $renderer->expects(self::once())->method('render')->with('app::profile/index', self::callback(
+            static fn(array $data): bool => $data['webauthnUserDetails'] === $expected
+                && $data['profileUpdated']                               === true
+                && $data['webAuthnKeyCount']                             === 3
+        ))->willReturn('<html></html>');
+        $webauthn = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
+        $webauthn->expects(self::once())->method('findByUserId')->with('account-user')->willReturn($records);
+        $totpCredentials = $this->createMock(TotpCredentialRepositoryInterface::class);
+        $settings        = $this->createMock(SystemSettingsRepositoryInterface::class);
+        $users           = $this->createMock(UserRepositoryInterface::class);
+        $users->method('fetchPasswordHash')->willReturn(null);
+        $accounts = $this->createMock(AccountRepositoryInterface::class);
+        $accounts->method('findByUserId')->willReturn([]);
+        $translator = $this->createMock(TranslatorInterface::class);
+        $guard      = $this->createMock(CsrfGuardInterface::class);
+        $guard->method('generateToken')->willReturn('csrf');
+
+        $handler = new ProfileHandler(
+            $renderer,
+            $webauthn,
+            new TotpSecretService($totpCredentials, new TotpService(new SystemClock()), $this->createMock(CredentialEncryptorInterface::class), $settings),
+            new ProfileService($users, new ThemeManager(dirname(__DIR__, 4))),
+            $users,
+            $accounts,
+            new AuditLogService($this->createMock(AuditLogRepositoryInterface::class)),
+            $translator,
+            new WebAuthnService($this->createMock(\Symfony\Component\Serializer\SerializerInterface::class), 'dns.example.test', 'TowerDNS'),
+        );
+        $request = new ServerRequest()->withQueryParams(['success' => 'updated'])
+            ->withAttribute('actor_user', new User('account-user', 'new@example.test', displayName: 'New Name'))
+            ->withAttribute(CsrfMiddleware::GUARD_ATTRIBUTE, $guard);
+
+        self::assertSame(200, $handler->handle($request)->getStatusCode());
+    }
+
+    private function credential(string $id, string $handle): CredentialRecord
+    {
+        return new CredentialRecord(
+            $id,
+            'public-key',
+            [],
+            'none',
+            EmptyTrustPath::create(),
+            Uuid::fromString('00000000-0000-0000-0000-000000000000'),
+            'public-key',
+            $handle,
+            0,
+        );
     }
 }

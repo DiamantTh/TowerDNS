@@ -3,6 +3,7 @@
     import Notice from './Notice.svelte';
     import Strength from './Strength.svelte';
     import { useI18n } from '../lib/i18n';
+    import { signalCurrentUserDetails, type CurrentUserDetailsSignal } from '../lib/webauthnSignal';
     import { pageUrl, type PageUrlTemplates, type AuthenticationPageData, type AuthenticationPageName } from '../lib/bootstrap';
 
     type SerializedCredentialDescriptor = { id: string; type: PublicKeyCredentialType; transports?: AuthenticatorTransport[] };
@@ -10,7 +11,7 @@
         challenge: string;
         allowCredentials?: SerializedCredentialDescriptor[];
     };
-    type FinishResponse = { error?: unknown; redirect?: unknown };
+    type FinishResponse = { error?: unknown; redirect?: unknown; webauthnUserDetails?: CurrentUserDetailsSignal[] };
 
     let { page, data, urls }: { page: AuthenticationPageName; data: AuthenticationPageData; urls?: PageUrlTemplates } = $props();
     const url = (name: string) => pageUrl(urls, name);
@@ -53,6 +54,7 @@
         });
         const body = await result.json() as FinishResponse;
         if (!result.ok) throw new Error(typeof body.error === 'string' ? body.error : t('auth.error.login-failed'));
+        void signalCurrentUserDetails(body.webauthnUserDetails ?? []);
         window.location.href = typeof body.redirect === 'string' ? body.redirect : url('dashboard');
     }
 

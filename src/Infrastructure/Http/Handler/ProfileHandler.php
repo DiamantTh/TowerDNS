@@ -23,6 +23,7 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ProfileService;
 use TowerDNS\Application\Services\TotpSecretService;
 use TowerDNS\Application\Services\UserPreferences;
+use TowerDNS\Application\Services\WebAuthnService;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\ActiveAccountContext;
 
@@ -44,6 +45,7 @@ final readonly class ProfileHandler implements RequestHandlerInterface
         private AccountRepositoryInterface           $accounts,
         private AuditLogService                      $audit,
         private TranslatorInterface                   $translator,
+        private WebAuthnService                       $webAuthn,
     ) {}
 
     #[\Override]
@@ -90,10 +92,12 @@ final readonly class ProfileHandler implements RequestHandlerInterface
             $success = $this->translator->translate('profile.success.updated');
         }
 
-        $totpCount     = $this->totpSecrets->count($currentUser->id);
-        $webAuthnCount = count($this->webauthn->findByUserId($currentUser->id));
-        $memberships   = [];
-        $personal      = null;
+        $totpCount       = $this->totpSecrets->count($currentUser->id);
+        $webAuthnRecords = $this->webauthn->findByUserId($currentUser->id);
+        $webAuthnCount   = count($webAuthnRecords);
+        $profileUpdated  = ($request->getQueryParams()['success'] ?? null) === 'updated';
+        $memberships     = [];
+        $personal        = null;
         foreach ($this->accounts->findByUserId($currentUser->id) as $account) {
             $role  = $this->accounts->getEffectiveRole($account->id, $currentUser->id);
             $entry = ['id' => $account->id, 'name' => $account->name, 'kind' => $account->kind()->value, 'role' => $role?->value];
@@ -107,20 +111,22 @@ final readonly class ProfileHandler implements RequestHandlerInterface
 
         return new HtmlResponse(
             $this->renderer->render('app::profile/index', [
-                'user'               => $currentUser,
-                'csrfToken'          => $guard->generateToken(),
-                'totpCount'          => $totpCount,
-                'webAuthnKeyCount'   => $webAuthnCount,
-                'passwordConfigured' => $this->users->fetchPasswordHash($currentUser->email) !== null,
-                'personalAccount'    => $personal,
-                'accountMemberships' => $memberships,
-                'activeAccountId'    => $active instanceof ActiveAccountContext ? $active->account?->id : null,
-                'supportedLanguages' => UserPreferences::languages(),
-                'supportedLocales'   => UserPreferences::locales(),
-                'supportedTimezones' => UserPreferences::timezones(),
-                'active'             => 'profile',
-                'error'              => $error,
-                'success'            => $success,
+                'user'                => $currentUser,
+                'csrfToken'           => $guard->generateToken(),
+                'totpCount'           => $totpCount,
+                'webAuthnKeyCount'    => $webAuthnCount,
+                'webauthnUserDetails' => $profileUpdated ? $this->webAuthn->currentUserDetailsSignals($currentUser, $webAuthnRecords) : [],
+                'profileUpdated'      => $profileUpdated,
+                'passwordConfigured'  => $this->users->fetchPasswordHash($currentUser->email) !== null,
+                'personalAccount'     => $personal,
+                'accountMemberships'  => $memberships,
+                'activeAccountId'     => $active instanceof ActiveAccountContext ? $active->account?->id : null,
+                'supportedLanguages'  => UserPreferences::languages(),
+                'supportedLocales'    => UserPreferences::locales(),
+                'supportedTimezones'  => UserPreferences::timezones(),
+                'active'              => 'profile',
+                'error'               => $error,
+                'success'             => $success,
             ])
         );
     }

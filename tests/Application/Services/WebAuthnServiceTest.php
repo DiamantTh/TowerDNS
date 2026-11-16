@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Serializer\SerializerInterface;
 use Symfony\Component\Uid\Uuid;
 use TowerDNS\Application\Services\WebAuthnService;
+use TowerDNS\Domain\Auth\User;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
 use Webauthn\AuthenticatorAssertionResponse;
@@ -66,6 +67,35 @@ final class WebAuthnServiceTest extends TestCase
         self::assertSame('Old Display Name', $first->displayName);
         self::assertSame('new@example.test', $updated->name);
         self::assertSame('New Display Name', $updated->displayName);
+    }
+
+    public function testCurrentUserSignalsUseOnlyDistinctCredentialHandlesAndCurrentLabels(): void
+    {
+        $service = $this->service();
+        $user    = new User('internal-account-id', 'updated@example.test', displayName: 'Updated Display');
+        $first   = $this->credentialRecord();
+        $second  = new CredentialRecord(
+            'legacy-credential',
+            'public-key',
+            [],
+            'none',
+            EmptyTrustPath::create(),
+            Uuid::fromString('00000000-0000-0000-0000-000000000000'),
+            'public-key',
+            "legacy\x00handle",
+            0,
+        );
+        $signals = $service->currentUserDetailsSignals($user, [
+            ['source' => $first],
+            ['source' => $second],
+            ['source' => $first],
+        ]);
+
+        self::assertSame([
+            ['rpId' => 'example.test', 'userId' => $this->base64Url('user-1'), 'name' => 'updated@example.test', 'displayName' => 'Updated Display'],
+            ['rpId' => 'example.test', 'userId' => $this->base64Url("legacy\x00handle"), 'name' => 'updated@example.test', 'displayName' => 'Updated Display'],
+        ], $signals);
+        self::assertSame([], $service->currentUserDetailsSignals($user, []));
     }
 
     public function testUsernameFirstAuthenticationUsesAllowListAndRequiredUv(): void

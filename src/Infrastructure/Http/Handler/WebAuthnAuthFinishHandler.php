@@ -133,6 +133,14 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
             $this->audit->recordPasswordBreakGlassUsed($request, $userId, 'webauthn');
         }
 
-        return new JsonResponse(['ok' => true, 'redirect' => '/']);
+        $userDetails = [];
+        try {
+            $userDetails = $this->webAuthn->currentUserDetailsSignals($user, $this->credentialRepo->findByUserId($userId));
+        } catch (\Throwable) {
+            // Optional authenticator metadata must never turn a completed login into a failure.
+            error_log('TowerDNS could not prepare optional WebAuthn user detail signals.');
+        }
+
+        return new JsonResponse(['ok' => true, 'redirect' => '/', 'webauthnUserDetails' => $userDetails]);
     }
 }

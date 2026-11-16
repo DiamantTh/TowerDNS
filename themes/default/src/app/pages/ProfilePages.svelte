@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { onMount } from 'svelte';
     import Page from '../../components/Page.svelte';
     import Field from '../../components/Field.svelte';
     import Notice from '../../components/Notice.svelte';
@@ -7,6 +8,7 @@
     import DataTable from '../../components/DataTable.svelte';
     import type { PageBoot } from '../types';
     import { pageUrl, type UserBootstrap } from '../../lib/bootstrap';
+    import { signalCurrentUserDetails } from '../../lib/webauthnSignal';
     import { useI18n } from '../../lib/i18n';
     type Data = Record<string, any>;
     let { boot }: { boot: PageBoot } = $props();
@@ -18,6 +20,11 @@
     const list = <T=Data>(v: T[]|null|undefined): T[] => v ?? [];
     const enc = (v: unknown) => encodeURIComponent(String(v ?? ''));
     const ask = (e: Event, text: string) => { if (!confirm(text)) e.preventDefault(); };
+    onMount(() => {
+        if (boot.page === 'profile/index' && p.profileUpdated === true) {
+            void signalCurrentUserDetails(list(p.webauthnUserDetails));
+        }
+    });
     let score = $state<number|null>(null);
     const strength = (e: Event) => { const value = (e.currentTarget as HTMLInputElement).value; void import('zxcvbn').then(({default: zxcvbn}) => score = zxcvbn(value).score); };
     let passkeyError = $state(''), busy = $state(false), keyName = $state('');
@@ -52,7 +59,7 @@
  <p class="page-actions"><a class="button" href="/profile/invitations">{t('invitations.incoming')}</a></p>
  <section class="box"><h2 class="subtitle">{t('profile.identity.title')}</h2><form method="post" action={url("profile")}><input type="hidden" name="csrf_token" value={csrf}><div class="form-grid"><Field label={t('field.display-name')}><input class="input" name="display_name" value={user.displayName??''} maxlength="64"></Field><Field label={t('profile.first-name')}><input class="input" name="first_name" value={user.firstName??''} maxlength="100"></Field><Field label={t('profile.last-name')}><input class="input" name="last_name" value={user.lastName??''} maxlength="100"></Field><Field label={t('profile.alternate-email')}><input class="input" type="email" name="alternate_email" value={user.alternateEmail??''}></Field><Field label={t('profile.phone')}><input class="input" name="phone" value={user.phone??''}></Field><Field label={t('profile.mobile')}><input class="input" name="mobile" value={user.mobile??''}></Field><Field label={t('profile.street')}><input class="input" name="street" value={user.street??''}></Field><Field label={t('profile.street2')}><input class="input" name="street2" value={user.street2??''}></Field><Field label={t('profile.postal-code')}><input class="input" name="postal_code" value={user.postalCode??''}></Field><Field label={t('profile.city')}><input class="input" name="city" value={user.city??''}></Field><Field label={t('profile.region')}><input class="input" name="region" value={user.region??''}></Field><Field label={t('profile.country')}><input class="input" name="country" value={user.country??''} maxlength="2"></Field></div><Field label={t('profile.language')}><select class="input" name="language">{#each list<string>(p.supportedLanguages) as language}<option value={language} selected={user.language===language}>{t(`profile.locale.${language}`)}</option>{/each}</select></Field><Field label={t('profile.locale')}><select class="input" name="locale">{#each list<string>(p.supportedLocales) as locale}<option value={locale} selected={user.locale===locale}>{t(`profile.locale.${locale}`)}</option>{/each}</select></Field><Field label={t('profile.timezone')}><select class="input" name="timezone">{#each list<string>(p.supportedTimezones) as timezone}<option value={timezone} selected={user.timezone===timezone}>{timezone}</option>{/each}</select></Field><Field label={t('field.theme')}><select class="input" name="theme"><option value="system" selected={user.theme==='system'}>{t('theme.system')}</option>{#each boot.themes as theme}<option value={theme.name} selected={user.theme===theme.name}>{theme.displayName}</option>{/each}</select></Field><button class="button is-primary">{t('common.save')}</button></form><dl><dt>{t('field.email')}</dt><dd>{user.email}</dd><dt>{t('profile.user-id')}</dt><dd><code>{user.id}</code></dd><dt>{t('profile.created-at')}</dt><dd>{dateLabel(user.createdAt)}</dd><dt>{t('profile.last-login')}</dt><dd>{dateLabel(user.lastLoginAt)}</dd></dl></section>
  <section class="box"><h2 class="subtitle">{t('profile.accounts.title')}</h2>{#if p.personalAccount}<p><a href={url("account", { id: p.personalAccount.id })}>{t('profile.account.personal')}</a> · {t('profile.role.owner')}{#if p.activeAccountId===p.personalAccount.id} · {t('profile.account.active')}{/if}</p>{/if}{#each list(p.accountMemberships) as account}<p><a href={url("account", { id: account.id })}>{account.name}</a> · {t('profile.account.organization')} · {t(`profile.role.${account.role}`)}{#if p.activeAccountId===account.id} · {t('profile.account.active')}{/if}</p>{:else}<p>{t('profile.account.none')}</p>{/each}</section>
- <section class="box"><h2 class="subtitle">{t('profile.security.title')}</h2><p class="muted">{t('profile.security.description')}</p><div class="settings-list"><Setting title={t('profile.passkeys.title')} text={tp('profile.security.passkeys',p.webAuthnKeyCount??0)} href="/profile/webauthn"/><Setting title="TOTP" text={tp('profile.security.totp',p.totpCount??0)} href="/profile/totp"/><Setting title={t('profile.password.title')} text={p.passwordConfigured?t('profile.security.password-configured'):t('profile.security.password-absent')} href="/profile/password"/><Setting title={t('profile.api-keys.title')} text={t('profile.api-keys.text')} href="/profile/api-keys"/></div></section>
+ <section class="box"><h2 class="subtitle">{t('profile.security.title')}</h2><p class="muted">{t('profile.security.description')}</p><p class="help">{t('profile.security.passkey-sync')}</p><div class="settings-list"><Setting title={t('profile.passkeys.title')} text={tp('profile.security.passkeys',p.webAuthnKeyCount??0)} href="/profile/webauthn"/><Setting title="TOTP" text={tp('profile.security.totp',p.totpCount??0)} href="/profile/totp"/><Setting title={t('profile.password.title')} text={p.passwordConfigured?t('profile.security.password-configured'):t('profile.security.password-absent')} href="/profile/password"/><Setting title={t('profile.api-keys.title')} text={t('profile.api-keys.text')} href="/profile/api-keys"/></div></section>
 </Page>
 {:else if boot.page==='profile/invitations'}
 <Page title={t('invitations.incoming')} error={p.error} narrow>

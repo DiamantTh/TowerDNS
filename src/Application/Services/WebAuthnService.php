@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace TowerDNS\Application\Services;
 
 use Symfony\Component\Serializer\SerializerInterface;
+use TowerDNS\Domain\Auth\User;
 use Webauthn\AuthenticatorAssertionResponse;
 use Webauthn\AuthenticatorAssertionResponseValidator;
 use Webauthn\AuthenticatorAttestationResponse;
@@ -40,6 +41,41 @@ final readonly class WebAuthnService
     public function relyingPartyId(): string
     {
         return $this->rpId;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $credentials Credential rows already scoped to this user
+     * @return list<array{rpId:string,userId:string,name:string,displayName:string}>
+     */
+    public function currentUserDetailsSignals(User $user, array $credentials): array
+    {
+        $handles = [];
+        foreach ($credentials as $credential) {
+            $source = $credential['source'] ?? null;
+            if (!$source instanceof CredentialRecord || $source->userHandle === '') {
+                continue;
+            }
+
+            // CredentialRecord.userHandle is authoritative for already-issued
+            // credentials, including different legacy handles for one account.
+            $handles[bin2hex($source->userHandle)] = rtrim(strtr(base64_encode($source->userHandle), '+/', '-_'), '=');
+            if (count($handles) >= 100) {
+                break;
+            }
+        }
+
+        $displayName = $user->displayName ?? $user->email;
+        $details     = [];
+        foreach ($handles as $userId) {
+            $details[] = [
+                'rpId'        => $this->rpId,
+                'userId'      => $userId,
+                'name'        => $user->email,
+                'displayName' => $displayName,
+            ];
+        }
+
+        return $details;
     }
 
     // ── Registration ──────────────────────────────────────────────────────────

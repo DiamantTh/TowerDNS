@@ -375,6 +375,7 @@ return [
     'profile.passkeys.registered'                 => ['{count} registered', '{count} registered'],
     'profile.security.title'                      => 'Security center',
     'profile.security.description'                => 'FIDO2 passkeys are the recommended strong sign-in and confirmation method. TOTP and the optional password remain available as carefully managed fallbacks.',
+    'profile.security.passkey-sync'               => 'After a profile update, TowerDNS asks supported browsers and authenticators to refresh saved passkey account labels. This is best-effort and depends on authenticator support and availability.',
     'profile.security.passkeys'                   => ['No FIDO2 credentials registered', '{count} FIDO2 credential registered', '{count} FIDO2 credentials registered'],
     'profile.security.totp'                       => ['No TOTP credentials registered', '{count} TOTP credential registered', '{count} TOTP credentials registered'],
     'profile.security.password-configured'        => 'Optional break-glass password configured',
