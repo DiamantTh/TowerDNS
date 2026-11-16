@@ -111,7 +111,7 @@ final readonly class WebAuthnAuthFinishHandler implements RequestHandlerInterfac
 
         try {
             $requestOptions = $this->webAuthn->deserializeRequestOptions($optionsJson);
-            $updatedSource  = $this->webAuthn->parseAndValidateAuthentication($body, $source, $requestOptions, $userId);
+            $updatedSource  = $this->webAuthn->parseAndValidateAuthentication($body, $source, $requestOptions);
         } catch (AuthenticatorResponseVerificationException|\InvalidArgumentException) {
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);
         }

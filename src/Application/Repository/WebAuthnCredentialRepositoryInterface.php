@@ -11,6 +11,9 @@ use Webauthn\CredentialRecord;
 
 interface WebAuthnCredentialRepositoryInterface
 {
+    /** Returns the persistent opaque WebAuthn handle, creating it once if absent. */
+    public function getOrCreateUserHandle(string $userId, string $rpId): string;
+
     /**
      * Returns all credentials registered for a given user.
      *

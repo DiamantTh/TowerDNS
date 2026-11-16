@@ -42,8 +42,10 @@ final class WebAuthnEnrollmentHandlerTest extends TestCase
         $session     = new EnrollmentTestSession();
         $stepUp      = $this->stepUp($session, $user->id, StepUpAction::PROFILE_WEBAUTHN_ENROLL, $user->id);
         $credentials = $this->createMock(WebAuthnCredentialRepositoryInterface::class);
+        $userHandle  = random_bytes(64);
         $credentials->expects(self::once())->method('countByUserId')->with($user->id)->willReturn(0);
         $credentials->expects(self::once())->method('findByUserId')->with($user->id)->willReturn([]);
+        $credentials->expects(self::once())->method('getOrCreateUserHandle')->with($user->id, 'example.test')->willReturn($userHandle);
         $settings = $this->createMock(SystemSettingsRepositoryInterface::class);
         $settings->method('get')->willReturnCallback(static fn(string $key, mixed $default = null): mixed => $default);
         $auditRepo = $this->createMock(AuditLogRepositoryInterface::class);
@@ -75,6 +77,8 @@ final class WebAuthnEnrollmentHandlerTest extends TestCase
         self::assertSame('cross-platform', $payload['authenticatorSelection']['authenticatorAttachment']);
         self::assertSame('preferred', $payload['authenticatorSelection']['residentKey']);
         self::assertSame('required', $payload['authenticatorSelection']['userVerification']);
+        self::assertSame(rtrim(strtr(base64_encode($userHandle), '+/', '-_'), '='), $payload['user']['id']);
+        self::assertNotSame($user->id, $payload['user']['id']);
         self::assertIsArray($pending);
         self::assertSame($user->id, $pending['user_id']);
         self::assertSame('hardware_security_key', $pending['purpose']);

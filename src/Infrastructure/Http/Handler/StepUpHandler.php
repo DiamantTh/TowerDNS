@@ -353,7 +353,7 @@ final readonly class StepUpHandler implements RequestHandlerInterface
 
         try {
             $options = $this->webAuthn->deserializeRequestOptions($optionsJson);
-            $updated = $this->webAuthn->parseAndValidateAuthentication($body, $source, $options, $user->id);
+            $updated = $this->webAuthn->parseAndValidateAuthentication($body, $source, $options);
         } catch (AuthenticatorResponseVerificationException|\InvalidArgumentException) {
             $this->recordAttempt($request, $user, $switchId, $intent, 'webauthn', false);
             return new JsonResponse(['error' => $this->translator->translate('webauthn.error.authentication-failed')], 422);

@@ -8,6 +8,8 @@ declare(strict_types=1);
 namespace TowerDNS\Infrastructure\Persistence;
 
 use Doctrine\DBAL\Connection;
+use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
+use Doctrine\DBAL\ParameterType;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Exception\WebAuthnCredentialLimitException;
 use TowerDNS\Application\Repository\WebAuthnCredentialRepositoryInterface;
@@ -19,6 +21,94 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
         private Connection          $connection,
         private SerializerInterface $serializer,
     ) {}
+
+    #[\Override]
+    public function getOrCreateUserHandle(string $userId, string $rpId): string
+    {
+        if ($rpId === '' || strlen($rpId) > 253) {
+            throw new \InvalidArgumentException('A valid WebAuthn relying party ID is required.');
+        }
+
+        // Compare-and-set updates make concurrent first enrollments converge
+        // on one durable handle. The unique index also protects cross-account
+        // uniqueness; credentials are never used as a source of identity.
+        for ($attempt = 0; $attempt < 3; ++$attempt) {
+            $row = $this->connection->fetchAssociative(
+                'SELECT webauthn_user_handle, webauthn_user_handle_rp_id FROM users WHERE id = ? AND active = TRUE',
+                [$userId],
+            );
+            if ($row === false) {
+                throw new \DomainException('An active user is required for WebAuthn enrollment.');
+            }
+
+            $existingHandle = $row['webauthn_user_handle']       ?? null;
+            $existingRpId   = $row['webauthn_user_handle_rp_id'] ?? null;
+            if ($existingHandle !== null && $existingHandle !== '') {
+                if (!is_string($existingHandle) || strlen($existingHandle) !== 64) {
+                    throw new \UnexpectedValueException('The persisted WebAuthn user handle is invalid.');
+                }
+                if ($existingRpId === $rpId) {
+                    return $existingHandle;
+                }
+
+                if ($existingRpId === null || $existingRpId === '') {
+                    $updated = $this->connection->executeStatement(
+                        'UPDATE users SET webauthn_user_handle_rp_id = ? WHERE id = ? AND active = TRUE AND webauthn_user_handle = ? AND webauthn_user_handle_rp_id IS NULL',
+                        [$rpId, $userId, $existingHandle],
+                        [ParameterType::STRING, ParameterType::STRING, ParameterType::BINARY],
+                    );
+                    if ($updated === 1) {
+                        return $existingHandle;
+                    }
+                    continue;
+                }
+
+                $credentialCount = (int) $this->connection->fetchOne(
+                    'SELECT COUNT(*) FROM webauthn_credentials WHERE user_id = ?',
+                    [$userId],
+                );
+                if ($credentialCount > 0) {
+                    throw new \DomainException('The relying party cannot change while this user has WebAuthn credentials.');
+                }
+
+                $handle = random_bytes(64);
+                try {
+                    $updated = $this->connection->executeStatement(
+                        'UPDATE users SET webauthn_user_handle = ?, webauthn_user_handle_rp_id = ? WHERE id = ? AND active = TRUE AND webauthn_user_handle = ? AND webauthn_user_handle_rp_id = ?',
+                        [$handle, $rpId, $userId, $existingHandle, $existingRpId],
+                        [ParameterType::BINARY, ParameterType::STRING, ParameterType::STRING, ParameterType::BINARY, ParameterType::STRING],
+                    );
+                } catch (UniqueConstraintViolationException) {
+                    continue;
+                }
+                if ($updated === 1) {
+                    return $handle;
+                }
+                continue;
+            }
+
+            if ($existingRpId !== null && $existingRpId !== '') {
+                throw new \UnexpectedValueException('A relying party ID exists without its WebAuthn user handle.');
+            }
+
+            $handle = random_bytes(64);
+            try {
+                $updated = $this->connection->executeStatement(
+                    'UPDATE users SET webauthn_user_handle = ?, webauthn_user_handle_rp_id = ? WHERE id = ? AND active = TRUE AND webauthn_user_handle IS NULL',
+                    [$handle, $rpId, $userId],
+                    [ParameterType::BINARY, ParameterType::STRING, ParameterType::STRING],
+                );
+            } catch (UniqueConstraintViolationException) {
+                continue;
+            }
+
+            if ($updated === 1) {
+                return $handle;
+            }
+        }
+
+        throw new \RuntimeException('Could not persist a unique WebAuthn user handle.');
+    }
 
     #[\Override]
     public function findByUserId(string $userId): array

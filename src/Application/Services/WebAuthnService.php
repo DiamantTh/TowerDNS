@@ -37,6 +37,11 @@ final readonly class WebAuthnService
         private string              $rpName,
     ) {}
 
+    public function relyingPartyId(): string
+    {
+        return $this->rpId;
+    }
+
     // ── Registration ──────────────────────────────────────────────────────────
 
     /**
@@ -44,11 +49,11 @@ final readonly class WebAuthnService
      *
      * @param list<string> $excludedCredentialIds  Raw bytes of credentials to exclude
      *
-     * $userId is TowerDNS's stable, unique user identifier. Never derive the WebAuthn
-     * user handle from the email address or display name: both are mutable labels.
+     * $userHandle is the persisted, opaque WebAuthn identifier for this account
+     * and RP. It is separate from the database user ID and mutable profile labels.
      */
     public function createRegistrationOptions(
-        string $userId,
+        string $userHandle,
         string $userEmail,
         string $displayName,
         array  $excludedCredentialIds = [],
@@ -57,7 +62,7 @@ final readonly class WebAuthnService
         $rp   = new PublicKeyCredentialRpEntity($this->rpName, $this->rpId);
         $user = new PublicKeyCredentialUserEntity(
             name: $userEmail,
-            id: $userId,
+            id: $userHandle,
             displayName: $displayName,
         );
 
@@ -161,7 +166,6 @@ final readonly class WebAuthnService
         string                            $jsonResponse,
         CredentialRecord                  $source,
         PublicKeyCredentialRequestOptions $options,
-        ?string                           $userHandle = null,
     ): CredentialRecord {
         if ($options->userVerification !== PublicKeyCredentialRequestOptions::USER_VERIFICATION_REQUIREMENT_REQUIRED) {
             throw new \InvalidArgumentException('WebAuthn authentication options must require user verification.');
@@ -176,7 +180,11 @@ final readonly class WebAuthnService
         $factory->setAllowedOrigins(['https://' . $this->rpId]);
 
         return AuthenticatorAssertionResponseValidator::create($factory->requestCeremony())
-            ->check($source, $credential->response, $options, $this->rpId, $userHandle);
+            // Credential records retain the exact handle used when they were
+            // created. This preserves legacy handles while new enrollment uses
+            // the account's persistent opaque handle. The signature remains
+            // the proof of authentication; a handle only checks association.
+            ->check($source, $credential->response, $options, $this->rpId, $source->userHandle);
     }
 
     // ── Serialization helpers ─────────────────────────────────────────────────

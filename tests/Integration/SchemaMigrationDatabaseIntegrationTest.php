@@ -7,16 +7,21 @@ namespace TowerDNS\Tests\Integration;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapper;
 use TowerDNS\Infrastructure\Installation\FreshInstallBootstrapRequest;
 use TowerDNS\Infrastructure\Persistence\DbalStepUpProofNonceRepository;
 use TowerDNS\Infrastructure\Persistence\DbalUserRepository;
+use TowerDNS\Infrastructure\Persistence\DbalWebAuthnCredentialRepository;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationLock;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationLockedException;
 use TowerDNS\Infrastructure\Persistence\SchemaMigrationManager;
 use TowerDNS\Infrastructure\Persistence\SqliteConnectionConfigurator;
+use Webauthn\AttestationStatement\AttestationStatementSupportManager;
+use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
+use Webauthn\Denormalizer\WebauthnSerializerFactory;
 
 /**
  * Runs the migration invariants against SQLite and, when configured, real
@@ -33,12 +38,12 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $first = $manager->migrate();
             self::assertSame([], $first->pending, $backend);
             self::assertTrue($first->schemaCurrent, $backend);
-            self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles'), $backend);
 
             $second = $manager->migrate();
             self::assertSame([], $second->pending, $backend);
-            self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
 
             $bootstrap = new FreshInstallBootstrapper($connection);
             $result    = $bootstrap->bootstrap(new FreshInstallBootstrapRequest(
@@ -53,6 +58,10 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             self::assertTrue($result->createdInitialState, $backend);
             self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts'), $backend);
             self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM account_memberships WHERE role = ?', ['owner']), $backend);
+            $handles = new DbalWebAuthnCredentialRepository($connection, $this->webAuthnSerializer());
+            $handle  = $handles->getOrCreateUserHandle('55555555-5555-4555-8555-555555555555', 'example.test');
+            self::assertSame(64, strlen($handle), $backend);
+            self::assertSame($handle, $handles->getOrCreateUserHandle('55555555-5555-4555-8555-555555555555', 'example.test'), $backend);
         });
     }
 
@@ -86,7 +95,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             self::assertSame($passwordHash, $connection->fetchOne('SELECT password_hash FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('de-DE', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('ciphertext-that-must-survive', $connection->fetchOne('SELECT credentials_encrypted FROM provider_accounts WHERE account_id = ?', [$accountId]), $backend);
-            self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
         });
     }
 
@@ -108,7 +117,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $status = $manager->migrate();
 
             self::assertTrue($status->schemaCurrent, $backend);
-            self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertTrue($connection->createSchemaManager()->tablesExist(['step_up_proof_nonces']), $backend);
             self::assertSame($userId, $connection->fetchOne('SELECT id FROM users WHERE email = ?', ['step-up-migration@example.test']), $backend);
         });
@@ -384,5 +393,12 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
         }
 
         self::fail(sprintf('%s accepted a duplicate unique value.', $backend));
+    }
+
+    private function webAuthnSerializer(): SerializerInterface
+    {
+        return new WebauthnSerializerFactory(new AttestationStatementSupportManager([
+            new NoneAttestationStatementSupport(),
+        ]))->create();
     }
 }

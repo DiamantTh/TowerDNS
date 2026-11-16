@@ -151,6 +151,16 @@ final class TestWebAuthnCredentialRepository implements WebAuthnCredentialReposi
     }
 
     #[\Override]
+    public function getOrCreateUserHandle(string $userId, string $rpId): string
+    {
+        if ($userId !== $this->userId || $rpId === '') {
+            throw new \DomainException('An active user and relying party ID are required.');
+        }
+
+        return str_repeat('h', 64);
+    }
+
+    #[\Override]
     public function findByUserId(string $userId): array
     {
         if ($userId !== $this->userId) {

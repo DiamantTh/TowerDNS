@@ -680,6 +680,15 @@ final readonly class SchemaManager
         // users ---------------------------------------------------------------
         $users = new CanonicalTableBuilder('users');
         $users->addColumn('id', Types::GUID);
+        // The WebAuthn user handle is an opaque, stable RP-scoped identifier,
+        // deliberately separate from the internal database/user identity.
+        $userHandleType = PlatformDetector::isSqlite($this->connection) ? Types::BLOB : Types::BINARY;
+        $users->addColumn(
+            'webauthn_user_handle',
+            $userHandleType,
+            $userHandleType === Types::BINARY ? ['length' => 64, 'notnull' => false] : ['notnull' => false],
+        );
+        $users->addColumn('webauthn_user_handle_rp_id', Types::STRING, ['length' => 253, 'notnull' => false]);
         $users->addColumn('email', Types::STRING, ['length' => 254]);
         $users->addColumn('display_name', Types::STRING, ['length' => 64, 'notnull' => false]);
         $users->addColumn('password_hash', Types::STRING, ['length' => 255]);
@@ -707,6 +716,7 @@ final readonly class SchemaManager
         $users->addColumn('auth_session_version', Types::INTEGER, ['default' => 0]);
         $users->setPrimaryKey(['id']);
         $users->addUniqueIndex(['email'], 'uq_users_email');
+        $users->addUniqueIndex(['webauthn_user_handle'], 'uq_users_webauthn_user_handle');
 
         // user_roles ----------------------------------------------------------
         $userRoles = new CanonicalTableBuilder('user_roles');

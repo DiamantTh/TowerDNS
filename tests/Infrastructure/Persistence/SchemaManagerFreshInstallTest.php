@@ -35,6 +35,9 @@ final class SchemaManagerFreshInstallTest extends TestCase
         self::assertTrue($schemaManager->introspectTableByUnquotedName('account_memberships')->hasForeignKey('fk_accm_invited_by'));
         self::assertTrue($schemaManager->introspectTableByUnquotedName('admin_impersonation_sessions')->hasForeignKey('fk_ais_effective_account_id'));
         self::assertTrue($schemaManager->introspectTableByUnquotedName('password_reset_tokens')->hasIndex('idx_prt_expires_at'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('users')->hasIndex('uq_users_webauthn_user_handle'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('users')->hasColumn('webauthn_user_handle'));
+        self::assertTrue($schemaManager->introspectTableByUnquotedName('users')->hasColumn('webauthn_user_handle_rp_id'));
         self::assertTrue($schemaManager->introspectTableByUnquotedName('accounts')->hasIndex('uq_accounts_personal_user'));
         self::assertSame('superadmin', $connection->fetchOne('SELECT role_id FROM user_roles WHERE user_id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));
         self::assertSame('en-GB', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', ['6c74d6ca-2d12-41df-a913-f146bc4785ea']));

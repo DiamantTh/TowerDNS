@@ -109,9 +109,10 @@ final readonly class WebAuthnRegisterBeginHandler implements RequestHandlerInter
         $existing   = $this->credentialRepo->findByUserId($currentUser->id);
         $excludeIds = array_column($existing, 'credential_id');
 
-        $purpose = ($body['method'] ?? '') === 'security_key' ? 'hardware_security_key' : 'passkey';
-        $options = $this->webAuthn->createRegistrationOptions(
-            userId: $currentUser->id,
+        $purpose    = ($body['method'] ?? '') === 'security_key' ? 'hardware_security_key' : 'passkey';
+        $userHandle = $this->credentialRepo->getOrCreateUserHandle($currentUser->id, $this->webAuthn->relyingPartyId());
+        $options    = $this->webAuthn->createRegistrationOptions(
+            userHandle: $userHandle,
             userEmail: $currentUser->email,
             displayName: $currentUser->displayName ?? $currentUser->email,
             excludedCredentialIds: $excludeIds,

@@ -23,12 +23,12 @@ final class SchemaMigrationManagerTest extends TestCase
         $status = $manager->migrate();
         self::assertSame([], $status->pending);
         self::assertTrue($status->schemaCurrent);
-        self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
+        self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
         self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles'));
 
         $second = $manager->migrate();
         self::assertSame([], $second->pending);
-        self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
+        self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
     }
 
     public function testCurrentSchemaIsBaselinedWithoutChangingExistingData(): void
@@ -66,6 +66,67 @@ final class SchemaMigrationManagerTest extends TestCase
         self::assertSame([], $status->pending);
         self::assertSame('de-DE', $connection->fetchOne('SELECT language FROM users WHERE id = ?', ['user-2']));
         self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM accounts WHERE personal_user_id = ?', ['user-2']));
+    }
+
+    public function testWebAuthnHandleMigrationKeepsLegacyCredentialAssociationAndAddsOpaqueHandle(): void
+    {
+        $connection = DriverManager::getConnection(['driver' => 'pdo_sqlite', 'memory' => true]);
+        $schema     = new SchemaManager($connection);
+        $schema->createTablesIfNotExist();
+        $schema->seedSystemRoles();
+        $schema->seedSystemSettingsDefaults();
+        $connection->insert('system_settings', [
+            'setting_key'   => 'security.webauthn.rp_id',
+            'setting_value' => json_encode('legacy.example.test', JSON_THROW_ON_ERROR),
+            'updated_at'    => '2026-01-01 00:00:00',
+            'updated_by'    => null,
+        ]);
+        $userId = '11111111-1111-4111-8111-111111111111';
+        $schema->seedFirstUser($userId, 'legacy-webauthn@example.test', password_hash('safe-password', PASSWORD_ARGON2ID), 'Legacy');
+        $secondUserId = '22222222-2222-4222-8222-222222222222';
+        $connection->insert('users', [
+            'id'                    => $secondUserId,
+            'email'                 => 'second-webauthn@example.test',
+            'display_name'          => 'Second',
+            'password_hash'         => password_hash('other-password', PASSWORD_ARGON2ID),
+            'totp_secret_encrypted' => null,
+            'active'                => true,
+            'theme'                 => 'system',
+            'language'              => 'en-GB',
+            'locale'                => 'en-GB',
+            'timezone'              => 'UTC',
+            'created_at'            => '2026-01-01 00:00:00',
+            'updated_at'            => '2026-01-01 00:00:00',
+        ]);
+
+        $legacyJson = '{"publicKeyCredentialId":"Y3JlZGVudGlhbC1pZA","type":"public-key","transports":[],"attestationType":"none","trustPath":[],"aaguid":"00000000-0000-0000-0000-000000000000","credentialPublicKey":"cHVibGljLWtleQ","userHandle":"' . rtrim(strtr(base64_encode($userId), '+/', '-_'), '=') . '","counter":1}';
+        $connection->insert('webauthn_credentials', [
+            'credential_id' => 'credential-id',
+            'user_id'       => $userId,
+            'name'          => 'Legacy passkey',
+            'data'          => $legacyJson,
+            'created_at'    => '2026-01-01 00:00:00',
+            'last_used_at'  => null,
+            'attachment'    => null,
+        ]);
+
+        $connection->executeStatement('DROP INDEX uq_users_webauthn_user_handle');
+        $connection->executeStatement('ALTER TABLE users DROP COLUMN webauthn_user_handle');
+        $connection->executeStatement('ALTER TABLE users DROP COLUMN webauthn_user_handle_rp_id');
+        $status = $this->manager($connection)->migrate();
+
+        $handle       = $connection->fetchOne('SELECT webauthn_user_handle FROM users WHERE id = ?', [$userId]);
+        $secondHandle = $connection->fetchOne('SELECT webauthn_user_handle FROM users WHERE id = ?', [$secondUserId]);
+        self::assertSame([], $status->pending);
+        self::assertTrue($status->schemaCurrent);
+        self::assertIsString($handle);
+        self::assertSame(64, strlen($handle));
+        self::assertNotSame($userId, $handle);
+        self::assertIsString($secondHandle);
+        self::assertSame(64, strlen($secondHandle));
+        self::assertNotSame($handle, $secondHandle);
+        self::assertSame('legacy.example.test', $connection->fetchOne('SELECT webauthn_user_handle_rp_id FROM users WHERE id = ?', [$userId]));
+        self::assertSame($legacyJson, $connection->fetchOne('SELECT data FROM webauthn_credentials WHERE credential_id = ?', ['credential-id']));
     }
 
     public function testAuthMigrationMovesLegacyEncryptedTotpSecretWithoutLosingIt(): void

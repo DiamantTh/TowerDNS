@@ -13,7 +13,11 @@ use Symfony\Component\Uid\Uuid;
 use TowerDNS\Application\Services\WebAuthnService;
 use Webauthn\AttestationStatement\AttestationStatementSupportManager;
 use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
+use Webauthn\AuthenticatorAssertionResponse;
+use Webauthn\AuthenticatorData;
 use Webauthn\AuthenticatorSelectionCriteria;
+use Webauthn\CeremonyStep\CheckUserHandle;
+use Webauthn\CollectedClientData;
 use Webauthn\CredentialRecord;
 use Webauthn\Denormalizer\WebauthnSerializerFactory;
 use Webauthn\Exception\AuthenticatorResponseVerificationException;
@@ -41,20 +45,23 @@ final class WebAuthnServiceTest extends TestCase
 
     public function testRegistrationLabelsCanChangeWithoutChangingTheStableUserHandle(): void
     {
-        $service = $this->service();
-        $first   = $service->createRegistrationOptions(
-            'f1d7f356-2af3-4bc5-b833-b1392e7b75a8',
+        $service    = $this->service();
+        $userHandle = random_bytes(64);
+        $first      = $service->createRegistrationOptions(
+            $userHandle,
             'old@example.test',
             'Old Display Name',
         )->user;
         $updated = $service->createRegistrationOptions(
-            'f1d7f356-2af3-4bc5-b833-b1392e7b75a8',
+            $userHandle,
             'new@example.test',
             'New Display Name',
         )->user;
 
         self::assertSame($first->id, $updated->id);
-        self::assertSame('f1d7f356-2af3-4bc5-b833-b1392e7b75a8', $updated->id);
+        self::assertSame($userHandle, $updated->id);
+        self::assertNotSame('f1d7f356-2af3-4bc5-b833-b1392e7b75a8', $updated->id);
+        self::assertSame(64, strlen($updated->id));
         self::assertSame('old@example.test', $first->name);
         self::assertSame('Old Display Name', $first->displayName);
         self::assertSame('new@example.test', $updated->name);
@@ -70,6 +77,32 @@ final class WebAuthnServiceTest extends TestCase
         self::assertCount(1, $options->allowCredentials);
         self::assertSame($id, $options->allowCredentials[0]->id);
         self::assertSame(['usb', 'nfc'], $options->allowCredentials[0]->transports);
+    }
+
+    public function testDiscoverableAndNonDiscoverableAssertionsUseCredentialBoundHandle(): void
+    {
+        $record  = $this->credentialRecord();
+        $options = $this->service()->createAuthenticationOptions(['credential-id']);
+        $check   = new CheckUserHandle();
+
+        $clientData = CollectedClientData::create('fixture', [
+            'type'      => 'webauthn.get',
+            'challenge' => $this->base64Url(random_bytes(32)),
+            'origin'    => 'https://example.test',
+        ]);
+        $authenticatorData    = AuthenticatorData::create('', '', '', 0);
+        $discoverableResponse = new AuthenticatorAssertionResponse($clientData, $authenticatorData, 'signature', 'user-1');
+        $check->process($record, $discoverableResponse, $options, $record->userHandle, 'example.test');
+
+        // A non-discoverable credential may omit userHandle in its assertion.
+        // The already selected, owner-scoped credential record still supplies
+        // the expected enrollment handle for validation.
+        $nonDiscoverableResponse = new AuthenticatorAssertionResponse($clientData, $authenticatorData, 'signature', null);
+        $check->process($record, $nonDiscoverableResponse, $options, $record->userHandle, 'example.test');
+
+        $wrongAccountResponse = new AuthenticatorAssertionResponse($clientData, $authenticatorData, 'signature', 'different-user-handle');
+        $this->expectException(\Webauthn\Exception\InvalidUserHandleException::class);
+        $check->process($record, $wrongAccountResponse, $options, $record->userHandle, 'example.test');
     }
 
     public function testStoredOldCeremonyOptionsWithoutRequiredUvAreRejected(): void
@@ -100,7 +133,6 @@ final class WebAuthnServiceTest extends TestCase
             $this->assertionJson(random_bytes(32), 'https://example.test', 'example.test', 0x05),
             $this->credentialRecord(),
             $options,
-            'user-1',
         );
     }
 
@@ -114,7 +146,6 @@ final class WebAuthnServiceTest extends TestCase
             $this->assertionJson($options->challenge, 'https://attacker.test', 'example.test', 0x05),
             $this->credentialRecord(),
             $options,
-            'user-1',
         );
     }
 
@@ -128,7 +159,6 @@ final class WebAuthnServiceTest extends TestCase
             $this->assertionJson($options->challenge, 'https://example.test', 'attacker.test', 0x05),
             $this->credentialRecord(),
             $options,
-            'user-1',
         );
     }
 
@@ -142,7 +172,6 @@ final class WebAuthnServiceTest extends TestCase
             $this->assertionJson($options->challenge, 'https://example.test', 'example.test', 0x01),
             $this->credentialRecord(),
             $options,
-            'user-1',
         );
     }
 
