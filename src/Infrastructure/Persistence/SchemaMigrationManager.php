@@ -93,7 +93,7 @@ final readonly class SchemaMigrationManager
 
     /**
      * @psalm-suppress InternalClass Doctrine Migrations 3.9 has no public programmatic runner accepting the app's existing mutable schema plan.
-     * @psalm-suppress InternalMethod The internal Migrator API is isolated here and documented in docs/ARCHITECTURE.md.
+     * @psalm-suppress InternalMethod The internal Migrator API is isolated at this infrastructure boundary and covered by migration integration tests.
      */
     public function migrate(): SchemaMigrationStatus
     {

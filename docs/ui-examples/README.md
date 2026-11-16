@@ -26,8 +26,8 @@ selected page and receives only that page's bootstrap data.
 | `accounts.png` | Personal and organization accounts, member roles, and status controls |
 | `users.png` | User search and user-management examples |
 
-Provider coverage and known operation limits are documented in
-[`../PROVIDER_CAPABILITIES.md`](../PROVIDER_CAPABILITIES.md).
+Provider operation support is declared by the capability map in each adapter
+under `modules/`.
 
 ## B. Older static UX proposals
 

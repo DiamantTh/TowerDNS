@@ -39,8 +39,6 @@ try {
         'svelte.config.js', 'tsconfig.json', 'README.md', 'LICENSE',
     ]) copy(name);
     mkdirSync(join(stage, 'build'), { recursive: true });
-    mkdirSync(join(stage, 'docs'), { recursive: true });
-    copy('docs/INSTALLATION.md');
 
     const release = JSON.parse(readFileSync(join(root, 'build/asset-release.json'), 'utf8'));
     const activation = JSON.parse(readFileSync(join(root, 'build/asset-activation.json'), 'utf8'));
