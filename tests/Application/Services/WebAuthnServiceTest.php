@@ -39,6 +39,28 @@ final class WebAuthnServiceTest extends TestCase
         self::assertSame(AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_PREFERRED, $hardwareSelection->residentKey);
     }
 
+    public function testRegistrationLabelsCanChangeWithoutChangingTheStableUserHandle(): void
+    {
+        $service = $this->service();
+        $first   = $service->createRegistrationOptions(
+            'f1d7f356-2af3-4bc5-b833-b1392e7b75a8',
+            'old@example.test',
+            'Old Display Name',
+        )->user;
+        $updated = $service->createRegistrationOptions(
+            'f1d7f356-2af3-4bc5-b833-b1392e7b75a8',
+            'new@example.test',
+            'New Display Name',
+        )->user;
+
+        self::assertSame($first->id, $updated->id);
+        self::assertSame('f1d7f356-2af3-4bc5-b833-b1392e7b75a8', $updated->id);
+        self::assertSame('old@example.test', $first->name);
+        self::assertSame('Old Display Name', $first->displayName);
+        self::assertSame('new@example.test', $updated->name);
+        self::assertSame('New Display Name', $updated->displayName);
+    }
+
     public function testUsernameFirstAuthenticationUsesAllowListAndRequiredUv(): void
     {
         $id      = 'raw-credential-id';

@@ -43,6 +43,9 @@ final readonly class WebAuthnService
      * Build creation options for a new credential.
      *
      * @param list<string> $excludedCredentialIds  Raw bytes of credentials to exclude
+     *
+     * $userId is TowerDNS's stable, unique user identifier. Never derive the WebAuthn
+     * user handle from the email address or display name: both are mutable labels.
      */
     public function createRegistrationOptions(
         string $userId,
@@ -52,7 +55,11 @@ final readonly class WebAuthnService
         bool $hardwareSecurityKey = false,
     ): PublicKeyCredentialCreationOptions {
         $rp   = new PublicKeyCredentialRpEntity($this->rpName, $this->rpId);
-        $user = new PublicKeyCredentialUserEntity($userEmail, $userId, $displayName);
+        $user = new PublicKeyCredentialUserEntity(
+            name: $userEmail,
+            id: $userId,
+            displayName: $displayName,
+        );
 
         $pubKeyCredParams = [
             PublicKeyCredentialParameters::createPk(-7),   // ES256
