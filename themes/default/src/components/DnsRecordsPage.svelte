@@ -3,6 +3,7 @@
     import { tick } from 'svelte';
     import type { DnsRrsetBootstrap } from '../lib/bootstrap';
     import Field from './Field.svelte';
+    import TlsaGenerator from './TlsaGenerator.svelte';
     import Page from './Page.svelte';
     import { useI18n } from '../lib/i18n';
     import { pageUrl, type DnsRecordsPageProps, type PageUrlTemplates } from '../lib/bootstrap';
@@ -27,6 +28,17 @@
         typeChoice = page.recordTypes.includes(rrset.type.presentation) ? rrset.type.presentation : 'custom';
         customType = rrset.type.presentation; ttl = rrset.ttl; rdata = rrset.rdata.join('\n'); editing = true;
         await tick(); editor?.focus(); editor?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    };
+
+    const applyTlsa = async (values: string[]): Promise<void> => {
+        const existing = typeChoice === 'TLSA' ? rdata.split('\\n').map(value => value.trim()).filter(Boolean) : [];
+        rdata = [...new Set([...existing, ...values])].join('\\n');
+        typeChoice = 'TLSA';
+        customType = '';
+        if (!editing || typeChoice !== 'TLSA') editing = false;
+        await tick();
+        editor?.focus();
+        editor?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     };
 
     const url = (name: string, parameters: Record<string, string | number>) => pageUrl(urls, name, parameters);
@@ -65,6 +77,14 @@
             {#if !page.canReplaceRrsets}<p class="help" id="rrset-replace-unavailable" role="status">{t('rrset.action-unavailable')}</p>{/if}
         </form>
     </section>
+
+    {#if page.canReplaceRrsets}
+        <TlsaGenerator
+            endpoint={url('tlsaGenerate', { account: page.accountId, zone: page.managedZoneId })}
+            csrfToken={page.csrfToken}
+            onGenerated={applyTlsa}
+        />
+    {/if}
 
     <section class="box form-grid" aria-label={t('dns.filters')}>
         <Field label={t('common.search')}><input class="input" type="search" bind:value={query} placeholder={t('dns.record-search')}></Field>
