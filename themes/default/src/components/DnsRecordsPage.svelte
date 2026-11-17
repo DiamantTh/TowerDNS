@@ -32,8 +32,10 @@
 
     const applyTlsa = async (values: string[]): Promise<void> => {
         const wasEditingTlsa = editing && typeChoice === 'TLSA';
-        const existing = typeChoice === 'TLSA' ? rdata.split('\n').map(value => value.trim()).filter(Boolean) : [];
-        rdata = [...new Set([...existing, ...values])].join('\n');
+        const published = page.rrsets.find(rrset => rrset.type.presentation === 'TLSA' && rrset.ownerName === owner)?.rdata ?? [];
+        const current = typeChoice === 'TLSA' ? rdata.split('\n').map(value => value.trim()).filter(Boolean) : [];
+        // Preserve existing values for this service rather than replacing the whole TLSA RRset.
+        rdata = [...new Set([...published, ...current, ...values])].join('\n');
         typeChoice = 'TLSA';
         customType = '';
         editing = wasEditingTlsa;
