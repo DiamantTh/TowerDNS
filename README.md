@@ -45,7 +45,9 @@ dringend empfohlen und ist für einen sicheren Betrieb praktisch erforderlich.
 Kann ein Hosting-Angebot weder `httpdocs/` als
 DocumentRoot noch eine gleichwertig sichere Trennung bereitstellen, ist es
 nicht geeignet. Installation im Browser: `/install.php`; danach wird der
-Installer gesperrt. Der CLI-Installer nutzt denselben Bootstrap-Unterbau.
+Installer gesperrt. Der CLI-Installer wird mit `php install/install-cli.php` oder
+`php bin/towerdns towerdns:install` ausdrücklich gestartet und nutzt denselben
+Bootstrap-Unterbau. `php bin/towerdns` zeigt die Befehlsübersicht.
 
 Vor Schema-Upgrades Datenbank und `configs/config.local.toml` gemeinsam
 sichern. Darin liegt unter anderem der Schlüssel für verschlüsselte Provider-

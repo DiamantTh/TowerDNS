@@ -63,7 +63,6 @@ final class ConsoleApplicationFactory
             false,
             static fn(): SchemaValidateCommand => $container->get(SchemaValidateCommand::class),
         ));
-        $application->setDefaultCommand('towerdns:install');
 
         return $application;
     }

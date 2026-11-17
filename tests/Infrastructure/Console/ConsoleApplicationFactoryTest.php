@@ -34,6 +34,18 @@ final class ConsoleApplicationFactoryTest extends TestCase
         self::assertSame('V|v', $application->getDefinition()->getOption('version')->getShortcut());
     }
 
+    public function testNoArgumentsListsCommandsWithoutStartingInstallation(): void
+    {
+        $application = ConsoleApplicationFactory::create(ContainerFactory::create(dirname(__DIR__, 3)));
+        $application->setAutoExit(false);
+        $tester = new ApplicationTester($application);
+
+        self::assertSame(0, $tester->run([]));
+        self::assertStringContainsString('towerdns:install', $tester->getDisplay());
+        self::assertStringContainsString('zone:list', $tester->getDisplay());
+        self::assertStringNotContainsString('Start installation?', $tester->getDisplay());
+    }
+
     public function testListsCommandsAsToml(): void
     {
         $application = ConsoleApplicationFactory::create(ContainerFactory::create(dirname(__DIR__, 3)));
