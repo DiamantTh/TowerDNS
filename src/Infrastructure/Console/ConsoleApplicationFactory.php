@@ -41,6 +41,7 @@ final class ConsoleApplicationFactory
         $application->addCommand($container->get(ZoneListCommand::class));
         $application->addCommand($container->get(RecordListCommand::class));
         $application->addCommand($container->get(RrsetListCommand::class));
+        $application->addCommand($container->get(TlsaGenerateCommand::class));
         $application->addCommand($container->get(ModuleListCommand::class));
         $application->addCommand(new LazyCommand(
             'towerdns:schema:status',
