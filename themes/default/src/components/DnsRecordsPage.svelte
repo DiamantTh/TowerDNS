@@ -31,11 +31,12 @@
     };
 
     const applyTlsa = async (values: string[]): Promise<void> => {
-        const existing = typeChoice === 'TLSA' ? rdata.split('\\n').map(value => value.trim()).filter(Boolean) : [];
-        rdata = [...new Set([...existing, ...values])].join('\\n');
+        const wasEditingTlsa = editing && typeChoice === 'TLSA';
+        const existing = typeChoice === 'TLSA' ? rdata.split('\n').map(value => value.trim()).filter(Boolean) : [];
+        rdata = [...new Set([...existing, ...values])].join('\n');
         typeChoice = 'TLSA';
         customType = '';
-        if (!editing || typeChoice !== 'TLSA') editing = false;
+        editing = wasEditingTlsa;
         await tick();
         editor?.focus();
         editor?.scrollIntoView({ block: 'center', behavior: 'smooth' });
