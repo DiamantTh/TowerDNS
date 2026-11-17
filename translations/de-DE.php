@@ -6,6 +6,21 @@
 declare(strict_types=1);
 
 return [
+    'tlsa.title'           => 'TLSA-Generator (DANE)',
+    'tlsa.description'     => 'Öffentliche Zertifikate oder SPKI-Schlüssel einfügen. TowerDNS erzeugt die TLSA-Werte ohne Server-Abfrage und ohne Shell-Aufrufe. Anschließend den Dienstnamen (_Port._tcp.Host) und das RRset prüfen und speichern.',
+    'tlsa.usage'           => 'Certificate Usage',
+    'tlsa.selector'        => 'Selector',
+    'tlsa.matching'        => 'Matching Type',
+    'tlsa.certificates'    => 'PEM-Zertifikate oder öffentliche Schlüssel (mehrere möglich)',
+    'tlsa.upload'          => 'Alternativ Zertifikatdateien auswählen (PEM/DER)',
+    'tlsa.warning'         => 'Nur öffentliche Daten verwenden, niemals private Schlüssel. Bei Dual-Cert beide Zertifikate hinzufügen. CA- und EE-Verfahren erfordern passende Zertifikate. Bestehende TLSA-Werte werden nicht automatisch entfernt; Rollover und DNSSEC müssen separat geprüft werden.',
+    'tlsa.generate'        => 'TLSA-Werte in den RRset-Editor übernehmen',
+    'tlsa.generating'      => 'TLSA-Werte werden berechnet …',
+    'tlsa.success'         => '{count} TLSA-Wert(e) übernommen. Bitte RRset vor dem Speichern prüfen.',
+    'tlsa.error.size'      => 'Zertifikatdatei zu groß.',
+    'tlsa.error.import'    => 'Datei konnte nicht eingelesen werden.',
+    'tlsa.error.generate'  => 'TLSA-Berechnung fehlgeschlagen.',
+
     'dashboard.no-active-account'      => 'Kein Account ausgewählt. Öffne die Account-Übersicht, um einen Account auszuwählen.',
     'dashboard.add-passkey'            => 'Passkey oder Sicherheitsschlüssel hinzufügen',
     'invitations.incoming'             => 'Eingehende Einladungen',
