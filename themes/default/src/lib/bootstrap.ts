@@ -15,7 +15,7 @@ const defaultPageUrls: PageUrlTemplates = {
     accounts: '/accounts', account: '/accounts/{id}', accountMembers: '/accounts/{id}/members', accountProviders: '/accounts/{id}/providers', zones: '/zones',
     accountZones: '/accounts/{account}/zones', zoneDelete: '/accounts/{account}/zones/{zone}/delete',
     records: '/accounts/{account}/zones/{zone}', record: '/accounts/{account}/zones/{zone}/records/{record}/edit',
-    rrsetReplace: '/accounts/{account}/zones/{zone}/rrsets', rrsetDelete: '/accounts/{account}/zones/{zone}/rrsets/{owner}/{type}/delete',
+    rrsetReplace: '/accounts/{account}/zones/{zone}/rrsets', tlsaGenerate: '/accounts/{account}/zones/{zone}/tlsa/generate', rrsetDelete: '/accounts/{account}/zones/{zone}/rrsets/{owner}/{type}/delete',
     dnssec: '/accounts/{account}/zones/{zone}/dnssec', profile: '/profile', settings: '/settings', schema: '/settings/schema',
 };
 
