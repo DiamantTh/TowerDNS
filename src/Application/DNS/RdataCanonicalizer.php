@@ -65,6 +65,12 @@ final class RdataCanonicalizer
         if ($usage > 3 || $selector > 1 || $matching > 2 || $data === '' || strlen($data) % 2 !== 0 || !ctype_xdigit($data)) {
             throw new \InvalidArgumentException('Ungültiger TLSA-RDATA-Wert.');
         }
+        $length = strlen($data);
+        if (($matching === 1 && $length !== 64)
+            || ($matching === 2 && $length !== 128)
+            || ($matching === 0 && $length > 131064)) {
+            throw new \InvalidArgumentException('TLSA Association Data length does not match the chosen matching type.');
+        }
         return "{$usage} {$selector} {$matching} {$data}";
     }
 
