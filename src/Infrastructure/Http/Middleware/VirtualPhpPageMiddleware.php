@@ -145,6 +145,7 @@ final readonly class VirtualPhpPageMiddleware implements MiddlewareInterface
         return match ($action) {
             'create'       => $record === null ? $base . '/records' : null,
             'replace'      => $record === null ? $base . '/rrsets' : null,
+            'tlsa-generate' => $record === null ? $base . '/tlsa/generate' : null,
             'update'       => $record !== null ? $base . '/records/' . rawurlencode($record) . '/update' : null,
             'delete'       => $record !== null ? $base . '/records/' . rawurlencode($record) . '/delete' : null,
             'delete-rrset' => $this->rrsetDeletePath($base, $query),
