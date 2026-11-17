@@ -6,6 +6,21 @@
 declare(strict_types=1);
 
 return [
+    'tlsa.title'           => 'TLSA generator (DANE)',
+    'tlsa.description'     => 'Paste public certificates or SPKI keys. TowerDNS generates TLSA values without network probes or shell commands. Review the service owner (_port._tcp.host) and RRset before saving.',
+    'tlsa.usage'           => 'Certificate usage',
+    'tlsa.selector'        => 'Selector',
+    'tlsa.matching'        => 'Matching type',
+    'tlsa.certificates'    => 'PEM certificates or public keys (multiple allowed)',
+    'tlsa.upload'          => 'Or select certificate files (PEM/DER)',
+    'tlsa.warning'         => 'Public data only; never private keys. Include both certificates for dual-cert servers. CA and EE usages require the appropriate certificates. Existing TLSA values are not removed automatically; review rollover and DNSSEC separately.',
+    'tlsa.generate'        => 'Add TLSA values to RRset editor',
+    'tlsa.generating'      => 'Calculating TLSA values…',
+    'tlsa.success'         => 'Added {count} TLSA value(s). Review the RRset before saving.',
+    'tlsa.error.size'      => 'Certificate file too large.',
+    'tlsa.error.import'    => 'Could not read the certificate file.',
+    'tlsa.error.generate'  => 'TLSA calculation failed.',
+
     'dashboard.no-active-account'      => 'No account selected. Open the accounts page to choose one.',
     'dashboard.add-passkey'            => 'Add a passkey or security key',
     'invitations.incoming'             => 'Incoming invitations',
