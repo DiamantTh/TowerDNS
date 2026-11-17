@@ -17,6 +17,23 @@ final class RdataCanonicalizerTest extends TestCase
         self::assertSame('3 0 0 ' . $data, RdataCanonicalizer::canonicalize(DNSRecordType::parse('TLSA'), '3 0 0 ' . strtoupper($data)));
     }
 
+    public function testTlsaRejectsWrongSha256Length(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        RdataCanonicalizer::canonicalize(DNSRecordType::parse('TLSA'), '3 1 1 aabb');
+    }
+
+    public function testTlsaRejectsWrongSha512Length(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        RdataCanonicalizer::canonicalize(DNSRecordType::parse('TLSA'), '3 1 2 ' . str_repeat('ab', 32));
+    }
+
+    public function testTlsaAcceptsSha256Length(): void
+    {
+        self::assertSame('3 1 1 ' . str_repeat('ab', 32), RdataCanonicalizer::canonicalize(DNSRecordType::parse('TLSA'), '3 1 1 ' . str_repeat('AB', 32)));
+    }
+
     public function testTxtPreservesMultipleCharacterStrings(): void
     {
         self::assertSame('"v=DKIM1" "k=rsa"', RdataCanonicalizer::canonicalize(DNSRecordType::parse('TXT'), '"v=DKIM1"  "k=rsa"'));
