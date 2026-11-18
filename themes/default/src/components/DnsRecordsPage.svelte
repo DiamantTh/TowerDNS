@@ -17,6 +17,15 @@
     let ttl = $state(300);
     let rdata = $state('');
     let editing = $state(false);
+    let tlsaCertificates = $state('');
+    let tlsaPort = $state(443);
+    let tlsaProtocol = $state('tcp');
+    let tlsaUsage = $state(3);
+    let tlsaSelector = $state(1);
+    let tlsaMatching = $state(1);
+    let tlsaBusy = $state(false);
+    let tlsaError = $state('');
+    let tlsaPreview = $state<string[]>([]);
     let editor: HTMLTextAreaElement;
     const rrsets = $derived(visibleRrsets(page.rrsets, query, typeFilter));
     const types = $derived([...new Set(page.rrsets.map(rrset => rrset.type.presentation))].sort());
@@ -34,6 +43,36 @@
     const confirmDelete = (event: SubmitEvent, rrset: DnsRrsetBootstrap): void => {
         if (!confirm(t('dns.confirm-delete-rrset', { zone: page.managedZoneName, owner: rrset.ownerName || '@', type: rrset.type.presentation }))) event.preventDefault();
     };
+
+    const generateTlsa = async (): Promise<void> => {
+        tlsaBusy = true;
+        tlsaError = '';
+        tlsaPreview = [];
+        try {
+            const body = new URLSearchParams({ csrf_token: page.csrfToken, certificates: tlsaCertificates,
+                usage: String(tlsaUsage), selector: String(tlsaSelector), matching: String(tlsaMatching) });
+            const response = await fetch('/tlsa/generate', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
+            const result = await response.json() as { records?: string[]; error?: string };
+            if (!response.ok || !Array.isArray(result.records)) throw new Error(result.error ?? 'TLSA generation failed');
+            tlsaPreview = result.records;
+        } catch {
+            tlsaError = t('tlsa.generator.error');
+        } finally {
+            tlsaBusy = false;
+        }
+    };
+
+    const applyTlsa = (): void => {
+        const generated = tlsaPreview;
+        if (!generated.length) return;
+        owner = `_${tlsaPort}._${tlsaProtocol}`;
+        typeChoice = 'TLSA';
+        customType = '';
+        const existing = page.rrsets.find(item => item.type.presentation === 'TLSA' && item.ownerName === owner)?.rdata ?? [];
+        rdata = [...new Set([...existing, ...generated])].join('\n');
+        editing = existing.length > 0;
+        tlsaPreview = [];
+    };
 </script>
 
 <div class="dns-records-view">
@@ -44,6 +83,22 @@
         <a class="button" href={url('dnssec', { account: page.accountId, zone: page.managedZoneId })}>DNSSEC</a>
         {#if page.canReadAudit}<a class="button" href={`/accounts/${page.accountId}/zones/${page.managedZoneId}/audit`}>{t('audit.title')}</a>{/if}
     </nav>
+
+    <details class="box">
+        <summary class="subtitle">{t('tlsa.generator.title')}</summary>
+        <p class="muted">{t('tlsa.generator.help')}</p>
+        <div class="form-grid">
+            <Field label={t('tlsa.generator.port')}><input class="input" type="number" min="1" max="65535" bind:value={tlsaPort}></Field>
+            <Field label={t('tlsa.generator.protocol')}><select class="input" bind:value={tlsaProtocol}><option value="tcp">TCP</option><option value="udp">UDP</option></select></Field>
+            <Field label={t('tlsa.generator.usage')}><select class="input" bind:value={tlsaUsage}>{#each [0,1,2,3] as n}<option value={n}>{n}</option>{/each}</select></Field>
+            <Field label={t('tlsa.generator.selector')}><select class="input" bind:value={tlsaSelector}><option value={0}>{t('tlsa.generator.certificate')}</option><option value={1}>SPKI</option></select></Field>
+            <Field label={t('tlsa.generator.matching')}><select class="input" bind:value={tlsaMatching}><option value={0}>{t('tlsa.generator.full')}</option><option value={1}>SHA-256</option><option value={2}>SHA-512</option></select></Field>
+        </div>
+        <Field label={t('tlsa.generator.certificates')}><textarea class="input" rows="8" bind:value={tlsaCertificates} placeholder="-----BEGIN CERTIFICATE-----"></textarea></Field>
+        <button type="button" class="button" disabled={tlsaBusy || !tlsaCertificates.trim()} onclick={generateTlsa}>{t(tlsaBusy ? 'tlsa.generator.working' : 'tlsa.generator.generate')}</button>
+        {#if tlsaError}<p role="alert" class="has-text-danger">{tlsaError}</p>{/if}
+        {#if tlsaPreview.length}<section aria-live="polite"><h3 class="subtitle">{t('tlsa.generator.preview')}</h3>{#each tlsaPreview as record}<p><code>{record}</code></p>{/each}<button type="button" class="button is-primary" disabled={!page.canReplaceRrsets} onclick={applyTlsa}>{t('tlsa.generator.apply')}</button></section>{/if}
+    </details>
 
     <section class="box">
         <h2 class="subtitle">{t(editing ? 'dns.edit-rrset' : 'rrset.save')}</h2>

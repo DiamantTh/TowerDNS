@@ -43,6 +43,7 @@ use TowerDNS\Infrastructure\Http\Handler\RrsetReplaceHandler;
 use TowerDNS\Infrastructure\Http\Handler\SchemaMigrationHandler;
 use TowerDNS\Infrastructure\Http\Handler\StepUpHandler;
 use TowerDNS\Infrastructure\Http\Handler\SystemSettingsHandler;
+use TowerDNS\Infrastructure\Http\Handler\TlsaGenerateHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpHandler;
 use TowerDNS\Infrastructure\Http\Handler\TotpSetupHandler;
 use TowerDNS\Infrastructure\Http\Handler\UserCreateHandler;
@@ -141,6 +142,7 @@ final class Routes
         $app->post('/accounts/{account}/zones/{zone}/delete', [RequireAuthMiddleware::class, ZoneDeleteHandler::class], 'zones.delete');
 
         // ── DNS records ───────────────────────────────────────────────────────
+        $app->post('/tlsa/generate', [RequireAuthMiddleware::class, TlsaGenerateHandler::class], 'tlsa.generate');
         $app->get('/accounts/{account}/zones/{zone}', [RequireAuthMiddleware::class, RecordListHandler::class], 'records.list');
         $app->post('/accounts/{account}/zones/{zone}/records', [RequireAuthMiddleware::class, RecordCreateHandler::class], 'records.create');
         $app->get('/accounts/{account}/zones/{zone}/records/{record}/edit', [RequireAuthMiddleware::class, RecordEditHandler::class], 'records.edit.form');

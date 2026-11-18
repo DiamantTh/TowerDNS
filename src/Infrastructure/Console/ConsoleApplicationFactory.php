@@ -36,6 +36,7 @@ final class ConsoleApplicationFactory
             new InputOption('no-interaction', 'n', InputOption::VALUE_NONE, 'Do not ask any interactive question'),
         ]));
         $application->addCommand(new CommandListCommand());
+        $application->addCommand(new TlsaGenerateCommand(new \TowerDNS\Application\DNS\TlsaGenerator()));
         $application->addCommand($container->get(InstallCommand::class));
         $application->addCommand($container->get(PasswordResetCommand::class));
         $application->addCommand($container->get(ZoneListCommand::class));
