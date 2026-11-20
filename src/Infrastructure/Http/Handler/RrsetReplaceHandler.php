@@ -41,9 +41,11 @@ final readonly class RrsetReplaceHandler implements RequestHandlerInterface
         }
         try {
             $rrset   = new Rrset('', trim((string) ($body['name'] ?? '')), DNSRecordType::parse(trim((string) ($body['type'] ?? ''))), (int) ($body['ttl'] ?? 300), $rdata);
-            $written = $this->dns->replaceRrset($user, $accountId, $zoneId, $rrset);
+            $written = $this->dns->replaceRrset($user, $accountId, $zoneId, $rrset, is_string($body['tlsa_version'] ?? null) ? $body['tlsa_version'] : null);
             $actor   = $request->getAttribute('actor_user');
             $this->audit->recordRecordUpdate($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $zoneId, $written->ownerName, $written->type->presentation);
+        } catch (\TowerDNS\Application\Exception\RrsetConflictException) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('tlsa.generator.conflict')));
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.write-denied')));
         } catch (\InvalidArgumentException) {

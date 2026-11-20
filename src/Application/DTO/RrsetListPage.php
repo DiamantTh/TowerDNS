@@ -15,5 +15,6 @@ final readonly class RrsetListPage
         public array $rrsets,
         public bool $canReplaceRrsets,
         public bool $canDeleteRrsets,
+        public bool $conditionalTlsa = false,
     ) {}
 }

@@ -85,6 +85,7 @@ export type DnsRrsetBootstrap = {
     type: DNSRecordTypeBootstrap;
     ttl: number;
     rdata: string[];
+    tlsaVersion?: string | null;
 };
 
 /** Props assembled by RecordListHandler for the account-scoped RRset view. */
@@ -94,6 +95,7 @@ export type DnsRecordsPageProps = {
     managedZoneId: number;
     managedZoneName: string;
     rrsets: DnsRrsetBootstrap[];
+    tlsaPreviewToken?: string;
     csrfToken: string;
     error: string | null;
     success: string | null;

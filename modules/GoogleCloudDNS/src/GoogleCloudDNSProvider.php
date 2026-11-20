@@ -32,7 +32,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 /** Google Cloud DNS managed zones. This adapter does not access Cloud Domains.
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class GoogleCloudDNSProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
+final class GoogleCloudDNSProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface, \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface
 {
     public const string ID = 'google-cloud-dns';
 
@@ -240,6 +240,29 @@ final class GoogleCloudDNSProvider extends AbstractDNSProvider implements Connec
             }
         }
         throw new ProviderRequestException('Google Cloud DNS lieferte das geschriebene RRset nicht zurück.');
+    }
+
+    #[\Override]
+    public function changeRrsetConditionally(?Rrset $before, ?Rrset $after): void
+    {
+        $target = $after ?? $before ?? throw new \InvalidArgumentException('Missing RRset.');
+        $zone = $this->getZone($target->zoneId);
+        $name = $this->absoluteName($target->ownerName, $zone);
+        $old = $this->findRrset($target->zoneId, $name, $target->type->presentation);
+        $current = $old === null ? null : new Rrset($target->zoneId, $target->ownerName, $target->type, $this->integerValue($old->getTtl()), $this->rdataItems($old->getRrdatas()));
+        if (($before === null) !== ($current === null)
+            || ($before !== null && $current !== null && !\TowerDNS\Application\DNS\RrsetComparator::equals($before, $current))) {
+            throw new \TowerDNS\Application\Exception\RrsetConflictException('The provider RRset changed.');
+        }
+        $additions = $after === null ? [] : [$this->rrset($name, $after->type->presentation, $after->ttl, $after->rdata)];
+        try {
+            $this->change($target->zoneId, $additions, $old === null ? [] : [$old]);
+        } catch (ProviderRequestException $exception) {
+            if (in_array($exception->getCode(), [409, 412], true)) {
+                throw new \TowerDNS\Application\Exception\RrsetConflictException('The provider rejected a concurrent RRset edit.', previous: $exception);
+            }
+            throw $exception;
+        }
     }
 
     #[\Override]

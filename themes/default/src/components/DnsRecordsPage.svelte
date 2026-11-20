@@ -17,6 +17,7 @@
     let ttl = $state(300);
     let rdata = $state('');
     let editing = $state(false);
+    let manualTlsaVersion = $state('new');
     let tlsaCertificates = $state('');
     let tlsaPort = $state(443);
     let tlsaProtocol = $state('tcp');
@@ -26,14 +27,29 @@
     let tlsaBusy = $state(false);
     let tlsaError = $state('');
     let tlsaPreview = $state<string[]>([]);
+    let tlsaHost = $state('');
+    let tlsaTtl = $state(300);
+    let tlsaToken: string | undefined;
+    let tlsaState = $state<{ records: string[]; ttl: number | null; conditional: boolean } | null>(null);
+    let tlsaVersion = '';
+    let tlsaChangeToken = '';
+    let tlsaPreviewOwner = $state('');
+    let tlsaMessage = $state('');
+    let tlsaGeneratedFrom = $state('');
+    let certificateChoices = $state<{ index: number; subject: string; key_type: string; is_ca: boolean; validity: string; hostname: string; pkix_chain: string }[]>([]);
+    let selectedCertificates = $state<number[]>([]);
+    const tlsaInputIdentity = $derived(JSON.stringify([tlsaCertificates, tlsaUsage, tlsaSelector, tlsaMatching, selectedCertificates]));
+    const tlsaOwner = $derived(`_${tlsaPort}._${tlsaProtocol}${tlsaHost.trim() ? '.' + tlsaHost.trim() : ''}`);
+    const tlsaEndpoint = (name: string) => `/accounts/${page.accountId}/zones/${page.managedZoneId}/tlsa?owner=${encodeURIComponent(name)}`;
     let editor: HTMLTextAreaElement;
     const rrsets = $derived(visibleRrsets(page.rrsets, query, typeFilter));
     const types = $derived([...new Set(page.rrsets.map(rrset => rrset.type.presentation))].sort());
-    const reset = () => { owner = '@'; typeChoice = 'A'; customType = ''; ttl = 300; rdata = ''; editing = false; };
+    const reset = () => { owner = '@'; typeChoice = 'A'; customType = ''; ttl = 300; rdata = ''; editing = false; manualTlsaVersion = 'new'; };
     const edit = async (rrset: DnsRrsetBootstrap) => {
         if (!page.canReplaceRrsets) return;
         owner = rrset.ownerName || '@';
         typeChoice = page.recordTypes.includes(rrset.type.presentation) ? rrset.type.presentation : 'custom';
+        manualTlsaVersion = rrset.tlsaVersion ?? 'new';
         customType = rrset.type.presentation; ttl = rrset.ttl; rdata = rrset.rdata.join('\n'); editing = true;
         await tick(); editor?.focus(); editor?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     };
@@ -44,35 +60,118 @@
         if (!confirm(t('dns.confirm-delete-rrset', { zone: page.managedZoneName, owner: rrset.ownerName || '@', type: rrset.type.presentation }))) event.preventDefault();
     };
 
-    const generateTlsa = async (): Promise<void> => {
+    async function loadTlsa() {
+        tlsaState = null;
+        tlsaPreviewOwner = tlsaOwner;
+        const response = await fetch(tlsaEndpoint(tlsaPreviewOwner));
+        if (!response.ok) throw new Error('read');
+        const data = await response.json();
+        tlsaState = data;
+        tlsaVersion = response.headers.get('ETag') ?? '';
+        tlsaChangeToken = data.csrf_token ?? '';
+    }
+
+    async function inspectOrGenerate(inspect: boolean) {
         tlsaBusy = true;
         tlsaError = '';
+        tlsaMessage = '';
         tlsaPreview = [];
+        const inputIdentity = tlsaInputIdentity;
         try {
-            const body = new URLSearchParams({ csrf_token: page.csrfToken, certificates: tlsaCertificates,
+            const body = new URLSearchParams({ csrf_token: tlsaToken ?? page.tlsaPreviewToken ?? '', certificates: tlsaCertificates,
                 usage: String(tlsaUsage), selector: String(tlsaSelector), matching: String(tlsaMatching) });
-            const response = await fetch('/tlsa/generate', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });
-            const result = await response.json() as { records?: string[]; error?: string };
-            if (!response.ok || !Array.isArray(result.records)) throw new Error(result.error ?? 'TLSA generation failed');
-            tlsaPreview = result.records;
+            if (inspect) {
+                body.set('inspect', '1');
+                body.set('hostname', [tlsaHost.trim().replace(/\.$/, ''), page.managedZoneName].filter(Boolean).join('.'));
+            }
+            else if (certificateChoices.length) body.set('indexes', selectedCertificates.join(','));
+            const response = await fetch('/tlsa/generate', { method: 'POST', body });
+            const data = await response.json();
+            tlsaToken = data.csrf_token ?? tlsaToken;
+            if (!response.ok) throw new Error('invalid');
+            if (inspect) {
+                certificateChoices = data.certificates;
+                selectedCertificates = [];
+            } else {
+                tlsaGeneratedFrom = inputIdentity;
+                tlsaPreview = data.records;
+                await loadTlsa();
+            }
         } catch {
             tlsaError = t('tlsa.generator.error');
         } finally {
             tlsaBusy = false;
         }
-    };
+    }
 
-    const applyTlsa = (): void => {
-        const generated = tlsaPreview;
-        if (!generated.length) return;
-        owner = `_${tlsaPort}._${tlsaProtocol}`;
-        typeChoice = 'TLSA';
-        customType = '';
-        const existing = page.rrsets.find(item => item.type.presentation === 'TLSA' && item.ownerName === owner)?.rdata ?? [];
-        rdata = [...new Set([...existing, ...generated])].join('\n');
-        editing = existing.length > 0;
+    async function readCurrentTlsa() {
+        tlsaBusy = true;
+        tlsaError = '';
         tlsaPreview = [];
-    };
+        try {
+            await loadTlsa();
+        } catch {
+            tlsaError = t('tlsa.generator.error');
+        } finally {
+            tlsaBusy = false;
+        }
+    }
+
+    async function importTlsa(event: Event) {
+        const files = Array.from((event.currentTarget as HTMLInputElement).files ?? []);
+        certificateChoices = [];
+        selectedCertificates = [];
+        tlsaPreview = [];
+        if (files.length > 32 || files.reduce((size, file) => size + file.size, 0) > 750000) {
+            tlsaError = t('tlsa.generator.error');
+            return;
+        }
+        try {
+            const parts = [];
+            for (const file of files) {
+                const bytes = new Uint8Array(await file.arrayBuffer());
+                const content = new TextDecoder().decode(bytes).trim();
+                if (content.startsWith('-----BEGIN')) {
+                    parts.push(content);
+                    continue;
+                }
+                let binary = '';
+                for (const byte of bytes) binary += String.fromCharCode(byte);
+                parts.push('-----BEGIN CERTIFICATE-----\n' + btoa(binary) + '\n-----END CERTIFICATE-----');
+            }
+            tlsaCertificates = parts.join('\n');
+        } catch {
+            tlsaError = t('tlsa.generator.error');
+        }
+    }
+
+    async function saveTlsa(add: string[], remove: string[]) {
+        if (!tlsaState?.conditional || tlsaPreviewOwner !== tlsaOwner) return;
+        if (remove.length && !confirm(t('tlsa.generator.confirm-remove'))) return;
+        tlsaBusy = true;
+        tlsaError = '';
+        tlsaMessage = '';
+        try {
+            const response = await fetch(tlsaEndpoint(tlsaPreviewOwner), {
+                method: 'POST',
+                headers: { 'If-Match': tlsaVersion },
+                body: new URLSearchParams({ csrf_token: tlsaChangeToken, change: JSON.stringify({ add, remove, ttl: tlsaTtl }) }),
+            });
+            if (!response.ok) {
+                tlsaError = t(response.status === 412 ? 'tlsa.generator.conflict' : 'tlsa.generator.write-error');
+                await loadTlsa();
+                tlsaPreview = [];
+                return;
+            }
+            tlsaMessage = t('tlsa.generator.saved');
+            tlsaPreview = [];
+            await loadTlsa();
+        } catch {
+            tlsaError = t('tlsa.generator.write-error');
+        } finally {
+            tlsaBusy = false;
+        }
+    }
 </script>
 
 <div class="dns-records-view">
@@ -88,16 +187,46 @@
         <summary class="subtitle">{t('tlsa.generator.title')}</summary>
         <p class="muted">{t('tlsa.generator.help')}</p>
         <div class="form-grid">
+            <Field label={t('tlsa.generator.host')}><input class="input" bind:value={tlsaHost} placeholder={page.managedZoneName}></Field>
+            <Field label={t('rrset.column.ttl')}><input class="input" type="number" min="30" max="604800" bind:value={tlsaTtl} disabled={tlsaState?.ttl != null}></Field>
             <Field label={t('tlsa.generator.port')}><input class="input" type="number" min="1" max="65535" bind:value={tlsaPort}></Field>
             <Field label={t('tlsa.generator.protocol')}><select class="input" bind:value={tlsaProtocol}><option value="tcp">TCP</option><option value="udp">UDP</option></select></Field>
-            <Field label={t('tlsa.generator.usage')}><select class="input" bind:value={tlsaUsage}>{#each [0,1,2,3] as n}<option value={n}>{n}</option>{/each}</select></Field>
+            <Field label={t('tlsa.generator.usage')}><select class="input" bind:value={tlsaUsage}>{#each [0,1,2,3] as n}<option value={n}>{n} · {["PKIX-TA", "PKIX-EE", "DANE-TA", "DANE-EE"][n]}</option>{/each}</select></Field>
             <Field label={t('tlsa.generator.selector')}><select class="input" bind:value={tlsaSelector}><option value={0}>{t('tlsa.generator.certificate')}</option><option value={1}>SPKI</option></select></Field>
             <Field label={t('tlsa.generator.matching')}><select class="input" bind:value={tlsaMatching}><option value={0}>{t('tlsa.generator.full')}</option><option value={1}>SHA-256</option><option value={2}>SHA-512</option></select></Field>
         </div>
-        <Field label={t('tlsa.generator.certificates')}><textarea class="input" rows="8" bind:value={tlsaCertificates} placeholder="-----BEGIN CERTIFICATE-----"></textarea></Field>
-        <button type="button" class="button" disabled={tlsaBusy || !tlsaCertificates.trim()} onclick={generateTlsa}>{t(tlsaBusy ? 'tlsa.generator.working' : 'tlsa.generator.generate')}</button>
+        <Field label={t('tlsa.generator.certificates')}><input class="input" type="file" accept=".cer,.crt,.der,.pem" multiple onchange={importTlsa}></Field>
+        <Field label={t('tlsa.generator.certificates')}><textarea class="input" rows="8" bind:value={tlsaCertificates} oninput={() => { certificateChoices = []; selectedCertificates = []; tlsaPreview = []; }} placeholder="-----BEGIN CERTIFICATE-----"></textarea></Field>
+        <button type="button" class="button" disabled={tlsaBusy || !tlsaCertificates.trim()} onclick={() => inspectOrGenerate(true)}>{t('tlsa.generator.inspect')}</button>
+        {#each certificateChoices as cert}
+            <label class="block"><input type="checkbox" bind:group={selectedCertificates} value={cert.index} disabled={tlsaBusy}>
+                #{cert.index + 1} · {cert.subject} · {cert.key_type} · {t(cert.is_ca ? 'tlsa.generator.ca' : 'tlsa.generator.ee')} · {t(`tlsa.validity.${cert.validity}`)}
+                {#if !cert.is_ca}
+                    <span class="muted">· {t(`tlsa.hostname.${cert.hostname}`)} · {t(`tlsa.chain.${cert.pkix_chain}`)}</span>
+                {/if}
+            </label>
+        {/each}
+        <button type="button" class="button" disabled={tlsaBusy || !tlsaCertificates.trim() || (certificateChoices.length > 0 && selectedCertificates.length === 0)} onclick={() => inspectOrGenerate(false)}>{t('tlsa.generator.generate')}</button>
+        <button type="button" class="button" disabled={tlsaBusy} onclick={readCurrentTlsa}>{t('tlsa.generator.read')}</button>
         {#if tlsaError}<p role="alert" class="has-text-danger">{tlsaError}</p>{/if}
-        {#if tlsaPreview.length}<section aria-live="polite"><h3 class="subtitle">{t('tlsa.generator.preview')}</h3>{#each tlsaPreview as record}<p><code>{record}</code></p>{/each}<button type="button" class="button is-primary" disabled={!page.canReplaceRrsets} onclick={applyTlsa}>{t('tlsa.generator.apply')}</button></section>{/if}
+        {#if tlsaMessage}<p role="status">{tlsaMessage}</p>{/if}
+        {#if tlsaState && tlsaPreviewOwner === tlsaOwner}
+            <h3 class="subtitle">{tlsaPreviewOwner}</h3>
+            {#if tlsaState.ttl !== null}<p>TTL: {tlsaState.ttl}</p>{/if}
+            {#if !tlsaState.conditional}<p role="status">{t('tlsa.generator.unsupported')}</p>{/if}
+            {#each tlsaState.records as record}
+                <p><code class="rdata-value">{record}</code>
+                    {#if tlsaState.conditional && page.canDeleteRrsets}<button type="button" class="button is-small" disabled={tlsaBusy} onclick={() => saveTlsa([], [record])}>{t('tlsa.generator.remove')}</button>{/if}
+                </p>
+            {/each}
+            {#if tlsaPreview.length && tlsaGeneratedFrom === tlsaInputIdentity}
+                <section aria-live="polite">
+                    <h3 class="subtitle">{t('tlsa.generator.preview')}</h3>
+                    {#each tlsaPreview as record}<p><code class="rdata-value">{record}</code>{#if tlsaState.records.includes(record)} · {t('tlsa.generator.present')}{/if}</p>{/each}
+                    <button type="button" class="button is-primary" disabled={!page.canReplaceRrsets || !tlsaState.conditional || tlsaBusy} onclick={() => saveTlsa(tlsaPreview, [])}>{t('tlsa.generator.apply')}</button>
+                </section>
+            {/if}
+        {/if}
     </details>
 
     <section class="box">
@@ -105,6 +234,7 @@
         <p class="muted">{t('rrset.save-hint')}</p>
         <form method="post" action={url('rrsetReplace', { account: page.accountId, zone: page.managedZoneId })}>
             <input type="hidden" name="csrf_token" value={page.csrfToken}>
+            <input type="hidden" name="tlsa_version" value={manualTlsaVersion}>
             <div class="form-grid">
                 <Field label={t('rrset.column.owner')}><input class="input" name="name" bind:value={owner} readonly={editing} required disabled={!page.canReplaceRrsets} /></Field>
                 <Field label={t('rrset.column.type')}><select class="input" bind:value={typeChoice} disabled={editing || !page.canReplaceRrsets}>
@@ -152,6 +282,7 @@
                             <button type="button" class="button is-small" disabled={!page.canReplaceRrsets} aria-label={t('dns.edit-label', { owner: rrset.ownerName || '@', type: rrset.type.presentation })} onclick={() => edit(rrset)}>{t('common.edit')}</button>
                             <form method="post" action={url('rrsetDelete', { account: page.accountId, zone: page.managedZoneId, owner: rrset.ownerName, type: rrset.type.presentation })} onsubmit={(event) => confirmDelete(event, rrset)}>
                                 <input type="hidden" name="csrf_token" value={page.csrfToken}>
+                                <input type="hidden" name="tlsa_version" value={rrset.tlsaVersion ?? ''}>
                                 <button class="button is-small is-danger" disabled={!page.canDeleteRrsets} aria-describedby={!page.canDeleteRrsets ? `rrset-delete-unavailable-${index}` : undefined}>{t('rrset.delete')}</button>
                                 {#if !page.canDeleteRrsets}<span class="sr-only" id={`rrset-delete-unavailable-${index}`}>{t('rrset.action-unavailable')}</span>{/if}
                             </form>

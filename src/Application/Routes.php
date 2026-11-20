@@ -120,6 +120,7 @@ final class Routes
         $app->post('/profile/webauthn/register/begin', [RequireAuthMiddleware::class, WebAuthnRegisterBeginHandler::class], 'profile.webauthn.register.begin');
         $app->post('/profile/webauthn/register/finish', [RequireAuthMiddleware::class, WebAuthnRegisterFinishHandler::class], 'profile.webauthn.register.finish');
         $app->post('/profile/webauthn/{credentialId}/delete', [RequireAuthMiddleware::class, WebAuthnDeleteHandler::class], 'profile.webauthn.delete');
+        $app->post('/profile/api-keys/create', [RequireAuthMiddleware::class, \TowerDNS\Infrastructure\Http\Handler\ApiKeyIssueHandler::class], 'profile.apikeys.create');
         $app->get('/profile/api-keys', [RequireAuthMiddleware::class, ApiKeyHandler::class], 'profile.apikeys.list');
         $app->post('/profile/api-keys/{id}/revoke', [RequireAuthMiddleware::class, ApiKeyHandler::class], 'profile.apikeys.revoke');
 
@@ -142,6 +143,14 @@ final class Routes
         $app->post('/accounts/{account}/zones/{zone}/delete', [RequireAuthMiddleware::class, ZoneDeleteHandler::class], 'zones.delete');
 
         // ── DNS records ───────────────────────────────────────────────────────
+        $tlsaWeb     = '/accounts/{account}/zones/{zone}/tlsa';
+        $tlsaApi     = '/api/v1/accounts/{account}/zones/{zone}/tlsa';
+        $tlsaHandler = \TowerDNS\Infrastructure\Http\Handler\TlsaRecordHandler::class;
+        $apiAuth     = \TowerDNS\Infrastructure\Http\Middleware\ApiKeyAuthenticationMiddleware::class;
+        $app->get($tlsaWeb, [RequireAuthMiddleware::class, $tlsaHandler], 'tlsa.web.read');
+        $app->post($tlsaWeb, [RequireAuthMiddleware::class, $tlsaHandler], 'tlsa.web.change');
+        $app->get($tlsaApi, [$apiAuth, $tlsaHandler], 'tlsa.api.read');
+        $app->post($tlsaApi, [$apiAuth, $tlsaHandler], 'tlsa.api.change');
         $app->post('/tlsa/generate', [RequireAuthMiddleware::class, TlsaGenerateHandler::class], 'tlsa.generate');
         $app->get('/accounts/{account}/zones/{zone}', [RequireAuthMiddleware::class, RecordListHandler::class], 'records.list');
         $app->post('/accounts/{account}/zones/{zone}/records', [RequireAuthMiddleware::class, RecordCreateHandler::class], 'records.create');

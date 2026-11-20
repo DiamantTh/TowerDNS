@@ -28,6 +28,30 @@
     let score = $state<number|null>(null);
     const strength = (e: Event) => { const value = (e.currentTarget as HTMLInputElement).value; void import('zxcvbn').then(({default: zxcvbn}) => score = zxcvbn(value).score); };
     let passkeyError = $state(''), busy = $state(false), keyName = $state('');
+    let apiToken = $state('');
+    let apiKeyExpiry = $state('');
+    let apiKeyError = $state(false);
+    let apiKeyBusy = $state(false);
+    let apiScope = $state('tlsa:read');
+    async function issueApiKey(event: SubmitEvent) {
+        event.preventDefault();
+        apiKeyBusy = true;
+        apiKeyError = false;
+        try {
+            const form = event.currentTarget as HTMLFormElement;
+            const body = new URLSearchParams();
+            for (const [key, value] of new FormData(form)) if (typeof value === 'string') body.set(key, value);
+            const response = await fetch('/profile/api-keys/create', { method: 'POST', body });
+            if (!response.ok) throw new Error('issue');
+            const data = await response.json();
+            apiToken = data.token;
+            apiKeyExpiry = data.expires_at;
+        } catch {
+            apiKeyError = true;
+        } finally {
+            apiKeyBusy = false;
+        }
+    }
     const tp = (key: string, count: number, parameters: Record<string, string|number> = {}) => { const message = boot.i18n?.messages[key]; const text = Array.isArray(message) ? message[message.length === 3 ? (count === 0 ? 0 : count === 1 ? 1 : 2) : count === 1 ? 0 : 1] : message ?? key; return text.replace(/\{([a-zA-Z0-9_]+)\}/g, (_, name) => String(({ ...parameters, count } as Record<string, string|number>)[name] ?? `{${name}}`)); };
     const dateLabel = (value: string|null|undefined) => value ? new Intl.DateTimeFormat(user?.locale ?? boot.i18n?.locale ?? 'en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: user?.timezone ?? 'UTC' }).format(new Date(value.replace(' ', 'T'))) : t('profile.never');
     const toBuf=(s:string)=>{const b=s.replace(/-/g,'+').replace(/_/g,'/');return Uint8Array.from(atob(b+'='.repeat((4-b.length%4)%4)),c=>c.charCodeAt(0)).buffer};
@@ -113,5 +137,32 @@
  </section>
  <section class="box"><h2 class="subtitle">{t('profile.passkeys.credentials-title')}</h2><DataTable rows={list(p.keys)} cols={['name','attachment','created_at','last_used_at']} labels={[t('field.name'),t('profile.passkeys.attachment'),t('table.registered'),t('table.last-used')]} detailCols={['aaguid','transports','backup_eligible','backup_state']} detailLabels={[t('profile.passkeys.aaguid'),t('profile.passkeys.transports'),t('profile.passkeys.backup-eligible'),t('profile.passkeys.backup-state')]} {csrf} action={(r)=>(p.credentialCount??0)<=1?null:`/profile/webauthn/${r.credential_id_url}/delete`} actionText={t('common.remove')} confirmMessage={(r)=>(p.credentialCount??0)===2?t('profile.passkeys.remove-two-confirm',{name:String(r.name??'')}):null}/></section>
 </Page>
-{:else if boot.page==='profile/api_keys'}<Page title={t('profile.api-keys.title')} error={p.error} success={p.success} narrow><p><a href={url('profile')}>← {t('profile.security.back')}</a></p><Notice kind="info" text={t('profile.api-keys.unavailable')}/><DataTable rows={list(p.keys)} cols={['name','created_at','last_used','statusLabel']} labels={[t('field.name'),t('table.created'),t('table.last-used'),t('table.status')]} {csrf} action={(r)=>r.is_active===true?`/profile/api-keys/${r.id}/revoke`:null} actionText={t('profile.api-keys.revoke')}/></Page>
+{:else if boot.page==='profile/api_keys'}
+    <Page title={t('profile.api-keys.title')} error={p.error} success={p.success} narrow>
+        <p><a href={url('profile')}>← {t('profile.security.back')}</a></p>
+        {#if apiToken}
+            <Notice kind="info" text={t('api-key.copy-now')}/>
+            <Field label={t('api-key.secret')}><input class="input" readonly value={apiToken} autocomplete="off" spellcheck="false"></Field>
+            <p>{t('api-key.expires')}: {apiKeyExpiry}</p>
+            <a class="button" href="/profile/api-keys">{t('api-key.done')}</a>
+        {:else if apiKeyError}
+            <p role="alert">{t('api-key.issue-error')}</p>
+            <a class="button" href="/profile/api-keys">{t('api-key.done')}</a>
+        {:else}
+            <form method="post" action="/profile/api-keys/create" onsubmit={issueApiKey}>
+                <input type="hidden" name="csrf_token" value={csrf}>
+                <div class="form-grid">
+                    <Field label={t('field.name')}><input class="input" name="name" required maxlength="100"></Field>
+                    <Field label={t('api-key.account')}><input class="input" name="account" type="number" required min="1"></Field>
+                    <Field label={t('api-key.zone')}><input class="input" name="zone" type="number" required min="1"></Field>
+                    <Field label={t('api-key.owner')}><input class="input" name="owner" placeholder="_443._tcp" required={apiScope !== 'tlsa:read'}></Field>
+                    <Field label={t('api-key.scope')}><select class="input" name="scope" bind:value={apiScope}>
+                        <option value="tlsa:read">{t('api-key.read')}</option><option value="tlsa:append">{t('api-key.append')}</option><option value="tlsa:write">{t('api-key.write')}</option>
+                    </select></Field>
+                </div>
+                <button class="button is-primary" disabled={apiKeyBusy}>{t('api-key.issue')}</button>
+            </form>
+            <DataTable rows={list(p.keys)} cols={['name','scope','scope_zone','scope_owner','expires_at','statusLabel']} labels={[t('field.name'),t('api-key.scope'),t('api-key.zone'),t('api-key.owner'),t('api-key.expires'),t('table.status')]} {csrf} action={(r)=>r.is_active===true?`/profile/api-keys/${r.id}/revoke`:null} actionText={t('profile.api-keys.revoke')}/>
+        {/if}
+    </Page>
 {/if}

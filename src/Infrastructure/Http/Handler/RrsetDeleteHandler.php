@@ -36,9 +36,11 @@ final readonly class RrsetDeleteHandler implements RequestHandlerInterface
         $owner = (string) $request->getAttribute('owner', '');
         $type  = (string) $request->getAttribute('type', '');
         try {
-            $this->dns->deleteRrset($user, $accountId, $zoneId, $owner, $type);
+            $this->dns->deleteRrset($user, $accountId, $zoneId, $owner, $type, is_string($body['tlsa_version'] ?? null) ? $body['tlsa_version'] : null);
             $actor = $request->getAttribute('actor_user');
             $this->audit->recordRecordDelete($request, $actor instanceof User ? $actor->id : $user->id, $accountId, (string) $zoneId, $owner, $type);
+        } catch (\TowerDNS\Application\Exception\RrsetConflictException) {
+            return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('tlsa.generator.conflict')));
         } catch (AuthorizationException) {
             return new RedirectResponse($back . '?error=' . rawurlencode($this->translator->translate('rrset.error.delete-denied')));
         } catch (\InvalidArgumentException) {

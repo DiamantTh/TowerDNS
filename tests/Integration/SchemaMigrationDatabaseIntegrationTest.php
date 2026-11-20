@@ -38,12 +38,12 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $first = $manager->migrate();
             self::assertSame([], $first->pending, $backend);
             self::assertTrue($first->schemaCurrent, $backend);
-            self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(8, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles'), $backend);
 
             $second = $manager->migrate();
             self::assertSame([], $second->pending, $backend);
-            self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(8, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
 
             $bootstrap = new FreshInstallBootstrapper($connection);
             $result    = $bootstrap->bootstrap(new FreshInstallBootstrapRequest(
@@ -62,6 +62,18 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $handle  = $handles->getOrCreateUserHandle('55555555-5555-4555-8555-555555555555', 'example.test');
             self::assertSame(64, strlen($handle), $backend);
             self::assertSame($handle, $handles->getOrCreateUserHandle('55555555-5555-4555-8555-555555555555', 'example.test'), $backend);
+            $keys   = new \TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository($connection);
+            $digest = hash('sha256', 'fixture-scoped-key');
+            $userId = '55555555-5555-4555-8555-555555555555';
+            $utc    = new \DateTimeZone('UTC');
+            $keys->create($userId, 'Test API grant', $digest, 'tlsa:append', 1, 7, '_443._tcp', new \DateTimeImmutable('2027-01-01', $utc));
+            $now   = new \DateTimeImmutable('2026-11-20', $utc);
+            $grant = $keys->findGrant($digest, $now);
+            self::assertInstanceOf(\TowerDNS\Domain\Auth\ApiKeyGrant::class, $grant, $backend);
+            self::assertSame('tlsa:append', $grant->scope, $backend);
+            self::assertSame('_443._tcp', $grant->owner, $backend);
+            self::assertTrue($keys->revoke($grant->id, $userId), $backend);
+            self::assertNull($keys->findGrant($digest, $now), $backend);
         });
     }
 
@@ -95,7 +107,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             self::assertSame($passwordHash, $connection->fetchOne('SELECT password_hash FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('de-DE', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('ciphertext-that-must-survive', $connection->fetchOne('SELECT credentials_encrypted FROM provider_accounts WHERE account_id = ?', [$accountId]), $backend);
-            self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(8, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
         });
     }
 
@@ -117,7 +129,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $status = $manager->migrate();
 
             self::assertTrue($status->schemaCurrent, $backend);
-            self::assertSame(7, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(8, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertTrue($connection->createSchemaManager()->tablesExist(['step_up_proof_nonces']), $backend);
             self::assertSame($userId, $connection->fetchOne('SELECT id FROM users WHERE email = ?', ['step-up-migration@example.test']), $backend);
         });

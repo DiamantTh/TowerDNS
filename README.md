@@ -95,3 +95,43 @@ Provenienznotiz zu übernommenem Code steht in
 ## Lizenz
 
 AGPL-3.0-or-later. SPDX-Identifier: `AGPL-3.0-or-later`.
+
+### TLSA und DANE
+
+`php bin/towerdns tlsa:generate example.org 443 bundle.pem --usage=3 --selector=1 --matching=1`
+gibt TLSA-Zeilen für die passenden öffentlichen Zertifikate aus. Der
+Generator unterscheidet CA- und Endzertifikate. Die Webvorschau zeigt Gültigkeitszeitraum, DNS-SAN-Vergleich und
+OpenSSL-Kettenprüfung gegen den System-Trust-Store getrennt an. Hochgeladene
+CA-Zertifikate werden nur als Zwischenzertifikate berücksichtigt. Der
+Generator bestätigt weder DNSSEC noch die DANE-Authentifizierung eines Dienstes.
+
+Die Profilseite stellt auf HTTPS 90 Tage gültige Bearer-Schlüssel aus.
+Lesezugriff kann auf eine Zone beschränkt werden. Schreibschlüssel gelten
+für genau einen Dienst-Owner innerhalb einer Zone. Die aktuellen Benutzerrechte
+gelten zusätzlich. Der Zugriff `tlsa:append` kann Werte hinzufügen, aber keine
+Werte entfernen. Für die Rotation einen neuen Schlüssel anlegen, den
+Client umstellen und den alten Schlüssel widerrufen.
+
+- `GET /api/v1/accounts/{account}/zones/{zone}/tlsa` listet TLSA-RRsets
+  für einen zonenweiten Leseschlüssel.
+- `GET …/tlsa?owner=_443._tcp` liefert die Werte, TTL, das Merkmal
+  `conditional` und den `ETag`. Bei einem dienstgebundenen Schlüssel
+  kann der Owner entfallen.
+- `POST …/tlsa?owner=_443._tcp` akzeptiert JSON mit `add` und/oder
+  `remove` als Listen exakter RDATA-Werte und den gelesenen `ETag` im
+  Header `If-Match`. Alternativ oder zusätzlich kann `certificates`
+  ein PEM-Bündel mit den numerischen Feldern `usage`, `selector`
+  und `matching` enthalten. `ttl` gilt nur beim Erstellen.
+  HTTP 412 fordert zum Neulesen auf. HTTP 409 meldet fehlende bedingte
+  Schreibunterstützung. Jede API-Anfrage benötigt `Authorization: Bearer …`.
+
+Der bedingte Schreibpfad ist für Google Cloud DNS implementiert. Bei
+anderen Adaptern bleiben bestehende DNS-Operationen verfügbar. Der
+geschützte Rollover-Pfad lehnt dort Änderungen ab.
+
+Für einen Rollover die neuen Werte zuerst hinzufügen und die
+Veröffentlichung am autoritativen DNS sowie bei Bedarf über einen
+validierenden Resolver prüfen. Vor der Umstellung des TLS-Dienstes
+mindestens die vorherige TTL berücksichtigen. Alte Werte erst nach der
+Umstellung und Prüfung gezielt entfernen. Ein beim Provider bestätigtes
+RRset allein belegt keine erfolgreiche DNSSEC- oder DANE-Validierung.

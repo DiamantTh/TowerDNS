@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\DNS;
 
-/** Generates association data from explicitly supplied X.509 certificates. */
+/** Generates association data from explicitly supplied X.509 certificates.
+ * @phpstan-type CertificateInfo array{index: int, subject: string, issuer: string, is_ca: bool, key_type: string, fingerprint: string, validity: string, hostname: string, pkix_chain: string}
+ * @psalm-type CertificateInfo = array{index: int, subject: string, issuer: string, is_ca: bool, key_type: string, fingerprint: string, validity: string, hostname: string, pkix_chain: string}
+ */
 final class TlsaGenerator
 {
-    /** @return list<array{index: int, subject: string, issuer: string, is_ca: bool, key_type: string, fingerprint: string}> */
-    public function inspect(string $input): array
+    /** @return list<CertificateInfo> */
+    public function inspect(string $input, ?string $hostname = null): array
     {
-        $result = [];
-        foreach ($this->certificates($input) as $index => $der) {
+        $derCertificates = $this->certificates($input);
+        $result          = [];
+        foreach ($derCertificates as $index => $der) {
             $certificate = $this->readCertificate($der);
             $parsed      = openssl_x509_parse($certificate);
             $key         = openssl_pkey_get_public($certificate);
@@ -20,22 +24,26 @@ final class TlsaGenerator
                 throw new \InvalidArgumentException('Certificate metadata cannot be read.');
             }
             $result[] = [
-                'index'    => $index,
-                'subject'  => self::name($parsed['subject'] ?? []),
-                'issuer'   => self::name($parsed['issuer'] ?? []),
-                'is_ca'    => str_contains($parsed['extensions']['basicConstraints'] ?? '', 'CA:TRUE'),
-                'key_type' => match ($details['type']) {
-                    OPENSSL_KEYTYPE_RSA                                                                => 'RSA', OPENSSL_KEYTYPE_EC => 'ECDSA',
-                    defined('OPENSSL_KEYTYPE_ED25519') && $details['type'] === OPENSSL_KEYTYPE_ED25519 => 'Ed25519',
-                    default                                                                            => 'Other',
-                },
+                'index'       => $index,
+                'subject'     => $this->name($parsed['subject'] ?? []),
+                'issuer'      => $this->name($parsed['issuer'] ?? []),
+                'is_ca'       => str_contains($parsed['extensions']['basicConstraints'] ?? '', 'CA:TRUE'),
+                'key_type'    => $this->keyType($details['type']),
+                'validity'    => $this->validity($parsed['validFrom_time_t'] ?? null, $parsed['validTo_time_t'] ?? null),
+                'hostname'    => $this->hostnameStatus($hostname, $parsed['extensions']['subjectAltName'] ?? null),
+                'pkix_chain'  => 'not_checked',
                 'fingerprint' => hash('sha256', $der),
             ];
+        }
+        if ($hostname !== null) {
+            return $this->checkPkixChains($derCertificates, $result);
         }
         return $result;
     }
 
-    /** @return list<string> */
+    /** @param list<int>|null $selectedIndexes
+     *  @return list<string>
+     */
     public function generate(string $input, int $usage, int $selector, int $matchingType, ?array $selectedIndexes = null): array
     {
         if ($usage < 0 || $usage > 3 || $selector < 0 || $selector > 1 || $matchingType < 0 || $matchingType > 2) {
@@ -46,24 +54,30 @@ final class TlsaGenerator
         }
         $certificates = $this->certificates($input);
         $metadata     = $this->inspect($input);
-        $records      = [];
-        $requiresCa   = in_array($usage, [0, 2], true);
+        if ($selectedIndexes !== null && array_diff($selectedIndexes, array_keys($metadata)) !== []) {
+            throw new \InvalidArgumentException('The selected certificate does not exist.');
+        }
+        $records    = [];
+        $requiresCa = in_array($usage, [0, 2], true);
         foreach ($certificates as $index => $der) {
             if ($selectedIndexes !== null && !in_array($index, $selectedIndexes, true)) {
                 continue;
             }
             if ($metadata[$index]['is_ca'] !== $requiresCa) {
+                if ($selectedIndexes !== null) {
+                    throw new \InvalidArgumentException('Selected certificate role does not match the certificate usage.');
+                }
                 continue;
             }
             $certificate = $this->readCertificate($der);
             if ($selector === 1) {
                 $key     = openssl_pkey_get_public($certificate);
                 $details = $key === false ? false : openssl_pkey_get_details($key);
-                if ($details === false || !isset($details['key'])) {
+                if ($details === false || !is_string($details['key'] ?? null)) {
                     throw new \InvalidArgumentException('Cannot extract certificate public key.');
                 }
                 $encoded  = preg_replace('/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s+/', '', $details['key']);
-                $selected = base64_decode((string) $encoded, true);
+                $selected = is_string($encoded) ? base64_decode($encoded, true) : false;
                 if ($selected === false) {
                     throw new \InvalidArgumentException('Invalid SubjectPublicKeyInfo encoding.');
                 }
@@ -71,7 +85,7 @@ final class TlsaGenerator
                 $selected = $der;
             }
             $data = match ($matchingType) {
-                0 => bin2hex($selected), 1 => hash('sha256', $selected), 2 => hash('sha512', $selected)
+                0 => bin2hex($selected), 1 => hash('sha256', $selected), 2 => hash('sha512', $selected),
             };
             $records[] = "{$usage} {$selector} {$matchingType} {$data}";
         }
@@ -109,27 +123,137 @@ final class TlsaGenerator
 
     private function readCertificate(string $der): \OpenSSLCertificate
     {
-        set_error_handler(static function (int $severity, string $message): never {
-            throw new \InvalidArgumentException('Invalid X.509 certificate: ' . $message);
+        set_error_handler(static function (): never {
+            throw new \InvalidArgumentException('Invalid X.509 certificate.');
         }, E_WARNING);
         try {
-            $certificate = openssl_x509_read(self::pem('CERTIFICATE', $der));
+            $certificate = openssl_x509_read($this->pem('CERTIFICATE', $der));
         } finally {
             restore_error_handler();
         }
         if ($certificate === false) {
             throw new \InvalidArgumentException('Invalid X.509 certificate.');
         }
+        if (!openssl_x509_export($certificate, $canonical) || $this->pem('CERTIFICATE', $der) !== $canonical) {
+            throw new \InvalidArgumentException('Expected exactly one DER-encoded certificate per input block.');
+        }
         return $certificate;
     }
 
     /** @param array<string, mixed> $name */
-    private static function name(array $name): string
+    private function name(array $name): string
     {
         return implode(', ', array_map(static fn(string $key, mixed $value): string => $key . '=' . (is_scalar($value) ? (string) $value : ''), array_keys($name), array_values($name)));
     }
 
-    private static function pem(string $label, string $der): string
+    /**
+     * OpenSSL exposes SAN as a presentation string in PHP. Only interpret a
+     * DNS-only list as a diagnostic. This is not an authenticated peer check.
+     */
+    private function hostnameStatus(?string $hostname, mixed $san): string
+    {
+        if ($hostname === null || !is_string($san)
+                               || preg_match('/^DNS:(?:\*\.)?[a-z0-9.-]+(?:, DNS:(?:\*\.)?[a-z0-9.-]+)*$/iD', $san) !== 1) {
+            return 'not_checked';
+        }
+        $host = \TowerDNS\Application\Validation\DNSNameValidator::normalise($hostname);
+        foreach (explode(', ', strtolower($san)) as $entry) {
+            $name = substr($entry, 4);
+            if ($name === $host) {
+                return 'listed';
+            }
+            $dot = strpos($host, '.');
+            if ($dot !== false && str_starts_with($name, '*.') && substr($host, $dot) === substr($name, 1)) {
+                return 'listed';
+            }
+        }
+        return 'not_listed';
+    }
+
+    /**
+     * @param list<string> $derCertificates
+     * @param list<CertificateInfo> $metadata
+     * @return list<CertificateInfo>
+     */
+    private function checkPkixChains(array $derCertificates, array $metadata): array
+    {
+        $caBundle = '';
+        foreach ($metadata as $index => $info) {
+            if ($info['is_ca']) {
+                $caBundle .= $this->pem('CERTIFICATE', $derCertificates[$index]);
+            }
+        }
+
+        $file = null;
+        try {
+            if ($caBundle !== '') {
+                $temporary = tmpfile();
+                if ($temporary === false) {
+                    return $metadata;
+                }
+                $file = $temporary;
+                if (fwrite($file, $caBundle) !== strlen($caBundle) || !fflush($file)) {
+                    return $metadata;
+                }
+            }
+            $untrustedPath = $file === null ? null : (stream_get_meta_data($file)['uri'] ?? null);
+            if ($file !== null && $untrustedPath === null) {
+                return $metadata;
+            }
+            $checked = [];
+            foreach ($metadata as $index => $info) {
+                if ($info['is_ca']) {
+                    $checked[] = $info;
+                    continue;
+                }
+                $status = openssl_x509_checkpurpose(
+                    $this->readCertificate($derCertificates[$index]),
+                    X509_PURPOSE_SSL_SERVER,
+                    [],
+                    $untrustedPath,
+                );
+                $info['pkix_chain'] = match ($status) {
+                    true    => 'system_trusted',
+                    false   => 'not_established',
+                    default => 'not_checked',
+                };
+                $checked[] = $info;
+            }
+        } finally {
+            if ($file !== null) {
+                fclose($file);
+            }
+        }
+        return $checked;
+    }
+
+    private function keyType(int $type): string
+    {
+        if ($type === OPENSSL_KEYTYPE_RSA) {
+            return 'RSA';
+        }
+        if ($type === OPENSSL_KEYTYPE_EC) {
+            return 'ECDSA';
+        }
+        foreach (['ED25519' => 'Ed25519', 'ED448' => 'Ed448'] as $constant => $label) {
+            $name = 'OPENSSL_KEYTYPE_' . $constant;
+            if (defined($name) && constant($name) === $type) {
+                return $label;
+            }
+        }
+        return 'Other';
+    }
+
+    private function validity(mixed $from, mixed $to): string
+    {
+        if (!is_int($from) || !is_int($to)) {
+            return 'unknown';
+        }
+        $now = time();
+        return $now < $from ? 'not_yet_valid' : ($now > $to ? 'expired' : 'within_dates');
+    }
+
+    private function pem(string $label, string $der): string
     {
         return "-----BEGIN {$label}-----\n" . chunk_split(base64_encode($der), 64, "\n") . "-----END {$label}-----\n";
     }

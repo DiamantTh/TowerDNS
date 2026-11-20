@@ -461,6 +461,75 @@ final class ManagedZoneDNSServiceTest extends TestCase
         self::assertFalse($service->dnssecProfile(new User('owner', 'owner@example.test'), 42, 7)->features['manual_actions']);
     }
 
+    public function testConditionalTlsaApiPreservesSiblingValuesAndRejectsStaleRemoval(): void
+    {
+        $provider = new ConditionalRecordingDNSProvider([
+            Capability::RECORD_LIST   => true, Capability::RECORD_CREATE => true,
+            Capability::RECORD_UPDATE => true, Capability::RECORD_DELETE => true,
+        ]);
+        $handler = new \TowerDNS\Infrastructure\Http\Handler\TlsaRecordHandler(
+            $this->serviceForZone($provider),
+            new \TowerDNS\Application\DNS\TlsaGenerator(),
+            new \TowerDNS\Application\Services\AuditLogService($this->createMock(\TowerDNS\Application\Repository\AuditLogRepositoryInterface::class)),
+        );
+        $user = new User('owner', 'owner@example.test');
+        $base = new \Laminas\Diactoros\ServerRequest()
+            ->withUri(new \Laminas\Diactoros\Uri('https://tower.example.test/api/v1/accounts/42/zones/7/tlsa'))
+            ->withAttribute(User::class, $user)
+            ->withAttribute('account', '42')->withAttribute('zone', '7');
+        $grant   = new \TowerDNS\Domain\Auth\ApiKeyGrant(1, $user->id, 'tlsa:write', 42, 7, '_443._tcp');
+        $request = $base->withAttribute(\TowerDNS\Domain\Auth\ApiKeyGrant::class, $grant);
+        $read    = $handler->handle($request);
+        self::assertSame(200, $read->getStatusCode());
+        $version = $read->getHeaderLine('ETag');
+        $old     = '3 1 1 fbcf393845758eddb748223fa7ffc57dd55cf0682e04230a449850100b4d6990';
+        $new     = '3 1 1 57a5102f89d9420924abe803e29c1a90107fefc0de414ceda90a1460503bc604';
+        $other   = '3 1 1 ' . str_repeat('c', 64);
+        $write   = static function (array $change, string $etag, ?\TowerDNS\Domain\Auth\ApiKeyGrant $alternate = null) use ($request, $handler): \Psr\Http\Message\ResponseInterface {
+            $stream = new \Laminas\Diactoros\Stream('php://memory', 'r+');
+            $stream->write(json_encode($change, JSON_THROW_ON_ERROR));
+            $stream->rewind();
+            if ($alternate instanceof \TowerDNS\Domain\Auth\ApiKeyGrant) {
+                $request = $request->withAttribute(\TowerDNS\Domain\Auth\ApiKeyGrant::class, $alternate);
+            }
+            return $handler->handle($request->withMethod('POST')->withHeader('Content-Type', 'application/json')->withHeader('If-Match', $etag)->withBody($stream));
+        };
+
+        $first = $write(['add' => [$old, $other], 'ttl' => 600], $version);
+        self::assertSame(200, $first->getStatusCode());
+        self::assertSame(200, $write(['add' => [$old, $other]], $version)->getStatusCode());
+        self::assertSame(1, $provider->writes);
+        $appendGrant = new \TowerDNS\Domain\Auth\ApiKeyGrant(3, $user->id, 'tlsa:append', 42, 7, '_443._tcp');
+        self::assertSame(403, $write(['remove' => [$other]], $first->getHeaderLine('ETag'), $appendGrant)->getStatusCode());
+        $ec = file_get_contents(dirname(__DIR__, 2) . '/Fixtures/tlsa/ecdsa.pem');
+        self::assertIsString($ec);
+        $rollover = $write(['certificates' => $ec, 'usage' => 3, 'selector' => 1, 'matching' => 1], $first->getHeaderLine('ETag'), $appendGrant);
+        self::assertSame(200, $rollover->getStatusCode());
+        self::assertNotNull($provider->current);
+        self::assertSame(600, $provider->current->ttl);
+        self::assertSame([$new, $other, $old], $provider->current->rdata);
+        self::assertSame(412, $write(['remove' => [$old]], $first->getHeaderLine('ETag'))->getStatusCode());
+        $retired = $write(['remove' => [$old]], $rollover->getHeaderLine('ETag'));
+        self::assertSame(200, $retired->getStatusCode());
+        $records = json_decode((string) $retired->getBody(), true, 16, JSON_THROW_ON_ERROR)['records'];
+        self::assertSame([$new, $other], $records);
+        self::assertSame(403, $handler->handle($request->withAttribute('zone', '8'))->getStatusCode());
+        self::assertSame(403, $handler->handle($request->withQueryParams(['owner' => '_25._tcp']))->getStatusCode());
+        $readGrant = new \TowerDNS\Domain\Auth\ApiKeyGrant(2, $user->id, 'tlsa:read', 42, 7, '_443._tcp');
+        self::assertSame(403, $handler->handle($request->withMethod('POST')->withAttribute(\TowerDNS\Domain\Auth\ApiKeyGrant::class, $readGrant))->getStatusCode());
+    }
+
+    public function testTlsaRolloverRejectsUnconditionalProvider(): void
+    {
+        $provider = new RecordingDNSProvider([Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true]);
+        $service  = $this->serviceForZone($provider);
+        $user     = new User('owner', 'owner@example.test');
+        $state    = $service->tlsaState($user, 42, 7, '_443._tcp');
+        self::assertFalse($state['conditional']);
+        $this->expectException(CapabilityException::class);
+        $service->changeTlsa($user, 42, 7, '_443._tcp', ['3 1 1 ' . str_repeat('a', 64)], [], $state['version'], 300);
+    }
+
     private function serviceForZone(RecordingDNSProvider $provider, bool $providerActive = true, int $providerAccountTenant = 42, TeamRole $role = TeamRole::OWNER): ManagedZoneDNSService
     {
         $zone  = new ManagedZone(7, 42, 9, 'provider-zone', 'example.org', '2026-09-17 12:00:00');
@@ -487,7 +556,7 @@ final class ManagedZoneDNSServiceTest extends TestCase
 }
 
 /** Small provider spy for application-service behavior tests. */
-final class RecordingDNSProvider implements DNSProviderInterface, ProviderConstraintProviderInterface, RrsetProviderInterface
+class RecordingDNSProvider implements DNSProviderInterface, ProviderConstraintProviderInterface, RrsetProviderInterface
 {
     /** @var list<Record> */
     public array $createdRecords = [];
@@ -598,5 +667,27 @@ final class RecordingDNSProvider implements DNSProviderInterface, ProviderConstr
     public function executeDnssecAction(string $zoneId, string $action, array $payload = []): DNSSECProfile
     {
         return new DNSSECProfile($zoneId, DNSSECState::UNKNOWN);
+    }
+}
+
+final class ConditionalRecordingDNSProvider extends RecordingDNSProvider implements \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface
+{
+    public ?Rrset $current = null;
+    public int $writes     = 0;
+
+    #[\Override]
+    public function listRrsets(string $zoneId): array
+    {
+        return $this->current instanceof Rrset ? [$this->current] : [];
+    }
+
+    #[\Override]
+    public function changeRrsetConditionally(?Rrset $before, ?Rrset $after): void
+    {
+        if ($this->current !== $before) {
+            throw new \TowerDNS\Application\Exception\RrsetConflictException('Concurrent edit.');
+        }
+        ++$this->writes;
+        $this->current = $after;
     }
 }

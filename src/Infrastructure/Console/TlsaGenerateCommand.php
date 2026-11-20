@@ -19,6 +19,7 @@ final class TlsaGenerateCommand extends Command
         parent::__construct('tlsa:generate');
     }
 
+    #[\Override]
     protected function configure(): void
     {
         $this->setDescription('Generate TLSA records from a local X.509 certificate or PEM chain.')
@@ -31,6 +32,7 @@ final class TlsaGenerateCommand extends Command
             ->addOption('protocol', null, InputOption::VALUE_REQUIRED, 'Transport protocol tcp or udp', 'tcp');
     }
 
+    #[\Override]
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         try {

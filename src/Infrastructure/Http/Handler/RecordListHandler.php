@@ -44,13 +44,13 @@ final readonly class RecordListHandler implements RequestHandlerInterface
             return $this->render($user, $accountId, $zoneId, [], $csrfToken, $this->translator->translate('records.error.read-failed'), 500);
         }
         $query = $request->getQueryParams();
-        return $this->render($user, $accountId, $zoneId, $this->displayRrsets($page->rrsets), $csrfToken, is_string($query['error'] ?? null) ? $query['error'] : null, 200, is_string($query['success'] ?? null) ? $query['success'] : null, $page->managedZoneName, $page->canReplaceRrsets, $page->canDeleteRrsets);
+        return $this->render($user, $accountId, $zoneId, $this->displayRrsets($page->rrsets, $page->conditionalTlsa), $csrfToken, is_string($query['error'] ?? null) ? $query['error'] : null, 200, is_string($query['success'] ?? null) ? $query['success'] : null, $page->managedZoneName, $page->canReplaceRrsets, $page->canDeleteRrsets, $guard instanceof CsrfGuardInterface ? $guard->generateToken('tlsa_preview') : '');
     }
 
     /** @param list<\TowerDNS\Domain\DNS\Rrset> $rrsets
-     *  @return list<array{ownerName: string, type: array{presentation: string, code: int, isKnown: bool}, ttl: int, rdata: list<string>}>
+     *  @return list<array{ownerName: string, type: array{presentation: string, code: int, isKnown: bool}, ttl: int, rdata: list<string>, tlsaVersion: ?string}>
      */
-    private function displayRrsets(array $rrsets): array
+    private function displayRrsets(array $rrsets, bool $conditionalTlsa): array
     {
         return array_map(static fn(\TowerDNS\Domain\DNS\Rrset $rrset): array => [
             'ownerName' => $rrset->ownerName,
@@ -59,14 +59,17 @@ final readonly class RecordListHandler implements RequestHandlerInterface
                 'code'         => $rrset->type->code,
                 'isKnown'      => $rrset->type->isKnown,
             ],
-            'ttl'   => $rrset->ttl,
-            'rdata' => $rrset->rdata,
+            'ttl'         => $rrset->ttl,
+            'rdata'       => $rrset->rdata,
+            'tlsaVersion' => $conditionalTlsa && $rrset->type->presentation === 'TLSA'
+                ? ManagedZoneDNSService::tlsaRevision($rrset->ownerName, $rrset->ttl, $rrset->rdata)
+                : null,
         ], $rrsets);
     }
 
-    /** @param list<array{ownerName: string, type: array{presentation: string, code: int, isKnown: bool}, ttl: int, rdata: list<string>}> $rrsets */
-    private function render(User $user, int $accountId, int $zoneId, array $rrsets, string $csrfToken, ?string $error, int $status, ?string $success = null, ?string $managedZoneName = null, bool $canReplaceRrsets = false, bool $canDeleteRrsets = false): HtmlResponse
+    /** @param list<array{ownerName: string, type: array{presentation: string, code: int, isKnown: bool}, ttl: int, rdata: list<string>, tlsaVersion: ?string}> $rrsets */
+    private function render(User $user, int $accountId, int $zoneId, array $rrsets, string $csrfToken, ?string $error, int $status, ?string $success = null, ?string $managedZoneName = null, bool $canReplaceRrsets = false, bool $canDeleteRrsets = false, string $tlsaPreviewToken = ''): HtmlResponse
     {
-        return new HtmlResponse($this->renderer->render('app::zones/records', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'managedZoneName' => $managedZoneName, 'rrsets' => $rrsets, 'recordTypes' => \TowerDNS\Domain\DNS\DNSRecordType::knownPresentations(), 'csrfToken' => $csrfToken, 'error' => $error, 'success' => $success, 'canReplaceRrsets' => $canReplaceRrsets, 'canDeleteRrsets' => $canDeleteRrsets, 'canReadAudit' => $status === 200 && $this->permissions->authorizeManagedZone($user, Permission::AUDIT_READ, $accountId, $zoneId)]), $status);
+        return new HtmlResponse($this->renderer->render('app::zones/records', ['user' => $user, 'accountId' => $accountId, 'managedZoneId' => $zoneId, 'managedZoneName' => $managedZoneName, 'rrsets' => $rrsets, 'recordTypes' => \TowerDNS\Domain\DNS\DNSRecordType::knownPresentations(), 'csrfToken' => $csrfToken, 'tlsaPreviewToken' => $tlsaPreviewToken, 'error' => $error, 'success' => $success, 'canReplaceRrsets' => $canReplaceRrsets, 'canDeleteRrsets' => $canDeleteRrsets, 'canReadAudit' => $status === 200 && $this->permissions->authorizeManagedZone($user, Permission::AUDIT_READ, $accountId, $zoneId)]), $status);
     }
 }

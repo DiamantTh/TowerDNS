@@ -20,10 +20,7 @@ use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 use TowerDNS\Domain\Auth\User;
 
 /**
- * Lists and revokes legacy API-key records for the authenticated user.
- *
- * Incoming TowerDNS API authentication is not implemented, so new keys are
- * deliberately not issued. Existing records remain revocable.
+ * Lists and revokes API keys belonging to the authenticated user.
  *
  * GET  /profile/api-keys             – list existing records
  * POST /profile/api-keys/{id}/revoke – revoke a specific key
@@ -34,6 +31,7 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
         private TemplateRendererInterface $renderer,
         private ApiKeyRepositoryInterface $apiKeys,
         private TranslatorInterface       $translator,
+        private ?\TowerDNS\Application\Services\AuditLogService $audit = null,
     ) {}
 
     #[\Override]
@@ -58,11 +56,13 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
             $rawToken  = $body['csrf_token'] ?? '';
             $csrfToken = is_array($rawToken) ? (string) ($rawToken[0] ?? '') : (string) $rawToken;
 
-            if (!$guard->validateToken($csrfToken)) {
+            if ($csrfToken === '' || !$guard->validateToken($csrfToken)) {
                 return new RedirectResponse('/profile/api-keys?error=' . rawurlencode($this->translator->translate('http.error.invalid-request')));
             }
 
-            $this->apiKeys->revoke($keyId, $currentUser->id);
+            if ($this->apiKeys->revoke($keyId, $currentUser->id)) {
+                $this->audit?->record($request, 'api_key.revoke', 'api_key', (string) $keyId, $currentUser->id);
+            }
 
             return new RedirectResponse('/profile/api-keys?success=' . rawurlencode($this->translator->translate('api-key.success.revoked')));
         }
@@ -77,7 +77,12 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
     ): ResponseInterface {
         $params = $request->getQueryParams();
         $keys   = array_map(function (array $key): array {
-            $key['statusLabel'] = $this->translator->translate($key['is_active'] ? 'api-key.status.not-accepted' : 'api-key.status.revoked');
+            $key['statusLabel'] = $this->translator->translate(match (true) {
+                !$key['is_active']                                  => 'api-key.status.revoked',
+                ($key['scope'] ?? null) === null                    => 'api-key.status.not-accepted',
+                ($key['expires_at'] ?? '') <= gmdate('Y-m-d H:i:s') => 'api-key.status.expired',
+                default                                             => 'api-key.status.active',
+            });
 
             return $key;
         }, $this->apiKeys->findByUserId($currentUser->id));

@@ -51,7 +51,7 @@ final readonly class ForceHttpsMiddleware implements MiddlewareInterface
         return new HtmlResponse('HTTPS ist erforderlich.', 400);
     }
 
-    private function isSecure(ServerRequestInterface $request): bool
+    public function isSecure(ServerRequestInterface $request): bool
     {
         if ($request->getUri()->getScheme() === 'https') {
             return true;

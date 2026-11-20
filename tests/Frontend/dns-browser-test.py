@@ -58,6 +58,27 @@ try:
   time.sleep(.1)
   assert execute('return [...document.querySelectorAll(".resource-title")].map(e=>e.textContent)') == ['b.example','z.example']
   navigate('zones/records', locale=locale)
+  if locale == 'en-GB':
+   certificate=json.dumps((Path(root)/'tests/Fixtures/tlsa/ecdsa.pem').read_text())
+   execute('''
+    const panel=document.querySelector("details.box"); panel.open=true;
+    const textarea=panel.querySelector("textarea"); textarea.value=CERTIFICATE_FIXTURE;
+    textarea.dispatchEvent(new Event("input",{bubbles:true}));
+   '''.replace('CERTIFICATE_FIXTURE', certificate))
+   execute('const button=[...document.querySelectorAll("details.box button")].find(b=>b.textContent.trim()==="Generate TLSA values"); button.click();')
+   for _ in range(20):
+    time.sleep(.1)
+    if execute('return [...document.querySelectorAll("details.box button")].some(b=>b.textContent.trim()==="Add missing values")'): break
+   panel_text=execute('return document.querySelector("details.box").textContent')
+   assert 'TTL: 600' in panel_text, panel_text
+   assert '57a5102f89d9420924abe803e29c1a90107fefc0de414ceda90a1460503bc604' in panel_text
+   execute('[...document.querySelectorAll("details.box button")].find(b=>b.textContent.trim()==="Add missing values").click();')
+   for _ in range(20):
+    time.sleep(.1)
+    panel_text=execute('return document.querySelector("details.box").textContent')
+    if 'TLSA state confirmed at the provider' in panel_text: break
+   assert 'TLSA state confirmed at the provider' in panel_text, panel_text
+   print('TLSA preview uses current provider TTL and submits additions with If-Match')
   assert execute('return document.querySelectorAll("tbody tr").length') == 2
   execute('document.querySelectorAll(".actions button")[2].click();')
   time.sleep(.2)
@@ -73,7 +94,7 @@ try:
   i+=1; command(i,'WebDriver:SetWindowRect',{'width':390,'height':844})
   assert execute('return document.documentElement.scrollWidth <= window.innerWidth + 1')
   i+=1; command(i,'WebDriver:SetWindowRect',{'width':1200,'height':900})
-  assert execute('return document.querySelector(".rdata-value").textContent.length') > 4000
+  assert execute('return document.querySelector("tbody .rdata-value").textContent.length') > 4000
   navigate('zones/records', readonly=True, locale=locale)
   assert execute('return [...document.querySelectorAll(".actions button")].every(e=>e.disabled)')
   navigate('zones/dnssec', locale=locale)

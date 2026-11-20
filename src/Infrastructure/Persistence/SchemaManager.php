@@ -778,6 +778,11 @@ final readonly class SchemaManager
         $apiKeys->addColumn('created_at', Types::DATETIME_MUTABLE);
         $apiKeys->addColumn('last_used', Types::DATETIME_MUTABLE, ['notnull' => false]);
         $apiKeys->addColumn('is_active', Types::BOOLEAN, ['default' => true]);
+        $apiKeys->addColumn('scope', Types::STRING, ['length' => 32, 'notnull' => false]);
+        $apiKeys->addColumn('scope_account', Types::INTEGER, ['notnull' => false]);
+        $apiKeys->addColumn('scope_zone', Types::INTEGER, ['notnull' => false]);
+        $apiKeys->addColumn('scope_owner', Types::STRING, ['length' => 253, 'notnull' => false]);
+        $apiKeys->addColumn('expires_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
         $apiKeys->setPrimaryKey(['id']);
         $apiKeys->addUniqueIndex(['api_key'], 'uq_api_keys_hash');
         $apiKeys->addIndex(['user_id'], 'idx_ak_user_id');
