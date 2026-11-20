@@ -41,8 +41,12 @@ final readonly class DbalWebAuthnCredentialRepository implements WebAuthnCredent
                 throw new \DomainException('An active user is required for WebAuthn enrollment.');
             }
 
-            $existingHandle = $row['webauthn_user_handle']       ?? null;
-            $existingRpId   = $row['webauthn_user_handle_rp_id'] ?? null;
+            $existingHandle = $row['webauthn_user_handle'] ?? null;
+            if (is_resource($existingHandle)) {
+                // PDO PostgreSQL returns bytea values as streams.
+                $existingHandle = stream_get_contents($existingHandle);
+            }
+            $existingRpId = $row['webauthn_user_handle_rp_id'] ?? null;
             if ($existingHandle !== null && $existingHandle !== '') {
                 if (!is_string($existingHandle) || strlen($existingHandle) !== 64) {
                     throw new \UnexpectedValueException('The persisted WebAuthn user handle is invalid.');

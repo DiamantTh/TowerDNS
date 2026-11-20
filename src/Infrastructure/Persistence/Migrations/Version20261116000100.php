@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace TowerDNS\Infrastructure\Persistence\Migrations;
 
+use Doctrine\DBAL\ParameterType;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\Migrations\AbstractMigration;
 use TowerDNS\Infrastructure\Persistence\SchemaManager;
@@ -55,6 +56,12 @@ final class Version20261116000100 extends AbstractMigration
         foreach ($rows as $row) {
             $userId = (string) $row['id'];
             $handle = $row['webauthn_user_handle'] ?? null;
+            if (is_resource($handle)) {
+                $handle = stream_get_contents($handle);
+                if ($handle === false) {
+                    throw new \UnexpectedValueException('Could not read the persisted WebAuthn handle.');
+                }
+            }
 
             if ($handle === null || $handle === '') {
                 $handle = random_bytes(64);
@@ -62,6 +69,7 @@ final class Version20261116000100 extends AbstractMigration
                     'users',
                     ['webauthn_user_handle' => $handle, 'webauthn_user_handle_rp_id' => $rpId],
                     ['id' => $userId],
+                    ['webauthn_user_handle' => ParameterType::BINARY, 'webauthn_user_handle_rp_id' => ParameterType::STRING, 'id' => ParameterType::STRING],
                 );
             } elseif (($row['webauthn_user_handle_rp_id'] ?? null) === null && $rpId !== null) {
                 $this->connection->update('users', ['webauthn_user_handle_rp_id' => $rpId], ['id' => $userId]);
