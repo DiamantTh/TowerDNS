@@ -10,18 +10,22 @@ use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\DNS\TlsaGenerator;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\RateLimit\RateLimiter;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /** @psalm-api Registered in Routes. */
 final readonly class TlsaGenerateHandler implements RequestHandlerInterface
 {
-    public function __construct(private TlsaGenerator $generator) {}
+    public function __construct(private TlsaGenerator $generator, private CacheInterface $cache) {}
 
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        if (!$request->getAttribute(User::class) instanceof User) {
+        $user = $request->getAttribute(User::class);
+        if (!$user instanceof User) {
             return new JsonResponse(['error' => 'unauthorized'], 401, ['Cache-Control' => 'no-store']);
         }
         $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
@@ -31,6 +35,7 @@ final readonly class TlsaGenerateHandler implements RequestHandlerInterface
         }
         $token = $guard->generateToken('tlsa_preview');
         try {
+            new RateLimiter($this->cache, 'tlsa_generate_' . hash('sha256', $user->id), 20, 60, 'TLSA generation')->hit();
             $certificates = $body['certificates'] ?? null;
             if (!is_string($certificates)) {
                 throw new \InvalidArgumentException('Invalid certificates.');
@@ -46,6 +51,8 @@ final readonly class TlsaGenerateHandler implements RequestHandlerInterface
             }
             $indexes = isset($body['indexes']) && is_string($body['indexes']) ? $this->indexes($body['indexes']) : null;
             return new JsonResponse(['records' => $this->generator->generate($certificates, $usage, $selector, $matching, $indexes), 'csrf_token' => $token, 'verification' => 'not_verified'], 200, ['Cache-Control' => 'no-store']);
+        } catch (RateLimitExceededException $error) {
+            return new JsonResponse(['error' => 'rate_limited', 'csrf_token' => $token], 429, ['Cache-Control' => 'no-store', 'Retry-After' => (string) $error->retryAfter()]);
         } catch (\InvalidArgumentException) {
             return new JsonResponse(['error' => 'invalid_certificate_or_parameters', 'csrf_token' => $token], 422);
         }

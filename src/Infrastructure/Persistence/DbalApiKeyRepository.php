@@ -28,12 +28,20 @@ final readonly class DbalApiKeyRepository implements ApiKeyRepositoryInterface
     #[\Override]
     public function findGrant(string $digest, \DateTimeImmutable $now): ?\TowerDNS\Domain\Auth\ApiKeyGrant
     {
+        $nowString = $now->format('Y-m-d H:i:s');
+        $this->connection->executeStatement(
+            'UPDATE api_keys SET last_used = ?
+              WHERE api_key = ? AND is_active = TRUE AND scope IS NOT NULL
+                AND scope_account IS NOT NULL AND scope_zone IS NOT NULL AND expires_at > ?',
+            [$nowString, $digest, $nowString],
+        );
+
         /** @var array{id:int|string,user_id:string,scope:string,scope_account:int|string,scope_zone:int|string,scope_owner:?string}|false $row */
         $row = $this->connection->fetchAssociative(
             'SELECT id, user_id, scope, scope_account, scope_zone, scope_owner FROM api_keys
              WHERE api_key = ? AND is_active = TRUE AND scope IS NOT NULL AND scope_account IS NOT NULL
              AND scope_zone IS NOT NULL AND expires_at > ?',
-            [$digest, $now->format('Y-m-d H:i:s')],
+            [$digest, $nowString],
         );
         if ($row === false) {
             return null;

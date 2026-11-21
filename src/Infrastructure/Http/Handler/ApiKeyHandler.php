@@ -77,11 +77,17 @@ final readonly class ApiKeyHandler implements RequestHandlerInterface
     ): ResponseInterface {
         $params = $request->getQueryParams();
         $keys   = array_map(function (array $key): array {
+            $now       = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+            $expiry    = $key['expires_at'] ?? null;
+            $expiresAt = is_string($expiry)
+                ? new \DateTimeImmutable($expiry, new \DateTimeZone('UTC'))
+                : null;
             $key['statusLabel'] = $this->translator->translate(match (true) {
-                !$key['is_active']                                  => 'api-key.status.revoked',
-                ($key['scope'] ?? null) === null                    => 'api-key.status.not-accepted',
-                ($key['expires_at'] ?? '') <= gmdate('Y-m-d H:i:s') => 'api-key.status.expired',
-                default                                             => 'api-key.status.active',
+                !$key['is_active']                                                                 => 'api-key.status.revoked',
+                ($key['scope'] ?? null) === null                                                   => 'api-key.status.not-accepted',
+                $expiresAt instanceof \DateTimeImmutable && $expiresAt <= $now                     => 'api-key.status.expired',
+                $expiresAt instanceof \DateTimeImmutable && $expiresAt <= $now->modify('+30 days') => 'api-key.status.expiring',
+                default                                                                            => 'api-key.status.active',
             });
 
             return $key;

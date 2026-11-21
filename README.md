@@ -154,3 +154,9 @@ validierenden Resolver prüfen. Vor der Umstellung des TLS-Dienstes
 mindestens die vorherige TTL berücksichtigen. Alte Werte erst nach der
 Umstellung und Prüfung gezielt entfernen. Ein beim Provider bestätigtes
 RRset allein belegt keine erfolgreiche DNSSEC- oder DANE-Validierung.
+
+Die externe ACME-Nutzung, API-Schlüsselrotation und ein gestufter
+Prepublication-Rollover sind in
+[`docs/TLSA_EXTERNAL_AUTOMATION.md`](docs/TLSA_EXTERNAL_AUTOMATION.md)
+beschrieben; ein minimales Beispielskript liegt unter
+[`docs/examples/tlsa-api.sh`](docs/examples/tlsa-api.sh).

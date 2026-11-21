@@ -471,6 +471,7 @@ final class ManagedZoneDNSServiceTest extends TestCase
             $this->serviceForZone($provider),
             new \TowerDNS\Application\DNS\TlsaGenerator(),
             new \TowerDNS\Application\Services\AuditLogService($this->createMock(\TowerDNS\Application\Repository\AuditLogRepositoryInterface::class)),
+            new \Symfony\Component\Cache\Psr16Cache(new \Symfony\Component\Cache\Adapter\ArrayAdapter()),
         );
         $user = new User('owner', 'owner@example.test');
         $base = new \Laminas\Diactoros\ServerRequest()

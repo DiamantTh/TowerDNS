@@ -57,6 +57,7 @@ final class ApiKeyAuthenticationTest extends TestCase
         $authenticated = $request->withHeader('Authorization', 'Bearer ' . $valid);
         self::assertSame(400, $middleware->process($authenticated->withUri($request->getUri()->withScheme('http')), $handler)->getStatusCode());
         self::assertSame(204, $middleware->process($authenticated, $handler)->getStatusCode());
+        self::assertNotNull($connection->fetchOne('SELECT last_used FROM api_keys WHERE id = 1'));
         self::assertTrue($keys->revoke(1, $user->id));
         self::assertSame(401, $middleware->process($authenticated, $handler)->getStatusCode());
         self::assertSame(hash('sha256', $valid), $connection->fetchOne('SELECT api_key FROM api_keys WHERE id = 1'));

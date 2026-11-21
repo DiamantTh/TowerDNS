@@ -149,6 +149,7 @@
             <p role="alert">{t('api-key.issue-error')}</p>
             <a class="button" href="/profile/api-keys">{t('api-key.done')}</a>
         {:else}
+            <Notice kind="info" text={t('api-key.rotation-info')}/>
             <form method="post" action="/profile/api-keys/create" onsubmit={issueApiKey}>
                 <input type="hidden" name="csrf_token" value={csrf}>
                 <div class="form-grid">
@@ -162,7 +163,7 @@
                 </div>
                 <button class="button is-primary" disabled={apiKeyBusy}>{t('api-key.issue')}</button>
             </form>
-            <DataTable rows={list(p.keys)} cols={['name','scope','scope_zone','scope_owner','expires_at','statusLabel']} labels={[t('field.name'),t('api-key.scope'),t('api-key.zone'),t('api-key.owner'),t('api-key.expires'),t('table.status')]} {csrf} action={(r)=>r.is_active===true?`/profile/api-keys/${r.id}/revoke`:null} actionText={t('profile.api-keys.revoke')}/>
+            <DataTable rows={list(p.keys)} cols={['name','scope','scope_account','scope_zone','scope_owner','last_used','expires_at','statusLabel']} labels={[t('field.name'),t('api-key.scope'),t('api-key.account'),t('api-key.zone'),t('api-key.owner'),t('api-key.last-used'),t('api-key.expires'),t('table.status')]} {csrf} action={(r)=>r.is_active===true?`/profile/api-keys/${r.id}/revoke`:null} actionText={t('profile.api-keys.revoke')}/>
         {/if}
     </Page>
 {/if}

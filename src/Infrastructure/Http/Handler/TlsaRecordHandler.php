@@ -10,6 +10,7 @@ use Mezzio\Csrf\CsrfMiddleware;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\DNS\TlsaGenerator;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\CapabilityException;
@@ -20,11 +21,13 @@ use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\ApiKeyGrant;
 use TowerDNS\Domain\Auth\User;
+use TowerDNS\Infrastructure\RateLimit\RateLimiter;
+use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 
 /** @psalm-api Registered in Routes. */
 final readonly class TlsaRecordHandler implements RequestHandlerInterface
 {
-    public function __construct(private ManagedZoneDNSService $dns, private TlsaGenerator $generator, private AuditLogService $audit) {}
+    public function __construct(private ManagedZoneDNSService $dns, private TlsaGenerator $generator, private AuditLogService $audit, private CacheInterface $cache) {}
 
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -41,6 +44,9 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
         }
 
         try {
+            if ($api && $grant instanceof ApiKeyGrant) {
+                new RateLimiter($this->cache, 'tlsa_api_' . $grant->id, $write ? 12 : 60, 60, 'TLSA API')->hit();
+            }
             $query = $request->getQueryParams();
             $owner = $query['owner'] ?? null;
             if ($grant instanceof ApiKeyGrant && $grant->owner !== null) {
@@ -128,6 +134,8 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
             return $this->error('invalid_change', 422);
         } catch (\DomainException) {
             return $this->error('zone_not_available', 404);
+        } catch (RateLimitExceededException $error) {
+            return new JsonResponse(['error' => 'rate_limited'], 429, ['Cache-Control' => 'no-store', 'Retry-After' => (string) $error->retryAfter()]);
         } catch (ProviderRequestException) {
             $this->auditOutcome($request, $user, $grant, $account, $zone, 'tlsa.change.provider_error', 'provider_error');
             return $this->error('provider_error', 502);

@@ -16,6 +16,7 @@ use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Application\Services\PermissionService;
+use TowerDNS\Application\Services\TlsaApiKeyScopePolicy;
 use TowerDNS\Domain\Auth\Permission;
 use TowerDNS\Domain\Auth\User;
 use TowerDNS\Infrastructure\Http\Middleware\ForceHttpsMiddleware;
@@ -54,13 +55,23 @@ final readonly class ApiKeyIssueHandler implements RequestHandlerInterface
         }
         try {
             if (!$this->permissions->authorizeManagedZone($user, Permission::RECORD_READ, $account, $zone)
-                || ($scope !== 'tlsa:read' && !$this->permissions->authorizeManagedZone($user, Permission::RECORD_UPDATE, $account, $zone))) {
+                || ($scope !== 'tlsa:read' && !$this->permissions->authorizeManagedZone($user, Permission::RECORD_UPDATE, $account, $zone))
+                || ($scope === 'tlsa:write' && !$this->permissions->authorizeManagedZone($user, Permission::RECORD_DELETE, $account, $zone))) {
                 return new JsonResponse(['error' => 'forbidden'], 403, $headers);
             }
             if (trim($owner) !== '') {
                 $state = $this->dns->tlsaState($user, $account, $zone, $owner);
-                if ($scope !== 'tlsa:read' && !$state['conditional']) {
-                    return new JsonResponse(['error' => 'conditional_write_unavailable'], 409, $headers);
+                if ($scope !== 'tlsa:read' && $state['records'] === []
+                                           && !$this->permissions->authorizeManagedZone($user, Permission::RECORD_CREATE, $account, $zone)) {
+                    return new JsonResponse(['error' => 'forbidden'], 403, $headers);
+                }
+                if (!new TlsaApiKeyScopePolicy()->supports(
+                    $scope,
+                    $state['conditional'] || $state['capabilities']['conditional_replace'],
+                    $state['capabilities']['append_record'],
+                    $state['capabilities']['remove_record'],
+                )) {
+                    return new JsonResponse(['error' => 'provider_operation_unavailable'], 409, $headers);
                 }
                 $owner = $state['owner'];
             } else {
