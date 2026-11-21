@@ -553,6 +553,52 @@ final class ManagedZoneDNSServiceTest extends TestCase
         self::assertNull($provider->replacedRrset);
     }
 
+    public function testTargetedDualCertificateRolloverIsIdempotentAndPrunesOnlyExplicitOldValues(): void
+    {
+        // Distinct associations model concurrently served RSA and ECDSA certificates.
+        $oldRsa    = '3 1 1 ' . str_repeat('a', 64);
+        $oldEcdsa  = '3 1 1 ' . str_repeat('b', 64);
+        $newRsa    = '3 1 1 ' . str_repeat('c', 64);
+        $newEcdsa  = '3 1 1 ' . str_repeat('d', 64);
+        $unmanaged = '3 1 1 ' . str_repeat('e', 64);
+        $provider  = new TargetedRecordingDNSProvider(
+            [Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true, Capability::RECORD_DELETE => true],
+            new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 900, [$oldRsa, $oldEcdsa, $unmanaged]),
+        );
+        $service = $this->serviceForZone($provider);
+        $user    = new User('owner', 'owner@example.test');
+
+        // Publish both replacement keys before removing anything. Existing parallel keys and
+        // values owned outside this rollover remain present.
+        $state    = $service->tlsaState($user, 42, 7, '_443._tcp');
+        $prepared = $service->changeTlsa($user, 42, 7, '_443._tcp', [$newRsa, $newEcdsa], [], $state['version'], 300);
+        self::assertSame([$oldRsa, $oldEcdsa, $newRsa, $newEcdsa, $unmanaged], $prepared['records']);
+        self::assertSame(900, $prepared['ttl']);
+
+        // A retry after a lost client response observes the requested state and performs no writes.
+        $operationCountBeforeRetry = count($provider->operations);
+        $retryState                = $service->tlsaState($user, 42, 7, '_443._tcp');
+        $retried                   = $service->changeTlsa($user, 42, 7, '_443._tcp', [$newRsa, $newEcdsa], [], $retryState['version'], 300);
+        self::assertSame($prepared['records'], $retried['records']);
+        self::assertSame($operationCountBeforeRetry, count($provider->operations));
+
+        // Retire only the explicitly named old values after the external transition window.
+        $retireRsaState = $service->tlsaState($user, 42, 7, '_443._tcp');
+        $afterRsa       = $service->changeTlsa($user, 42, 7, '_443._tcp', [], [$oldRsa], $retireRsaState['version'], 300);
+        self::assertSame([$oldEcdsa, $newRsa, $newEcdsa, $unmanaged], $afterRsa['records']);
+
+        $retireEcdsaState = $service->tlsaState($user, 42, 7, '_443._tcp');
+        $finished         = $service->changeTlsa($user, 42, 7, '_443._tcp', [], [$oldEcdsa], $retireEcdsaState['version'], 300);
+        self::assertSame([$newRsa, $newEcdsa, $unmanaged], $finished['records']);
+        self::assertSame(900, $finished['ttl']);
+        self::assertSame([
+            'add:' . $newRsa,
+            'add:' . $newEcdsa,
+            'remove:' . $oldRsa,
+            'remove:' . $oldEcdsa,
+        ], $provider->operations);
+    }
+
     public function testTargetedTlsaMutationRejectsStaleTowerDnsRevisionBeforeProviderOperation(): void
     {
         $old      = '3 1 1 ' . str_repeat('a', 64);
