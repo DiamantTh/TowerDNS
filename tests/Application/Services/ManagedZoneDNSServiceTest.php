@@ -524,6 +524,7 @@ final class ManagedZoneDNSServiceTest extends TestCase
 
         $first = $write(['add' => [$old, $other], 'ttl' => 600], $version);
         self::assertSame(200, $first->getStatusCode());
+        self::assertSame('applied_and_read_back', json_decode((string) $first->getBody(), true, 16, JSON_THROW_ON_ERROR)['change_result']);
         $public = $handler->handle($request->withQueryParams(['owner' => '_443._tcp', 'verify' => 'authoritative']));
         self::assertSame(200, $public->getStatusCode());
         $publicData = json_decode((string) $public->getBody(), true, 16, JSON_THROW_ON_ERROR);
@@ -535,7 +536,9 @@ final class ManagedZoneDNSServiceTest extends TestCase
         $validatedData = json_decode((string) $validated->getBody(), true, 16, JSON_THROW_ON_ERROR);
         self::assertSame('secure', $validatedData['dnssec']);
         self::assertSame('trusted_https_resolver_ad', $validatedData['dnssec_validation']['method']);
-        self::assertSame(200, $write(['add' => [$old, $other]], $version)->getStatusCode());
+        $idempotent = $write(['add' => [$old, $other]], $version);
+        self::assertSame(200, $idempotent->getStatusCode());
+        self::assertSame('unchanged', json_decode((string) $idempotent->getBody(), true, 16, JSON_THROW_ON_ERROR)['change_result']);
         self::assertSame(1, $provider->writes);
         $appendGrant = new \TowerDNS\Domain\Auth\ApiKeyGrant(3, $user->id, 'tlsa:append', 42, 7, '_443._tcp');
         self::assertSame(403, $write(['remove' => [$other]], $first->getHeaderLine('ETag'), $appendGrant)->getStatusCode());
@@ -699,6 +702,7 @@ final class ManagedZoneDNSServiceTest extends TestCase
         $retryState                = $service->tlsaState($user, 42, 7, '_443._tcp');
         $retried                   = $service->changeTlsa($user, 42, 7, '_443._tcp', [$newRsa, $newEcdsa], [], $retryState['version'], 300);
         self::assertSame($prepared['records'], $retried['records']);
+        self::assertSame('unchanged', $retried['change_result']);
         self::assertSame($operationCountBeforeRetry, count($provider->operations));
 
         // Retire only the explicitly named old values after the external transition window.
@@ -716,6 +720,73 @@ final class ManagedZoneDNSServiceTest extends TestCase
             'remove:' . $oldRsa,
             'remove:' . $oldEcdsa,
         ], $provider->operations);
+    }
+
+    public function testReplacingOnlyRsaKeepsTheActiveEcdsaAndUnmanagedTlsaValues(): void
+    {
+        $oldRsa    = '3 1 1 ' . str_repeat('a', 64);
+        $activeEc  = '3 1 1 ' . str_repeat('b', 64);
+        $newRsa    = '3 1 1 ' . str_repeat('c', 64);
+        $unmanaged = '3 1 1 ' . str_repeat('d', 64);
+        $provider  = new TargetedRecordingDNSProvider(
+            [Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true, Capability::RECORD_DELETE => true],
+            new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 1200, [$oldRsa, $activeEc, $unmanaged]),
+        );
+        $service = $this->serviceForZone($provider);
+        $user    = new User('owner', 'owner@example.test');
+        $before  = $service->tlsaState($user, 42, 7, '_443._tcp');
+
+        $after = $service->changeTlsa($user, 42, 7, '_443._tcp', [$newRsa], [$oldRsa], $before['version'], 300);
+
+        self::assertSame([$activeEc, $newRsa, $unmanaged], $after['records']);
+        self::assertSame(1200, $after['ttl']);
+        self::assertSame('applied_and_read_back', $after['change_result']);
+        self::assertSame(['add:' . $newRsa, 'remove:' . $oldRsa], $provider->operations);
+    }
+
+    public function testInterruptedTargetedRolloverCanBeSafelyRetriedFromFreshProviderState(): void
+    {
+        $old      = '3 1 1 ' . str_repeat('a', 64);
+        $new      = '3 1 1 ' . str_repeat('b', 64);
+        $provider = new TargetedRecordingDNSProvider(
+            [Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true, Capability::RECORD_DELETE => true],
+            new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 600, [$old]),
+        );
+        $provider->throwAfterNextAppend = true;
+        $service                        = $this->serviceForZone($provider);
+        $user                           = new User('owner', 'owner@example.test');
+        $before                         = $service->tlsaState($user, 42, 7, '_443._tcp');
+
+        try {
+            $service->changeTlsa($user, 42, 7, '_443._tcp', [$new], [$old], $before['version'], 300);
+            self::fail('A partially applied multi-step rollover must not be reported as complete.');
+        } catch (\TowerDNS\Application\Exception\ProviderRequestException) {
+            self::assertSame([$old, $new], $service->tlsaState($user, 42, 7, '_443._tcp')['records']);
+        }
+
+        $fresh = $service->tlsaState($user, 42, 7, '_443._tcp');
+        $done  = $service->changeTlsa($user, 42, 7, '_443._tcp', [$new], [$old], $fresh['version'], 300);
+        self::assertSame([$new], $done['records']);
+        self::assertSame('applied_and_read_back', $done['change_result']);
+    }
+
+    public function testLostProviderWriteResponseIsReportedOnlyAfterReadbackConfirmsDesiredState(): void
+    {
+        $old      = '3 1 1 ' . str_repeat('a', 64);
+        $new      = '3 1 1 ' . str_repeat('b', 64);
+        $provider = new TargetedRecordingDNSProvider(
+            [Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true],
+            new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 600, [$old]),
+        );
+        $provider->throwAfterNextAppend = true;
+        $service                        = $this->serviceForZone($provider);
+        $user                           = new User('owner', 'owner@example.test');
+        $before                         = $service->tlsaState($user, 42, 7, '_443._tcp');
+
+        $result = $service->changeTlsa($user, 42, 7, '_443._tcp', [$new], [], $before['version'], 300);
+
+        self::assertSame([$old, $new], $result['records']);
+        self::assertSame('applied_and_read_back_after_transport_error', $result['change_result']);
     }
 
     public function testTargetedTlsaMutationRejectsStaleTowerDnsRevisionBeforeProviderOperation(): void
@@ -913,6 +984,8 @@ final class TargetedRecordingDNSProvider extends RecordingDNSProvider implements
     /** @var list<string> */
     public array $operations = [];
 
+    public bool $throwAfterNextAppend = false;
+
     public function __construct(array $capabilities, public ?Rrset $current)
     {
         parent::__construct($capabilities);
@@ -930,9 +1003,13 @@ final class TargetedRecordingDNSProvider extends RecordingDNSProvider implements
         $this->operations[] = 'add:' . $rdata;
         if (!$this->current instanceof Rrset) {
             $this->current = new Rrset($zoneId, $owner, DNSRecordType::parse($type), $ttl, [$rdata]);
-            return;
+        } else {
+            $this->current = new Rrset($zoneId, $owner, DNSRecordType::parse($type), $this->current->ttl, array_values(array_unique([...$this->current->rdata, $rdata])));
         }
-        $this->current = new Rrset($zoneId, $owner, DNSRecordType::parse($type), $this->current->ttl, array_values(array_unique([...$this->current->rdata, $rdata])));
+        if ($this->throwAfterNextAppend) {
+            $this->throwAfterNextAppend = false;
+            throw new \TowerDNS\Application\Exception\ProviderRequestException('Simulated lost provider response.');
+        }
     }
 
     #[\Override]

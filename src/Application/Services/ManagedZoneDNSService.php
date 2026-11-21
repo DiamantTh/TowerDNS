@@ -238,7 +238,7 @@ final readonly class ManagedZoneDNSService
     /**
      * @param list<string> $add
      * @param list<string> $remove
-     * @return array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool, capabilities: array{conditional_replace: bool, append_record: bool, remove_record: bool, atomic_multi_record: bool, consistency: string}}
+     * @return array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool, capabilities: array{conditional_replace: bool, append_record: bool, remove_record: bool, atomic_multi_record: bool, consistency: string}, change_result: 'unchanged'|'applied_and_read_back'|'applied_and_read_back_after_transport_error'}
      */
     public function changeTlsa(User $user, int $account, int $zoneId, string $owner, array $add, array $remove, string $version, int $ttl): array
     {
@@ -281,7 +281,7 @@ final readonly class ManagedZoneDNSService
         $records = array_values(array_unique([...array_diff($snapshot['records'], $remove), ...$add]));
         sort($records, SORT_STRING);
         if ($records === $snapshot['records']) {
-            return $snapshot;
+            return $snapshot + ['change_result' => 'unchanged'];
         }
         if (!hash_equals($snapshot['version'], $version)) {
             throw new \TowerDNS\Application\Exception\RrsetPreconditionException('The TLSA RRset changed. Read it again before retrying.');
@@ -313,7 +313,7 @@ final readonly class ManagedZoneDNSService
                 // A transport timeout can happen after the provider applied a mutation. Never replay a full RRset replace.
                 $observedAfterError = $this->tlsaSnapshot($owner, $this->currentTlsa($provider, $zone->providerZoneId, $owner), $provider);
                 if ($observedAfterError['records'] === $records && $observedAfterError['ttl'] === $ttl) {
-                    return $observedAfterError;
+                    return $observedAfterError + ['change_result' => 'applied_and_read_back_after_transport_error'];
                 }
                 throw $error;
             }
@@ -322,7 +322,7 @@ final readonly class ManagedZoneDNSService
         if ($observed['records'] !== $records || $observed['ttl'] !== $ttl) {
             throw new \TowerDNS\Application\Exception\RrsetConflictException('The provider read-back differs. Read again before retrying.');
         }
-        return $observed;
+        return $observed + ['change_result' => 'applied_and_read_back'];
     }
 
     private function tlsaOwner(string $owner, string $zone): string

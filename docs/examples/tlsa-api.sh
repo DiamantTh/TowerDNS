@@ -32,6 +32,11 @@ case "${TLSA_REMOVE_JSON:-[]}" in
     *) echo "TLSA_REMOVE_JSON must be a JSON array" >&2; exit 2 ;;
 esac
 
+if [ "${TLSA_REMOVE_JSON:-[]}" != '[]' ] && { [ -n "${TLSA_CERT_FILE:-}" ] || [ "${TLSA_ADD_JSON:-[]}" != '[]' ]; }; then
+    echo "Use separate prepublication (add) and retirement (remove) invocations; do not combine them in one rollover request." >&2
+    exit 2
+fi
+
 if [ -z "${TLSA_CERT_FILE:-}" ] && [ "${TLSA_ADD_JSON:-[]}" = '[]' ] && [ "${TLSA_REMOVE_JSON:-[]}" = '[]' ]; then
     echo "Set TLSA_CERT_FILE, TLSA_ADD_JSON, or TLSA_REMOVE_JSON" >&2
     exit 2

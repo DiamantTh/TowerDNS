@@ -53,6 +53,14 @@ conflict or does not offer the requested mutation. Re-read, compare the new
 state with the intended change, and only then submit a new request with the new
 ETag. Do not retry a stale full RRset from a saved local copy.
 
+Mutation responses include `change_result`. `unchanged` means the requested
+delta was already present in the provider readback. `applied_and_read_back`
+means the operation and subsequent readback matched. If the provider write
+returned a transport error but a fresh readback proves the requested state,
+TowerDNS returns `applied_and_read_back_after_transport_error`. This confirms
+provider state only, not public DNS publication. If readback cannot establish
+the result, the operation fails; read the current state before retrying.
+
 Provider capability fields describe the available provider operation, not a
 universal guarantee. Providers with targeted record APIs preserve siblings but
 may not provide compare-and-swap against direct external edits. A timeout after
@@ -98,6 +106,13 @@ the already configured `TOWERDNS_API_URL`, and a secret-store supplied
 post-issuance hook must not be treated as the prepublication stage unless the
 surrounding deployment explicitly postpones certificate activation until the
 publication and TTL wait have completed.
+
+The sample rejects combining additions and removals in one request. Run a
+prepublication invocation first and a separate retirement invocation only
+after the operator or external orchestrator has confirmed publication,
+activation, and the required cache-overlap interval. The example does not
+sleep for TTLs, activate certificates, or infer that a deploy hook ran early
+enough; those are external orchestration responsibilities.
 
 The generator's response marks its output as unverified. Provider readback
 confirms only the provider API's view. An explicit read-only authoritative

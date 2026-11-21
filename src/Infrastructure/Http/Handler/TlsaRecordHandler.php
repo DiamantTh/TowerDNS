@@ -226,7 +226,7 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
         return $records;
     }
 
-    /** @param array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool, capabilities: array<string, bool|string>} $state */
+    /** @param array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool, capabilities: array<string, bool|string>, change_result?: 'unchanged'|'applied_and_read_back'|'applied_and_read_back_after_transport_error'} $state */
     private function snapshot(array $state, ?string $token = null): JsonResponse
     {
         return new JsonResponse($state + ['verification' => 'provider_only', 'csrf_token' => $token], 200, [
