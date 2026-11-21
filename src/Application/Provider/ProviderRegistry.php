@@ -7,8 +7,10 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\Provider;
 
+use TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface;
 use TowerDNS\Application\Contracts\DNSProviderInterface;
 use TowerDNS\Application\Contracts\ProviderConstraintProviderInterface;
+use TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface;
 use TowerDNS\Application\DTO\ProviderSummaryDTO;
 use TowerDNS\Application\Exception\ProviderNotFoundException;
 
@@ -69,16 +71,30 @@ final class ProviderRegistry
     {
         $out = [];
         foreach ($this->providers as $provider) {
+            $profile     = $provider instanceof ProviderConstraintProviderInterface ? $provider->constraints() : null;
+            $constraints = $profile instanceof \TowerDNS\Application\Contracts\ProviderConstraintProfile ? [
+                'rrset_write_mode'      => $profile->rrsetWriteMode,
+                'read_back_consistency' => $profile->readBackConsistency,
+                'rfc3597_write'         => $profile->supportsRfc3597Write,
+                ...$profile->details,
+            ] : [];
+            if ($provider instanceof ConditionalRrsetProviderInterface) {
+                $constraints['conditional_rrset_write'] = true;
+            }
+            if ($provider instanceof TargetedRrsetMutationProviderInterface) {
+                $mutation                       = $provider->rrsetMutationCapabilities();
+                $constraints['rrset_mutations'] = array_values(array_filter([
+                    $mutation->appendRecord ? 'append_record' : null,
+                    $mutation->removeRecord ? 'remove_record' : null,
+                ]));
+                $constraints['rrset_multi_record_atomic']  = $mutation->atomicMultiRecord;
+                $constraints['rrset_mutation_consistency'] = $mutation->consistency;
+            }
             $out[] = new ProviderSummaryDTO(
                 $provider->id(),
                 $provider->displayName(),
                 $provider->capabilities()->all(),
-                $provider instanceof ProviderConstraintProviderInterface ? [
-                    'rrset_write_mode'      => $provider->constraints()->rrsetWriteMode,
-                    'read_back_consistency' => $provider->constraints()->readBackConsistency,
-                    'rfc3597_write'         => $provider->constraints()->supportsRfc3597Write,
-                    ...$provider->constraints()->details,
-                ] : [],
+                $constraints,
             );
         }
 

@@ -10,6 +10,8 @@ namespace TowerDNS\Module\PowerDNS;
 use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\ProviderConstraintProfile;
+use TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface;
+use TowerDNS\Application\DTO\RrsetMutationCapabilities;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSRecordType;
@@ -31,7 +33,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * @see https://doc.powerdns.com/authoritative/http-api/
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class PowerDNSProvider extends AbstractDNSProvider
+final class PowerDNSProvider extends AbstractDNSProvider implements TargetedRrsetMutationProviderInterface
 {
     public const string ID = 'powerdns';
 
@@ -90,11 +92,46 @@ final class PowerDNSProvider extends AbstractDNSProvider
     public function constraints(): ProviderConstraintProfile
     {
         return new ProviderConstraintProfile(
-            $this->client->supportsExtend() ? 'atomic_extend' : 'atomic_replace',
+            $this->client->supportsExtend() ? 'targeted_record_operations' : 'rrset_replace',
             'immediate',
             true,
-            ['server_id' => $this->client->serverId()],
+            [
+                'server_id' => $this->client->serverId(),
+                'pdns_targeted_record_operations' => $this->client->supportsExtend(),
+                'pdns_server_version' => $this->client->serverVersion() ?? 'unknown',
+                'pdns_operation_version_floor' => '4.9.12 or 5.0.2',
+                'pdns_version_detection' => 'server_info_endpoint',
+            ],
         );
+    }
+
+    #[\Override]
+    public function rrsetMutationCapabilities(): RrsetMutationCapabilities
+    {
+        $supported = $this->client->supportsExtend();
+        return new RrsetMutationCapabilities(
+            appendRecord: $supported,
+            removeRecord: $supported,
+            consistency: $supported ? 'provider_targeted_no_cas' : 'read_modify_write',
+        );
+    }
+
+    #[\Override]
+    public function appendRrsetRecord(string $zoneId, string $owner, string $type, int $ttl, string $rdata): void
+    {
+        if (!$this->client->supportsExtend()) {
+            throw new CapabilityException('PowerDNS EXTEND/PRUNE requires Authoritative 4.9.12 or 5.0.2 or newer.');
+        }
+        $this->patchRrset($zoneId, $owner, $type, $ttl, [['content' => $rdata, 'disabled' => false]], 'EXTEND');
+    }
+
+    #[\Override]
+    public function removeRrsetRecord(string $zoneId, string $owner, string $type, string $rdata): void
+    {
+        if (!$this->client->supportsExtend()) {
+            throw new CapabilityException('PowerDNS EXTEND/PRUNE requires Authoritative 4.9.12 or 5.0.2 or newer.');
+        }
+        $this->patchRrset($zoneId, $owner, $type, 0, [['content' => $rdata, 'disabled' => false]], 'PRUNE');
     }
 
     #[\Override]

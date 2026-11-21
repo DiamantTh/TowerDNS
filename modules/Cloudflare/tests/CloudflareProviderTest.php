@@ -53,6 +53,35 @@ final class CloudflareProviderTest extends TestCase
         self::assertSame('/client/v4/zones/zone-1/dns_records/record-1', $this->requests[2]->getUri()->getPath());
     }
 
+    public function testTargetedTlsaAppendCreatesOnlyTheMissingRecordAndIsIdempotent(): void
+    {
+        $provider = $this->provider([
+            $this->json(['result' => [['id' => 'zone-1']]]),
+            $this->json(['result' => [$this->record(300)], 'result_info' => ['total_pages' => 1]]),
+            $this->json(['result' => ['id' => 'record-2', 'name' => '_443._tcp.example.org', 'type' => 'TLSA', 'ttl' => 300, 'content' => '3 1 1 ccdd']]),
+            $this->json(['result' => [$this->record(300), ['id' => 'record-2', 'name' => '_443._tcp.example.org', 'type' => 'TLSA', 'ttl' => 300, 'content' => '3 1 1 ccdd']], 'result_info' => ['total_pages' => 1]]),
+        ]);
+        $caps = $provider->rrsetMutationCapabilities();
+        self::assertTrue($caps->appendRecord);
+        self::assertTrue($caps->removeRecord);
+        self::assertFalse($caps->atomicMultiRecord);
+        $provider->appendRrsetRecord('example.org', '_443._tcp', 'TLSA', 300, '3 1 1 ccdd');
+        $provider->appendRrsetRecord('example.org', '_443._tcp', 'TLSA', 300, '3 1 1 CCDD');
+        self::assertSame(['GET', 'GET', 'POST', 'GET'], array_map(static fn(RequestInterface $r): string => $r->getMethod(), $this->requests));
+    }
+
+    public function testTargetedTlsaRemovalUsesProviderRecordIdAndLeavesSiblingsAlone(): void
+    {
+        $provider = $this->provider([
+            $this->json(['result' => [['id' => 'zone-1']]]),
+            $this->json(['result' => [$this->record(300), ['id' => 'record-2', 'name' => '_443._tcp.example.org', 'type' => 'TLSA', 'ttl' => 300, 'content' => '3 1 1 ccdd']], 'result_info' => ['total_pages' => 1]]),
+            $this->json(['result' => ['id' => 'record-1']]),
+        ]);
+        $provider->removeRrsetRecord('example.org', '_443._tcp', 'TLSA', '3 1 1 aabb');
+        self::assertSame('DELETE', $this->requests[2]->getMethod());
+        self::assertStringEndsWith('/dns_records/record-1', $this->requests[2]->getUri()->getPath());
+    }
+
     public function testApiTokenIsNotForwardedAcrossRedirects(): void
     {
         $provider = $this->provider([

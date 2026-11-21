@@ -11,6 +11,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use Ovh\Api;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface;
 use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
@@ -29,8 +30,9 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * @see https://github.com/ovh/php-ovh
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class OVHcloudProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
+final class OVHcloudProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface, TargetedRrsetMutationProviderInterface
 {
+    use \TowerDNS\Infrastructure\Provider\TargetedRrsetMutationTrait;
     public const string ID = 'ovh';
 
     public function __construct(private readonly Api $client)

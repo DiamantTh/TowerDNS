@@ -172,6 +172,32 @@ final class PowerDNSProviderTest extends TestCase
         self::assertSame('REPLACE', json_decode((string) $this->requests[0]->getBody(), true, flags: JSON_THROW_ON_ERROR)['rrsets'][0]['changetype']);
     }
 
+    public function testTargetedTlsaAppendAndRemovalUseExtendAndPruneOnSupportedRelease(): void
+    {
+        $provider = $this->provider([
+            $this->jsonResponse(['version' => '4.9.12']),
+            new Response(204),
+            new Response(204),
+        ]);
+        $caps = $provider->rrsetMutationCapabilities();
+        self::assertTrue($caps->appendRecord);
+        self::assertTrue($caps->removeRecord);
+        self::assertFalse($caps->atomicMultiRecord);
+        $provider->appendRrsetRecord('example.org.', '_443._tcp', 'TLSA', 600, '3 1 1 aabb');
+        $provider->removeRrsetRecord('example.org.', '_443._tcp', 'TLSA', '3 1 1 aabb');
+        self::assertSame('EXTEND', json_decode((string) $this->requests[1]->getBody(), true, flags: JSON_THROW_ON_ERROR)['rrsets'][0]['changetype']);
+        self::assertSame('PRUNE', json_decode((string) $this->requests[2]->getBody(), true, flags: JSON_THROW_ON_ERROR)['rrsets'][0]['changetype']);
+        self::assertArrayNotHasKey('ttl', json_decode((string) $this->requests[2]->getBody(), true, flags: JSON_THROW_ON_ERROR)['rrsets'][0]);
+    }
+
+    public function testTargetedPowerDnsOperationsFailClosedBelowDocumentedVersionFloor(): void
+    {
+        $provider = $this->provider([$this->jsonResponse(['version' => '4.9.11'])]);
+        self::assertFalse($provider->rrsetMutationCapabilities()->appendRecord);
+        $this->expectException(\TowerDNS\Application\Exception\CapabilityException::class);
+        $provider->appendRrsetRecord('example.org.', '_443._tcp', 'TLSA', 300, '3 1 1 aabb');
+    }
+
     /**
      * @param list<Response> $responses
      */

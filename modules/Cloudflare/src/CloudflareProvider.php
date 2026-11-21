@@ -11,10 +11,13 @@ use GuzzleHttp\ClientInterface;
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
 use TowerDNS\Application\Contracts\ProviderConstraintProfile;
+use TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface;
+use TowerDNS\Application\DTO\RrsetMutationCapabilities;
 use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Domain\DNS\DNSSECProfile;
+use TowerDNS\Domain\DNS\DNSRecordType;
 use TowerDNS\Domain\DNS\DNSSECState;
 use TowerDNS\Domain\DNS\Record;
 use TowerDNS\Domain\DNS\RecordType;
@@ -38,7 +41,7 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * @see https://developers.cloudflare.com/api/
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class CloudflareProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
+final class CloudflareProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface, TargetedRrsetMutationProviderInterface
 {
     public const string ID = 'cloudflare';
 
@@ -100,11 +103,68 @@ final class CloudflareProvider extends AbstractDNSProvider implements Connection
     public function constraints(): ProviderConstraintProfile
     {
         return new ProviderConstraintProfile(
-            'read_modify_write',
+            'targeted_record_operations',
             'immediate',
             false,
-            ['minimum_ttl' => 60],
+            [
+                'minimum_ttl' => 60,
+                'targeted_record_operations' => true,
+                'conditional_rrset_write' => false,
+                'multi_record_atomic' => false,
+                'dns_propagation_atomic' => false,
+            ],
         );
+    }
+
+    #[\Override]
+    public function rrsetMutationCapabilities(): RrsetMutationCapabilities
+    {
+        return new RrsetMutationCapabilities(
+            appendRecord: true,
+            removeRecord: true,
+            consistency: 'targeted_record_operations_no_cas',
+        );
+    }
+
+    #[\Override]
+    public function appendRrsetRecord(string $zoneId, string $owner, string $type, int $ttl, string $rdata): void
+    {
+        $recordType = RecordType::tryFrom(strtoupper($type));
+        if ($recordType === null) {
+            throw new CapabilityException('Cloudflare unterstützt den angeforderten Record-Typ nicht.');
+        }
+        $canonical = self::canonicalRdata($type, $rdata);
+        foreach ($this->listRecords($zoneId) as $existing) {
+            if ($existing->type === $recordType
+                && strcasecmp(rtrim($existing->name, '.'), rtrim($owner, '.')) === 0
+                && self::canonicalRdata($type, $existing->content) === $canonical) {
+                return;
+            }
+        }
+        $this->createRecord(new Record('', $zoneId, $owner, $recordType, $ttl, $rdata));
+    }
+
+    #[\Override]
+    public function removeRrsetRecord(string $zoneId, string $owner, string $type, string $rdata): void
+    {
+        $recordType = RecordType::tryFrom(strtoupper($type));
+        if ($recordType === null) {
+            throw new CapabilityException('Cloudflare unterstützt den angeforderten Record-Typ nicht.');
+        }
+        $canonical = self::canonicalRdata($type, $rdata);
+        foreach ($this->listRecords($zoneId) as $existing) {
+            if ($existing->type === $recordType
+                && strcasecmp(rtrim($existing->name, '.'), rtrim($owner, '.')) === 0
+                && self::canonicalRdata($type, $existing->content) === $canonical) {
+                // Cloudflare record IDs let us delete only this exact value; sibling RDATA is untouched.
+                $this->deleteRecord($zoneId, $existing->id);
+            }
+        }
+    }
+
+    private static function canonicalRdata(string $type, string $rdata): string
+    {
+        return \TowerDNS\Application\DNS\RdataCanonicalizer::canonicalize(DNSRecordType::parse($type), $rdata);
     }
 
     // ── Zone operations ───────────────────────────────────────────────────────

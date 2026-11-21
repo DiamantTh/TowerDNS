@@ -221,7 +221,7 @@ final readonly class ManagedZoneDNSService
         $provider->deleteRecord($zone->providerZoneId, $recordId);
     }
 
-    /** @return array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool} */
+    /** @return array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool, capabilities: array{conditional_replace: bool, append_record: bool, remove_record: bool, atomic_multi_record: bool, consistency: string}} */
     public function tlsaState(User $user, int $account, int $zoneId, string $owner): array
     {
         [$zone, $provider] = $this->resolve($user, $account, $zoneId, Permission::RECORD_READ, Capability::RECORD_LIST);
@@ -232,13 +232,17 @@ final readonly class ManagedZoneDNSService
     /**
      * @param list<string> $add
      * @param list<string> $remove
-     * @return array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool}
+     * @return array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool, capabilities: array{conditional_replace: bool, append_record: bool, remove_record: bool, atomic_multi_record: bool, consistency: string}}
      */
     public function changeTlsa(User $user, int $account, int $zoneId, string $owner, array $add, array $remove, string $version, int $ttl): array
     {
         [$zone, $provider] = $this->resolve($user, $account, $zoneId, Permission::RECORD_READ, Capability::RECORD_LIST);
         $this->assertAccountActive($account);
-        if (!$provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface) {
+        $conditional = $provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface;
+        $targeted    = $provider instanceof \TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface
+            ? $provider->rrsetMutationCapabilities()
+            : new \TowerDNS\Application\DTO\RrsetMutationCapabilities();
+        if (!$conditional && !$targeted->appendRecord && !$targeted->removeRecord) {
             throw new \TowerDNS\Application\Exception\CapabilityException('Provider does not support conditional RRset writes.');
         }
         if ($add !== []) {
@@ -274,7 +278,7 @@ final readonly class ManagedZoneDNSService
             return $snapshot;
         }
         if (!hash_equals($snapshot['version'], $version)) {
-            throw new \TowerDNS\Application\Exception\RrsetConflictException('The TLSA RRset changed. Read it again before retrying.');
+            throw new \TowerDNS\Application\Exception\RrsetPreconditionException('The TLSA RRset changed. Read it again before retrying.');
         }
         if (!$before instanceof Rrset) {
             $this->resolve($user, $account, $zoneId, Permission::RECORD_CREATE, Capability::RECORD_CREATE);
@@ -283,9 +287,33 @@ final readonly class ManagedZoneDNSService
         RecordValidator::assertTtl($ttl);
         $this->assertProviderTtl($provider, $ttl);
         $after = $records === [] ? null : new Rrset($zone->providerZoneId, $owner, $type, $ttl, $records);
-        $provider->changeRrsetConditionally($before, $after);
+        if ($provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface) {
+            $provider->changeRrsetConditionally($before, $after);
+        } else {
+            if (!$provider instanceof \TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface
+                || ($add !== [] && !$targeted->appendRecord)
+                || ($remove !== [] && !$targeted->removeRecord)) {
+                throw new \TowerDNS\Application\Exception\CapabilityException('Provider does not support the requested targeted TLSA operation.');
+            }
+            try {
+                // Publish additions first: a failed multi-step rollover leaves the old value in place.
+                foreach (array_values(array_unique($add)) as $value) {
+                    $provider->appendRrsetRecord($zone->providerZoneId, $owner, 'TLSA', $ttl, $value);
+                }
+                foreach (array_values(array_unique($remove)) as $value) {
+                    $provider->removeRrsetRecord($zone->providerZoneId, $owner, 'TLSA', $value);
+                }
+            } catch (\Throwable $error) {
+                // A transport timeout can happen after the provider applied a mutation. Never replay a full RRset replace.
+                $observedAfterError = $this->tlsaSnapshot($owner, $this->currentTlsa($provider, $zone->providerZoneId, $owner), $provider);
+                if ($observedAfterError['records'] === $records && $observedAfterError['ttl'] === $ttl) {
+                    return $observedAfterError;
+                }
+                throw $error;
+            }
+        }
         $observed = $this->tlsaSnapshot($owner, $this->currentTlsa($provider, $zone->providerZoneId, $owner), $provider);
-        if ($observed['version'] !== $this->tlsaSnapshot($owner, $after, $provider)['version']) {
+        if ($observed['records'] !== $records || $observed['ttl'] !== $ttl) {
             throw new \TowerDNS\Application\Exception\RrsetConflictException('The provider read-back differs. Read again before retrying.');
         }
         return $observed;
@@ -310,7 +338,7 @@ final readonly class ManagedZoneDNSService
         return null;
     }
 
-    /** @return array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool} */
+    /** @return array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool, capabilities: array{conditional_replace: bool, append_record: bool, remove_record: bool, atomic_multi_record: bool, consistency: string}} */
     private function tlsaSnapshot(string $owner, ?Rrset $rrset, DNSProviderInterface $provider): array
     {
         $records = $rrset instanceof Rrset ? array_values(array_unique(array_map(
@@ -318,11 +346,21 @@ final readonly class ManagedZoneDNSService
             $rrset->rdata,
         ))) : [];
         sort($records, SORT_STRING);
-        $ttl = $rrset?->ttl;
+        $ttl       = $rrset?->ttl;
+        $mutations = $provider instanceof \TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface
+            ? $provider->rrsetMutationCapabilities()
+            : new \TowerDNS\Application\DTO\RrsetMutationCapabilities();
         return [
-            'owner'       => $owner, 'ttl' => $ttl, 'records' => $records,
-            'version'     => self::tlsaRevision($owner, $ttl, $records),
-            'conditional' => $provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface,
+            'owner'        => $owner, 'ttl' => $ttl, 'records' => $records,
+            'version'      => self::tlsaRevision($owner, $ttl, $records),
+            'conditional'  => $provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface,
+            'capabilities' => new \TowerDNS\Application\DTO\RrsetMutationCapabilities(
+                conditionalReplace: $provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface,
+                appendRecord: $mutations->appendRecord,
+                removeRecord: $mutations->removeRecord,
+                atomicMultiRecord: $mutations->atomicMultiRecord || $provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface,
+                consistency: $provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface ? 'provider_compare_and_set' : $mutations->consistency,
+            )->toArray(),
         ];
     }
 
@@ -338,14 +376,19 @@ final readonly class ManagedZoneDNSService
             $rrset->rdata,
         )));
         $expected = new Rrset($zone->providerZoneId, $owner, $rrset->type, $rrset->ttl, $rdata, $rrset->providerIdentity, $rrset->metadata);
-        if ($rrset->type->presentation === 'TLSA' && $provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface) {
+        if ($rrset->type->presentation === 'TLSA') {
             $before = $this->currentTlsa($provider, $zone->providerZoneId, $owner);
             $this->requireTlsaRevision($owner, $before, $provider, $version);
             if (!$before instanceof Rrset) {
                 $this->resolve($user, $accountId, $managedZoneId, Permission::RECORD_CREATE, Capability::RECORD_CREATE);
             }
-            $provider->changeRrsetConditionally($before, $expected);
-            $observed = $this->currentTlsa($provider, $zone->providerZoneId, $owner);
+            if ($provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface) {
+                $provider->changeRrsetConditionally($before, $expected);
+                $observed = $this->currentTlsa($provider, $zone->providerZoneId, $owner);
+            } else {
+                // Preflight detects already visible stale forms; providers without CAS retain a documented race window.
+                $observed = $this->rrsets($provider)->replaceRrset($expected);
+            }
         } else {
             $observed = $this->rrsets($provider)->replaceRrset($expected);
         }
@@ -362,11 +405,15 @@ final readonly class ManagedZoneDNSService
         $recordType = DNSRecordType::parse($type);
         $ownerName  = DNSNameValidator::normaliseRecordOwner($ownerName, $zone->canonicalName);
         $rrsets     = $this->rrsets($provider);
-        if ($recordType->presentation === 'TLSA' && $provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface) {
+        if ($recordType->presentation === 'TLSA') {
             $before = $this->currentTlsa($provider, $zone->providerZoneId, $ownerName);
             $this->requireTlsaRevision($ownerName, $before, $provider, $version);
             if ($before instanceof Rrset) {
-                $provider->changeRrsetConditionally($before, null);
+                if ($provider instanceof \TowerDNS\Application\Contracts\ConditionalRrsetProviderInterface) {
+                    $provider->changeRrsetConditionally($before, null);
+                } else {
+                    $rrsets->deleteRrset($zone->providerZoneId, $ownerName, $recordType->presentation);
+                }
             }
         } else {
             $rrsets->deleteRrset($zone->providerZoneId, $ownerName, $recordType->presentation);
@@ -396,7 +443,7 @@ final readonly class ManagedZoneDNSService
         if ($version !== null && (hash_equals($current, $version) || ($version === 'new' && !$before instanceof Rrset))) {
             return;
         }
-        throw new \TowerDNS\Application\Exception\RrsetConflictException('The TLSA RRset changed. Refresh the zone.');
+        throw new \TowerDNS\Application\Exception\RrsetPreconditionException('The TLSA RRset changed. Refresh the zone.');
     }
 
     public function dnssecProfile(User $user, int $accountId, int $managedZoneId): DNSSECProfile

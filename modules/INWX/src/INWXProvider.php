@@ -9,6 +9,7 @@ namespace TowerDNS\Module\INWX;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface;
 use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Domain\DNS\DNSSECProfile;
@@ -30,8 +31,9 @@ use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
  * @see https://www.inwx.de/de/api-documentation
  * @psalm-api Loaded through the dynamic provider-module contract.
  */
-final class INWXProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
+final class INWXProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface, TargetedRrsetMutationProviderInterface
 {
+    use \TowerDNS\Infrastructure\Provider\TargetedRrsetMutationTrait;
     public const string ID = 'inwx';
 
     private readonly INWXAPIClient $client;

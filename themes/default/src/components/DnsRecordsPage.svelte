@@ -30,7 +30,7 @@
     let tlsaHost = $state('');
     let tlsaTtl = $state(300);
     let tlsaToken: string | undefined;
-    let tlsaState = $state<{ records: string[]; ttl: number | null; conditional: boolean } | null>(null);
+    let tlsaState = $state<{ records: string[]; ttl: number | null; conditional: boolean; capabilities?: { conditional_replace: boolean; append_record: boolean; remove_record: boolean; atomic_multi_record: boolean; consistency: string } } | null>(null);
     let tlsaVersion = '';
     let tlsaChangeToken = '';
     let tlsaPreviewOwner = $state('');
@@ -146,7 +146,9 @@
     }
 
     async function saveTlsa(add: string[], remove: string[]) {
-        if (!tlsaState?.conditional || tlsaPreviewOwner !== tlsaOwner) return;
+        const canAdd = !!tlsaState?.capabilities?.append_record || !!tlsaState?.conditional;
+        const canRemove = !!tlsaState?.capabilities?.remove_record || !!tlsaState?.conditional;
+        if (!tlsaState || tlsaPreviewOwner !== tlsaOwner || (add.length > 0 && (!canAdd || !page.canReplaceRrsets)) || (remove.length > 0 && (!canRemove || !page.canDeleteRrsets))) return;
         if (remove.length && !confirm(t('tlsa.generator.confirm-remove'))) return;
         tlsaBusy = true;
         tlsaError = '';
@@ -158,9 +160,10 @@
                 body: new URLSearchParams({ csrf_token: tlsaChangeToken, change: JSON.stringify({ add, remove, ttl: tlsaTtl }) }),
             });
             if (!response.ok) {
-                tlsaError = t(response.status === 412 ? 'tlsa.generator.conflict' : 'tlsa.generator.write-error');
-                await loadTlsa();
-                tlsaPreview = [];
+                const error = await response.json().catch(() => ({}));
+                const providerConflict = response.status === 409 && error.error === 'provider_state_conflict';
+                tlsaError = t(response.status === 412 || providerConflict ? 'tlsa.generator.conflict' : response.status === 409 ? 'tlsa.generator.provider-unsupported' : 'tlsa.generator.write-error');
+                if (response.status === 412 || providerConflict) await loadTlsa();
                 return;
             }
             tlsaMessage = t('tlsa.generator.saved');
@@ -213,17 +216,18 @@
         {#if tlsaState && tlsaPreviewOwner === tlsaOwner}
             <h3 class="subtitle">{tlsaPreviewOwner}</h3>
             {#if tlsaState.ttl !== null}<p>TTL: {tlsaState.ttl}</p>{/if}
-            {#if !tlsaState.conditional}<p role="status">{t('tlsa.generator.unsupported')}</p>{/if}
+            {#if !tlsaState.conditional && (tlsaState.capabilities?.append_record || tlsaState.capabilities?.remove_record)}<p role="status">{t('tlsa.generator.targeted-no-cas')}</p>{/if}
+            {#if !tlsaState.conditional && !tlsaState.capabilities?.append_record && !tlsaState.capabilities?.remove_record}<p role="status">{t('tlsa.generator.unsupported')}</p>{/if}
             {#each tlsaState.records as record}
                 <p><code class="rdata-value">{record}</code>
-                    {#if tlsaState.conditional && page.canDeleteRrsets}<button type="button" class="button is-small" disabled={tlsaBusy} onclick={() => saveTlsa([], [record])}>{t('tlsa.generator.remove')}</button>{/if}
+                    {#if (tlsaState.conditional || tlsaState.capabilities?.remove_record) && page.canDeleteRrsets}<button type="button" class="button is-small" disabled={tlsaBusy} onclick={() => saveTlsa([], [record])}>{t('tlsa.generator.remove')}</button>{/if}
                 </p>
             {/each}
             {#if tlsaPreview.length && tlsaGeneratedFrom === tlsaInputIdentity}
                 <section aria-live="polite">
                     <h3 class="subtitle">{t('tlsa.generator.preview')}</h3>
                     {#each tlsaPreview as record}<p><code class="rdata-value">{record}</code>{#if tlsaState.records.includes(record)} · {t('tlsa.generator.present')}{/if}</p>{/each}
-                    <button type="button" class="button is-primary" disabled={!page.canReplaceRrsets || !tlsaState.conditional || tlsaBusy} onclick={() => saveTlsa(tlsaPreview, [])}>{t('tlsa.generator.apply')}</button>
+                    <button type="button" class="button is-primary" disabled={!page.canReplaceRrsets || (!tlsaState.conditional && !tlsaState.capabilities?.append_record) || tlsaBusy} onclick={() => saveTlsa(tlsaPreview, [])}>{t('tlsa.generator.apply')}</button>
                 </section>
             {/if}
         {/if}
@@ -232,6 +236,7 @@
     <section class="box">
         <h2 class="subtitle">{t(editing ? 'dns.edit-rrset' : 'rrset.save')}</h2>
         <p class="muted">{t('rrset.save-hint')}</p>
+        {#if typeChoice === 'TLSA'}<p role="status">{t('rrset.tlsa-manual-warning')}</p>{/if}
         <form method="post" action={url('rrsetReplace', { account: page.accountId, zone: page.managedZoneId })}>
             <input type="hidden" name="csrf_token" value={page.csrfToken}>
             <input type="hidden" name="tlsa_version" value={manualTlsaVersion}>

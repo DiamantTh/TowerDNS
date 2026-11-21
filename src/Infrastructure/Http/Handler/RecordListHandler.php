@@ -44,13 +44,13 @@ final readonly class RecordListHandler implements RequestHandlerInterface
             return $this->render($user, $accountId, $zoneId, [], $csrfToken, $this->translator->translate('records.error.read-failed'), 500);
         }
         $query = $request->getQueryParams();
-        return $this->render($user, $accountId, $zoneId, $this->displayRrsets($page->rrsets, $page->conditionalTlsa), $csrfToken, is_string($query['error'] ?? null) ? $query['error'] : null, 200, is_string($query['success'] ?? null) ? $query['success'] : null, $page->managedZoneName, $page->canReplaceRrsets, $page->canDeleteRrsets, $guard instanceof CsrfGuardInterface ? $guard->generateToken('tlsa_preview') : '');
+        return $this->render($user, $accountId, $zoneId, $this->displayRrsets($page->rrsets), $csrfToken, is_string($query['error'] ?? null) ? $query['error'] : null, 200, is_string($query['success'] ?? null) ? $query['success'] : null, $page->managedZoneName, $page->canReplaceRrsets, $page->canDeleteRrsets, $guard instanceof CsrfGuardInterface ? $guard->generateToken('tlsa_preview') : '');
     }
 
     /** @param list<\TowerDNS\Domain\DNS\Rrset> $rrsets
      *  @return list<array{ownerName: string, type: array{presentation: string, code: int, isKnown: bool}, ttl: int, rdata: list<string>, tlsaVersion: ?string}>
      */
-    private function displayRrsets(array $rrsets, bool $conditionalTlsa): array
+    private function displayRrsets(array $rrsets): array
     {
         return array_map(static fn(\TowerDNS\Domain\DNS\Rrset $rrset): array => [
             'ownerName' => $rrset->ownerName,
@@ -61,7 +61,7 @@ final readonly class RecordListHandler implements RequestHandlerInterface
             ],
             'ttl'         => $rrset->ttl,
             'rdata'       => $rrset->rdata,
-            'tlsaVersion' => $conditionalTlsa && $rrset->type->presentation === 'TLSA'
+            'tlsaVersion' => $rrset->type->presentation === 'TLSA'
                 ? ManagedZoneDNSService::tlsaRevision($rrset->ownerName, $rrset->ttl, $rrset->rdata)
                 : null,
         ], $rrsets);

@@ -15,6 +15,7 @@ use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
 use TowerDNS\Application\Exception\RrsetConflictException;
+use TowerDNS\Application\Exception\RrsetPreconditionException;
 use TowerDNS\Application\Services\AuditLogService;
 use TowerDNS\Application\Services\ManagedZoneDNSService;
 use TowerDNS\Domain\Auth\ApiKeyGrant;
@@ -114,17 +115,34 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
             return $this->snapshot($state);
         } catch (AuthorizationException) {
             return $this->error('forbidden', 403);
-        } catch (RrsetConflictException) {
+        } catch (RrsetPreconditionException) {
+            $this->auditOutcome($request, $user, $grant, $account, $zone, 'tlsa.change.precondition_failed', 'stale_client_version');
             return $this->error('rrset_conflict', 412);
+        } catch (RrsetConflictException) {
+            $this->auditOutcome($request, $user, $grant, $account, $zone, 'tlsa.change.conflict', 'provider_state_conflict');
+            return $this->error('provider_state_conflict', 409);
         } catch (CapabilityException) {
-            return $this->error('conditional_write_unavailable', 409);
+            $this->auditOutcome($request, $user, $grant, $account, $zone, 'tlsa.change.unsupported', 'provider_operation_unavailable');
+            return $this->error('provider_operation_unavailable', 409);
         } catch (\InvalidArgumentException | \JsonException) {
             return $this->error('invalid_change', 422);
         } catch (\DomainException) {
             return $this->error('zone_not_available', 404);
         } catch (ProviderRequestException) {
+            $this->auditOutcome($request, $user, $grant, $account, $zone, 'tlsa.change.provider_error', 'provider_error');
             return $this->error('provider_error', 502);
         }
+    }
+
+    private function auditOutcome(ServerRequestInterface $request, mixed $user, mixed $grant, int $account, int $zone, string $action, string $category): void
+    {
+        if (!$user instanceof User) {
+            return;
+        }
+        $this->audit->record($request, $action, 'rrset', 'TLSA', $user->id, $account, (string) $zone, metadata: [
+            'api_key_id'      => $grant instanceof ApiKeyGrant ? $grant->id : null,
+            'result_category' => $category,
+        ]);
     }
 
     /** @return list<string> */
@@ -143,7 +161,7 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
         return $records;
     }
 
-    /** @param array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool} $state */
+    /** @param array{owner: string, ttl: ?int, records: list<string>, version: string, conditional: bool, capabilities: array<string, bool|string>} $state */
     private function snapshot(array $state, ?string $token = null): JsonResponse
     {
         return new JsonResponse($state + ['verification' => 'provider_only', 'csrf_token' => $token], 200, [

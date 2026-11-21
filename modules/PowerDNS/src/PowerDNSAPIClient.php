@@ -20,6 +20,7 @@ final class PowerDNSAPIClient
 {
     private readonly ClientInterface $http;
     private ?bool $supportsExtendFlag = null;
+    private ?string $serverVersionValue = null;
 
     public function __construct(
         string $baseUrl,
@@ -53,14 +54,15 @@ final class PowerDNSAPIClient
         if ($this->supportsExtendFlag !== null) {
             return $this->supportsExtendFlag;
         }
-        try {
-            $info     = (array) $this->request('GET', $this->serverPath(''));
-            $rawValue = $info['version'] ?? '0.0.0';
-            $raw      = is_string($rawValue) ? $rawValue : '0.0.0';
-        } catch (\Throwable) {
-            return $this->supportsExtendFlag = false;
+        $info = $this->request('GET', $this->serverPath(''));
+        if (!is_array($info) || !is_string($info['version'] ?? null) || trim($info['version']) === '') {
+            throw new ProviderRequestException('PowerDNS-Serverversion konnte nicht zuverlässig ermittelt werden.');
         }
-        $version                         = preg_replace('/[^0-9.].*$/', '', $raw) ?? '0.0.0';
+        $version = preg_replace('/[^0-9.].*$/', '', $info['version']);
+        if (!is_string($version) || preg_match('/^[0-9]+\.[0-9]+\.[0-9]+$/D', $version) !== 1) {
+            throw new ProviderRequestException('PowerDNS lieferte eine nicht unterstützte Serverversionsangabe.');
+        }
+        $this->serverVersionValue       = $version;
         $parts                           = explode('.', $version . '.0.0');
         [$major, $minor, $patch]         = [(int) $parts[0], (int) $parts[1], (int) $parts[2]];
         return $this->supportsExtendFlag = match (true) {
@@ -70,6 +72,14 @@ final class PowerDNSAPIClient
             $major === 4 && $minor === 9 && $patch >= 12 => true,
             default                                      => false,
         };
+    }
+
+    public function serverVersion(): ?string
+    {
+        if ($this->supportsExtendFlag === null) {
+            $this->supportsExtend();
+        }
+        return $this->serverVersionValue;
     }
 
     /** @param array<string, mixed>|null $data */

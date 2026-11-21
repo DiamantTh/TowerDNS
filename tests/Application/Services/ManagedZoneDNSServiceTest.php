@@ -530,6 +530,56 @@ final class ManagedZoneDNSServiceTest extends TestCase
         $service->changeTlsa($user, 42, 7, '_443._tcp', ['3 1 1 ' . str_repeat('a', 64)], [], $state['version'], 300);
     }
 
+    public function testTargetedTlsaRolloverPreservesSiblingValuesAndPublishesBeforePruning(): void
+    {
+        $old      = '3 1 1 ' . str_repeat('a', 64);
+        $new      = '3 1 1 ' . str_repeat('b', 64);
+        $sibling  = '3 1 1 ' . str_repeat('c', 64);
+        $provider = new TargetedRecordingDNSProvider([
+            Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true, Capability::RECORD_DELETE => true,
+        ], new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 600, [$old, $sibling]));
+        $service = $this->serviceForZone($provider);
+        $user    = new User('owner', 'owner@example.test');
+        $state   = $service->tlsaState($user, 42, 7, '_443._tcp');
+        self::assertFalse($state['conditional']);
+        self::assertTrue($state['capabilities']['append_record']);
+        self::assertSame('provider_targeted_no_cas', $state['capabilities']['consistency']);
+
+        $after = $service->changeTlsa($user, 42, 7, '_443._tcp', [$new], [$old], $state['version'], 300);
+        self::assertSame([$new, $sibling], $after['records']);
+        self::assertSame(600, $after['ttl']);
+        self::assertSame(['add:' . $new, 'remove:' . $old], $provider->operations);
+        self::assertNull($provider->replacedRrset);
+    }
+
+    public function testTargetedTlsaMutationRejectsStaleTowerDnsRevisionBeforeProviderOperation(): void
+    {
+        $old      = '3 1 1 ' . str_repeat('a', 64);
+        $provider = new TargetedRecordingDNSProvider([
+            Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true,
+        ], new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 300, [$old]));
+        $service = $this->serviceForZone($provider);
+        $user    = new User('owner', 'owner@example.test');
+        $state   = $service->tlsaState($user, 42, 7, '_443._tcp');
+        $provider->appendRrsetRecord('provider-zone', '_443._tcp', 'TLSA', 300, '3 1 1 ' . str_repeat('c', 64));
+        $this->expectException(\TowerDNS\Application\Exception\RrsetConflictException::class);
+        $service->changeTlsa($user, 42, 7, '_443._tcp', ['3 1 1 ' . str_repeat('b', 64)], [], $state['version'], 300);
+    }
+
+    public function testManualTlsaReplacementRequiresTheRevisionReadByTheForm(): void
+    {
+        $old      = '3 1 1 ' . str_repeat('a', 64);
+        $provider = new TargetedRecordingDNSProvider([
+            Capability::RECORD_LIST => true, Capability::RECORD_UPDATE => true,
+        ], new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 300, [$old]));
+        $service = $this->serviceForZone($provider);
+        $user    = new User('owner', 'owner@example.test');
+        $state   = $service->tlsaState($user, 42, 7, '_443._tcp');
+        $provider->appendRrsetRecord('provider-zone', '_443._tcp', 'TLSA', 300, '3 1 1 ' . str_repeat('c', 64));
+        $this->expectException(\TowerDNS\Application\Exception\RrsetPreconditionException::class);
+        $service->replaceRrset($user, 42, 7, new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 300, ['3 1 1 ' . str_repeat('b', 64)]), $state['version']);
+    }
+
     private function serviceForZone(RecordingDNSProvider $provider, bool $providerActive = true, int $providerAccountTenant = 42, TeamRole $role = TeamRole::OWNER): ManagedZoneDNSService
     {
         $zone  = new ManagedZone(7, 42, 9, 'provider-zone', 'example.org', '2026-09-17 12:00:00');
@@ -689,5 +739,49 @@ final class ConditionalRecordingDNSProvider extends RecordingDNSProvider impleme
         }
         ++$this->writes;
         $this->current = $after;
+    }
+}
+
+final class TargetedRecordingDNSProvider extends RecordingDNSProvider implements \TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface
+{
+    /** @var list<string> */
+    public array $operations = [];
+
+    public function __construct(array $capabilities, public ?Rrset $current)
+    {
+        parent::__construct($capabilities);
+    }
+
+    #[\Override]
+    public function rrsetMutationCapabilities(): \TowerDNS\Application\DTO\RrsetMutationCapabilities
+    {
+        return new \TowerDNS\Application\DTO\RrsetMutationCapabilities(appendRecord: true, removeRecord: true, consistency: 'provider_targeted_no_cas');
+    }
+
+    #[\Override]
+    public function appendRrsetRecord(string $zoneId, string $owner, string $type, int $ttl, string $rdata): void
+    {
+        $this->operations[] = 'add:' . $rdata;
+        if (!$this->current instanceof Rrset) {
+            $this->current = new Rrset($zoneId, $owner, DNSRecordType::parse($type), $ttl, [$rdata]);
+            return;
+        }
+        $this->current = new Rrset($zoneId, $owner, DNSRecordType::parse($type), $this->current->ttl, array_values(array_unique([...$this->current->rdata, $rdata])));
+    }
+
+    #[\Override]
+    public function removeRrsetRecord(string $zoneId, string $owner, string $type, string $rdata): void
+    {
+        $this->operations[] = 'remove:' . $rdata;
+        if ($this->current instanceof Rrset) {
+            $remaining     = array_values(array_filter($this->current->rdata, static fn(string $value): bool => $value !== $rdata));
+            $this->current = $remaining === [] ? null : new Rrset($zoneId, $owner, DNSRecordType::parse($type), $this->current->ttl, $remaining);
+        }
+    }
+
+    #[\Override]
+    public function listRrsets(string $zoneId): array
+    {
+        return $this->current instanceof Rrset ? [$this->current] : [];
     }
 }

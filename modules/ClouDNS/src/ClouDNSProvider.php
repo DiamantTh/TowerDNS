@@ -9,6 +9,7 @@ namespace TowerDNS\Module\ClouDNS;
 
 use TowerDNS\Application\Contracts\Capability;
 use TowerDNS\Application\Contracts\ConnectionVerifiableProviderInterface;
+use TowerDNS\Application\Contracts\TargetedRrsetMutationProviderInterface;
 use TowerDNS\Application\DTO\ProviderConnectionVerification;
 use TowerDNS\Application\Exception\CapabilityException;
 use TowerDNS\Application\Exception\ProviderRequestException;
@@ -20,8 +21,9 @@ use TowerDNS\Domain\DNS\Zone;
 use TowerDNS\Infrastructure\Provider\AbstractDNSProvider;
 
 /** @psalm-api Loaded through the dynamic provider-module contract. */
-final class ClouDNSProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface
+final class ClouDNSProvider extends AbstractDNSProvider implements ConnectionVerifiableProviderInterface, TargetedRrsetMutationProviderInterface
 {
+    use \TowerDNS\Infrastructure\Provider\TargetedRrsetMutationTrait;
     public const string ID = 'cloudns';
 
     public function __construct(private readonly ClouDNSAPIClient $client)

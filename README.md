@@ -115,19 +115,38 @@ Client umstellen und den alten Schlüssel widerrufen.
 - `GET /api/v1/accounts/{account}/zones/{zone}/tlsa` listet TLSA-RRsets
   für einen zonenweiten Leseschlüssel.
 - `GET …/tlsa?owner=_443._tcp` liefert die Werte, TTL, das Merkmal
-  `conditional` und den `ETag`. Bei einem dienstgebundenen Schlüssel
+  `conditional`, konkrete `capabilities` und den `ETag`. Bei einem dienstgebundenen Schlüssel
   kann der Owner entfallen.
 - `POST …/tlsa?owner=_443._tcp` akzeptiert JSON mit `add` und/oder
   `remove` als Listen exakter RDATA-Werte und den gelesenen `ETag` im
   Header `If-Match`. Alternativ oder zusätzlich kann `certificates`
   ein PEM-Bündel mit den numerischen Feldern `usage`, `selector`
   und `matching` enthalten. `ttl` gilt nur beim Erstellen.
-  HTTP 412 fordert zum Neulesen auf. HTTP 409 meldet fehlende bedingte
-  Schreibunterstützung. Jede API-Anfrage benötigt `Authorization: Bearer …`.
+  HTTP 412 bedeutet, dass der gelesene ETag bereits vor dem Schreibversuch
+  veraltet war. HTTP 409 meldet fehlende Provideroperation oder einen
+  zwischenzeitlichen Providerkonflikt. Jede API-Anfrage benötigt
+  `Authorization: Bearer …`.
 
-Der bedingte Schreibpfad ist für Google Cloud DNS implementiert. Bei
-anderen Adaptern bleiben bestehende DNS-Operationen verfügbar. Der
-geschützte Rollover-Pfad lehnt dort Änderungen ab.
+Der geschützte TLSA-Pfad verwendet je nach Adapter dessen tatsächliche
+Schreibmöglichkeiten:
+
+| Adapter | TLSA-Änderung | Zustandsprüfung / Garantie |
+| --- | --- | --- |
+| Google Cloud DNS | RRset ersetzen | TowerDNS vergleicht den aktuellen Providerzustand; Google übernimmt die Änderung als atomare Change-Transaktion. DNS-Propagation bleibt davon getrennt. |
+| Cloudflare | einzelne Records anlegen/löschen über native Record-IDs | Geschwister bleiben unberührt; kein Provider-CAS, Mehrfachänderungen sind mehrere Requests und DNS-Propagation ist nicht atomar. |
+| ClouDNS, INWX, OVHcloud | einzelne Records über die vorhandenen CRUD-Endpunkte | gezielte Änderungen ohne RRset-Ersetzung; kein CAS und keine Atomarität über mehrere Requests. |
+| PowerDNS (System-/Administrationsadapter) | `EXTEND`/`PRUNE` bei erkanntem Authoritative 4.9.12+ oder 5.0.2+ | einzelne Werte werden serverseitig gezielt ergänzt/entfernt; kein CAS und kein atomarer Mehrschritt-Rollover. Ältere Versionen werden für den TLSA-Delta-Pfad abgelehnt. |
+| deSEC | vorhandene RRset-Endpunkte | Bulk-PATCH/PUT kann mehrere RRsets als Request atomar annehmen/veröffentlichen, aber `records` ersetzt das Wertefeld und die API dokumentiert kein erwartetes Vorher-Bild/If-Match. Kein gezieltes Einzelwert-CAS; der Delta-/Rollover-Pfad bleibt abgelehnt. |
+| netcup | Zonen-Recordliste wird als Ganzes geschrieben | kein bedingter oder gezielter Einzelrecord-Pfad; der Delta-/Rollover-Pfad bleibt abgelehnt. |
+
+Die Anzeige unterscheidet gezielte Einzelwertoperationen von bedingtem
+RRset-Ersetzen. ETags erkennen Änderungen, die vor dem TowerDNS-Schreibpfad
+bereits sichtbar sind. Nur ein Providerverfahren, das den erwarteten Zustand
+beim Schreiben selbst atomar prüft, verhindert zusätzlich externe
+Read-Modify-Write-Rennen. Wo der Provider nur einzelne Records anbietet,
+werden deswegen ausschließlich die angeforderten Werte bearbeitet; bei
+Netzwerkabbrüchen liest TowerDNS erneut und wiederholt niemals blind ein
+vollständiges RRset-Ersetzen.
 
 Für einen Rollover die neuen Werte zuerst hinzufügen und die
 Veröffentlichung am autoritativen DNS sowie bei Bedarf über einen
