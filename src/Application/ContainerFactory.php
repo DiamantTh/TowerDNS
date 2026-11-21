@@ -56,6 +56,7 @@ use Symfony\Component\Cache\Psr16Cache;
 use Symfony\Component\Serializer\SerializerInterface;
 use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
+use TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface;
 use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
 use TowerDNS\Application\Contracts\ProviderConnectionVerifierInterface;
 use TowerDNS\Application\Contracts\ProviderCredentialSchemaInterface;
@@ -118,6 +119,7 @@ use TowerDNS\Infrastructure\Console\SchemaMigrateCommand;
 use TowerDNS\Infrastructure\Console\SchemaStatusCommand;
 use TowerDNS\Infrastructure\Console\SchemaValidateCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
+use TowerDNS\Infrastructure\DNS\AuthoritativeTlsaChecker;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryActionHandler;
 use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryAuthorizationHandler;
@@ -337,6 +339,7 @@ final class ContainerFactory
             PasswordAdministrationService::class      => \DI\autowire(),
             SystemProviderConfigurationService::class => \DI\autowire(),
             AccountProviderFactoryInterface::class    => \DI\autowire(ProviderAccountAdapterFactory::class),
+            AuthoritativeTlsaCheckerInterface::class  => \DI\autowire(AuthoritativeTlsaChecker::class),
 
             // ── Provider registry ─────────────────────────────────────────────
             DNSProviderFactory::class                  => $providerFactory,

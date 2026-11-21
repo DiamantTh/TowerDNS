@@ -229,6 +229,12 @@ final readonly class ManagedZoneDNSService
         return $this->tlsaSnapshot($owner, $this->currentTlsa($provider, $zone->providerZoneId, $owner), $provider);
     }
 
+    public function tlsaZoneName(User $user, int $account, int $zoneId): string
+    {
+        [$zone] = $this->resolve($user, $account, $zoneId, Permission::RECORD_READ, Capability::RECORD_LIST);
+        return $zone->canonicalName;
+    }
+
     /**
      * @param list<string> $add
      * @param list<string> $remove

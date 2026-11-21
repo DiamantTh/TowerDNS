@@ -100,12 +100,36 @@ surrounding deployment explicitly postpones certificate activation until the
 publication and TTL wait have completed.
 
 The generator's response marks its output as unverified. Provider readback
-confirms only the provider API's view. TowerDNS currently does not independently
-query every authoritative server, validate the public DNSSEC chain, or perform
-a TLS/DANE service handshake. A resolver's AD bit is not treated as an
-independent DNSSEC proof. Use an external DNSSEC/DANE validator and record which
-nameservers and time it checked. One TLS handshake may show only one of several
-RSA/ECDSA certificates.
+confirms only the provider API's view. An explicit read-only authoritative
+publication check is available:
+
+```text
+GET /api/v1/accounts/{account}/zones/{zone}/tlsa?owner=_443._tcp&verify=authoritative
+Authorization: Bearer <tlsa:read key>
+```
+
+The authenticated UI offers the same check in the TLSA section. TowerDNS
+discovers NS targets for the managed zone through the host resolver, resolves
+their public addresses, and sends bounded direct UDP queries (with TCP fallback
+for truncated responses) to up to eight public addresses. Private/reserved
+addresses are excluded, and the check is limited to five attempts per minute.
+Results contain the queried NS/address, authoritative-answer bit, DNS RCODE,
+observed TLSA values, minimum answer TTL, and per-server check time. `all_match`
+means each queried endpoint answered authoritatively with the provider
+readback values. Disagreement, different records, timeout, incomplete checks,
+and discovery failures have separate states. TTL is observational, not a
+propagation guarantee.
+
+NS and address discovery uses PHP's configured host resolver and is marked
+`system_resolver_unvalidated`: resolver lookup time is governed by the host's
+resolver configuration and cannot be strictly bounded by TowerDNS's direct
+query deadline. TowerDNS does not independently prove the delegation chain or
+validate DNSSEC. It does not test the TLS service or DANE authentication;
+DNSSEC is reported as not validated and DANE as not tested. A resolver's AD bit
+is not treated as an independent proof.
+Re-run after changes and TTL intervals. Anycast or network-specific DNS views
+may still differ. One TLS handshake may show only one of several RSA/ECDSA
+certificates.
 
 ## Verification status
 
@@ -117,9 +141,10 @@ Keep these claims separate in automation and operational records:
 4. The DNSSEC chain validates to a trusted root.
 5. The actual service certificate satisfies DANE (for SMTP, see RFC 7672).
 
-TowerDNS reports the API operation as `provider_only`; it currently establishes
-stage 2, not stages 3–5. Certificate-chain inspection in the generator is
-informational and is not a DANE authentication result.
+TowerDNS reports ordinary API operations as `provider_only`. The optional
+authoritative check reports stage 3 as observed from the specific NS addresses
+queried, but does not establish stages 4–5. Certificate-chain inspection in
+the generator is informational and is not a DANE authentication result.
 
 The API limiter uses TowerDNS's configured PSR-16 filesystem cache. Its fixed
 window counter is a best-effort application limit; requests arriving at the

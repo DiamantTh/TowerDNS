@@ -31,6 +31,7 @@
     let tlsaTtl = $state(300);
     let tlsaToken: string | undefined;
     let tlsaState = $state<{ records: string[]; ttl: number | null; conditional: boolean; capabilities?: { conditional_replace: boolean; append_record: boolean; remove_record: boolean; atomic_multi_record: boolean; consistency: string } } | null>(null);
+    let tlsaPublication = $state<{ owner: string; status: string; checked_at: string; discovery_source: string; expected: string[]; provider_readback: string[]; servers: { nameserver: string; address: string | null; status: string; rcode: string | null; authoritative: boolean; records: string[]; minimum_ttl: number | null }[]; scope: string; dnssec: string; dane: string } | null>(null);
     let tlsaVersion = '';
     let tlsaChangeToken = '';
     let tlsaPreviewOwner = $state('');
@@ -112,6 +113,22 @@
             await loadTlsa();
         } catch {
             tlsaError = t('tlsa.generator.error');
+        } finally {
+            tlsaBusy = false;
+        }
+    }
+
+    async function verifyPublicTlsa() {
+        tlsaBusy = true;
+        tlsaError = '';
+        tlsaPublication = null;
+        try {
+            const response = await fetch(tlsaEndpoint(tlsaOwner) + '&verify=authoritative');
+            const data = await response.json();
+            if (!response.ok) throw new Error('read');
+            tlsaPublication = data;
+        } catch {
+            tlsaError = t('tlsa.publication.error');
         } finally {
             tlsaBusy = false;
         }
@@ -211,6 +228,7 @@
         {/each}
         <button type="button" class="button" disabled={tlsaBusy || !tlsaCertificates.trim() || (certificateChoices.length > 0 && selectedCertificates.length === 0)} onclick={() => inspectOrGenerate(false)}>{t('tlsa.generator.generate')}</button>
         <button type="button" class="button" disabled={tlsaBusy} onclick={readCurrentTlsa}>{t('tlsa.generator.read')}</button>
+        <button type="button" class="button" disabled={tlsaBusy || !tlsaState || tlsaPreviewOwner !== tlsaOwner} onclick={verifyPublicTlsa}>{t('tlsa.publication.check')}</button>
         {#if tlsaError}<p role="alert" class="has-text-danger">{tlsaError}</p>{/if}
         {#if tlsaMessage}<p role="status">{tlsaMessage}</p>{/if}
         {#if tlsaState && tlsaPreviewOwner === tlsaOwner}
@@ -230,6 +248,25 @@
                     <button type="button" class="button is-primary" disabled={!page.canReplaceRrsets || (!tlsaState.conditional && !tlsaState.capabilities?.append_record) || tlsaBusy} onclick={() => saveTlsa(tlsaPreview, [])}>{t('tlsa.generator.apply')}</button>
                 </section>
             {/if}
+        {/if}
+        {#if tlsaPublication && tlsaPublication.owner === tlsaOwner}
+            <section class="box" aria-live="polite">
+                <h3 class="subtitle">{t('tlsa.publication.title')}: {t(`tlsa.publication.${tlsaPublication.status}`)}</h3>
+                <p>{t('tlsa.publication.checked-at', { date: tlsaPublication.checked_at })}</p>
+                <p class="muted">{t('tlsa.publication.scope')}</p>
+                <p>{t('tlsa.publication.dnssec')}: {t(`tlsa.publication.${tlsaPublication.dnssec}`)} · {t('tlsa.publication.dane')}: {t(`tlsa.publication.${tlsaPublication.dane}`)}</p>
+                <details>
+                    <summary>{t('tlsa.publication.details')}</summary>
+                    <p>{t('tlsa.publication.discovery-source')}: {t(`tlsa.publication.discovery.${tlsaPublication.discovery_source}`)}</p>
+                    {#each tlsaPublication.servers as server}
+                        <article class="box">
+                            <strong>{server.nameserver}</strong>{#if server.address} · <code>{server.address}</code>{/if}
+                            <p>{t(`tlsa.publication.${server.status}`)} · {server.rcode ?? '—'} · AA={server.authoritative ? '1' : '0'} · TTL={server.minimum_ttl ?? '—'}</p>
+                            {#each server.records as record}<p><code class="rdata-value">{record}</code></p>{/each}
+                        </article>
+                    {/each}
+                </details>
+            </section>
         {/if}
     </details>
 

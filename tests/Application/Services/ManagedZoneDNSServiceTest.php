@@ -467,11 +467,28 @@ final class ManagedZoneDNSServiceTest extends TestCase
             Capability::RECORD_LIST   => true, Capability::RECORD_CREATE => true,
             Capability::RECORD_UPDATE => true, Capability::RECORD_DELETE => true,
         ]);
+        $checker = $this->createMock(\TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface::class);
+        $checker->expects(self::once())->method('check')->with(
+            '_443._tcp.example.org',
+            'example.org',
+            ['3 1 1 ' . str_repeat('c', 64), '3 1 1 fbcf393845758eddb748223fa7ffc57dd55cf0682e04230a449850100b4d6990'],
+            600,
+        )->willReturn(new \TowerDNS\Application\DTO\AuthoritativeTlsaCheck(
+            '_443._tcp.example.org',
+            'all_match',
+            '2026-11-21T12:00:00+00:00',
+            'system_resolver_unvalidated',
+            ['3 1 1 ' . str_repeat('c', 64), '3 1 1 fbcf393845758eddb748223fa7ffc57dd55cf0682e04230a449850100b4d6990'],
+            [],
+            600,
+            'Mock response; no live DNS query.',
+        ));
         $handler = new \TowerDNS\Infrastructure\Http\Handler\TlsaRecordHandler(
             $this->serviceForZone($provider),
             new \TowerDNS\Application\DNS\TlsaGenerator(),
             new \TowerDNS\Application\Services\AuditLogService($this->createMock(\TowerDNS\Application\Repository\AuditLogRepositoryInterface::class)),
             new \Symfony\Component\Cache\Psr16Cache(new \Symfony\Component\Cache\Adapter\ArrayAdapter()),
+            $checker,
         );
         $user = new User('owner', 'owner@example.test');
         $base = new \Laminas\Diactoros\ServerRequest()
@@ -498,6 +515,12 @@ final class ManagedZoneDNSServiceTest extends TestCase
 
         $first = $write(['add' => [$old, $other], 'ttl' => 600], $version);
         self::assertSame(200, $first->getStatusCode());
+        $public = $handler->handle($request->withQueryParams(['owner' => '_443._tcp', 'verify' => 'authoritative']));
+        self::assertSame(200, $public->getStatusCode());
+        $publicData = json_decode((string) $public->getBody(), true, 16, JSON_THROW_ON_ERROR);
+        self::assertSame('all_match', $publicData['status']);
+        self::assertSame('provider_readback', $publicData['provider_verification']);
+        self::assertSame('not_validated', $publicData['dnssec']);
         self::assertSame(200, $write(['add' => [$old, $other]], $version)->getStatusCode());
         self::assertSame(1, $provider->writes);
         $appendGrant = new \TowerDNS\Domain\Auth\ApiKeyGrant(3, $user->id, 'tlsa:append', 42, 7, '_443._tcp');
@@ -529,6 +552,26 @@ final class ManagedZoneDNSServiceTest extends TestCase
         self::assertFalse($state['conditional']);
         $this->expectException(CapabilityException::class);
         $service->changeTlsa($user, 42, 7, '_443._tcp', ['3 1 1 ' . str_repeat('a', 64)], [], $state['version'], 300);
+    }
+
+    public function testTlsaProviderReadbackIgnoresRecordOrderingAndCanonicalHexCase(): void
+    {
+        $lower    = '3 1 1 ' . str_repeat('a', 64);
+        $upper    = '3 1 1 ' . strtoupper(str_repeat('b', 64));
+        $provider = new ConditionalRecordingDNSProvider([
+            Capability::RECORD_LIST   => true,
+            Capability::RECORD_UPDATE => true,
+        ], []);
+        $provider->current = new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 600, [$lower, $upper]);
+        $service           = $this->serviceForZone($provider);
+        $user              = new User('owner', 'owner@example.test');
+
+        $first             = $service->tlsaState($user, 42, 7, '_443._tcp');
+        $provider->current = new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 600, [$upper, $lower]);
+        $second            = $service->tlsaState($user, 42, 7, '_443._tcp');
+
+        self::assertSame($first['records'], $second['records']);
+        self::assertSame($first['version'], $second['version']);
     }
 
     public function testTargetedTlsaRolloverPreservesSiblingValuesAndPublishesBeforePruning(): void

@@ -11,6 +11,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
+use TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface;
 use TowerDNS\Application\DNS\TlsaGenerator;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\CapabilityException;
@@ -27,7 +28,7 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 /** @psalm-api Registered in Routes. */
 final readonly class TlsaRecordHandler implements RequestHandlerInterface
 {
-    public function __construct(private ManagedZoneDNSService $dns, private TlsaGenerator $generator, private AuditLogService $audit, private CacheInterface $cache) {}
+    public function __construct(private ManagedZoneDNSService $dns, private TlsaGenerator $generator, private AuditLogService $audit, private CacheInterface $cache, private AuthoritativeTlsaCheckerInterface $authoritativeTlsaChecker) {}
 
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -66,7 +67,25 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
                 return $this->error('invalid_owner', 422);
             }
             if (!$write) {
+                if (($query['verify'] ?? null) === 'authoritative') {
+                    $rateKey = $grant instanceof ApiKeyGrant ? 'key_' . $grant->id : 'user_' . hash('sha256', $user->id);
+                    new RateLimiter($this->cache, 'tlsa_authoritative_' . $rateKey, 5, 60, 'authoritative DNS check')->hit();
+                }
                 $state = $this->dns->tlsaState($user, $account, $zone, $owner);
+                if (($query['verify'] ?? null) === 'authoritative') {
+                    $zoneName = $this->dns->tlsaZoneName($user, $account, $zone);
+                    $fqdn     = $state['owner'] . '.' . $zoneName;
+                    $check    = $this->authoritativeTlsaChecker->check($fqdn, $zoneName, $state['records'], $state['ttl']);
+                    $this->audit->record($request, 'tlsa.authoritative.check', 'rrset', $state['owner'], $user->id, $account, (string) $zone, metadata: [
+                        'api_key_id' => $grant instanceof ApiKeyGrant ? $grant->id : null,
+                        'status'     => $check->status,
+                    ]);
+                    return new JsonResponse(
+                        $check->toArray() + ['provider_readback' => $state['records'], 'provider_verification' => 'provider_readback', 'provider_etag' => $state['version']],
+                        200,
+                        ['Cache-Control' => 'no-store'],
+                    );
+                }
                 $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
                 $token = !$api && $guard instanceof CsrfGuardInterface ? $guard->generateToken('tlsa_change') : null;
                 return $this->snapshot($state, $token);
@@ -137,7 +156,7 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
         } catch (RateLimitExceededException $error) {
             return new JsonResponse(['error' => 'rate_limited'], 429, ['Cache-Control' => 'no-store', 'Retry-After' => (string) $error->retryAfter()]);
         } catch (ProviderRequestException) {
-            $this->auditOutcome($request, $user, $grant, $account, $zone, 'tlsa.change.provider_error', 'provider_error');
+            $this->auditOutcome($request, $user, $grant, $account, $zone, 'tlsa.provider.error', 'provider_error');
             return $this->error('provider_error', 502);
         }
     }

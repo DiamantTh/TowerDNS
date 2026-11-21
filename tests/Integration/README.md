@@ -118,6 +118,31 @@ The HTTP check uses a temporary local PHP server. The rolling check builds a
 second disposable release against a shared asset directory and verifies both
 old and new releases as well as rejected incomplete or mixed metadata.
 
+### Read-only live DNS provider TLSA readback
+
+`LiveProviderTlsaReadbackIntegrationTest` can query a disposable provider test
+zone using real credentials without writing or deleting DNS data. It is skipped
+unless every variable below is set. Use a provider token limited to reading the
+zone and a dedicated test owner containing `phase9a-live-test`:
+
+```sh
+TOWERDNS_LIVE_DNS_PROVIDER=cloudflare \
+TOWERDNS_LIVE_DNS_CREDENTIALS_JSON='{"api_token":"..."}' \
+TOWERDNS_LIVE_DNS_ZONE_ID='provider-zone-id' \
+TOWERDNS_LIVE_DNS_ZONE_NAME='dns-test.example.net' \
+TOWERDNS_LIVE_DNS_TLSA_OWNER='_443._tcp.phase9a-live-test' \
+TOWERDNS_LIVE_DNS_EXPECTED_TLSA_JSON='["3 1 1 <64-hex-character-association>"]' \
+TOWERDNS_LIVE_DNS_READ_ONLY_CONFIRMATION=I_AUTHORIZE_READ_ONLY_TEST_ZONE \
+vendor/bin/phpunit tests/Integration/LiveProviderTlsaReadbackIntegrationTest.php
+```
+
+Credential JSON is read from the process environment and must match the
+selected provider module's schema. The integration checks only the provider
+API's TLSA RRset readback and canonical RDATA. It does not write records, query
+public DNS, validate DNSSEC, or perform DANE authentication. If no disposable
+provider account is configured, the test remains skipped; a skip is not a live
+provider pass.
+
 ### Prepared distribution package
 
 `npm run package:distribution` builds `dist/towerdns-<commit>.tar.gz` with
