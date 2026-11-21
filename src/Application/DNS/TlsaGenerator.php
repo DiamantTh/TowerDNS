@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace TowerDNS\Application\DNS;
 
-/** Generates association data from explicitly supplied X.509 certificates.
- * @phpstan-type CertificateInfo array{index: int, subject: string, issuer: string, is_ca: bool, key_type: string, fingerprint: string, validity: string, hostname: string, pkix_chain: string}
- * @psalm-type CertificateInfo = array{index: int, subject: string, issuer: string, is_ca: bool, key_type: string, fingerprint: string, validity: string, hostname: string, pkix_chain: string}
+/** Generates TLSA association data and reports certificate diagnostics separately.
+ * @phpstan-type CertificateInfo array{index: int, subject: string, issuer: string, is_ca: bool, key_type: string, fingerprint: string, validity: string, basic_constraints: string, key_usage: list<string>, extended_key_usage: list<string>, hostname: string, pkix_chain: string}
+ * @psalm-type CertificateInfo = array{index: int, subject: string, issuer: string, is_ca: bool, key_type: string, fingerprint: string, validity: string, basic_constraints: string, key_usage: list<string>, extended_key_usage: list<string>, hostname: string, pkix_chain: string}
  */
 final class TlsaGenerator
 {
@@ -24,15 +24,18 @@ final class TlsaGenerator
                 throw new \InvalidArgumentException('Certificate metadata cannot be read.');
             }
             $result[] = [
-                'index'       => $index,
-                'subject'     => $this->name($parsed['subject'] ?? []),
-                'issuer'      => $this->name($parsed['issuer'] ?? []),
-                'is_ca'       => str_contains($parsed['extensions']['basicConstraints'] ?? '', 'CA:TRUE'),
-                'key_type'    => $this->keyType($details['type']),
-                'validity'    => $this->validity($parsed['validFrom_time_t'] ?? null, $parsed['validTo_time_t'] ?? null),
-                'hostname'    => $this->hostnameStatus($hostname, $parsed['extensions']['subjectAltName'] ?? null),
-                'pkix_chain'  => 'not_checked',
-                'fingerprint' => hash('sha256', $der),
+                'index'              => $index,
+                'subject'            => $this->name($parsed['subject'] ?? []),
+                'issuer'             => $this->name($parsed['issuer'] ?? []),
+                'is_ca'              => str_contains($parsed['extensions']['basicConstraints'] ?? '', 'CA:TRUE'),
+                'key_type'           => $this->keyType($details['type']),
+                'validity'           => $this->validity($parsed['validFrom_time_t'] ?? null, $parsed['validTo_time_t'] ?? null),
+                'basic_constraints'  => $parsed['extensions']['basicConstraints'] ?? '',
+                'key_usage'          => $this->extensionList($parsed['extensions']['keyUsage'] ?? null),
+                'extended_key_usage' => $this->extensionList($parsed['extensions']['extendedKeyUsage'] ?? null),
+                'hostname'           => $this->hostnameStatus($hostname, $parsed['extensions']['subjectAltName'] ?? null),
+                'pkix_chain'         => 'not_checked',
+                'fingerprint'        => hash('sha256', $der),
             ];
         }
         if ($hostname !== null) {
@@ -95,6 +98,159 @@ final class TlsaGenerator
         return array_values(array_unique($records));
     }
 
+    /**
+     * Compares published TLSA RDATA with explicitly supplied certificates.
+     * This only proves an association match against the input bundle; it does
+     * not prove that a server presented those certificates or authenticated a
+     * live TLS connection.
+     *
+     * @param list<string> $records
+     * @return list<array{record: string, association: string, certificate_indexes: list<int>, pkix: string, dane_authentication: string}>
+     */
+    public function matchAssociations(string $input, array $records, ?string $hostname = null): array
+    {
+        $metadata         = $this->inspect($input, $hostname);
+        $derCertificates  = $this->certificates($input);
+        $associationCache = [];
+        $pkixAnchorCache  = [];
+        $results          = [];
+        foreach ($records as $record) {
+            if (preg_match('/^([0-3]) ([0-1]) ([0-2]) ([0-9a-fA-F]+)$/D', trim($record), $parts) !== 1) {
+                throw new \InvalidArgumentException('Invalid TLSA RDATA.');
+            }
+            $canonical   = strtolower($parts[1] . ' ' . $parts[2] . ' ' . $parts[3] . ' ' . $parts[4]);
+            $usage       = (int) $parts[1];
+            $selector    = (int) $parts[2];
+            $matching    = (int) $parts[3];
+            $matches     = [];
+            $pkixResults = [];
+            foreach ($metadata as $certificate) {
+                if ($certificate['is_ca'] !== in_array($usage, [0, 2], true)) {
+                    continue;
+                }
+                $cacheKey = $certificate['index'] . ':' . $selector . ':' . $matching;
+                if (!array_key_exists($cacheKey, $associationCache)) {
+                    $associationCache[$cacheKey] = $this->associationForDer($derCertificates[$certificate['index']], $usage, $selector, $matching);
+                }
+                if ($canonical === $associationCache[$cacheKey]) {
+                    $matches[] = $certificate['index'];
+                    if ($usage === 1) {
+                        $pkixResults[] = $certificate['pkix_chain'] === 'system_trusted'
+                            && $certificate['validity']             === 'within_dates'
+                            && $certificate['hostname']             === 'listed'
+                                ? 'pkix_requirements_met_for_supplied_certificate'
+                                : ($certificate['pkix_chain'] === 'not_checked' ? 'not_checked' : 'not_established');
+                    }
+                }
+            }
+            if ($usage === 0 && $matches !== []) {
+                foreach ($matches as $anchorIndex) {
+                    if (!array_key_exists($anchorIndex, $pkixAnchorCache)) {
+                        $pkixAnchorCache[$anchorIndex] = $this->checkChainToTlsaTrustAnchor($input, [$anchorIndex], $metadata, $hostname);
+                    }
+                    $pkixResults[] = $pkixAnchorCache[$anchorIndex];
+                }
+            }
+            $results[] = [
+                'record'              => $canonical,
+                'association'         => $matches === [] ? 'not_matched' : 'matched_supplied_certificate',
+                'certificate_indexes' => $matches,
+                'pkix'                => in_array($usage, [0, 1], true) ? ($pkixResults === [] ? 'not_established' : (in_array('pkix_requirements_met_for_supplied_certificate', $pkixResults, true) ? 'pkix_requirements_met_for_supplied_certificate' : (in_array('pkix_requirements_met_for_supplied_certificate_chain', $pkixResults, true) ? 'pkix_requirements_met_for_supplied_certificate_chain' : $pkixResults[0]))) : 'not_required_by_dane_usage',
+                'dane_authentication' => 'not_tested',
+            ];
+        }
+
+        return $results;
+    }
+
+    private function associationForDer(string $der, int $usage, int $selector, int $matchingType): string
+    {
+        $selected = $der;
+        if ($selector === 1) {
+            $key     = openssl_pkey_get_public($this->readCertificate($der));
+            $details = $key === false ? false : openssl_pkey_get_details($key);
+            if (!is_array($details) || !is_string($details['key'] ?? null)) {
+                throw new \InvalidArgumentException('Cannot extract certificate public key.');
+            }
+            $encoded = preg_replace('/-----BEGIN PUBLIC KEY-----|-----END PUBLIC KEY-----|\s+/', '', $details['key']);
+            $spki    = is_string($encoded) ? base64_decode($encoded, true) : false;
+            if ($spki === false) {
+                throw new \InvalidArgumentException('Invalid SubjectPublicKeyInfo encoding.');
+            }
+            $selected = $spki;
+        }
+        $data = match ($matchingType) {
+            0       => bin2hex($selected), 1 => hash('sha256', $selected), 2 => hash('sha512', $selected),
+            default => throw new \InvalidArgumentException('Unsupported TLSA matching type.'),
+        };
+        return "{$usage} {$selector} {$matchingType} {$data}";
+    }
+
+    /**
+     * @param list<int> $anchorIndexes
+     * @param list<CertificateInfo> $metadata
+     */
+    private function checkChainToTlsaTrustAnchor(string $input, array $anchorIndexes, array $metadata, ?string $hostname): string
+    {
+        if ($hostname === null || $hostname === '') {
+            return 'not_checked';
+        }
+        $derCertificates = $this->certificates($input);
+        foreach ($anchorIndexes as $anchorIndex) {
+            $anchorFile = tmpfile();
+            $chainFile  = tmpfile();
+            if ($anchorFile === false || $chainFile === false) {
+                if (is_resource($anchorFile)) {
+                    fclose($anchorFile);
+                }
+                if (is_resource($chainFile)) {
+                    fclose($chainFile);
+                }
+                return 'not_checked';
+            }
+            try {
+                $anchorPem = $this->pem('CERTIFICATE', $derCertificates[$anchorIndex]);
+                if (fwrite($anchorFile, $anchorPem) !== strlen($anchorPem) || !fflush($anchorFile)) {
+                    return 'not_checked';
+                }
+                $chain = '';
+                foreach ($metadata as $candidate) {
+                    if ($candidate['index'] !== $anchorIndex && $candidate['is_ca']) {
+                        $chain .= $this->pem('CERTIFICATE', $derCertificates[$candidate['index']]);
+                    }
+                }
+                if ($chain !== '' && (fwrite($chainFile, $chain) !== strlen($chain) || !fflush($chainFile))) {
+                    return 'not_checked';
+                }
+                $caPath    = stream_get_meta_data($anchorFile)['uri'] ?? null;
+                $chainPath = $chain === '' ? null : (stream_get_meta_data($chainFile)['uri'] ?? null);
+                if (!is_string($caPath) || ($chain !== '' && !is_string($chainPath))) {
+                    return 'not_checked';
+                }
+                foreach ($metadata as $leaf) {
+                    if ($leaf['is_ca'] || $leaf['validity'] !== 'within_dates' || $leaf['hostname'] !== 'listed') {
+                        continue;
+                    }
+                    $certificate = $this->readCertificate($derCertificates[$leaf['index']]);
+                    $status      = openssl_x509_checkpurpose(
+                        $certificate,
+                        X509_PURPOSE_SSL_SERVER,
+                        ['cafile' => $caPath],
+                        $chainPath,
+                    );
+                    if ($status === true || $status === 1) {
+                        return 'pkix_requirements_met_for_supplied_certificate_chain';
+                    }
+                }
+            } finally {
+                fclose($anchorFile);
+                fclose($chainFile);
+            }
+        }
+
+        return 'not_established';
+    }
+
     /** @return list<string> */
     private function certificates(string $input): array
     {
@@ -152,22 +308,50 @@ final class TlsaGenerator
      */
     private function hostnameStatus(?string $hostname, mixed $san): string
     {
-        if ($hostname === null || !is_string($san)
-                               || preg_match('/^DNS:(?:\*\.)?[a-z0-9.-]+(?:, DNS:(?:\*\.)?[a-z0-9.-]+)*$/iD', $san) !== 1) {
+        if ($hostname === null || !is_string($san) || preg_match('/(?:^|, )DNS:(?:\*\.)?[a-z0-9.-]+/i', $san) !== 1) {
             return 'not_checked';
         }
-        $host = \TowerDNS\Application\Validation\DNSNameValidator::normalise($hostname);
-        foreach (explode(', ', strtolower($san)) as $entry) {
-            $name = substr($entry, 4);
-            if ($name === $host) {
+        try {
+            $host = \TowerDNS\Application\Validation\DNSNameValidator::normalise($hostname);
+        } catch (\InvalidArgumentException) {
+            return 'not_listed';
+        }
+        foreach (explode(',', $san) as $entry) {
+            $entry = trim($entry);
+            if (!str_starts_with(strtolower($entry), 'dns:')) {
+                continue;
+            }
+            $candidate = strtolower(substr($entry, 4));
+            if ($candidate === $host) {
                 return 'listed';
             }
-            $dot = strpos($host, '.');
-            if ($dot !== false && str_starts_with($name, '*.') && substr($host, $dot) === substr($name, 1)) {
-                return 'listed';
+            if (str_starts_with($candidate, '*.')) {
+                try {
+                    $suffix = \TowerDNS\Application\Validation\DNSNameValidator::normalise(substr($candidate, 2));
+                } catch (\InvalidArgumentException) {
+                    continue;
+                }
+                $ending = '.' . $suffix;
+                if (str_ends_with($host, $ending)) {
+                    $leftmost = substr($host, 0, -strlen($ending));
+                    if ($leftmost !== '' && !str_contains($leftmost, '.')) {
+                        return 'listed';
+                    }
+                }
             }
         }
+
         return 'not_listed';
+    }
+
+    /** @return list<string> */
+    private function extensionList(mixed $extension): array
+    {
+        if (!is_string($extension) || trim($extension) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(trim(...), explode(',', $extension)), static fn(string $value): bool => $value !== ''));
     }
 
     /**

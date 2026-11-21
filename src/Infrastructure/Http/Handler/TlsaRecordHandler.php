@@ -12,6 +12,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use Psr\SimpleCache\CacheInterface;
 use TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface;
+use TowerDNS\Application\Contracts\DnssecDiagnosticInterface;
 use TowerDNS\Application\DNS\TlsaGenerator;
 use TowerDNS\Application\Exception\AuthorizationException;
 use TowerDNS\Application\Exception\CapabilityException;
@@ -28,7 +29,7 @@ use TowerDNS\Infrastructure\RateLimit\RateLimitExceededException;
 /** @psalm-api Registered in Routes. */
 final readonly class TlsaRecordHandler implements RequestHandlerInterface
 {
-    public function __construct(private ManagedZoneDNSService $dns, private TlsaGenerator $generator, private AuditLogService $audit, private CacheInterface $cache, private AuthoritativeTlsaCheckerInterface $authoritativeTlsaChecker) {}
+    public function __construct(private ManagedZoneDNSService $dns, private TlsaGenerator $generator, private AuditLogService $audit, private CacheInterface $cache, private AuthoritativeTlsaCheckerInterface $authoritativeTlsaChecker, private ?DnssecDiagnosticInterface $dnssecDiagnostic = null) {}
 
     #[\Override]
     public function handle(ServerRequestInterface $request): ResponseInterface
@@ -67,12 +68,17 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
                 return $this->error('invalid_owner', 422);
             }
             if (!$write) {
-                if (($query['verify'] ?? null) === 'authoritative') {
+                $verify = $query['verify'] ?? null;
+                $public = null;
+                if ($verify !== null && !in_array($verify, ['authoritative', 'dnssec', 'all', 'smtp-dane'], true)) {
+                    return $this->error('invalid_verification', 422);
+                }
+                if (in_array($verify, ['authoritative', 'dnssec', 'all', 'smtp-dane'], true)) {
                     $rateKey = $grant instanceof ApiKeyGrant ? 'key_' . $grant->id : 'user_' . hash('sha256', $user->id);
-                    new RateLimiter($this->cache, 'tlsa_authoritative_' . $rateKey, 5, 60, 'authoritative DNS check')->hit();
+                    new RateLimiter($this->cache, 'tlsa_diagnostic_' . $rateKey, 3, 60, 'TLSA DNS diagnostics')->hit();
                 }
                 $state = $this->dns->tlsaState($user, $account, $zone, $owner);
-                if (($query['verify'] ?? null) === 'authoritative') {
+                if (in_array($verify, ['authoritative', 'all'], true)) {
                     $zoneName = $this->dns->tlsaZoneName($user, $account, $zone);
                     $fqdn     = $state['owner'] . '.' . $zoneName;
                     $check    = $this->authoritativeTlsaChecker->check($fqdn, $zoneName, $state['records'], $state['ttl']);
@@ -80,11 +86,43 @@ final readonly class TlsaRecordHandler implements RequestHandlerInterface
                         'api_key_id' => $grant instanceof ApiKeyGrant ? $grant->id : null,
                         'status'     => $check->status,
                     ]);
-                    return new JsonResponse(
-                        $check->toArray() + ['provider_readback' => $state['records'], 'provider_verification' => 'provider_readback', 'provider_etag' => $state['version']],
-                        200,
-                        ['Cache-Control' => 'no-store'],
-                    );
+                    $public = array_replace($check->toArray(), ['provider_readback' => $state['records'], 'provider_verification' => 'provider_readback', 'provider_etag' => $state['version']]);
+                    if ($verify === 'authoritative') {
+                        return new JsonResponse($public, 200, ['Cache-Control' => 'no-store']);
+                    }
+                }
+                if (in_array($verify, ['dnssec', 'all'], true)) {
+                    if (!$this->dnssecDiagnostic instanceof DnssecDiagnosticInterface) {
+                        return $this->error('dnssec_diagnostic_unavailable', 503);
+                    }
+                    $zoneName = $this->dns->tlsaZoneName($user, $account, $zone);
+                    $result   = $this->dnssecDiagnostic->validateTlsa($state['owner'] . '.' . $zoneName, $zoneName);
+                    $this->audit->record($request, 'tlsa.dnssec.check', 'rrset', $state['owner'], $user->id, $account, (string) $zone, metadata: ['api_key_id' => $grant instanceof ApiKeyGrant ? $grant->id : null, 'status' => $result->status]);
+                    $public = array_replace($public ?? ['owner' => $state['owner'], 'checked_at' => new \DateTimeImmutable()->format(DATE_ATOM), 'expected' => $state['records'], 'servers' => []], [
+                        'provider_readback' => $state['records'], 'provider_verification' => 'provider_readback', 'provider_etag' => $state['version'],
+                        'dnssec'            => $result->status, 'dnssec_validation' => $result->toArray(), 'dane' => 'not_tested',
+                    ]);
+                    if ($verify === 'dnssec') {
+                        return new JsonResponse($public, 200, ['Cache-Control' => 'no-store']);
+                    }
+                }
+                if ($verify === 'smtp-dane') {
+                    if (!$this->dnssecDiagnostic instanceof DnssecDiagnosticInterface) {
+                        return $this->error('dnssec_diagnostic_unavailable', 503);
+                    }
+                    if ($grant instanceof ApiKeyGrant && $grant->owner !== '_25._tcp' && !str_starts_with((string) $grant->owner, '_25._tcp.')) {
+                        return $this->error('forbidden', 403);
+                    }
+                    if ($state['owner'] !== '_25._tcp' && !str_starts_with($state['owner'], '_25._tcp.')) {
+                        return $this->error('invalid_owner', 422);
+                    }
+                    $zoneName = $this->dns->tlsaZoneName($user, $account, $zone);
+                    $result   = $this->dnssecDiagnostic->checkSmtpDane($zoneName);
+                    $this->audit->record($request, 'tlsa.smtp_dane.check', 'zone', (string) $zone, $user->id, $account, (string) $zone, metadata: ['api_key_id' => $grant instanceof ApiKeyGrant ? $grant->id : null, 'status' => $result['status'] ?? 'indeterminate']);
+                    return new JsonResponse(['owner' => $state['owner'], 'provider_readback' => $state['records'], 'smtp_dane' => $result], 200, ['Cache-Control' => 'no-store']);
+                }
+                if ($verify === 'all') {
+                    return new JsonResponse($public, 200, ['Cache-Control' => 'no-store']);
                 }
                 $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
                 $token = !$api && $guard instanceof CsrfGuardInterface ? $guard->generateToken('tlsa_change') : null;

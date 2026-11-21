@@ -123,13 +123,71 @@ propagation guarantee.
 NS and address discovery uses PHP's configured host resolver and is marked
 `system_resolver_unvalidated`: resolver lookup time is governed by the host's
 resolver configuration and cannot be strictly bounded by TowerDNS's direct
-query deadline. TowerDNS does not independently prove the delegation chain or
-validate DNSSEC. It does not test the TLS service or DANE authentication;
-DNSSEC is reported as not validated and DANE as not tested. A resolver's AD bit
-is not treated as an independent proof.
+query deadline. The authoritative check itself does not validate DNSSEC.
+
+### Optional DNSSEC validation
+
+To delegate DNSSEC validation, configure an operator-trusted, DNSSEC-validating
+DNS-over-HTTPS endpoint in `configs/config.local.toml`:
+
+```toml
+[dnssec]
+validating_resolver_https = "https://resolver.example/dns-query"
+```
+
+TowerDNS sends bounded DNS wire queries over HTTPS with certificate validation,
+redirects disabled, and DNSSEC OK set. It checks the TLSA answer and the zone's
+DS state. `secure` relies on the AD bit from this explicitly configured
+validating resolver; `bogus` is returned only for DNSSEC-related EDE codes.
+`insecure` requires an authenticated denial of DS. Ambiguous resolver responses,
+including a bare SERVFAIL, remain `indeterminate`. Without configuration the
+result is `not_checked`. This is resolver-delegated validation, not local
+DNSSEC signature verification: the resolver operator and its HTTPS identity
+are the trust boundary. The endpoint is administrator-controlled, never
+accepted from a request. Responses include the resolver host and timestamp.
+
+`verify=dnssec` checks this status through the existing zone-scoped TLSA API.
+`verify=all` combines it with the direct authoritative publication check. The
+DNSSEC diagnostic is rate-limited separately and can be disabled by leaving
+the endpoint empty. DNSKEY/RRSIG/DS chain processing is performed by the
+configured validating resolver; TowerDNS does not claim to have independently
+recomputed signatures or NSEC/NSEC3 proofs.
+
+For SMTP, `verify=smtp-dane` resolves MX records and queries each bounded MX
+target's `_25._tcp` TLSA RRset through that resolver. It retains MX preference
+and TTL, distinguishes a null MX and missing TLSA data, and reports DNSSEC
+status per answer. It does not resolve/connect to MX A/AAAA addresses, perform
+STARTTLS, inspect server certificates, or authenticate SMTP DANE (RFC 7672).
+The MX list is capped at four targets. `dane` and `smtp_tls` remain
+`not_tested`.
 Re-run after changes and TTL intervals. Anycast or network-specific DNS views
 may still differ. One TLS handshake may show only one of several RSA/ECDSA
 certificates.
+
+### Certificate-to-public-record diagnostic
+
+The read-only diagnostic endpoint accepts a public certificate bundle and
+compares its TLSA associations with the provider readback and each result from
+the authoritative publication check:
+
+```text
+POST /api/v1/accounts/{account}/zones/{zone}/tlsa/diagnostic
+Authorization: Bearer <tlsa:read key>
+Content-Type: application/json
+
+{"owner":"_443._tcp","certificates":"-----BEGIN CERTIFICATE-----\\n...\\n-----END CERTIFICATE-----"}
+```
+
+The authenticated UI provides the same comparison. A PEM bundle can contain
+several end-entity certificates and CA certificates; TLSA usage 1/3 is compared
+with end-entity certificates, while usage 0/2 is compared with CA certificates.
+The response keeps association matching, SAN/validity/key-usage details, and
+system PKIX chain results separate. `matched_supplied_certificate` only means
+that the supplied public certificate data matches a published association. It
+does not mean a server presented that certificate, that every dual-certificate
+configuration was enumerated, or that DANE authentication succeeded. No
+private key is needed or accepted. Input and result counts are bounded and the
+endpoint is rate limited.
 
 ## Verification status
 
@@ -138,13 +196,18 @@ Keep these claims separate in automation and operational records:
 1. TLSA RDATA was generated and syntactically accepted.
 2. The provider accepted the mutation and returned a readback.
 3. Authoritative DNS servers publish the expected RRset.
-4. The DNSSEC chain validates to a trusted root.
-5. The actual service certificate satisfies DANE (for SMTP, see RFC 7672).
+4. A configured trusted validating resolver reports DNSSEC status; the
+   authoritative-only check does not establish this stage.
+5. The actual service certificate satisfies DANE (not performed by TowerDNS's
+   DNS-only diagnostics; for SMTP, see RFC 7672).
 
 TowerDNS reports ordinary API operations as `provider_only`. The optional
 authoritative check reports stage 3 as observed from the specific NS addresses
-queried, but does not establish stages 4–5. Certificate-chain inspection in
-the generator is informational and is not a DANE authentication result.
+queried. The optional resolver check reports stage 4 within the resolver trust
+boundary; neither check establishes stage 5. Certificate inspection reports
+SAN match, validity, key usage and a separate OpenSSL system-trust result.
+TLSA association matching against user-supplied certificates is not evidence
+that a server presented them, and is not a DANE authentication result.
 
 The API limiter uses TowerDNS's configured PSR-16 filesystem cache. Its fixed
 window counter is a best-effort application limit; requests arriving at the

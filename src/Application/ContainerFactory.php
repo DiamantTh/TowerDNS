@@ -58,6 +58,7 @@ use TowerDNS\Application\Auth\ActionGroupRegistry;
 use TowerDNS\Application\Contracts\AccountProviderFactoryInterface;
 use TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface;
 use TowerDNS\Application\Contracts\CredentialEncryptorInterface;
+use TowerDNS\Application\Contracts\DnssecDiagnosticInterface;
 use TowerDNS\Application\Contracts\ProviderConnectionVerifierInterface;
 use TowerDNS\Application\Contracts\ProviderCredentialSchemaInterface;
 use TowerDNS\Application\Contracts\TransactionRunnerInterface;
@@ -120,6 +121,7 @@ use TowerDNS\Infrastructure\Console\SchemaStatusCommand;
 use TowerDNS\Infrastructure\Console\SchemaValidateCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
 use TowerDNS\Infrastructure\DNS\AuthoritativeTlsaChecker;
+use TowerDNS\Infrastructure\DNS\TrustedResolverDnssecDiagnostic;
 use TowerDNS\Infrastructure\Http\ClientIpResolver;
 use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryActionHandler;
 use TowerDNS\Infrastructure\Http\Handler\AccountRecoveryAuthorizationHandler;
@@ -340,6 +342,7 @@ final class ContainerFactory
             SystemProviderConfigurationService::class => \DI\autowire(),
             AccountProviderFactoryInterface::class    => \DI\autowire(ProviderAccountAdapterFactory::class),
             AuthoritativeTlsaCheckerInterface::class  => \DI\autowire(AuthoritativeTlsaChecker::class),
+            DnssecDiagnosticInterface::class          => \DI\factory(static fn(): TrustedResolverDnssecDiagnostic => new TrustedResolverDnssecDiagnostic((string) ($appConf['dnssec']['validating_resolver_https'] ?? ''))),
 
             // ── Provider registry ─────────────────────────────────────────────
             DNSProviderFactory::class                  => $providerFactory,

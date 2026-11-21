@@ -483,12 +483,21 @@ final class ManagedZoneDNSServiceTest extends TestCase
             600,
             'Mock response; no live DNS query.',
         ));
+        $dnssec = $this->createMock(\TowerDNS\Application\Contracts\DnssecDiagnosticInterface::class);
+        $dnssec->expects(self::once())->method('validateTlsa')->with('_443._tcp.example.org', 'example.org')->willReturn(new \TowerDNS\Application\DTO\DnssecValidationResult(
+            'secure',
+            '2026-11-21T12:00:00+00:00',
+            'trusted_https_resolver_ad',
+            'resolver.example.test',
+            'tlsa_answer_authenticated_by_configured_resolver',
+        ));
         $handler = new \TowerDNS\Infrastructure\Http\Handler\TlsaRecordHandler(
             $this->serviceForZone($provider),
             new \TowerDNS\Application\DNS\TlsaGenerator(),
             new \TowerDNS\Application\Services\AuditLogService($this->createMock(\TowerDNS\Application\Repository\AuditLogRepositoryInterface::class)),
             new \Symfony\Component\Cache\Psr16Cache(new \Symfony\Component\Cache\Adapter\ArrayAdapter()),
             $checker,
+            $dnssec,
         );
         $user = new User('owner', 'owner@example.test');
         $base = new \Laminas\Diactoros\ServerRequest()
@@ -521,6 +530,11 @@ final class ManagedZoneDNSServiceTest extends TestCase
         self::assertSame('all_match', $publicData['status']);
         self::assertSame('provider_readback', $publicData['provider_verification']);
         self::assertSame('not_validated', $publicData['dnssec']);
+        $validated = $handler->handle($request->withQueryParams(['owner' => '_443._tcp', 'verify' => 'dnssec']));
+        self::assertSame(200, $validated->getStatusCode());
+        $validatedData = json_decode((string) $validated->getBody(), true, 16, JSON_THROW_ON_ERROR);
+        self::assertSame('secure', $validatedData['dnssec']);
+        self::assertSame('trusted_https_resolver_ad', $validatedData['dnssec_validation']['method']);
         self::assertSame(200, $write(['add' => [$old, $other]], $version)->getStatusCode());
         self::assertSame(1, $provider->writes);
         $appendGrant = new \TowerDNS\Domain\Auth\ApiKeyGrant(3, $user->id, 'tlsa:append', 42, 7, '_443._tcp');
@@ -552,6 +566,68 @@ final class ManagedZoneDNSServiceTest extends TestCase
         self::assertFalse($state['conditional']);
         $this->expectException(CapabilityException::class);
         $service->changeTlsa($user, 42, 7, '_443._tcp', ['3 1 1 ' . str_repeat('a', 64)], [], $state['version'], 300);
+    }
+
+    public function testReadScopedApiCanCompareSuppliedCertificateWithPublicTlsaWithoutClaimingDaneHandshake(): void
+    {
+        $certificate = file_get_contents(dirname(__DIR__, 2) . '/Fixtures/tlsa/rsa.pem');
+        self::assertIsString($certificate);
+        $record   = new \TowerDNS\Application\DNS\TlsaGenerator()->generate($certificate, 3, 1, 1)[0];
+        $provider = new TargetedRecordingDNSProvider(
+            [Capability::RECORD_LIST => true],
+            new Rrset('provider-zone', '_443._tcp', DNSRecordType::parse('TLSA'), 300, [$record]),
+        );
+        $checker = $this->createMock(\TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface::class);
+        $checker->expects(self::once())->method('check')->willReturn(new \TowerDNS\Application\DTO\AuthoritativeTlsaCheck(
+            '_443._tcp.example.org',
+            'all_match',
+            '2026-11-21T12:00:00+00:00',
+            'system_resolver_unvalidated',
+            [$record],
+            [[
+                'nameserver'    => 'ns.example.test', 'address' => '192.0.2.1', 'status' => 'matches', 'rcode' => 'NOERROR',
+                'authoritative' => true, 'records' => [$record], 'minimum_ttl' => 300, 'checked_at' => '2026-11-21T12:00:00+00:00',
+            ]],
+            300,
+            'mocked direct authoritative response',
+        ));
+        $dnssec = $this->createMock(\TowerDNS\Application\Contracts\DnssecDiagnosticInterface::class);
+        $dnssec->expects(self::once())->method('validateTlsa')->willReturn(new \TowerDNS\Application\DTO\DnssecValidationResult(
+            'indeterminate',
+            '2026-11-21T12:00:00+00:00',
+            'trusted_https_resolver',
+            'resolver.example.test',
+            'resolver_not_configured',
+        ));
+        $auditRepository = $this->createMock(\TowerDNS\Application\Repository\AuditLogRepositoryInterface::class);
+        $auditRepository->expects(self::once())->method('append');
+        $handler = new \TowerDNS\Infrastructure\Http\Handler\TlsaDiagnosticHandler(
+            $this->serviceForZone($provider),
+            new \TowerDNS\Application\DNS\TlsaGenerator(),
+            $checker,
+            $dnssec,
+            new \TowerDNS\Application\Services\AuditLogService($auditRepository),
+            new \Symfony\Component\Cache\Psr16Cache(new \Symfony\Component\Cache\Adapter\ArrayAdapter()),
+        );
+        $user   = new User('owner', 'owner@example.test');
+        $grant  = new \TowerDNS\Domain\Auth\ApiKeyGrant(7, $user->id, 'tlsa:read', 42, 7, '_443._tcp');
+        $stream = new \Laminas\Diactoros\Stream('php://memory', 'r+');
+        $stream->write(json_encode(['owner' => '_443._tcp', 'certificates' => $certificate], JSON_THROW_ON_ERROR));
+        $stream->rewind();
+        $request = new \Laminas\Diactoros\ServerRequest()
+            ->withMethod('POST')
+            ->withUri(new \Laminas\Diactoros\Uri('https://tower.example.test/api/v1/accounts/42/zones/7/tlsa/diagnostic'))
+            ->withHeader('Content-Type', 'application/json')
+            ->withAttribute(User::class, $user)
+            ->withAttribute(\TowerDNS\Domain\Auth\ApiKeyGrant::class, $grant)
+            ->withAttribute('account', '42')->withAttribute('zone', '7')->withBody($stream);
+
+        $response = $handler->handle($request);
+        self::assertSame(200, $response->getStatusCode());
+        $data = json_decode((string) $response->getBody(), true, 16, JSON_THROW_ON_ERROR);
+        self::assertSame('matched_supplied_certificate', $data['publication']['servers'][0]['certificate_matches'][0]['association']);
+        self::assertFalse($data['server_certificate_seen']);
+        self::assertSame('not_tested', $data['dane_authentication']);
     }
 
     public function testTlsaProviderReadbackIgnoresRecordOrderingAndCanonicalHexCase(): void

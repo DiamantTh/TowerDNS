@@ -32,6 +32,9 @@
     let tlsaToken: string | undefined;
     let tlsaState = $state<{ records: string[]; ttl: number | null; conditional: boolean; capabilities?: { conditional_replace: boolean; append_record: boolean; remove_record: boolean; atomic_multi_record: boolean; consistency: string } } | null>(null);
     let tlsaPublication = $state<{ owner: string; status: string; checked_at: string; discovery_source: string; expected: string[]; provider_readback: string[]; servers: { nameserver: string; address: string | null; status: string; rcode: string | null; authoritative: boolean; records: string[]; minimum_ttl: number | null }[]; scope: string; dnssec: string; dane: string } | null>(null);
+    let tlsaDnssec = $state<{ owner: string; dnssec: string; dnssec_validation: { status: string; checked_at: string; method: string; resolver: string | null; reason: string | null; scope: string } } | null>(null);
+    let smtpDane = $state<{ status: string; checked_at: string; method: string; mx_dnssec?: string; mx: { preference: number; host: string; ttl: number; tlsa_records: string[]; tlsa_status?: string; dnssec: string }[]; dane: string; smtp_tls?: string; scope?: string } | null>(null);
+    let certificateDiagnostic = $state<{ owner: string; hostname: string; checked_at: string; publication: { status: string; servers: { nameserver: string; status: string; records: string[]; certificate_matches?: { record: string; association: string; certificate_indexes: number[]; pkix: string; dane_authentication: string }[] }[] }; dnssec_validation: { status: string }; dane_authentication: string; server_certificate_seen: boolean } | null>(null);
     let tlsaVersion = '';
     let tlsaChangeToken = '';
     let tlsaPreviewOwner = $state('');
@@ -134,11 +137,61 @@
         }
     }
 
+    async function verifyDnssec() {
+        tlsaBusy = true;
+        tlsaError = '';
+        try {
+            const response = await fetch(tlsaEndpoint(tlsaOwner) + '&verify=dnssec');
+            const data = await response.json();
+            if (!response.ok) throw new Error('dnssec');
+            tlsaDnssec = data;
+        } catch {
+            tlsaError = t('tlsa.diagnostic.error');
+        } finally {
+            tlsaBusy = false;
+        }
+    }
+
+    async function verifySmtpDane() {
+        tlsaBusy = true;
+        tlsaError = '';
+        try {
+            const response = await fetch(tlsaEndpoint(tlsaOwner) + '&verify=smtp-dane');
+            const data = await response.json();
+            if (!response.ok) throw new Error('smtp-dane');
+            smtpDane = data.smtp_dane;
+        } catch {
+            tlsaError = t('tlsa.diagnostic.error');
+        } finally {
+            tlsaBusy = false;
+        }
+    }
+
+    async function compareCertificatesWithPublicTlsa() {
+        tlsaBusy = true;
+        tlsaError = '';
+        try {
+            const response = await fetch(`/accounts/${page.accountId}/zones/${page.managedZoneId}/tlsa/diagnostic`, {
+                method: 'POST',
+                body: new URLSearchParams({ csrf_token: tlsaToken ?? page.tlsaPreviewToken ?? '', owner: tlsaOwner, certificates: tlsaCertificates }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error('diagnostic');
+            tlsaToken = data.csrf_token ?? tlsaToken;
+            certificateDiagnostic = data;
+        } catch {
+            tlsaError = t('tlsa.diagnostic.error');
+        } finally {
+            tlsaBusy = false;
+        }
+    }
+
     async function importTlsa(event: Event) {
         const files = Array.from((event.currentTarget as HTMLInputElement).files ?? []);
         certificateChoices = [];
         selectedCertificates = [];
         tlsaPreview = [];
+        certificateDiagnostic = null;
         if (files.length > 32 || files.reduce((size, file) => size + file.size, 0) > 750000) {
             tlsaError = t('tlsa.generator.error');
             return;
@@ -216,7 +269,7 @@
             <Field label={t('tlsa.generator.matching')}><select class="input" bind:value={tlsaMatching}><option value={0}>{t('tlsa.generator.full')}</option><option value={1}>SHA-256</option><option value={2}>SHA-512</option></select></Field>
         </div>
         <Field label={t('tlsa.generator.certificates')}><input class="input" type="file" accept=".cer,.crt,.der,.pem" multiple onchange={importTlsa}></Field>
-        <Field label={t('tlsa.generator.certificates')}><textarea class="input" rows="8" bind:value={tlsaCertificates} oninput={() => { certificateChoices = []; selectedCertificates = []; tlsaPreview = []; }} placeholder="-----BEGIN CERTIFICATE-----"></textarea></Field>
+        <Field label={t('tlsa.generator.certificates')}><textarea class="input" rows="8" bind:value={tlsaCertificates} oninput={() => { certificateChoices = []; selectedCertificates = []; tlsaPreview = []; certificateDiagnostic = null; }} placeholder="-----BEGIN CERTIFICATE-----"></textarea></Field>
         <button type="button" class="button" disabled={tlsaBusy || !tlsaCertificates.trim()} onclick={() => inspectOrGenerate(true)}>{t('tlsa.generator.inspect')}</button>
         {#each certificateChoices as cert}
             <label class="block"><input type="checkbox" bind:group={selectedCertificates} value={cert.index} disabled={tlsaBusy}>
@@ -229,6 +282,9 @@
         <button type="button" class="button" disabled={tlsaBusy || !tlsaCertificates.trim() || (certificateChoices.length > 0 && selectedCertificates.length === 0)} onclick={() => inspectOrGenerate(false)}>{t('tlsa.generator.generate')}</button>
         <button type="button" class="button" disabled={tlsaBusy} onclick={readCurrentTlsa}>{t('tlsa.generator.read')}</button>
         <button type="button" class="button" disabled={tlsaBusy || !tlsaState || tlsaPreviewOwner !== tlsaOwner} onclick={verifyPublicTlsa}>{t('tlsa.publication.check')}</button>
+        <button type="button" class="button" disabled={tlsaBusy || !tlsaState || tlsaPreviewOwner !== tlsaOwner} onclick={verifyDnssec}>{t('tlsa.dnssec.check')}</button>
+        <button type="button" class="button" disabled={tlsaBusy || !tlsaState || !tlsaCertificates.trim()} onclick={compareCertificatesWithPublicTlsa}>{t('tlsa.diagnostic.compare-certificates')}</button>
+        {#if tlsaPort === 25 && tlsaProtocol === 'tcp'}<button type="button" class="button" disabled={tlsaBusy || !tlsaState} onclick={verifySmtpDane}>{t('tlsa.smtp-dane.check')}</button>{/if}
         {#if tlsaError}<p role="alert" class="has-text-danger">{tlsaError}</p>{/if}
         {#if tlsaMessage}<p role="status">{tlsaMessage}</p>{/if}
         {#if tlsaState && tlsaPreviewOwner === tlsaOwner}
@@ -266,6 +322,42 @@
                         </article>
                     {/each}
                 </details>
+            </section>
+        {/if}
+        {#if tlsaDnssec && tlsaDnssec.owner === tlsaOwner}
+            <section class="box" aria-live="polite">
+                <h3 class="subtitle">{t('tlsa.dnssec.title')}: {t(`tlsa.dnssec.${tlsaDnssec.dnssec}`)}</h3>
+                <p>{t('tlsa.dnssec.checked-at', { date: tlsaDnssec.dnssec_validation.checked_at })}</p>
+                <p>{t(`tlsa.dnssec.method.${tlsaDnssec.dnssec_validation.method}`)}</p>
+                <p class="muted">{t('tlsa.dnssec.scope')}</p>
+                {#if tlsaDnssec.dnssec_validation.reason}<p>{t(`tlsa.dnssec.reason.${tlsaDnssec.dnssec_validation.reason}`)}</p>{/if}
+            </section>
+        {/if}
+        {#if smtpDane && tlsaPort === 25 && tlsaProtocol === 'tcp'}
+            <section class="box" aria-live="polite">
+                <h3 class="subtitle">{t('tlsa.smtp-dane.title')}: {t(`tlsa.dnssec.${smtpDane.status}`)}</h3>
+                <p>{t('tlsa.dnssec.checked-at', { date: smtpDane.checked_at })}</p>
+                <p class="muted">{t('tlsa.smtp-dane.scope')}</p>
+                {#each smtpDane.mx as mx}
+                    <article class="box"><strong>MX {mx.preference}: {mx.host || '.'}</strong><p>TTL {mx.ttl} · {t(`tlsa.dnssec.${mx.dnssec}`)} · {t(`tlsa.smtp-dane.${mx.tlsa_status ?? 'lookup_failed'}`)}</p>
+                        {#each mx.tlsa_records ?? [] as record}<p><code class="rdata-value">{record}</code></p>{/each}
+                    </article>
+                {/each}
+            </section>
+        {/if}
+        {#if certificateDiagnostic && certificateDiagnostic.owner === tlsaOwner}
+            <section class="box" aria-live="polite">
+                <h3 class="subtitle">{t('tlsa.diagnostic.title')}</h3>
+                <p>{t('tlsa.publication.checked-at', { date: certificateDiagnostic.checked_at })}</p>
+                <p>{t('tlsa.dnssec.title')}: {t(`tlsa.dnssec.${certificateDiagnostic.dnssec_validation.status}`)}</p>
+                <p>{t('tlsa.diagnostic.live-service-not-tested')}</p>
+                {#each certificateDiagnostic.publication.servers as server}
+                    <article class="box"><strong>{server.nameserver}</strong><p>{t(`tlsa.publication.${server.status}`)}</p>
+                        {#each server.certificate_matches ?? [] as match}
+                            <p><code class="rdata-value">{match.record}</code> · {t(`tlsa.diagnostic.${match.association}`)} · {t(`tlsa.diagnostic.pkix.${match.pkix}`)}</p>
+                        {/each}
+                    </article>
+                {/each}
             </section>
         {/if}
     </details>

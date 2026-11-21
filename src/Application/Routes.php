@@ -149,8 +149,10 @@ final class Routes
         $apiAuth     = \TowerDNS\Infrastructure\Http\Middleware\ApiKeyAuthenticationMiddleware::class;
         $app->get($tlsaWeb, [RequireAuthMiddleware::class, $tlsaHandler], 'tlsa.web.read');
         $app->post($tlsaWeb, [RequireAuthMiddleware::class, $tlsaHandler], 'tlsa.web.change');
+        $app->post($tlsaWeb . '/diagnostic', [RequireAuthMiddleware::class, \TowerDNS\Infrastructure\Http\Handler\TlsaDiagnosticHandler::class], 'tlsa.web.diagnostic');
         $app->get($tlsaApi, [$apiAuth, $tlsaHandler], 'tlsa.api.read');
         $app->post($tlsaApi, [$apiAuth, $tlsaHandler], 'tlsa.api.change');
+        $app->post($tlsaApi . '/diagnostic', [$apiAuth, \TowerDNS\Infrastructure\Http\Handler\TlsaDiagnosticHandler::class], 'tlsa.api.diagnostic');
         $app->post('/tlsa/generate', [RequireAuthMiddleware::class, TlsaGenerateHandler::class], 'tlsa.generate');
         $app->get('/accounts/{account}/zones/{zone}', [RequireAuthMiddleware::class, RecordListHandler::class], 'records.list');
         $app->post('/accounts/{account}/zones/{zone}/records', [RequireAuthMiddleware::class, RecordCreateHandler::class], 'records.create');

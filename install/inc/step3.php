@@ -131,6 +131,11 @@ function processStep3(): array
             [security]
             encryption_key = "{$escapedEncKey}"
 
+            [dnssec]
+            # Optional HTTPS endpoint for a DNSSEC-validating recursive resolver.
+            # Leave empty to keep cryptographic DNSSEC validation disabled.
+            validating_resolver_https = ""
+
             [app]
             domain      = "{$escapedDomain}"
             base_url   = "{$escapedBaseUrl}"

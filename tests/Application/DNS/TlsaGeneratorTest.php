@@ -90,6 +90,40 @@ final class TlsaGeneratorTest extends TestCase
         $incomplete = $generator->inspect($rsa, 'another.example.test');
         self::assertSame('not_listed', $incomplete[0]['hostname']);
         self::assertSame('not_established', $incomplete[0]['pkix_chain']);
+        self::assertSame('CA:TRUE', $complete[1]['basic_constraints']);
+        self::assertContains('Digital Signature', $complete[0]['key_usage']);
+        self::assertNotSame([], $complete[0]['extended_key_usage']);
+    }
+
+    public function testAssociationComparisonIsNotReportedAsLiveDaneAuthentication(): void
+    {
+        $generator = new TlsaGenerator();
+        $bundle    = $this->fixture('rsa') . $this->fixture('ca');
+        $records   = [
+            ...$generator->generate($bundle, 3, 1, 1),
+            ...$generator->generate($bundle, 0, 1, 1),
+        ];
+
+        $results = $generator->matchAssociations($bundle, $records, 'service.example.test');
+
+        self::assertSame('matched_supplied_certificate', $results[0]['association']);
+        self::assertSame([0], $results[0]['certificate_indexes']);
+        self::assertSame('not_tested', $results[0]['dane_authentication']);
+        self::assertSame('matched_supplied_certificate', $results[1]['association']);
+        self::assertSame([1], $results[1]['certificate_indexes']);
+        self::assertSame('pkix_requirements_met_for_supplied_certificate_chain', $results[1]['pkix']);
+    }
+
+    public function testPkixUsageRequiresHostnameAndSystemTrustBeyondAssociationMatch(): void
+    {
+        $generator = new TlsaGenerator();
+        $bundle    = $this->fixture('rsa') . $this->fixture('ca');
+        $record    = $generator->generate($bundle, 1, 1, 1)[0];
+        $result    = $generator->matchAssociations($bundle, [$record], 'other.example.test')[0];
+
+        self::assertSame('matched_supplied_certificate', $result['association']);
+        self::assertSame('not_established', $result['pkix']);
+        self::assertSame('not_tested', $result['dane_authentication']);
     }
 
     public function testEd25519AndEd448Spki(): void
