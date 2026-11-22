@@ -43,6 +43,7 @@ final readonly class AdminOverviewHandler implements RequestHandlerInterface
             ['key' => 'navigation.settings', 'href' => $this->urls->page('settings'), 'permission' => Permission::SYSTEM_SETTINGS_MANAGE],
             ['key' => 'navigation.schema', 'href' => $this->urls->page('schema'), 'permission' => Permission::SYSTEM_SCHEMA_MANAGE],
             ['key' => 'navigation.providers', 'href' => '/credentials', 'permission' => Permission::PROVIDER_CONFIG_MANAGE],
+            ['key' => 'navigation.monitoring', 'href' => '/admin/monitoring', 'permission' => Permission::SYSTEM_SETTINGS_MANAGE],
         ] as $area) {
             if ($this->authz->isGranted($user, $area['permission'])) {
                 $areas[] = ['key' => $area['key'], 'href' => $area['href']];

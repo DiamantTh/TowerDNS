@@ -75,6 +75,7 @@ use TowerDNS\Application\Repository\AdminImpersonationSessionRepositoryInterface
 use TowerDNS\Application\Repository\ApiKeyRepositoryInterface;
 use TowerDNS\Application\Repository\AuditLogRepositoryInterface;
 use TowerDNS\Application\Repository\ManagedZoneRepositoryInterface;
+use TowerDNS\Application\Repository\MonitoringRepositoryInterface;
 use TowerDNS\Application\Repository\PasswordResetTokenRepositoryInterface;
 use TowerDNS\Application\Repository\ProviderAccountRepositoryInterface;
 use TowerDNS\Application\Repository\RoleRepositoryInterface;
@@ -95,6 +96,7 @@ use TowerDNS\Application\Services\CredentialService;
 use TowerDNS\Application\Services\HealthStatusService;
 use TowerDNS\Application\Services\IamAdministrationService;
 use TowerDNS\Application\Services\MailService;
+use TowerDNS\Application\Services\MonitoringService;
 use TowerDNS\Application\Services\NullBreachedPasswordChecker;
 use TowerDNS\Application\Services\PasswordAdministrationService;
 use TowerDNS\Application\Services\PasswordGenerator;
@@ -113,6 +115,8 @@ use TowerDNS\Domain\Auth\PermissionRegistry;
 use TowerDNS\Infrastructure\Clock\SystemClock;
 use TowerDNS\Infrastructure\Console\InstallCommand;
 use TowerDNS\Infrastructure\Console\ModuleListCommand;
+use TowerDNS\Infrastructure\Console\MonitorConfigureCommand;
+use TowerDNS\Infrastructure\Console\MonitorRunCommand;
 use TowerDNS\Infrastructure\Console\PasswordResetCommand;
 use TowerDNS\Infrastructure\Console\RecordListCommand;
 use TowerDNS\Infrastructure\Console\RrsetListCommand;
@@ -153,6 +157,7 @@ use TowerDNS\Infrastructure\Persistence\DbalAdminImpersonationSessionRepository;
 use TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository;
 use TowerDNS\Infrastructure\Persistence\DbalAuditLogRepository;
 use TowerDNS\Infrastructure\Persistence\DbalManagedZoneRepository;
+use TowerDNS\Infrastructure\Persistence\DbalMonitoringRepository;
 use TowerDNS\Infrastructure\Persistence\DbalPasswordResetTokenRepository;
 use TowerDNS\Infrastructure\Persistence\DbalProviderAccountRepository;
 use TowerDNS\Infrastructure\Persistence\DbalRoleRepository;
@@ -301,6 +306,7 @@ final class ContainerFactory
             AccountResourceLimitsRepositoryInterface::class     => \DI\autowire(DbalAccountResourceLimitsRepository::class),
             ProviderAccountRepositoryInterface::class           => \DI\autowire(DbalProviderAccountRepository::class),
             ManagedZoneRepositoryInterface::class               => \DI\autowire(DbalManagedZoneRepository::class),
+            MonitoringRepositoryInterface::class                => \DI\autowire(DbalMonitoringRepository::class),
             AuditLogRepositoryInterface::class                  => \DI\autowire(DbalAuditLogRepository::class),
             ZoneMembershipRepositoryInterface::class            => \DI\autowire(DbalZoneMembershipRepository::class),
             AdminImpersonationSessionRepositoryInterface::class => \DI\autowire(DbalAdminImpersonationSessionRepository::class),
@@ -336,6 +342,7 @@ final class ContainerFactory
             UserLifecycleService::class               => \DI\autowire(),
             ActiveAccountService::class               => \DI\factory(static fn(\Psr\Container\ContainerInterface $c): ActiveAccountService => new ActiveAccountService($c->get(AccountRepositoryInterface::class), $c->get(UserLifecycleService::class))),
             AuditLogService::class                    => \DI\autowire(),
+            MonitoringService::class                  => \DI\autowire(),
             PasswordResetService::class               => \DI\autowire(),
             AccountRecoveryService::class             => \DI\autowire(),
             AccountRecoveryIssuerInterface::class     => \DI\get(AccountRecoveryService::class),
@@ -731,14 +738,16 @@ final class ContainerFactory
             PasswordResetCommand::class => \DI\factory(
                 static fn(): PasswordResetCommand => new PasswordResetCommand($projectRoot)
             ),
-            ZoneListCommand::class       => \DI\autowire(),
-            RecordListCommand::class     => \DI\autowire(),
-            RrsetListCommand::class      => \DI\autowire(),
-            ModuleListCommand::class     => \DI\autowire(),
-            SchemaStatusCommand::class   => \DI\autowire(),
-            SchemaMigrateCommand::class  => \DI\autowire(),
-            SchemaValidateCommand::class => \DI\autowire(),
-            UpgradeCheckCommand::class   => \DI\factory(
+            ZoneListCommand::class         => \DI\autowire(),
+            MonitorRunCommand::class       => \DI\autowire(),
+            MonitorConfigureCommand::class => \DI\autowire(),
+            RecordListCommand::class       => \DI\autowire(),
+            RrsetListCommand::class        => \DI\autowire(),
+            ModuleListCommand::class       => \DI\autowire(),
+            SchemaStatusCommand::class     => \DI\autowire(),
+            SchemaMigrateCommand::class    => \DI\autowire(),
+            SchemaValidateCommand::class   => \DI\autowire(),
+            UpgradeCheckCommand::class     => \DI\factory(
                 static fn(\Psr\Container\ContainerInterface $c): UpgradeCheckCommand => new UpgradeCheckCommand(
                     $projectRoot,
                     $c->get(Connection::class),

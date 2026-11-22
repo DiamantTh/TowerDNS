@@ -69,13 +69,47 @@ ist oft der sichere Rückweg: Anwendung anhalten, zueinander passende
 Code-/Konfigurations-/Datenbanksicherung wiederherstellen und danach Zustand
 validieren.
 
+## Lesendes DNS-Monitoring
+
+Das Monitoring ist pro verwalteter Zone ausdrücklich zu aktivieren. Es führt
+keine DNS-Änderungen aus. Ein Administrator kann es in `/admin/monitoring` oder
+über die CLI konfigurieren:
+
+```sh
+php bin/towerdns towerdns:monitor:configure 123 --enable --smtp-dane --interval=60
+php bin/towerdns towerdns:monitor:run --format=json
+php bin/towerdns towerdns:monitor:run --zone=123 --force --format=json
+```
+
+Der Betreiber richtet den Scheduler (zum Beispiel systemd-Timer oder Cron)
+selbst ein. Ohne Scheduler erfolgen keine periodischen Prüfungen. Intervalle
+sind auf 5 bis 1440 Minuten beschränkt; ein Sammellauf prüft höchstens 250
+fällige Zonen. Noch nie geprüfte und am längsten nicht geprüfte Zonen werden
+zuerst berücksichtigt. Eine gezielte `--zone`-Prüfung wird direkt abgefragt und
+ist nicht durch die Sammelgrenze abgeschnitten.
+
+Aktuell wird die vorhandene SMTP-DANE-DNS-Diagnose über den konfigurierten
+validierenden Resolver wiederverwendet. Das Ergebnis beschreibt DNSSEC/MX/TLSA,
+nicht einen SMTP-Handshake oder eine DANE-Authentifizierung. Resolverfehler
+werden als fehlgeschlagene Ausführung und nicht als bestätigter DNSSEC-Bogus-
+Zustand gespeichert. Die Datenbank hält den jüngsten Zustand je Zone/Prüftyp
+sowie kompakte Ereignisse bei Zustandsänderungen. Ereignisse werden nach 180
+Tagen entfernt; unveränderte Wiederholungen aktualisieren nur den Prüfzeitpunkt.
+Status und begrenzte Historie sind Systemadministratoren in
+`/admin/monitoring` zugänglich.
+
+Es gibt derzeit keine E-Mail-/Push-Benachrichtigung, keine Monitoring-API und
+keine automatische Reparatur. Die Statushistorie ist die interne
+Warnungs-/Ereignisgrundlage. Der CLI-Lauf liefert JSON und einen Fehler-Exitcode,
+wenn eine Prüfung nicht ausgeführt werden konnte. Die Monitoring-Migration ist
+additiv; eine Rückmigration wird nicht angeboten. Backup und Wiederherstellung
+umfassen auch Monitoring-Konfiguration und -Historie.
+
 ## Betriebsgrenzen
 
-Die bestehenden Provider-Readbacks und TLSA-/DNSSEC-Diagnosen liefern
-Beobachtungen zum Zeitpunkt der Prüfung, keine automatische Reparatur. DNS-
-Propagation, Providerverfügbarkeit und öffentliche Resolver können vom
-gespeicherten lokalen Zustand abweichen. Monitoring/Benachrichtigungen sind in
-diesem Checkout nur dann verfügbar, wenn der jeweilige CLI-/Service-/UI-Code
-tatsächlich installiert ist; ein Auftragstext allein ist kein
-Implementierungsnachweis. Diese Dokumentation behauptet weder eine
-Produktivinstallation noch Live-Provider- oder DANE-Validierung.
+Provider-Readbacks und TLSA-/DNSSEC-Diagnosen bleiben zeitgebundene
+Beobachtungen, keine automatische Reparatur. DNS-Propagation,
+Providerverfügbarkeit und öffentliche Resolver können vom gespeicherten
+Zustand abweichen. Lokale oder Mock-Tests belegen keine Live-Provider-,
+öffentliche DNSSEC- oder DANE-Prüfung. Diese Dokumentation behauptet weder eine
+Produktivinstallation noch Live-Validierung.

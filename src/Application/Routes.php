@@ -25,6 +25,7 @@ use TowerDNS\Infrastructure\Http\Handler\HealthHandler;
 use TowerDNS\Infrastructure\Http\Handler\IncomingInvitationsHandler;
 use TowerDNS\Infrastructure\Http\Handler\LoginHandler;
 use TowerDNS\Infrastructure\Http\Handler\LogoutHandler;
+use TowerDNS\Infrastructure\Http\Handler\MonitoringHandler;
 use TowerDNS\Infrastructure\Http\Handler\PasswordChangeHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProfileHandler;
 use TowerDNS\Infrastructure\Http\Handler\ProviderAccountHandler;
@@ -105,6 +106,8 @@ final class Routes
         // ── Dashboard ─────────────────────────────────────────────────────────
         $app->get('/', [RequireAuthMiddleware::class, DashboardHandler::class], 'dashboard');
         $app->get('/admin', [RequireAuthMiddleware::class, AdminOverviewHandler::class], 'admin.overview');
+        $app->get('/admin/monitoring', [RequireAuthMiddleware::class, MonitoringHandler::class], 'admin.monitoring');
+        $app->post('/admin/monitoring', [RequireAuthMiddleware::class, MonitoringHandler::class], 'admin.monitoring.configure');
 
         // ── Profile ───────────────────────────────────────────────────────────
         $app->get('/profile', [RequireAuthMiddleware::class, ProfileHandler::class], 'profile');

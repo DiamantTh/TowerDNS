@@ -1098,10 +1098,52 @@ final readonly class SchemaManager
             ->addColumn('expires_at', Types::BIGINT)
             ->setPrimaryKey(['nonce']);
 
+        // dns_monitoring_config ---------------------------------------------
+        $monitoringConfig = new CanonicalTableBuilder('dns_monitoring_config');
+        $monitoringConfig->addColumn('managed_zone_id', Types::INTEGER);
+        $monitoringConfig->addColumn('enabled', Types::BOOLEAN, ['default' => false]);
+        $monitoringConfig->addColumn('smtp_dane_enabled', Types::BOOLEAN, ['default' => false]);
+        $monitoringConfig->addColumn('interval_minutes', Types::INTEGER, ['default' => 60]);
+        $monitoringConfig->addColumn('updated_at', Types::DATETIME_MUTABLE);
+        $monitoringConfig->addColumn('updated_by', Types::GUID, ['notnull' => false]);
+        $monitoringConfig->setPrimaryKey(['managed_zone_id']);
+        $monitoringConfig->addForeignKeyConstraint('managed_zones', ['managed_zone_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_dmc_zone');
+        $monitoringConfig->addForeignKeyConstraint('users', ['updated_by'], ['id'], ['onDelete' => 'SET NULL'], 'fk_dmc_updated_by');
+
+        // dns_monitoring_state ----------------------------------------------
+        $monitoringState = new CanonicalTableBuilder('dns_monitoring_state');
+        $monitoringState->addColumn('managed_zone_id', Types::INTEGER);
+        $monitoringState->addColumn('check_type', Types::STRING, ['length' => 32]);
+        $monitoringState->addColumn('status', Types::STRING, ['length' => 32]);
+        $monitoringState->addColumn('severity', Types::STRING, ['length' => 16]);
+        $monitoringState->addColumn('method', Types::STRING, ['length' => 64]);
+        $monitoringState->addColumn('summary_json', Types::TEXT);
+        $monitoringState->addColumn('fingerprint', Types::STRING, ['length' => 64]);
+        $monitoringState->addColumn('checked_at', Types::DATETIME_MUTABLE);
+        $monitoringState->addColumn('changed_at', Types::DATETIME_MUTABLE);
+        $monitoringState->setPrimaryKey(['managed_zone_id', 'check_type']);
+        $monitoringState->addIndex(['severity', 'checked_at'], 'idx_dms_severity_checked');
+        $monitoringState->addForeignKeyConstraint('managed_zones', ['managed_zone_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_dms_zone');
+
+        // dns_monitoring_events ---------------------------------------------
+        $monitoringEvents = new CanonicalTableBuilder('dns_monitoring_events');
+        $monitoringEvents->addColumn('id', Types::INTEGER, ['autoincrement' => true]);
+        $monitoringEvents->addColumn('managed_zone_id', Types::INTEGER);
+        $monitoringEvents->addColumn('check_type', Types::STRING, ['length' => 32]);
+        $monitoringEvents->addColumn('previous_status', Types::STRING, ['length' => 32, 'notnull' => false]);
+        $monitoringEvents->addColumn('status', Types::STRING, ['length' => 32]);
+        $monitoringEvents->addColumn('severity', Types::STRING, ['length' => 16]);
+        $monitoringEvents->addColumn('fingerprint', Types::STRING, ['length' => 64]);
+        $monitoringEvents->addColumn('occurred_at', Types::DATETIME_MUTABLE);
+        $monitoringEvents->setPrimaryKey(['id']);
+        $monitoringEvents->addIndex(['managed_zone_id', 'occurred_at'], 'idx_dme_zone_occurred');
+        $monitoringEvents->addForeignKeyConstraint('managed_zones', ['managed_zone_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_dme_zone');
+
         return array_map(static fn(CanonicalTableBuilder $table): Table => $table->create(), [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $this->totpCredentialTableBuilder(), $apiKeys,
             $accounts, $resourceLimits, $accMembers, $accountInvitations, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
             $pwResetTokens, $recoveries, $recoveryCredentials, $systemSettings, $stepUpProofNonces,
+            $monitoringConfig, $monitoringState, $monitoringEvents,
         ]);
     }
 
