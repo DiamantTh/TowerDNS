@@ -74,12 +74,16 @@ bzw. Podman.
 
 ```sh
 php bin/towerdns list
+php bin/towerdns towerdns:upgrade:check
+php bin/towerdns towerdns:upgrade:check --format=json
 php bin/towerdns towerdns:schema:status
 php bin/towerdns towerdns:schema:validate
 php bin/towerdns towerdns:schema:migrate --confirm
 php bin/towerdns zone:list desec
 php bin/towerdns record:list desec example.org --format=json
 ```
+
+Upgrade-Vorprüfung und Backup-/Restore-Grenzen: [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
 ## Aufbau und Herkunft
 

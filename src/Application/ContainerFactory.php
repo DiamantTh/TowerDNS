@@ -119,6 +119,7 @@ use TowerDNS\Infrastructure\Console\RrsetListCommand;
 use TowerDNS\Infrastructure\Console\SchemaMigrateCommand;
 use TowerDNS\Infrastructure\Console\SchemaStatusCommand;
 use TowerDNS\Infrastructure\Console\SchemaValidateCommand;
+use TowerDNS\Infrastructure\Console\UpgradeCheckCommand;
 use TowerDNS\Infrastructure\Console\ZoneListCommand;
 use TowerDNS\Infrastructure\DNS\AuthoritativeTlsaChecker;
 use TowerDNS\Infrastructure\DNS\TrustedResolverDnssecDiagnostic;
@@ -737,7 +738,15 @@ final class ContainerFactory
             SchemaStatusCommand::class   => \DI\autowire(),
             SchemaMigrateCommand::class  => \DI\autowire(),
             SchemaValidateCommand::class => \DI\autowire(),
-            LocalModuleDiscovery::class  => $moduleDiscovery,
+            UpgradeCheckCommand::class   => \DI\factory(
+                static fn(\Psr\Container\ContainerInterface $c): UpgradeCheckCommand => new UpgradeCheckCommand(
+                    $projectRoot,
+                    $c->get(Connection::class),
+                    $c->get(SchemaMigrationManager::class),
+                    $moduleDiscovery,
+                )
+            ),
+            LocalModuleDiscovery::class => $moduleDiscovery,
         ]);
 
         return $builder->build();

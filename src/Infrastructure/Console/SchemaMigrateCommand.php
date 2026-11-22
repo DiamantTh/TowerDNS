@@ -53,7 +53,16 @@ final class SchemaMigrateCommand extends Command
         try {
             $status = $this->migrations->migrate();
         } catch (\Throwable) {
-            $io->error('The schema update failed. Check the database connection, permissions and the backup before retrying.');
+            $io->error('The schema update failed. The database may contain partially applied DDL; do not assume it was rolled back. Inspect schema status and restore or repair from the verified backup before retrying.');
+            try {
+                $status = $this->migrations->status();
+                $io->text(sprintf('Migration metadata: %s; pending migrations reported: %d.', $status->metadataInitialized ? 'initialized' : 'not initialized', count($status->pending)));
+                if ($status->schemaIssues !== [] || $status->dataIssues !== []) {
+                    $io->listing([...$status->schemaIssues, ...$status->dataIssues]);
+                }
+            } catch (\Throwable) {
+                $io->text('The post-failure database state could not be inspected.');
+            }
             return self::FAILURE;
         }
 

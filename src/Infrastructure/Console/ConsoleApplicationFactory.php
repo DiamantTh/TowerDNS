@@ -40,6 +40,7 @@ final class ConsoleApplicationFactory
         $application->addCommand($container->get(InstallCommand::class));
         $application->addCommand($container->get(PasswordResetCommand::class));
         $application->addCommand($container->get(ZoneListCommand::class));
+        $application->addCommand($container->get(UpgradeCheckCommand::class));
         $application->addCommand($container->get(RecordListCommand::class));
         $application->addCommand($container->get(RrsetListCommand::class));
         $application->addCommand($container->get(ModuleListCommand::class));
