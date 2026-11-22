@@ -2,24 +2,50 @@
 
 The PHPUnit migration tests always run against a temporary SQLite database.
 MariaDB and PostgreSQL are optional backends selected through environment
-variables. They must point at disposable databases; the test suite drops all
-tables in those databases between scenarios.
+variables. These integration suites drop every table in their selected
+database. External DSNs are therefore rejected unless the database name ends
+in `_test`, `_testing`, or `_integration` and the operator explicitly sets
+`TOWERDNS_TEST_DATABASE_CONFIRMATION=I_UNDERSTAND_TESTS_DROP_ALL_TABLES`.
+Use a dedicated test user with access only to the disposable database.
 
-The supplied container definition defaults to the database-only test services.
-It also contains an optional `app` profile which builds an Apache/PHP
-development container; TowerDNS does not require a container runtime outside
-this development setup. With a Compose-compatible Podman or Docker plugin:
+### Reproducible database matrix
+
+`run-database-matrix.sh` starts only the selected database services using
+Docker Compose or Podman Compose. It creates a unique Compose project, uses
+the dedicated `towerdns_test` databases and restricted test users, waits for
+DBAL connections, runs migration and IAM concurrency integration suites, and
+removes only that project's containers and volumes. SQLite runs in PHPUnit as
+well. No container runtime is required when disposable MariaDB/PostgreSQL
+servers are already installed:
 
 ```sh
-podman compose -f tests/Integration/compose.yaml up -d
-
-TOWERDNS_DB_INTEGRATION_DATABASES=mariadb,postgresql \
-TOWERDNS_TEST_MARIADB_DSN='mysql://towerdns_app:towerdns_app@127.0.0.1:13306/towerdns_test' \
-TOWERDNS_TEST_POSTGRESQL_DSN='pgsql://towerdns_app:towerdns_app@127.0.0.1:15432/towerdns_test' \
-vendor/bin/phpunit tests/Integration/SchemaMigrationDatabaseIntegrationTest.php
-
-podman compose -f tests/Integration/compose.yaml down -v
+sh tests/Integration/run-database-matrix.sh
+TOWERDNS_DB_MATRIX_BACKENDS=mariadb sh tests/Integration/run-database-matrix.sh
+TOWERDNS_DB_MATRIX_BACKENDS=postgresql sh tests/Integration/run-database-matrix.sh
 ```
+
+To use already running local/test servers, provide the DSN(s) for the selected
+backend(s) and make the destructive intent explicit. Credentials are not
+printed by the runner:
+
+```sh
+TOWERDNS_DB_MATRIX_USE_EXISTING=1 \
+TOWERDNS_DB_MATRIX_BACKENDS=mariadb,postgresql \
+TOWERDNS_TEST_MARIADB_DSN='mysql://test-user:password@127.0.0.1:3306/towerdns_test' \
+TOWERDNS_TEST_POSTGRESQL_DSN='pgsql://test-user:password@127.0.0.1:5432/towerdns_integration' \
+TOWERDNS_TEST_DATABASE_CONFIRMATION=I_UNDERSTAND_TESTS_DROP_ALL_TABLES \
+sh tests/Integration/run-database-matrix.sh
+```
+
+The database-name suffix and confirmation are safety rails, not a replacement
+for isolated test credentials. Never point these tests at production. If the
+host disallows its container runtime, use an installed disposable database or
+report that backend as not run. A missing driver or service is never reported
+as a pass.
+
+The supplied container definition has database-only services and an optional
+`app` profile which builds an Apache/PHP development container; TowerDNS does
+not require a container runtime outside this development setup.
 
 To build and start the optional application container (the first build needs
 network access for the Composer and npm dependency stages):
@@ -79,16 +105,11 @@ account or with a physical authenticator.
 `IamAuthorizationConcurrencyIntegrationTest` uses `pcntl_fork()` and separate
 database connections to race removal of two remaining superadmin role
 assignments and concurrent deactivation of both superadmins. SQLite runs on a
-temporary file. To run the same real multi-process scenarios against the
-disposable Compose server databases, start the database services and set the
-integration variables as shown above, then run:
+temporary file. The matrix runner executes these scenarios against each
+selected database backend after the migration suite:
 
 ```sh
-TOWERDNS_DB_INTEGRATION_DATABASES=mariadb,postgresql \
-TOWERDNS_TEST_MARIADB_DSN='mysql://towerdns_app:towerdns_app@127.0.0.1:13306/towerdns_test' \
-TOWERDNS_TEST_POSTGRESQL_DSN='pgsql://towerdns_app:towerdns_app@127.0.0.1:15432/towerdns_test' \
-vendor/bin/phpunit tests/Integration/SchemaMigrationDatabaseIntegrationTest.php \
-  tests/Integration/IamAuthorizationConcurrencyIntegrationTest.php
+sh tests/Integration/run-database-matrix.sh
 ```
 
 The MariaDB service and restricted `towerdns_app` PostgreSQL role are used for

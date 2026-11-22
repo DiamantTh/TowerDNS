@@ -6,14 +6,17 @@ profile=tempfile.mkdtemp(prefix='towerdns-firefox-')
 port=28570
 with open(profile+'/user.js','w') as f: f.write('user_pref("marionette.port", %d);\nuser_pref("marionette.enabled", true);\n' % port)
 server=subprocess.Popen(['php','-S','127.0.0.1:28571','-t',root+'/httpdocs',root+'/tests/Frontend/dns-browser-router.php'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
-env=os.environ.copy(); env['MOZ_DISABLE_CONTENT_SANDBOX']='1'; env['MOZ_HEADLESS']='1'
-browser=subprocess.Popen(['firefox','--headless','--marionette','--no-remote','--profile',profile],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+env=os.environ.copy(); env.pop('MOZ_DISABLE_CONTENT_SANDBOX', None); env['MOZ_HEADLESS']='1'
+browser_log=tempfile.TemporaryFile()
+browser=subprocess.Popen(['firefox','--headless','--marionette','--no-remote','--profile',profile],env=env,stdout=browser_log,stderr=subprocess.STDOUT)
 sock=None
 try:
  for _ in range(100):
   try: sock=socket.create_connection(('127.0.0.1',port),timeout=1); break
   except OSError: time.sleep(.2)
- if sock is None: raise RuntimeError('Firefox Marionette did not start')
+ if sock is None:
+  browser_log.seek(0); browser_output=browser_log.read()[-6000:].decode(errors='replace')
+  raise RuntimeError('Firefox Marionette did not start (exit=%s). Recent browser output:\n%s' % (browser.poll(), browser_output or '<no browser output>'))
  sock.settimeout(30)
  def receive():
   prefix=b''
@@ -109,4 +112,5 @@ finally:
  browser.terminate(); server.terminate()
  try: browser.wait(timeout=5)
  except subprocess.TimeoutExpired: browser.kill()
+ browser_log.close()
  shutil.rmtree(profile,ignore_errors=True)

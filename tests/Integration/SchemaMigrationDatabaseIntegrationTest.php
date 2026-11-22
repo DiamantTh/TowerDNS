@@ -332,8 +332,11 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
         // parse_url() guarantees string host/path/user/pass and integer port
         // components when present; the required host/path presence is checked
         // above before these values cross into DBAL.
-        $host     = $parts['host'];
-        $path     = $parts['path'];
+        $host         = $parts['host'];
+        $path         = $parts['path'];
+        $database     = rawurldecode(ltrim($path, '/'));
+        $confirmation = getenv('TOWERDNS_TEST_DATABASE_CONFIRMATION');
+        DisposableDatabaseGuard::assertSafeTarget($backend, $database, $confirmation === false ? null : $confirmation);
         $port     = $parts['port'] ?? ($backend === 'mariadb' ? 3306 : 5432);
         $user     = $parts['user'] ?? '';
         $password = $parts['pass'] ?? '';
@@ -342,7 +345,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             'driver'   => $backend === 'mariadb' ? 'pdo_mysql' : 'pdo_pgsql',
             'host'     => $host,
             'port'     => $port,
-            'dbname'   => ltrim($path, '/'),
+            'dbname'   => $database,
             'user'     => rawurldecode($user),
             'password' => rawurldecode($password),
         ];
