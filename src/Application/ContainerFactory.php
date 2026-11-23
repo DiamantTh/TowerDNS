@@ -742,15 +742,19 @@ final class ContainerFactory
             \TowerDNS\Infrastructure\Console\MonitorNotifyCommand::class => \DI\factory(
                 static fn(\TowerDNS\Infrastructure\Persistence\MonitoringAlerts $alerts): \TowerDNS\Infrastructure\Console\MonitorNotifyCommand => new \TowerDNS\Infrastructure\Console\MonitorNotifyCommand($alerts, (array) ($appConf['monitoring_mailer'] ?? [])),
             ),
-            MonitorRunCommand::class       => \DI\autowire(),
-            MonitorConfigureCommand::class => \DI\autowire(),
-            RecordListCommand::class       => \DI\autowire(),
-            RrsetListCommand::class        => \DI\autowire(),
-            ModuleListCommand::class       => \DI\autowire(),
-            SchemaStatusCommand::class     => \DI\autowire(),
-            SchemaMigrateCommand::class    => \DI\autowire(),
-            SchemaValidateCommand::class   => \DI\autowire(),
-            UpgradeCheckCommand::class     => \DI\factory(
+            MonitorRunCommand::class                              => \DI\autowire(),
+            MonitorConfigureCommand::class                        => \DI\autowire(),
+            RecordListCommand::class                              => \DI\autowire(),
+            RrsetListCommand::class                               => \DI\autowire(),
+            ModuleListCommand::class                              => \DI\autowire(),
+            SchemaStatusCommand::class                            => \DI\autowire(),
+            SchemaMigrateCommand::class                           => \DI\autowire(),
+            SchemaValidateCommand::class                          => \DI\autowire(),
+            \TowerDNS\Infrastructure\Backup\DatabaseBackup::class => \DI\factory(static function () use ($projectRoot, $appConf): \TowerDNS\Infrastructure\Backup\DatabaseBackup {
+                $key = $appConf['security']['encryption_key'] ?? null;
+                return new \TowerDNS\Infrastructure\Backup\DatabaseBackup($projectRoot, is_string($key) ? $key : null, '1.0.0');
+            }),
+            UpgradeCheckCommand::class => \DI\factory(
                 static fn(\Psr\Container\ContainerInterface $c): UpgradeCheckCommand => new UpgradeCheckCommand(
                     $projectRoot,
                     $c->get(Connection::class),

@@ -73,7 +73,7 @@
         "cs":      "php-cs-fixer fix",
         "cs-check": "php-cs-fixer fix --dry-run --diff --sequential",
         "phpcs":   "phpcs --standard=phpcs.xml.dist",
-        "psalm":   "psalm --threads=1",
+        "psalm":   "psalm --threads=1 --scan-threads=1",
         "psalm-taint": "psalm --threads=1 --taint-analysis",
         "rector":  "rector process",
         "rector-check": "rector process --dry-run --debug",

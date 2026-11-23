@@ -39,6 +39,12 @@ final readonly class SchemaMigrationManager
         Migrations\Version20261124000100::class,
     ];
 
+    /** @return list<class-string> */
+    public static function supportedVersions(): array
+    {
+        return self::MIGRATIONS;
+    }
+
     public function __construct(
         private Connection $connection,
         private ?string $lockPath = null,

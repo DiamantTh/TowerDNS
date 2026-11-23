@@ -35,39 +35,111 @@ wird.
 
 ## Backup und Restore
 
-Ein vollständiges Anwendungsbackup besteht aus:
+Die Backup-CLI sichert die TowerDNS-Datenbank einschließlich Benutzerkonten,
+WebAuthn-Binärwerten, TOTP, RBAC, API-Key-Prüfwerten und Gültigkeit, Provider-
+und Zonenzuordnungen, Audit sowie Monitoringregeln, Historie und Zustellstatus.
 
-- konsistenter Datenbanksicherung (Benutzer, WebAuthn-/TOTP-Credentials,
-  Rollen, API-Key-Digests, Providerzuordnungen, Audit- und TLSA-Daten);
-- `configs/` einschließlich der zur Datenbank passenden
-  `security.encryption_key` und Providerkonfiguration;
-- gegebenenfalls zusätzlich benötigter Deployment-/Webserverkonfiguration.
+Separat sichern:
 
-Der Anwendungsschlüssel ist notwendig, um verschlüsselte Providerzugänge und
-TOTP-Secrets wieder zu entschlüsseln. Er muss separat und mindestens so gut
-geschützt wie das Datenbankbackup gesichert werden. Keine Schlüssel oder
-Passwörter in Kommandozeilenargumente, Git, Supporttickets oder ungeschützte
-Backupverzeichnisse schreiben. DB-native Werkzeuge und geschützte
-Credential-Dateien beziehungsweise Secret-Management verwenden. Bei SQLite
-eine konsistente Online-Sicherung über SQLite-Backupfunktionen oder die
-Anwendung nach sauberem Stop sichern; nicht blind eine aktive WAL-Datenbank
-kopieren.
+- `configs/config.local.toml` mit dem ursprünglichen Anwendungsschlüssel, der
+  WebAuthn-RP-ID, dem Origin und der Mailkonfiguration.
+- `configs/database.toml`, `configs/providers.toml`, weitere Betreiber- und
+  Moduldaten sowie Deployment-Secrets, etwa `DB_PASSWORD` aus dem Secret Store.
+  Externe private Schlüssel und Zertifikate nach dem Verfahren ihres Betreibers
+  sichern.
+- Die passende vorbereitete Distribution mit Modulen, Themes, Abhängigkeiten
+  und geprüften Assets. Site-spezifische Uploads, zusätzliche Runtime-Dateien
+  und Webserverkonfiguration separat inventarisieren. Sitzungen und
+  Rate-Limit-Caches für einen sauberen Wiederanlauf neu beginnen.
 
-Restore-Reihenfolge: TowerDNS stoppen, Codeversion und Konfiguration passend
-zum Backup bereitstellen, Datenbank in eine isolierte beziehungsweise
-freigegebene Ziel-DB wiederherstellen, Runtime-Dateirechte prüfen und erst
-dann Anwendung starten. Anschließend Schema-Status, Schema-Validierung,
-Anmeldung und Provider-Readback prüfen. Ein Restore der TowerDNS-Datenbank
-spielt **keine** früheren DNS-Records beim externen Provider zurück. Provider-
-Zustände separat lesend vergleichen; keine automatische vollständige
-Zonensynchronisierung oder RRset-Ersetzung als Restore ausführen.
+Datenbank und Konfigurationsstand gemeinsam dokumentieren. Während der Sicherung
+keine Konfigurations- oder Schlüsseländerungen durchführen. Der Schlüssel
+entschlüsselt die gespeicherten Providerzugänge und TOTP-Secrets. Das Manifest
+enthält seinen SHA-256-Prüfwert zur Zuordnung, der Schlüssel selbst bleibt im
+Secret Store. Bei Schlüsselrotation alte Schlüssel für die zugehörigen
+Sicherungen geschützt aufbewahren und neue Sicherungen erstellen.
 
-Ein Code-Rollback ist nur sicher, wenn die alte Anwendung das bereits
-migrierte Schema unterstützt. TowerDNS-Migrationen können irreversibel sein;
-Downgrade-Migrationen dürfen nicht angenommen werden. Bei einem Upgradefehler
-ist oft der sichere Rückweg: Anwendung anhalten, zueinander passende
-Code-/Konfigurations-/Datenbanksicherung wiederherstellen und danach Zustand
-validieren.
+### Backup erstellen und prüfen
+
+```sh
+install -d -m 0700 /srv/private/towerdns-backups
+php bin/towerdns towerdns:backup:create /srv/private/towerdns-backups/snapshot-001 --allow-plaintext
+php bin/towerdns towerdns:backup:verify /srv/private/towerdns-backups/snapshot-001
+```
+
+Die Beispiele setzen ein privates, betreibergeschütztes Verzeichnis außerhalb
+jedes Webroots und Git-Checkouts voraus. Der Zielordner muss neu sein.
+`database.dump` und `manifest.json` haben Modus 0600, der Ordner 0700. Das
+Manifest wird erst nach der Sicherung und Formatprüfung veröffentlicht. Wenn
+ein Prozess hart abgebrochen wird, kann ein privater Ordner ohne vollständiges
+Manifest zurückbleiben. Erst nach Prüfung durch den Betreiber bereinigen.
+
+**Das Bundle ist unverschlüsselt.** `--allow-plaintext` bestätigt die bewusste
+Entscheidung. Für Aufbewahrung und Transport ein verschlüsseltes Volume oder
+ein externes Werkzeug mit authentifizierter Verschlüsselung verwenden. Den
+Entschlüsselungsschlüssel getrennt sichern und Wiederherstellung regelmäßig
+üben. Prüfsummen erkennen Beschädigungen, authentifizieren den Herausgeber
+aber nicht. Ausschließlich Sicherungen aus vertrauenswürdiger Herkunft
+verwenden, insbesondere bei nativen SQL-Archiven.
+
+| Datenbank | Verfahren und Voraussetzungen |
+| --- | --- |
+| SQLite | `VACUUM INTO` über den vorhandenen PDO-Treiber. Konsistenter Snapshot auch in WAL. Integritäts- und Fremdschlüsselprüfung beim Verifizieren. |
+| MariaDB | `mariadb-dump` mit konsistentem Transaktionssnapshot für InnoDB und binärtreuem Export. Dedizierte TowerDNS-Datenbank. Zusätzliche Serverobjekte wie Trigger, Routinen und Events liegen außerhalb des Backupvertrags. Restore über `mariadb`. |
+| PostgreSQL | `pg_dump` im Custom-Format, Schema `public`. `pg_restore` prüft das Archive-Verzeichnis und stellt in einer Transaktion wieder her. Serverrollen und Grants separat verwalten. |
+
+Native Programme müssen im CLI-PATH liegen und zum Datenbankserver passen.
+Verbindungsdaten übernimmt die CLI aus der vorhandenen DBAL-Konfiguration.
+Passwörter gelangen über kurzlebige Dateien im privaten Arbeitsverzeichnis
+zum Client. Keine Zugangsdaten in Prozessargumenten. TowerDNS sperrt seine
+eigenen Migrationen während der Sicherung. Externe DDL, Plugins und
+Schemaverwaltungsprozesse müssen im Wartungsfenster angehalten werden.
+
+Die Befehle geben bei Erfolg JSON aus. Exitcode 0 bedeutet Erfolg, 1 einen
+fehlgeschlagenen Vorgang und 2 eine fehlende oder ungültige CLI-Freigabe.
+`verify` prüft die Integrität und das Format. Für native Server-Dumps ist die
+vollständige Probe der tatsächliche Restore in eine leere Testdatenbank.
+
+### Offline wiederherstellen
+
+```sh
+install -d -m 0700 /srv/private/towerdns-restore
+php bin/towerdns towerdns:backup:restore /srv/private/towerdns-backups/snapshot-001 \
+  --sqlite-target=/srv/private/towerdns-restore/recovered.sqlite --confirm=offline-restore
+```
+
+SQLite benötigt ein neues Dateiziel ohne Journal- oder WAL-Dateien. Der
+geprüfte Snapshot wird aus einer privaten Staging-Datei veröffentlicht, ohne
+eine vorhandene Datei zu ersetzen. Für Serverdatenbanken eine leere,
+isolierte Datenbank mit Namen `towerdns_restore_<name>` bereitstellen und den
+DBAL-Zugang in einem separaten Checkout darauf setzen. Dann anstelle von
+`--sqlite-target` die Option `--server-target` verwenden. Keine anderen
+Verbindungen oder Scheduler auf diesem Ziel zulassen. Ein Fehler beim
+MariaDB-Import kann Teilergebnisse hinterlassen. Vor einem erneuten Versuch
+die isolierte Datenbank prüfen oder neu bereitstellen.
+
+Den ursprünglichen Anwendungsschlüssel in der lokalen Konfiguration
+bereitstellen. Bei einem älteren unterstützten Migrationsstand das
+Upgrade-Preflight und die explizite Migration anschließend ausführen. Vor der
+Freigabe Konten, Passwort-Anmeldung, WebAuthn und TOTP, Rollen, API-Scopes und
+Zonen kontrollieren. Seit dem Backup erfolgte Sperren, Passwortwechsel und
+Widerrufe anhand einer getrennten aktuellen Quelle nachvollziehen und erneut
+anwenden. Alte Sitzungsspeicher nicht übernehmen. Die Benachrichtigungs-CLI
+erst nach Prüfung der wiederhergestellten Warteschlange starten.
+
+Der Datenbank-Restore ändert keine externen DNS-Daten. Providerzugang,
+Zonenzuordnung und TLSA-RRsets nach der Wiederherstellung mit den vorhandenen
+lesenden Provider- und DNS-Abfragen kontrollieren. Ein Code-Rollback setzt
+voraus, dass die frühere Version das vorliegende Schema verträgt. Nach
+fehlgeschlagenem DDL ist die Wiederherstellung eines passenden
+Code-/Konfigurations-/Datenbankstands der kontrollierte Weg.
+
+Für Cron oder systemd-Timer feste private Pfade, einen dedizierten
+Betriebsbenutzer und pro Lauf einen neuen Ordner vorsehen. Auf freien Platz
+für Dump und Restore-Staging achten. Überlappende Läufe per Scheduler
+ausschließen, Exitcodes im externen Backupmonitoring auswerten und Rotation
+erst nach erfolgreichem Verify durchführen. Die 11A-Mailwarteschlange nimmt
+keine Backup-Fehler entgegen.
 
 ## Lesendes DNS-Monitoring
 

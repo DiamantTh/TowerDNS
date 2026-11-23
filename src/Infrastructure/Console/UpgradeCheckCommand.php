@@ -9,7 +9,7 @@ namespace TowerDNS\Infrastructure\Console;
 
 use Devium\Toml\Toml;
 use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\Platforms\MySQLPlatform;
+use Doctrine\DBAL\Platforms\AbstractMySQLPlatform;
 use Doctrine\DBAL\Platforms\PostgreSQLPlatform;
 use Doctrine\DBAL\Platforms\SQLitePlatform;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -57,14 +57,23 @@ final class UpgradeCheckCommand extends Command
         try {
             $platform             = $this->connection->getDatabasePlatform();
             [$driver, $extension] = match (true) {
-                $platform instanceof SQLitePlatform     => ['pdo_sqlite', 'pdo_sqlite'],
-                $platform instanceof MySQLPlatform      => ['pdo_mysql', 'pdo_mysql'],
-                $platform instanceof PostgreSQLPlatform => ['pdo_pgsql', 'pdo_pgsql'],
-                default                                 => ['unsupported', ''],
+                $platform instanceof SQLitePlatform        => ['pdo_sqlite', 'pdo_sqlite'],
+                $platform instanceof AbstractMySQLPlatform => ['pdo_mysql', 'pdo_mysql'],
+                $platform instanceof PostgreSQLPlatform    => ['pdo_pgsql', 'pdo_pgsql'],
+                default                                    => ['unsupported', ''],
             };
             $driverReady = $extension !== '' && extension_loaded($extension);
+            /** @psalm-suppress InternalMethod Inspect the configured SQLite path before DBAL can open or create the file. */
+            $sqlitePath = $this->connection->getParams()['path'] ?? null;
+            if ($driver === 'pdo_sqlite' && is_string($sqlitePath) && !is_file($sqlitePath)) {
+                throw new \RuntimeException('SQLite database is missing.');
+            }
             $this->connection->executeQuery('SELECT 1');
             $add('database', $driverReady, $driver, $driverReady ? 'connection successful' : 'unsupported or unavailable PDO driver');
+            if ($driverReady) {
+                $version = (string) $this->connection->fetchOne($driver === 'pdo_sqlite' ? 'SELECT sqlite_version()' : 'SELECT VERSION()');
+                $add('database_version', true, $version);
+            }
         } catch (\Throwable) {
             $driver ??= 'unknown';
             $add('database', false, $driver, 'connection failed; credentials are not displayed');

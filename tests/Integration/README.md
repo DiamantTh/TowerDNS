@@ -185,3 +185,21 @@ uses Apache/PHP 8.4 and performs HTTP installs with SQLite, MariaDB, and
 PostgreSQL. The Nginx/PHP-FPM configuration is documented but was not executed
 in an Nginx runtime in this environment. No real shared-hosting account or
 physical WebAuthn authenticator was available for testing.
+
+### Native Backup- und Restore-Proben
+
+`tests/Integration/DatabaseBackupIntegrationTest.php` prüft SQLite lokal.
+Für die native Probe pro Servertyp zwei leere, getrennte Testdatenbanken
+bereitstellen. Die Quellnamen müssen `towerdns_backup_<name>_test` lauten und
+die Zielnamen `towerdns_restore_<name>_test`. Setze die DSNs für beide über
+`TOWERDNS_BACKUP_MARIADB_SOURCE_DSN` und `TOWERDNS_BACKUP_MARIADB_TARGET_DSN`
+beziehungsweise `TOWERDNS_BACKUP_POSTGRESQL_SOURCE_DSN` und
+`TOWERDNS_BACKUP_POSTGRESQL_TARGET_DSN`. Setze zusätzlich
+`TOWERDNS_BACKUP_TEST_CONFIRM=isolated-empty-databases`. Verwende die
+passenden nativen Clients im PATH. Beide Datenbanken bleiben nach der Probe
+für die Kontrolle erhalten und müssen vor einem erneuten Lauf neu eingerichtet
+werden. Ohne Freigabe und DSNs werden die beiden nativen Tests übersprungen.
+
+```sh
+vendor/bin/phpunit tests/Integration/DatabaseBackupIntegrationTest.php --display-skipped
+```

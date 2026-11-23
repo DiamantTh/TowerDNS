@@ -53,6 +53,19 @@ final class ConsoleApplicationFactory
         $application->addCommand($container->get(RecordListCommand::class));
         $application->addCommand($container->get(RrsetListCommand::class));
         $application->addCommand($container->get(ModuleListCommand::class));
+        foreach (['create', 'verify', 'restore'] as $operation) {
+            $application->addCommand(new LazyCommand(
+                'towerdns:backup:' . $operation,
+                [],
+                DatabaseBackupCommand::description($operation),
+                false,
+                static fn(): DatabaseBackupCommand => new DatabaseBackupCommand(
+                    $container->get(\TowerDNS\Infrastructure\Backup\DatabaseBackup::class),
+                    static fn(): \Doctrine\DBAL\Connection => $container->get(\Doctrine\DBAL\Connection::class),
+                    $operation,
+                ),
+            ));
+        }
         $application->addCommand(new LazyCommand(
             'towerdns:schema:status',
             [],
