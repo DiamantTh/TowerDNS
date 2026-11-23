@@ -296,7 +296,7 @@ final class MonitoringServiceTest extends TestCase
         $diagnostic->method('checkSmtpDane')->willReturn(['status' => 'secure', 'mx' => []]);
         $first = ['nameserver' => 'ns1.example.test', 'address' => null, 'status' => 'has_unexpected_records',
             'rcode'            => 'NOERROR', 'authoritative' => true, 'records' => [$value, $extra], 'minimum_ttl' => 300, 'checked_at' => '2026-11-24T00:00:00Z'];
-        $second  = [...$first, 'nameserver' => 'ns2.example.test', 'status' => 'nodata', 'records' => []];
+        $second  = array_replace($first, ['nameserver' => 'ns2.example.test', 'status' => 'nodata', 'records' => []]);
         $checker = $this->createMock(\TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface::class);
         $checker->expects(self::exactly(2))->method('check')->with('_443._tcp.example.test', 'example.test', [$value], null)->willReturnOnConsecutiveCalls(
             new \TowerDNS\Application\DTO\AuthoritativeTlsaCheck('_443._tcp.example.test', 'records_differ', '2026-11-24T00:00:00Z', 'fixture', [$value], [$first], null, 'direct_authoritative_nameserver_queries'),
