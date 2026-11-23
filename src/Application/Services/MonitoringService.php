@@ -18,17 +18,18 @@ final readonly class MonitoringService
         private MonitoringRepositoryInterface $repository,
         private DnssecDiagnosticInterface $diagnostic,
         private ClockInterface $clock,
+        private ?\TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface $authoritative = null,
     ) {}
 
     public function configure(int $zoneId, bool $enabled, bool $smtpDaneEnabled, int $intervalMinutes, ?string $actorId): void
     {
-        $this->repository->configure($zoneId, $enabled, $smtpDaneEnabled, $intervalMinutes, $actorId, $this->clock->now()->format('Y-m-d H:i:s'));
+        $this->repository->configure($zoneId, $enabled, $smtpDaneEnabled, $intervalMinutes, $actorId, $this->clock->now()->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s'));
     }
 
     /** @return array{checked: int, changed: int, warnings: int, failures: int, results: list<array<string, mixed>>} */
     public function runDue(?int $zoneId = null, bool $force = false): array
     {
-        $now      = $this->clock->now();
+        $now      = $this->clock->now()->setTimezone(new \DateTimeZone('UTC'));
         $checked  = 0;
         $changed  = 0;
         $warnings = 0;
@@ -43,7 +44,7 @@ final readonly class MonitoringService
             $interval    = max(5, min(1440, (int) ($zone['interval_minutes'] ?? 60)));
             if (!$force && is_string($lastChecked) && $lastChecked !== '') {
                 try {
-                    if (new \DateTimeImmutable($lastChecked) > $now->modify('-' . $interval . ' minutes')) {
+                    if (new \DateTimeImmutable($lastChecked, new \DateTimeZone('UTC')) > $now->modify('-' . $interval . ' minutes')) {
                         continue;
                     }
                 } catch (\Exception) {
@@ -97,7 +98,7 @@ final readonly class MonitoringService
                 'dnssec_bogus'                                => 'critical',
                 'dnssec_insecure', 'published_without_dnssec' => 'warning',
                 'secure_records_published'                    => 'info',
-                'secure_partial_tlsa'                         => 'notice',
+                'secure_partial_tlsa'                         => 'warning',
                 'secure_no_mx', 'secure_no_tlsa'              => 'notice',
                 default                                       => 'unknown',
             };
@@ -127,6 +128,40 @@ final readonly class MonitoringService
             $severity = 'unknown';
             $method   = 'configured_validating_resolver';
             $summary  = ['scope' => 'dns_only_no_smtp_handshake', 'reason' => 'diagnostic_request_failed'];
+        }
+
+        if ($this->authoritative instanceof \TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface && is_string($zone['tlsa_owner'] ?? null) && is_string($zone['tlsa_expected'] ?? null)) {
+            $owner    = $zone['tlsa_owner'] . '.' . rtrim($domain, '.');
+            $expected = explode("\n", $zone['tlsa_expected']);
+            try {
+                $result   = $this->authoritative->check($owner, $domain, $expected, null);
+                $coverage = [];
+                foreach ($result->servers as $server) {
+                    if ($server['authoritative'] && in_array($server['status'], ['matches', 'has_unexpected_records', 'partial', 'mismatch', 'nodata', 'nxdomain'], true)) {
+                        $coverage[] = array_diff($expected, $server['records']) === [];
+                    }
+                }
+                $summary['authoritative'] = [
+                    'owner'    => $owner, 'source' => $result->scope, 'status' => $result->status,
+                    'answered' => count($coverage), 'matched' => count(array_filter($coverage)),
+                ];
+                if ($status !== 'dnssec_bogus' && in_array(false, $coverage, true)) {
+                    $status   = in_array(true, $coverage, true) ? 'authoritative_divergent' : 'authoritative_missing';
+                    $severity = 'warning';
+                    $method   = $result->scope;
+                } elseif ($severity !== 'critical' && ($coverage === [] || count($coverage) !== count($result->servers) || $result->status === 'incomplete')) {
+                    $status   = 'authoritative_unknown';
+                    $severity = 'unknown';
+                    $method   = $result->scope;
+                }
+            } catch (\RuntimeException | \InvalidArgumentException) {
+                $summary['authoritative'] = ['owner' => $owner, 'status' => 'check_execution_failed'];
+                if ($severity !== 'critical') {
+                    $status   = 'authoritative_unknown';
+                    $severity = 'unknown';
+                    $method   = 'direct_authoritative_nameserver_queries';
+                }
+            }
         }
 
         $fingerprint = hash('sha256', json_encode([$status, $severity, $method, $summary], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));

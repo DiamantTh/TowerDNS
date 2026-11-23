@@ -217,7 +217,7 @@ final class MonitoringServiceTest extends TestCase
             10,
             'smtp_dane',
             'secure_partial_tlsa',
-            'notice',
+            'warning',
             self::anything(),
             self::anything(),
             self::anything(),
@@ -244,7 +244,7 @@ final class MonitoringServiceTest extends TestCase
         $result = new MonitoringService($repository, $diagnostic, $clock)->runDue();
 
         self::assertSame('secure_partial_tlsa', $result['results'][0]['status']);
-        self::assertSame('notice', $result['results'][0]['severity']);
+        self::assertSame('warning', $result['results'][0]['severity']);
     }
 
     public function testUnconfiguredResolverIsKeptAsNotChecked(): void
@@ -281,5 +281,30 @@ final class MonitoringServiceTest extends TestCase
 
         self::assertSame('not_checked', $result['results'][0]['status']);
         self::assertSame(1, $result['failures']);
+    }
+
+    public function testAuthoritativeChecksAllowExtraValuesAndDetectDivergence(): void
+    {
+        $value      = '3 1 1 ' . str_repeat('a', 64);
+        $extra      = '3 1 1 ' . str_repeat('b', 64);
+        $repository = $this->createStub(MonitoringRepositoryInterface::class);
+        $repository->method('listEnabled')->willReturn([[
+            'managed_zone_id'  => 7, 'canonical_name' => 'example.test', 'smtp_dane_enabled' => true,
+            'interval_minutes' => 60, 'tlsa_owner' => '_443._tcp', 'tlsa_expected' => $value,
+        ]]);
+        $diagnostic = $this->createStub(DnssecDiagnosticInterface::class);
+        $diagnostic->method('checkSmtpDane')->willReturn(['status' => 'secure', 'mx' => []]);
+        $first = ['nameserver' => 'ns1.example.test', 'address' => null, 'status' => 'has_unexpected_records',
+            'rcode'            => 'NOERROR', 'authoritative' => true, 'records' => [$value, $extra], 'minimum_ttl' => 300, 'checked_at' => '2026-11-24T00:00:00Z'];
+        $second  = [...$first, 'nameserver' => 'ns2.example.test', 'status' => 'nodata', 'records' => []];
+        $checker = $this->createMock(\TowerDNS\Application\Contracts\AuthoritativeTlsaCheckerInterface::class);
+        $checker->expects(self::exactly(2))->method('check')->with('_443._tcp.example.test', 'example.test', [$value], null)->willReturnOnConsecutiveCalls(
+            new \TowerDNS\Application\DTO\AuthoritativeTlsaCheck('_443._tcp.example.test', 'records_differ', '2026-11-24T00:00:00Z', 'fixture', [$value], [$first], null, 'direct_authoritative_nameserver_queries'),
+            new \TowerDNS\Application\DTO\AuthoritativeTlsaCheck('_443._tcp.example.test', 'records_differ', '2026-11-24T00:00:00Z', 'fixture', [$value], [$first, $second], null, 'direct_authoritative_nameserver_queries'),
+        );
+        $service = new MonitoringService($repository, $diagnostic, new \TowerDNS\Infrastructure\Clock\SystemClock(), $checker);
+
+        self::assertSame('secure_no_mx', $service->runDue()['results'][0]['status']);
+        self::assertSame('authoritative_divergent', $service->runDue()['results'][0]['status']);
     }
 }

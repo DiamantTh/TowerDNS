@@ -738,7 +738,10 @@ final class ContainerFactory
             PasswordResetCommand::class => \DI\factory(
                 static fn(): PasswordResetCommand => new PasswordResetCommand($projectRoot)
             ),
-            ZoneListCommand::class         => \DI\autowire(),
+            ZoneListCommand::class                                       => \DI\autowire(),
+            \TowerDNS\Infrastructure\Console\MonitorNotifyCommand::class => \DI\factory(
+                static fn(\TowerDNS\Infrastructure\Persistence\MonitoringAlerts $alerts): \TowerDNS\Infrastructure\Console\MonitorNotifyCommand => new \TowerDNS\Infrastructure\Console\MonitorNotifyCommand($alerts, (array) ($appConf['monitoring_mailer'] ?? [])),
+            ),
             MonitorRunCommand::class       => \DI\autowire(),
             MonitorConfigureCommand::class => \DI\autowire(),
             RecordListCommand::class       => \DI\autowire(),

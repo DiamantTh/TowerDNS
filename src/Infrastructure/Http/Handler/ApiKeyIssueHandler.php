@@ -47,15 +47,16 @@ final readonly class ApiKeyIssueHandler implements RequestHandlerInterface
         $zone    = filter_var($body['zone'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $name    = is_string($body['name'] ?? null) ? trim($body['name']) : '';
         $scope   = $body['scope'] ?? null;
-        $owner   = $body['owner'] ?? null;
+        $owner   = $body['owner'] ?? '';
         if (!is_int($account) || !is_int($zone) || $name === '' || strlen($name) > 100
-                              || !in_array($scope, ['tlsa:read', 'tlsa:append', 'tlsa:write'], true) || !is_string($owner)
-                              || ($scope !== 'tlsa:read' && trim($owner) === '')) {
+                              || !in_array($scope, ['tlsa:read', 'tlsa:append', 'tlsa:write', 'monitoring:read'], true) || !is_string($owner)
+                              || (in_array($scope, ['tlsa:append', 'tlsa:write'], true) && trim($owner) === '')
+                              || ($scope === 'monitoring:read' && trim($owner) !== '')) {
             return new JsonResponse(['error' => 'invalid_scope'], 422, $headers);
         }
         try {
             if (!$this->permissions->authorizeManagedZone($user, Permission::RECORD_READ, $account, $zone)
-                || ($scope !== 'tlsa:read' && !$this->permissions->authorizeManagedZone($user, Permission::RECORD_UPDATE, $account, $zone))
+                || (in_array($scope, ['tlsa:append', 'tlsa:write'], true) && !$this->permissions->authorizeManagedZone($user, Permission::RECORD_UPDATE, $account, $zone))
                 || ($scope === 'tlsa:write' && !$this->permissions->authorizeManagedZone($user, Permission::RECORD_DELETE, $account, $zone))) {
                 return new JsonResponse(['error' => 'forbidden'], 403, $headers);
             }

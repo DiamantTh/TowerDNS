@@ -150,6 +150,10 @@ final class Routes
         $tlsaApi     = '/api/v1/accounts/{account}/zones/{zone}/tlsa';
         $tlsaHandler = \TowerDNS\Infrastructure\Http\Handler\TlsaRecordHandler::class;
         $apiAuth     = \TowerDNS\Infrastructure\Http\Middleware\ApiKeyAuthenticationMiddleware::class;
+        $monitor     = \TowerDNS\Infrastructure\Http\Handler\ZoneMonitoringHandler::class;
+        $app->get('/api/v1/accounts/{account}/zones/{zone}/monitoring', [$apiAuth, $monitor], 'monitoring.api.read');
+        $app->get('/accounts/{account}/zones/{zone}/monitoring', [RequireAuthMiddleware::class, $monitor], 'monitoring.zone.read');
+        $app->post('/accounts/{account}/zones/{zone}/monitoring', [RequireAuthMiddleware::class, $monitor], 'monitoring.zone.configure');
         $app->get($tlsaWeb, [RequireAuthMiddleware::class, $tlsaHandler], 'tlsa.web.read');
         $app->post($tlsaWeb, [RequireAuthMiddleware::class, $tlsaHandler], 'tlsa.web.change');
         $app->post($tlsaWeb . '/diagnostic', [RequireAuthMiddleware::class, \TowerDNS\Infrastructure\Http\Handler\TlsaDiagnosticHandler::class], 'tlsa.web.diagnostic');

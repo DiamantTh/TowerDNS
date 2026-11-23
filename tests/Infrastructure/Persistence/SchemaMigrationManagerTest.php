@@ -23,12 +23,12 @@ final class SchemaMigrationManagerTest extends TestCase
         $status = $manager->migrate();
         self::assertSame([], $status->pending);
         self::assertTrue($status->schemaCurrent);
-        self::assertSame(9, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
+        self::assertSame(10, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
         self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles'));
 
         $second = $manager->migrate();
         self::assertSame([], $second->pending);
-        self::assertSame(9, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
+        self::assertSame(10, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'));
     }
 
     public function testCurrentSchemaIsBaselinedWithoutChangingExistingData(): void

@@ -32,6 +32,7 @@ final readonly class MonitoringHandler implements RequestHandlerInterface
         private AuthorizationService $authorization,
         private MonitoringService $monitoring,
         private AuditLogService $audit,
+        private \TowerDNS\Infrastructure\Persistence\MonitoringAlerts $alerts,
     ) {}
 
     #[\Override]
@@ -53,6 +54,7 @@ final readonly class MonitoringHandler implements RequestHandlerInterface
             'user'           => $user,
             'zones'          => $this->monitoring->overview(),
             'history'        => $zoneId === null ? [] : $this->monitoring->history($zoneId),
+            'deliveries'     => $zoneId === null ? [] : $this->alerts->deliveries($zoneId),
             'selectedZoneId' => $zoneId,
             'csrfToken'      => $guard->generateToken(),
             'success'        => ($query['success'] ?? null) === '1' ? 'monitoring.saved' : null,
@@ -62,9 +64,10 @@ final readonly class MonitoringHandler implements RequestHandlerInterface
 
     private function save(ServerRequestInterface $request, User $user): ResponseInterface
     {
-        $body = $request->getParsedBody();
-        if (!is_array($body)) {
-            return new RedirectResponse('/admin/monitoring?error=monitoring.invalid');
+        $body  = $request->getParsedBody();
+        $guard = $request->getAttribute(CsrfMiddleware::GUARD_ATTRIBUTE);
+        if (!is_array($body) || !$guard instanceof CsrfGuardInterface || !is_string($body['csrf_token'] ?? null) || !$guard->validateToken($body['csrf_token'])) {
+            return new HtmlResponse('', 403);
         }
         $zoneId   = is_string($body['managed_zone_id'] ?? null) ? $body['managed_zone_id'] : '';
         $interval = is_string($body['interval_minutes'] ?? null) ? $body['interval_minutes'] : '';
@@ -74,6 +77,36 @@ final readonly class MonitoringHandler implements RequestHandlerInterface
         $enabled  = ($body['enabled'] ?? null)           === '1';
         $smtpDane = ($body['smtp_dane_enabled'] ?? null) === '1';
         try {
+            if (($body['operation'] ?? null) === 'alerts') {
+                $recipient = is_string($body['recipient'] ?? null) ? trim($body['recipient']) : '';
+                $locale    = is_string($body['locale'] ?? null) ? $body['locale'] : '';
+                $minimum   = is_string($body['minimum'] ?? null) ? $body['minimum'] : '';
+                $runs      = filter_var($body['confirmation_runs'] ?? null, FILTER_VALIDATE_INT);
+                $mute      = filter_var($body['mute_hours'] ?? null, FILTER_VALIDATE_INT);
+                if (!is_int($runs) || !is_int($mute)) {
+                    throw new \InvalidArgumentException();
+                }
+                $this->alerts->settings(
+                    (int) $zoneId,
+                    $recipient === '' ? null : $recipient,
+                    $locale,
+                    $minimum,
+                    $runs,
+                    $mute,
+                    ($body['acknowledge'] ?? null) === '1',
+                    is_string($body['tlsa_owner'] ?? null) ? $body['tlsa_owner'] : '',
+                    is_string($body['tlsa_expected'] ?? null) ? $body['tlsa_expected'] : ''
+                );
+                $this->audit->record(
+                    $request,
+                    'monitoring.notifications.configure',
+                    'managed_zone',
+                    $zoneId,
+                    $user->id,
+                    after: ['mail_enabled' => $recipient !== '', 'confirmation_runs' => $runs, 'mute_hours' => $mute, 'minimum' => $minimum]
+                );
+                return new RedirectResponse('/admin/monitoring?success=1&zone=' . $zoneId);
+            }
             $this->monitoring->configure((int) $zoneId, $enabled, $smtpDane, (int) $interval, $user->id);
         } catch (\InvalidArgumentException) {
             return new RedirectResponse('/admin/monitoring?error=monitoring.invalid');

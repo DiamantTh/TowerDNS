@@ -16,8 +16,13 @@
     };
     type AdminPageData = JsonObject & {
         status?: SchemaStatus;
-        zones?: (JsonObject & { managed_zone_id?: number; canonical_name?: string; enabled?: boolean | number; smtp_dane_enabled?: boolean | number; interval_minutes?: number; status?: string; severity?: string; method?: string; checked_at?: string; changed_at?: string })[];
+        zones?: (JsonObject & { managed_zone_id?: number; canonical_name?: string; enabled?: boolean | number; smtp_dane_enabled?: boolean | number; interval_minutes?: number; status?: string; severity?: string; method?: string; checked_at?: string; changed_at?: string; stale?: boolean; active_status?: string; acknowledged_at?: string; muted_until?: string; recipient?: string; tlsa_owner?: string; tlsa_expected?: string; locale?: string; minimum?: string; confirmation_runs?: number })[];
         history?: (JsonObject & { check_type?: string; previous_status?: string | null; status?: string; severity?: string; occurred_at?: string })[];
+        deliveries?: JsonObject[];
+        monitoringReadOnly?: boolean;
+        monitoringCanConfigure?: boolean;
+        monitoringAction?: string;
+        monitoringBackHref?: string;
         selectedZoneId?: number | null;
         users?: JsonObject[];
         roles?: JsonObject[];
@@ -43,13 +48,29 @@
             case 'dnssec_bogus': return t('monitoring.status.dnssec_bogus');
             case 'check_execution_failed': return t('monitoring.status.check_execution_failed');
             case 'not_checked': return t('monitoring.status.not_checked');
+            case 'authoritative_missing': return t('monitoring.status.authoritative_missing');
+            case 'authoritative_divergent': return t('monitoring.status.authoritative_divergent');
+            case 'authoritative_unknown': return t('monitoring.status.authoritative_unknown');
+            case 'api_key_expiring': return t('monitoring.status.api_key_expiring');
+            case 'recovery': return t('monitoring.status.recovery');
             default: return t('monitoring.status.indeterminate');
+        }
+    }
+    function deliveryStatusLabel(status: unknown): string {
+        switch (status) {
+            case 'pending': return t('monitoring.delivery.pending');
+            case 'sending': return t('monitoring.delivery.sending');
+            case 'sent': return t('monitoring.delivery.sent');
+            case 'failed': return t('monitoring.delivery.failed');
+            case 'cancelled': return t('monitoring.delivery.cancelled');
+            default: return t('monitoring.delivery.unknown');
         }
     }
 </script>
 
 {#if page === 'admin/monitoring'}
     <section class="box">
+        {#if data.monitoringBackHref}<a class="button" href={data.monitoringBackHref}>{t('dns.back-records')}</a>{/if}
         <p class="muted">{t('monitoring.description')}</p>
         {#each data.zones ?? [] as zone}
             <article class="resource-card">
@@ -57,21 +78,44 @@
                     <strong>{zone.canonical_name}</strong>
                     {#if zone.status}
                         <span class="status">{monitoringStatusLabel(zone.status)}</span>
+                        {#if zone.stale}<small>{t('monitoring.stale')}</small>{/if}
+                        {#if zone.active_status}<small>{t('monitoring.active')} {monitoringStatusLabel(zone.active_status)}</small>{/if}
+                        {#if zone.acknowledged_at}<small>{t('monitoring.acknowledged')} {zone.acknowledged_at} UTC</small>{/if}
+                        {#if zone.muted_until}<small>{t('monitoring.muted-until')} {zone.muted_until} UTC</small>{/if}
                         <small>{t('monitoring.last-checked')}: {zone.checked_at ?? t('monitoring.never')}</small>
                         <small>{t('monitoring.method')}: {zone.method ?? t('monitoring.not-checked')}</small>
                     {:else}
                         <small>{t('monitoring.not-checked')}</small>
                     {/if}
                 </div>
-                <form method="post" action="/admin/monitoring" class="form-grid">
+                {#if !data.monitoringReadOnly || data.monitoringCanConfigure}
+                <form method="post" action={data.monitoringAction ?? "/admin/monitoring"} class="form-grid">
                     <input type="hidden" name="csrf_token" value={csrf}>
                     <input type="hidden" name="managed_zone_id" value={zone.managed_zone_id}>
                     <label class="checkbox"><input type="checkbox" name="enabled" value="1" checked={zone.enabled === true || zone.enabled === 1}> {t('monitoring.enabled')}</label>
                     <label class="checkbox"><input type="checkbox" name="smtp_dane_enabled" value="1" checked={zone.smtp_dane_enabled === true || zone.smtp_dane_enabled === 1}> {t('monitoring.smtp-dane')}</label>
                     <Field label={t('monitoring.interval')}><input class="input" type="number" min="5" max="1440" name="interval_minutes" value={zone.interval_minutes ?? 60} required></Field>
                     <button class="button is-primary">{t('common.save')}</button>
-                    <a class="button" href={'/admin/monitoring?zone=' + zone.managed_zone_id}>{t('monitoring.history')}</a>
+                    {#if !data.monitoringReadOnly}<a class="button" href={'/admin/monitoring?zone=' + zone.managed_zone_id}>{t('monitoring.history')}</a>{/if}
                 </form>
+                {#if !data.monitoringReadOnly && zone.managed_zone_id === data.selectedZoneId}
+                    <form method="post" action="/admin/monitoring" class="form-grid">
+                        <input type="hidden" name="operation" value="alerts">
+                        <input type="hidden" name="csrf_token" value={csrf}>
+                        <input type="hidden" name="managed_zone_id" value={zone.managed_zone_id}>
+                        <input type="hidden" name="interval_minutes" value={zone.interval_minutes ?? 60}>
+                        <Field label={t('monitoring.tlsa-owner')}><input class="input" name="tlsa_owner" maxlength="200" placeholder="_443._tcp" value={zone.tlsa_owner ?? ''}></Field>
+                        <Field label={t('monitoring.tlsa-expected')}><textarea class="input" name="tlsa_expected" maxlength="8192" value={zone.tlsa_expected ?? ''}></textarea></Field>
+                        <Field label={t('monitoring.recipient')}><input class="input" type="email" maxlength="254" name="recipient" value={zone.recipient ?? ''}></Field>
+                        <Field label={t('monitoring.language')}><select name="locale" value={zone.locale ?? 'en-GB'}><option value="en-GB">English</option><option value="de-DE">Deutsch</option></select></Field>
+                        <Field label={t('monitoring.minimum')}><select name="minimum" value={zone.minimum ?? 'warning'}><option value="warning">{t('monitoring.warning')}</option><option value="critical">{t('monitoring.critical')}</option></select></Field>
+                        <Field label={t('monitoring.confirmation')}><input class="input" type="number" name="confirmation_runs" min="2" max="5" value={zone.confirmation_runs ?? 2} required></Field>
+                        <Field label={t('monitoring.mute')}><input class="input" type="number" name="mute_hours" min="0" max="168" value="0" required></Field>
+                        <label class="checkbox"><input type="checkbox" name="acknowledge" value="1"> {t('monitoring.acknowledge')}</label>
+                        <button class="button is-primary">{t('common.save')}</button>
+                    </form>
+                {/if}
+                {/if}
             </article>
         {:else}
             <p class="empty">{t('monitoring.no-zones')}</p>
@@ -80,7 +124,12 @@
     {#if data.selectedZoneId && (data.history?.length ?? 0) > 0}
         <section class="box">
             <h2 class="subtitle">{t('monitoring.history')}</h2>
-            <DataTable rows={data.history ?? []} cols={['previous_status','status','severity','occurred_at']} labels={[t('monitoring.previous-state'),t('field.status'),t('monitoring.severity'),t('monitoring.checked-at')]} />
+            <DataTable rows={(data.history ?? []).map(row => ({...row, previous_status: row.previous_status ? monitoringStatusLabel(row.previous_status) : null, status: row.status ? monitoringStatusLabel(row.status) : null}))} cols={['previous_status','status','severity','occurred_at']} labels={[t('monitoring.previous-state'),t('field.status'),t('monitoring.severity'),t('monitoring.checked-at')]} />
+        </section>
+    {/if}
+    {#if (data.deliveries?.length ?? 0) > 0}
+        <section class="box"><h2 class="subtitle">{t('monitoring.deliveries')}</h2>
+            <DataTable rows={(data.deliveries ?? []).map(row => ({ ...row, status: deliveryStatusLabel(row.status), kind: monitoringStatusLabel(String(row.kind)) }))} cols={['kind','status','attempts','occurred_at']} labels={[t('monitoring.history'),t('field.status'),t('monitoring.attempts'),t('monitoring.checked-at')]} />
         </section>
     {/if}
 {:else if page === 'settings/schema'}

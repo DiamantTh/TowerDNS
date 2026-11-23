@@ -98,12 +98,53 @@ Tagen entfernt; unveränderte Wiederholungen aktualisieren nur den Prüfzeitpunk
 Status und begrenzte Historie sind Systemadministratoren in
 `/admin/monitoring` zugänglich.
 
-Es gibt derzeit keine E-Mail-/Push-Benachrichtigung, keine Monitoring-API und
-keine automatische Reparatur. Die Statushistorie ist die interne
-Warnungs-/Ereignisgrundlage. Der CLI-Lauf liefert JSON und einen Fehler-Exitcode,
-wenn eine Prüfung nicht ausgeführt werden konnte. Die Monitoring-Migration ist
-additiv; eine Rückmigration wird nicht angeboten. Backup und Wiederherstellung
-umfassen auch Monitoring-Konfiguration und -Historie.
+Unter `/admin/monitoring` lassen sich pro Zone ein Empfänger, Sprache,
+Mindestschweregrad, Bestätigung (2–5 Prüfungen), Quittierung und Wartungszeit
+(bis 168 Stunden) einstellen. Für einen relativen TLSA-Dienstnamen lassen sich
+bis zu 16 erwartete Werte hinterlegen. Direkte autoritative Abfragen vergleichen
+die erwarteten Werte pro antwortendem Nameserver. Zusätzliche Werte sind erlaubt,
+etwa beim Rollover. Diese Abfragen validieren kein DNSSEC. Ein bestätigter
+DNSSEC-Bogus-Zustand bleibt bei vorübergehend unbekanntem Ergebnis aktiv.
+
+Die API liefert über
+`GET /api/v1/accounts/{account}/zones/{zone}/monitoring?days=30`
+den letzten Zustand, aktive Warnung, Ereignisse und bis zu 20 Zustellstatus.
+Für die nächste Seite `before` auf `next_before` setzen und `days` beibehalten
+(1–180 Tage, 50 Ereignisse pro Seite). Zeiten ohne Offset sind UTC. Der
+Bearer-Scope `monitoring:read` gilt für eine Zone ohne Owner und erfordert
+weiterhin `record.read`. Die Zonenansicht prüft dieselbe Leseberechtigung.
+Zonenbenutzer mit `zone.update` können dort Aktivierung und Intervall ändern.
+Empfänger, Wartungszeit und Quittierung benötigen `system.settings.manage`.
+
+Für E-Mail in der betreibergeschützten `config.local.toml`:
+
+```toml
+[monitoring_mailer]
+enabled = true
+host = "smtp.example.org"
+port = 587
+implicit_tls = false
+from_address = "towerdns@example.org"
+# username und password optional aus geschützter Konfiguration
+```
+
+Nur einen vom Betreiber kontrollierten SMTP-Endpunkt konfigurieren. SMTP
+verwendet TLS mit Zertifikatsprüfung und prüft keine URLs aus Webanfragen.
+Im Scheduler nach dem Prüflauf `php bin/towerdns towerdns:monitor:notify`
+aufrufen. Der Befehl beansprucht bis zu 20 Zustellungen atomar. Fehler beim
+Verbindungsaufbau erhalten bis zu drei Versuche mit Wartezeit. Ein Fehler nach
+Beginn der Übermittlung oder ein unterbrochener Versand wird als unklar
+gespeichert. Bestätigte Ereignisse und Zustellungen werden jeweils nach 180
+Tagen durch die zugehörigen CLI-Läufe bereinigt. Bei aktivem Versand werden
+für gültige zonengebundene API-Schlüssel 14 Tage vor Ablauf Hinweise eingeplant.
+Bereits wartende Meldungen werden übersprungen, wenn die Zone inzwischen
+deaktiviert oder stummgeschaltet, der Empfänger geändert oder der Schlüssel
+widerrufen wurde. Eine SMTP-Annahme bestätigt die Übergabe an den Mailserver.
+
+Die Migration ist additiv. Backup und Wiederherstellung umfassen auch
+Monitoring-Einstellungen, Historie und Zustellstatus. Nach der Wiederherstellung
+sollte der Betreiber wartende Zustellungen prüfen, bevor er den Versand
+wieder startet.
 
 ## Betriebsgrenzen
 

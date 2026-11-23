@@ -38,12 +38,12 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $first = $manager->migrate();
             self::assertSame([], $first->pending, $backend);
             self::assertTrue($first->schemaCurrent, $backend);
-            self::assertSame(9, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(10, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertSame(6, (int) $connection->fetchOne('SELECT COUNT(*) FROM roles'), $backend);
 
             $second = $manager->migrate();
             self::assertSame([], $second->pending, $backend);
-            self::assertSame(9, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(10, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
 
             $bootstrap = new FreshInstallBootstrapper($connection);
             $result    = $bootstrap->bootstrap(new FreshInstallBootstrapRequest(
@@ -77,6 +77,38 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
         });
     }
 
+    public function testMonitoringUpgradePreservesExistingSchedulerConfiguration(): void
+    {
+        $this->forEachDatabase(function (string $backend, Connection $connection): void {
+            $manager = $this->manager($connection, $backend);
+            $manager->migrate();
+            $connection->executeStatement('DROP TABLE dns_monitoring_deliveries');
+            $connection->executeStatement('DROP TABLE dns_monitoring_alerts');
+            $connection->delete(SchemaMigrationManager::METADATA_TABLE, [
+                'version' => \TowerDNS\Infrastructure\Persistence\Migrations\Version20261124000100::class,
+            ]);
+
+            $userId = '77777777-7777-4777-8777-777777777777';
+            $at     = '2026-11-24 12:00:00';
+            new SchemaManager($connection)->seedFirstUser($userId, 'monitoring@example.test', password_hash('integration-fixture', PASSWORD_ARGON2ID), 'Monitoring fixture');
+            $account = (int) $connection->fetchOne('SELECT id FROM accounts WHERE personal_user_id = ?', [$userId]);
+            $connection->insert('provider_accounts', [
+                'id'                    => 1, 'account_id' => $account, 'provider_type' => 'test', 'name' => 'Fixture',
+                'credentials_encrypted' => 'fixture', 'created_at' => $at,
+            ]);
+            $connection->insert('managed_zones', [
+                'id'             => 1, 'account_id' => $account, 'provider_account_id' => 1, 'provider_zone_id' => 'test',
+                'canonical_name' => 'example.test', 'created_at' => $at,
+            ]);
+            new \TowerDNS\Infrastructure\Persistence\DbalMonitoringRepository($connection)->configure(1, true, true, 30, null, $at);
+
+            self::assertCount(1, $manager->status()->pending, $backend);
+            self::assertSame([], $manager->migrate()->pending, $backend);
+            self::assertSame(30, (int) $connection->fetchOne('SELECT interval_minutes FROM dns_monitoring_config WHERE managed_zone_id = 1'), $backend);
+            self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM dns_monitoring_deliveries'), $backend);
+        });
+    }
+
     public function testCurrentSchemaBaselinePreservesAccountsAndEncryptedProviderData(): void
     {
         $this->forEachDatabase(function (string $backend, Connection $connection): void {
@@ -107,7 +139,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             self::assertSame($passwordHash, $connection->fetchOne('SELECT password_hash FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('de-DE', $connection->fetchOne('SELECT locale FROM users WHERE id = ?', [$userId]), $backend);
             self::assertSame('ciphertext-that-must-survive', $connection->fetchOne('SELECT credentials_encrypted FROM provider_accounts WHERE account_id = ?', [$accountId]), $backend);
-            self::assertSame(9, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(10, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
         });
     }
 
@@ -129,7 +161,7 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
             $status = $manager->migrate();
 
             self::assertTrue($status->schemaCurrent, $backend);
-            self::assertSame(9, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
+            self::assertSame(10, (int) $connection->fetchOne('SELECT COUNT(*) FROM towerdns_schema_migrations'), $backend);
             self::assertTrue($connection->createSchemaManager()->tablesExist(['step_up_proof_nonces']), $backend);
             self::assertSame($userId, $connection->fetchOne('SELECT id FROM users WHERE email = ?', ['step-up-migration@example.test']), $backend);
         });

@@ -156,9 +156,9 @@
                     <Field label={t('field.name')}><input class="input" name="name" required maxlength="100"></Field>
                     <Field label={t('api-key.account')}><input class="input" name="account" type="number" required min="1"></Field>
                     <Field label={t('api-key.zone')}><input class="input" name="zone" type="number" required min="1"></Field>
-                    <Field label={t('api-key.owner')}><input class="input" name="owner" placeholder="_443._tcp" required={apiScope !== 'tlsa:read'}></Field>
+                    <Field label={t('api-key.owner')}><input class="input" name="owner" placeholder="_443._tcp" required={apiScope === 'tlsa:append' || apiScope === 'tlsa:write'} disabled={apiScope === 'monitoring:read'}></Field>
                     <Field label={t('api-key.scope')}><select class="input" name="scope" bind:value={apiScope}>
-                        <option value="tlsa:read">{t('api-key.read')}</option><option value="tlsa:append">{t('api-key.append')}</option><option value="tlsa:write">{t('api-key.write')}</option>
+                        <option value="monitoring:read">{t('monitoring.scope')}</option><option value="tlsa:read">{t('api-key.read')}</option><option value="tlsa:append">{t('api-key.append')}</option><option value="tlsa:write">{t('api-key.write')}</option>
                     </select></Field>
                 </div>
                 <button class="button is-primary" disabled={apiKeyBusy}>{t('api-key.issue')}</button>

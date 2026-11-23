@@ -22,10 +22,11 @@ final readonly class DbalMonitoringRepository implements MonitoringRepositoryInt
         $zoneFilter = $managedZoneId === null ? '' : ' AND z.id = ?';
         $params     = $managedZoneId === null ? ['smtp_dane', true] : ['smtp_dane', true, $managedZoneId];
         return $this->connection->fetchAllAssociative(
-            'SELECT z.id AS managed_zone_id, z.account_id, z.canonical_name, c.smtp_dane_enabled, c.interval_minutes, s.status, s.severity, s.method, s.summary_json, s.fingerprint, s.checked_at, s.changed_at '
+            'SELECT a.tlsa_owner, a.tlsa_expected, z.id AS managed_zone_id, z.account_id, z.canonical_name, c.smtp_dane_enabled, c.interval_minutes, s.status, s.severity, s.method, s.summary_json, s.fingerprint, s.checked_at, s.changed_at '
             . 'FROM dns_monitoring_config c JOIN managed_zones z ON z.id = c.managed_zone_id '
             . 'LEFT JOIN dns_monitoring_state s ON s.managed_zone_id = z.id AND s.check_type = ? '
-            . 'WHERE c.enabled = ?' . $zoneFilter . ' ORDER BY CASE WHEN s.checked_at IS NULL THEN 0 ELSE 1 END, s.checked_at ASC, z.id LIMIT ' . $limit,
+            . 'LEFT JOIN dns_monitoring_alerts a ON a.managed_zone_id = z.id '
+            . 'WHERE c.enabled = ? AND c.smtp_dane_enabled = TRUE' . $zoneFilter . ' ORDER BY CASE WHEN s.checked_at IS NULL THEN 0 ELSE 1 END, s.checked_at ASC, z.id LIMIT ' . $limit,
             $params,
         );
     }
@@ -35,9 +36,10 @@ final readonly class DbalMonitoringRepository implements MonitoringRepositoryInt
     {
         $limit = max(1, min(250, $limit));
         return $this->connection->fetchAllAssociative(
-            'SELECT z.id AS managed_zone_id, z.account_id, z.provider_account_id, z.canonical_name, COALESCE(c.enabled, ?) AS enabled, COALESCE(c.smtp_dane_enabled, ?) AS smtp_dane_enabled, COALESCE(c.interval_minutes, ?) AS interval_minutes, s.status, s.severity, s.method, s.summary_json, s.checked_at, s.changed_at '
+            'SELECT a.tlsa_owner, a.tlsa_expected, a.recipient, a.locale, a.minimum, a.confirmation_runs, a.muted_until, a.active_status, a.acknowledged_at, z.id AS managed_zone_id, z.account_id, z.provider_account_id, z.canonical_name, COALESCE(c.enabled, ?) AS enabled, COALESCE(c.smtp_dane_enabled, ?) AS smtp_dane_enabled, COALESCE(c.interval_minutes, ?) AS interval_minutes, s.status, s.severity, s.method, s.summary_json, s.checked_at, s.changed_at '
             . 'FROM managed_zones z LEFT JOIN dns_monitoring_config c ON z.id = c.managed_zone_id '
             . 'LEFT JOIN dns_monitoring_state s ON s.managed_zone_id = z.id AND s.check_type = ? '
+            . 'LEFT JOIN dns_monitoring_alerts a ON a.managed_zone_id = z.id '
             . 'ORDER BY z.canonical_name, z.id LIMIT ' . $limit,
             [false, false, 60, 'smtp_dane'],
         );
@@ -93,8 +95,12 @@ final readonly class DbalMonitoringRepository implements MonitoringRepositoryInt
                 [$managedZoneId],
             );
 
-            $previous = $connection->fetchAssociative('SELECT status, fingerprint FROM dns_monitoring_state WHERE managed_zone_id = ? AND check_type = ?', [$managedZoneId, $checkType]);
-            $changed  = $previous === false || !hash_equals((string) $previous['fingerprint'], $fingerprint);
+            $previous = $connection->fetchAssociative('SELECT status, fingerprint, checked_at FROM dns_monitoring_state WHERE managed_zone_id = ? AND check_type = ?', [$managedZoneId, $checkType]);
+            if ($previous !== false && (string) $previous['checked_at'] >= $checkedAt) {
+                return false;
+            }
+            new MonitoringAlerts($connection)->observe($managedZoneId, $status, $severity, $method, $checkedAt);
+            $changed = $previous === false || !hash_equals((string) $previous['fingerprint'], $fingerprint);
             if ($previous === false) {
                 $connection->insert('dns_monitoring_state', [
                     'managed_zone_id' => $managedZoneId, 'check_type' => $checkType, 'status' => $status,

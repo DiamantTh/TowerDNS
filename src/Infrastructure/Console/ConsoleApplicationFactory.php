@@ -41,6 +41,13 @@ final class ConsoleApplicationFactory
         $application->addCommand($container->get(PasswordResetCommand::class));
         $application->addCommand($container->get(ZoneListCommand::class));
         $application->addCommand($container->get(MonitorRunCommand::class));
+        $application->addCommand(new LazyCommand(
+            'towerdns:monitor:notify',
+            [],
+            'Deliver due monitoring notifications',
+            false,
+            static fn(): MonitorNotifyCommand => $container->get(MonitorNotifyCommand::class),
+        ));
         $application->addCommand($container->get(MonitorConfigureCommand::class));
         $application->addCommand($container->get(UpgradeCheckCommand::class));
         $application->addCommand($container->get(RecordListCommand::class));

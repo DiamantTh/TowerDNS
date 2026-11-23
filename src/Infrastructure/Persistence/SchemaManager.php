@@ -1139,11 +1139,48 @@ final readonly class SchemaManager
         $monitoringEvents->addIndex(['managed_zone_id', 'occurred_at'], 'idx_dme_zone_occurred');
         $monitoringEvents->addForeignKeyConstraint('managed_zones', ['managed_zone_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_dme_zone');
 
+        $alerts = new CanonicalTableBuilder('dns_monitoring_alerts');
+        $alerts->addColumn('managed_zone_id', Types::INTEGER);
+        $alerts->addColumn('tlsa_owner', Types::STRING, ['length' => 253, 'notnull' => false]);
+        $alerts->addColumn('tlsa_expected', Types::TEXT, ['notnull' => false]);
+        $alerts->addColumn('recipient', Types::STRING, ['length' => 254, 'notnull' => false]);
+        $alerts->addColumn('locale', Types::STRING, ['length' => 5, 'default' => 'en-GB']);
+        $alerts->addColumn('minimum', Types::STRING, ['length' => 16, 'default' => 'warning']);
+        $alerts->addColumn('confirmation_runs', Types::INTEGER, ['default' => 2]);
+        $alerts->addColumn('muted_until', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $alerts->addColumn('active_status', Types::STRING, ['length' => 32, 'notnull' => false]);
+        $alerts->addColumn('active_since', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $alerts->addColumn('acknowledged_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $alerts->addColumn('candidate', Types::STRING, ['length' => 32, 'notnull' => false]);
+        $alerts->addColumn('candidate_runs', Types::INTEGER, ['default' => 0]);
+        $alerts->addColumn('candidate_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $alerts->setPrimaryKey(['managed_zone_id']);
+        $alerts->addForeignKeyConstraint('dns_monitoring_config', ['managed_zone_id'], ['managed_zone_id'], ['onDelete' => 'CASCADE'], 'fk_dma_config');
+
+        $deliveries = new CanonicalTableBuilder('dns_monitoring_deliveries');
+        $deliveries->addColumn('event_key', Types::STRING, ['length' => 64]);
+        $deliveries->addColumn('managed_zone_id', Types::INTEGER);
+        $deliveries->addColumn('kind', Types::STRING, ['length' => 32]);
+        $deliveries->addColumn('recipient', Types::STRING, ['length' => 254]);
+        $deliveries->addColumn('locale', Types::STRING, ['length' => 5]);
+        $deliveries->addColumn('method', Types::STRING, ['length' => 64]);
+        $deliveries->addColumn('status', Types::STRING, ['length' => 16]);
+        $deliveries->addColumn('failure', Types::STRING, ['length' => 32, 'notnull' => false]);
+        $deliveries->addColumn('attempts', Types::INTEGER, ['default' => 0]);
+        $deliveries->addColumn('occurred_at', Types::DATETIME_MUTABLE);
+        $deliveries->addColumn('next_attempt_at', Types::DATETIME_MUTABLE);
+        $deliveries->addColumn('api_key_id', Types::INTEGER, ['notnull' => false]);
+        $deliveries->setPrimaryKey(['event_key']);
+        $deliveries->addIndex(['api_key_id'], 'idx_dmd_api_key');
+        $deliveries->addIndex(['status', 'next_attempt_at'], 'idx_dmd_due');
+        $deliveries->addIndex(['managed_zone_id', 'occurred_at'], 'idx_dmd_zone');
+        $deliveries->addForeignKeyConstraint('dns_monitoring_config', ['managed_zone_id'], ['managed_zone_id'], ['onDelete' => 'CASCADE'], 'fk_dmd_config');
+
         return array_map(static fn(CanonicalTableBuilder $table): Table => $table->create(), [
             $roles, $rolePerms, $users, $userRoles, $waCredentials, $this->totpCredentialTableBuilder(), $apiKeys,
             $accounts, $resourceLimits, $accMembers, $accountInvitations, $provAccounts, $managedZones, $zoneMembers, $impSessions, $auditLogs,
             $pwResetTokens, $recoveries, $recoveryCredentials, $systemSettings, $stepUpProofNonces,
-            $monitoringConfig, $monitoringState, $monitoringEvents,
+            $monitoringConfig, $monitoringState, $monitoringEvents, $alerts, $deliveries,
         ]);
     }
 
