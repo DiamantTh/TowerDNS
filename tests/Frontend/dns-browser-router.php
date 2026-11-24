@@ -25,8 +25,8 @@ if ($path === '/tlsa/generate' || $path === '/accounts/42/zones/7/tlsa') {
         if (($_SERVER['REQUEST_METHOD'] ?? null) === 'POST') {
             $change  = $_POST['change'] ?? null;
             $decoded = is_string($change) ? json_decode($change, true) : null;
-            if (($_SERVER['HTTP_IF_MATCH'] ?? null)                                           !== $tag || ($_POST['csrf_token'] ?? null) !== 'change-fixture'
-                                                                                                       || $decoded !== ['add' => ['3 1 1 57a5102f89d9420924abe803e29c1a90107fefc0de414ceda90a1460503bc604'], 'remove' => [], 'ttl' => 300]) {
+            if (($_SERVER['HTTP_IF_MATCH'] ?? null)                                                                !== $tag || ($_POST['csrf_token'] ?? null) !== 'change-fixture'
+                                                                                                                            || $decoded !== ['add' => ['3 1 1 57a5102f89d9420924abe803e29c1a90107fefc0de414ceda90a1460503bc604'], 'remove' => [], 'ttl' => 300]) {
                 http_response_code(412);
                 echo '{"error":"unexpected_change"}';
                 return;

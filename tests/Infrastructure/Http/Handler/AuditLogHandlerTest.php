@@ -49,10 +49,10 @@ final class AuditLogHandlerTest extends TestCase
         $renderer    = $this->createMock(TemplateRendererInterface::class);
         $renderer->expects(self::once())->method('render')->with('app::audit/index', self::callback(static function (array $payload): bool {
             $event = $payload['events'][0];
-            return count($payload['events'])                                                                                                                     === 50 && $payload['hasMore']
-                                                                                                                                  && (int) $event['id']          === 51 && $event['actor_user_id'] === 'operator'
-                                                                                                                                  && $event['effective_user_id'] === 'effective' && $event['impersonation_session_id'] === 'switch-id'
-                                                                                                                                  && !array_key_exists('metadata_json', $event);
+            return count($payload['events'])                                                                                                                                                           === 50 && $payload['hasMore']
+                                                                                                                                                                        && (int) $event['id']          === 51 && $event['actor_user_id'] === 'operator'
+                                                                                                                                                                        && $event['effective_user_id'] === 'effective' && $event['impersonation_session_id'] === 'switch-id'
+                                                                                                                                                                        && !array_key_exists('metadata_json', $event);
         }))->willReturn('<html></html>');
         $translator = $this->createStub(TranslatorInterface::class);
         $translator->method('translate')->willReturnArgument(0);

@@ -22,7 +22,7 @@ use TowerDNS\Module\OVHcloud\OVHcloudProvider;
 use TowerDNS\Module\PowerDNS\PowerDNSProvider;
 
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
-final class DnsProviderFactoryTest extends TestCase
+final class DNSProviderFactoryTest extends TestCase
 {
     public function testPowerDNSIsSystemOnlyButStillBuildable(): void
     {

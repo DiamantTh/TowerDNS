@@ -6,7 +6,7 @@ namespace TowerDNS\Application\DTO;
 
 use TowerDNS\Domain\DNS\Rrset;
 
-/** Read-only page data and server-derived availability for RRset actions. */
+/** @psalm-api Read-only page data and server-derived availability for RRset actions. */
 final readonly class RrsetListPage
 {
     /** @param list<Rrset> $rrsets */

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNSTestsInfrastructureInstallation;
+namespace TowerDNS\Tests\Infrastructure\Installation;
 
 use PHPUnit\Framework\TestCase;
 

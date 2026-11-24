@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace TowerDNSTestsApplicationServices;
+namespace TowerDNS\Tests\Application\Services;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\DriverManager;

@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 use TowerDNS\Application\Validation\DNSNameValidator;
 
 /** @psalm-api Runtime discovery by PHPUnit or local module loading is not statically visible. */
-final class DnsNameValidatorTest extends TestCase
+final class DNSNameValidatorTest extends TestCase
 {
     public function testIdnGetsConverted(): void
     {
