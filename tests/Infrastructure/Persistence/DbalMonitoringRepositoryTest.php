@@ -80,6 +80,32 @@ final class DbalMonitoringRepositoryTest extends TestCase
         self::assertArrayNotHasKey('recipient', $alerts->deliveries(5)[0]);
     }
 
+    public function testRecipientChangedDuringSmtpConnectionCancelsClaimedMessage(): void
+    {
+        $at = gmdate('Y-m-d H:i:s', time() - 600);
+        $this->repository->configure(5, true, true, 5, null, $at);
+        $alerts = new \TowerDNS\Infrastructure\Persistence\MonitoringAlerts($this->connection);
+        $alerts->settings(5, 'old@example.test', 'en-GB', 'warning', 2, 0, false);
+        foreach ([$at, gmdate('Y-m-d H:i:s')] as $checkedAt) {
+            $this->repository->recordResult(5, 'smtp_dane', 'dnssec_bogus', 'critical', 'fixture', [], hash('sha256', 'bogus'), $checkedAt, $at);
+        }
+        $transport = $this->createMock(\Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport::class);
+        $transport->expects(self::once())->method('start')->willReturnCallback(static function () use ($alerts): void {
+            $alerts->settings(5, 'new@example.test', 'en-GB', 'warning', 2, 0, false);
+        });
+        $transport->expects(self::never())->method('send');
+        $command = new \Symfony\Component\Console\Tester\CommandTester(new \TowerDNS\Infrastructure\Console\MonitorNotifyCommand(
+            $alerts,
+            ['enabled' => true, 'from_address' => 'towerdns@example.test'],
+            static fn(): \Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport => $transport,
+        ));
+        self::assertSame(0, $command->execute([]));
+        self::assertSame('cancelled', $alerts->deliveries(5)[0]['status']);
+        $this->repository->configure(5, false, false, 5, null, $at);
+        self::assertFalse($this->repository->recordResult(5, 'smtp_dane', 'indeterminate', 'unknown', 'fixture', [], hash('sha256', 'unknown'), gmdate('Y-m-d H:i:s', time() + 600), $at));
+        self::assertSame('dnssec_bogus', $alerts->status(10, 5)['status'] ?? null);
+    }
+
     public function testMaintenanceSuppressesMailAndRecipientInjectionIsRejected(): void
     {
         $at = gmdate('Y-m-d H:i:s', time() - 600);

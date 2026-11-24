@@ -95,6 +95,10 @@ final readonly class DbalMonitoringRepository implements MonitoringRepositoryInt
                 [$managedZoneId],
             );
 
+            if ($connection->fetchOne('SELECT 1 FROM dns_monitoring_config WHERE managed_zone_id = ? AND enabled = TRUE AND smtp_dane_enabled = TRUE', [$managedZoneId]) === false) {
+                return false;
+            }
+
             $previous = $connection->fetchAssociative('SELECT status, fingerprint, checked_at FROM dns_monitoring_state WHERE managed_zone_id = ? AND check_type = ?', [$managedZoneId, $checkType]);
             if ($previous !== false && (string) $previous['checked_at'] >= $checkedAt) {
                 return false;

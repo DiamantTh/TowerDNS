@@ -150,6 +150,8 @@ final readonly class DatabaseBackup
                     try {
                         new NativeBackupTools($scratch)->restore($server, $type, $scratch . '/' . self::PAYLOAD);
                         $this->assertRestored($server, $versions);
+                    } catch (BackupException $error) {
+                        throw new BackupException($error->getMessage() . ' Keep the target offline and verify its state before retrying.', $error->getCode(), $error);
                     } catch (\Exception) {
                         throw new BackupException('Server restore or post-restore checks failed. Keep the target offline. Inspect or recreate the isolated database before retrying.');
                     }

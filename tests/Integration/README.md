@@ -203,3 +203,10 @@ werden. Ohne Freigabe und DSNs werden die beiden nativen Tests übersprungen.
 ```sh
 vendor/bin/phpunit tests/Integration/DatabaseBackupIntegrationTest.php --display-skipped
 ```
+
+
+The Compose readiness probe uses DBAL's DSN parser before creating a connection.
+PostgreSQL round trips require `pg_dump` and `pg_restore` matching the server
+major version. SQLite concurrency checks use two processes and require
+`ext-pcntl`. SMTP regression tests use a local transport double. Live provider
+tests need separately authorised credentials and a dedicated test zone.

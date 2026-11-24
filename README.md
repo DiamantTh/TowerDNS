@@ -83,7 +83,12 @@ php bin/towerdns zone:list desec
 php bin/towerdns record:list desec example.org --format=json
 ```
 
-Upgrade-Vorprüfung und Backup-/Restore-Grenzen: [docs/OPERATIONS.md](docs/OPERATIONS.md).
+Der [Betriebsleitfaden](docs/OPERATIONS.md) enthält die Release-Checkliste,
+Beispiele für `towerdns:backup:create|verify|restore` und die Einrichtung von
+`towerdns:monitor:run` und `towerdns:monitor:notify` per Cron oder systemd.
+Der zonengebundene Statusabruf verwendet den eigenen API-Scope `monitoring:read`.
+Reproduzierbare Datenbank- und Restore-Proben stehen in der
+[Integrationsdokumentation](tests/Integration/README.md).
 
 ## Aufbau und Herkunft
 

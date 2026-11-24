@@ -14,7 +14,7 @@ final readonly class NativeBackupTools
     public function dump(Connection $connection, string $type, string $destination): string
     {
         $tool    = $type === 'mariadb' ? 'mariadb-dump' : 'pg_dump';
-        $version = $this->version($tool);
+        $version = $type === 'postgresql' ? $this->postgresVersion($connection, $tool) : $this->version($tool);
         if ($type === 'mariadb') {
             $other = (int) $connection->fetchOne("SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_schema = DATABASE() AND (table_type <> 'BASE TABLE' OR engine <> 'InnoDB')");
@@ -48,15 +48,30 @@ final readonly class NativeBackupTools
             $this->version('mariadb');
             $this->databaseCommand($connection, $type, 'mariadb', ['--binary-mode', '--local-infile=0'], $source, null);
         } else {
-            $this->version('pg_restore');
-            $this->databaseCommand(
-                $connection,
-                $type,
-                'pg_restore',
-                ['--single-transaction', '--exit-on-error', '--no-owner', '--no-acl', '--no-password'],
-                $source,
-                null
-            );
+            $this->postgresVersion($connection, 'pg_restore');
+            $list = $this->scratch . '/restore-toc';
+            try {
+                $this->run(['pg_restore', '--list', '--', $source], null, $list);
+                $toc = file_get_contents($list);
+                // The verified target already owns an empty public schema.
+                // Keep the table and data entries and skip creation of the schema itself.
+                $selected = is_string($toc) ? preg_replace('/^[0-9]+; [0-9]+ [0-9]+ SCHEMA - public(?= |$)/m', ';$0', $toc) : null;
+                if (!is_string($selected) || file_put_contents($list, $selected) !== strlen($selected)) {
+                    throw new BackupException('Unable to prepare the PostgreSQL restore table of contents.');
+                }
+                $this->databaseCommand(
+                    $connection,
+                    $type,
+                    'pg_restore',
+                    ['--single-transaction', '--exit-on-error', '--no-owner', '--no-acl', '--no-password', '--use-list=' . $list],
+                    $source,
+                    null,
+                );
+            } finally {
+                if (is_file($list)) {
+                    unlink($list);
+                }
+            }
         }
     }
 
@@ -72,9 +87,9 @@ final readonly class NativeBackupTools
         $params   = $connection->getParams();
         $host     = $params['host'] ?? 'localhost';
         $port     = (string) ($params['port'] ?? ($type === 'mariadb' ? '3306' : '5432'));
-        $name     = $params['dbname']    ?? '';
-        $user     = $params['user']      ?? '';
-        $password = $params['password']  ?? '';
+        $name     = $params['dbname']      ?? '';
+        $user     = $params['user']        ?? '';
+        $password = $params['password']    ?? '';
         $socket   = $params['unix_socket'] ?? '';
         if ($type === 'mariadb' && $host === 'localhost' && $socket === '') {
             $defaultSocket = ini_get('pdo_mysql.default_socket');
@@ -117,6 +132,16 @@ final readonly class NativeBackupTools
                 unlink($credentialFile);
             }
         }
+    }
+
+    private function postgresVersion(Connection $connection, string $tool): string
+    {
+        $version     = $this->version($tool);
+        $serverMajor = intdiv((int) $connection->fetchOne('SHOW server_version_num'), 10000);
+        if (preg_match('/\(PostgreSQL\) ([0-9]+)\./', $version, $parts) !== 1 || (int) $parts[1] !== $serverMajor) {
+            throw new BackupException(sprintf('Use %s from PostgreSQL major version %d for this database server.', $tool, $serverMajor));
+        }
+        return $version;
     }
 
     private function version(string $tool): string

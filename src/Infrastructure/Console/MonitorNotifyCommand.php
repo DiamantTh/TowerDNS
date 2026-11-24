@@ -52,8 +52,7 @@ final class MonitorNotifyCommand extends Command
             if (!$this->alerts->claim($key, $now)) {
                 continue;
             }
-            if ($row['recipient'] !== $row['current_recipient'] || !(bool) $row['enabled'] || ($row['muted_until'] ?? '') > $now
-                                                                || ($row['api_key_id'] !== null && (int) $row['active_key'] !== 1)) {
+            if (!$this->alerts->canDeliver($key, gmdate('Y-m-d H:i:s'))) {
                 $this->alerts->finish($key, 'cancelled', null, $now);
                 continue;
             }
@@ -63,6 +62,11 @@ final class MonitorNotifyCommand extends Command
                 ++$failed;
                 $attempt = (int) $row['attempts'] + 1;
                 $this->alerts->finish($key, $attempt < 3 ? 'pending' : 'failed', 'smtp_connect', gmdate('Y-m-d H:i:s', time() + 300 * $attempt));
+                continue;
+            }
+            // The SMTP connection can block while an operator changes consent or revokes a key.
+            if (!$this->alerts->canDeliver($key, gmdate('Y-m-d H:i:s'))) {
+                $this->alerts->finish($key, 'cancelled', null, $now);
                 continue;
             }
             $de   = $row['locale'] === 'de-DE';

@@ -33,6 +33,22 @@ Schema-Status und Tabellen prüfen; bei Unklarheit die verifizierte Sicherung
 wiederherstellen oder die Migration gezielt reparieren, bevor erneut migriert
 wird.
 
+### Release-Checkliste
+
+- Passende Distribution und CLI-Hilfe prüfen. Die PHP- und Frontend-Prüfungen
+  ausführen und die Assets aktivieren.
+- Vor der Migration TowerDNS-Schreibzugriffe und Scheduler anhalten. Datenbank,
+  Konfiguration und Schlüssel sichern. Verify und einen isolierten Restore
+  durchführen. Ohne prüfbare Rückkehrmöglichkeit abbrechen.
+- `towerdns:upgrade:check --format=json` und `towerdns:schema:status` auswerten.
+  Erst danach die Migration ausdrücklich bestätigen.
+- Schema, `/ready`, Login, Rollen, Zone, TLSA-Lesezugriff und den Monitoringstatus
+  kontrollieren. Die Outbox prüfen, bevor der Benachrichtigungsscheduler wieder
+  aktiviert wird.
+- Bei fehlgeschlagenem Smoke-Test die Instanz offline halten. Entscheiden, ob die
+  Migration kontrolliert fortgesetzt oder der passende gesicherte Stand in
+  einer isolierten Datenbank wiederhergestellt wird.
+
 ## Backup und Restore
 
 Die Backup-CLI sichert die TowerDNS-Datenbank einschließlich Benutzerkonten,
@@ -88,7 +104,9 @@ verwenden, insbesondere bei nativen SQL-Archiven.
 | MariaDB | `mariadb-dump` mit konsistentem Transaktionssnapshot für InnoDB und binärtreuem Export. Dedizierte TowerDNS-Datenbank. Zusätzliche Serverobjekte wie Trigger, Routinen und Events liegen außerhalb des Backupvertrags. Restore über `mariadb`. |
 | PostgreSQL | `pg_dump` im Custom-Format, Schema `public`. `pg_restore` prüft das Archive-Verzeichnis und stellt in einer Transaktion wieder her. Serverrollen und Grants separat verwalten. |
 
-Native Programme müssen im CLI-PATH liegen und zum Datenbankserver passen.
+Native Programme müssen im CLI-PATH liegen. Für PostgreSQL müssen Dump- und
+Restore-Client dieselbe Hauptversion wie ihr jeweiliger Server haben. Neuere
+Restore-Clients können Sitzungsparameter senden, die ältere Server ablehnen.
 Verbindungsdaten übernimmt die CLI aus der vorhandenen DBAL-Konfiguration.
 Passwörter gelangen über kurzlebige Dateien im privaten Arbeitsverzeichnis
 zum Client. Keine Zugangsdaten in Prozessargumenten. TowerDNS sperrt seine
@@ -209,7 +227,8 @@ Beginn der Übermittlung oder ein unterbrochener Versand wird als unklar
 gespeichert. Bestätigte Ereignisse und Zustellungen werden jeweils nach 180
 Tagen durch die zugehörigen CLI-Läufe bereinigt. Bei aktivem Versand werden
 für gültige zonengebundene API-Schlüssel 14 Tage vor Ablauf Hinweise eingeplant.
-Bereits wartende Meldungen werden übersprungen, wenn die Zone inzwischen
+TowerDNS prüft die aktuellen Versandbedingungen nach dem Reservieren und erneut
+nach dem SMTP-Verbindungsaufbau. Bereits wartende Meldungen werden verworfen, wenn die Zone inzwischen
 deaktiviert oder stummgeschaltet, der Empfänger geändert oder der Schlüssel
 widerrufen wurde. Eine SMTP-Annahme bestätigt die Übergabe an den Mailserver.
 

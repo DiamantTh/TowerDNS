@@ -181,6 +181,23 @@ final readonly class MonitoringAlerts
         ) === 1;
     }
 
+    /** @phpstan-impure Consent and revocation can change in another process between checks. */
+    public function canDeliver(string $key, string $now): bool
+    {
+        $delivery = $this->db->fetchAssociative(
+            "SELECT d.recipient, a.recipient AS current_recipient FROM dns_monitoring_deliveries d
+             JOIN dns_monitoring_config c ON c.managed_zone_id = d.managed_zone_id
+             JOIN dns_monitoring_alerts a ON a.managed_zone_id = d.managed_zone_id
+             LEFT JOIN api_keys k ON k.id = d.api_key_id
+             WHERE d.event_key = ? AND d.status = 'sending' AND c.enabled = TRUE
+               AND (a.muted_until IS NULL OR a.muted_until <= ?)
+               AND ((d.api_key_id IS NULL AND c.smtp_dane_enabled = TRUE)
+                 OR (d.api_key_id IS NOT NULL AND k.is_active = TRUE AND k.expires_at > ?))",
+            [$key, $now, $now],
+        );
+        return $delivery !== false && $delivery['recipient'] === $delivery['current_recipient'];
+    }
+
     public function finish(string $key, string $status, ?string $failure, string $next): void
     {
         $this->db->update('dns_monitoring_deliveries', ['status' => $status, 'failure' => $failure, 'next_attempt_at' => $next], ['event_key' => $key, 'status' => 'sending']);

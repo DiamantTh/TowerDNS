@@ -87,16 +87,17 @@ final readonly class ZoneMonitoringHandler implements RequestHandlerInterface
         if ($state === false) {
             return $this->error($api, 'zone_not_found', 404);
         }
-        $events                    = $this->alerts->page($zone, gmdate('Y-m-d H:i:s', time() - $days * 86400), $before, 51);
-        $events                    = array_map(static fn(array $row): array => ['id' => (int) $row['id'], 'kind' => $row['check_type'], 'previous_status' => $row['previous_status'], 'status' => $row['status'], 'severity' => $row['severity'], 'occurred_at' => $row['occurred_at']], array_slice($events, 0, 51));
-        $next                      = count($events) === 51 ? $events[49]['id'] : null;
-        $events                    = array_slice($events, 0, 50);
-        $age                       = is_string($state['checked_at']) ? max(0, time() - (int) strtotime($state['checked_at'] . ' UTC')) : null;
-        $state['enabled']          = (bool) $state['enabled'];
-        $state['interval_minutes'] = (int) ($state['interval_minutes'] ?? 60);
-        $state['age_seconds']      = $age;
-        $state['stale']            = $age !== null && $age > $state['interval_minutes'] * 60;
-        $state['dane_handshake']   = 'not_tested';
+        $events                     = $this->alerts->page($zone, gmdate('Y-m-d H:i:s', time() - $days * 86400), $before, 51);
+        $events                     = array_map(static fn(array $row): array => ['id' => (int) $row['id'], 'kind' => $row['check_type'], 'previous_status' => $row['previous_status'], 'status' => $row['status'], 'severity' => $row['severity'], 'occurred_at' => $row['occurred_at']], array_slice($events, 0, 51));
+        $next                       = count($events) === 51 ? $events[49]['id'] : null;
+        $events                     = array_slice($events, 0, 50);
+        $age                        = is_string($state['checked_at']) ? max(0, time() - (int) strtotime($state['checked_at'] . ' UTC')) : null;
+        $state['enabled']           = (bool) $state['enabled'];
+        $state['smtp_dane_enabled'] = (bool) $state['smtp_dane_enabled'];
+        $state['interval_minutes']  = (int) ($state['interval_minutes'] ?? 60);
+        $state['age_seconds']       = $age;
+        $state['stale']             = $age !== null && $age > $state['interval_minutes'] * 60;
+        $state['dane_handshake']    = 'not_tested';
         if ($api) {
             return new JsonResponse(['status' => $state, 'events' => $events, 'next_before' => $next, 'deliveries' => $this->alerts->deliveries($zone)], 200, ['Cache-Control' => 'no-store']);
         }

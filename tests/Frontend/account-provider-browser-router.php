@@ -35,7 +35,18 @@ $actions = [
     'canViewProviders' => !$inactive, 'canManageProviders' => !$readonly && !$inactive,
     'canListZones'     => !$inactive, 'canCreateZones' => !$readonly     && !$inactive,
 ];
-if ($page === 'accounts/edit' || $page === 'accounts/members') {
+if ($page === 'admin/monitoring') {
+    $props += [
+        'zones'              => [['managed_zone_id' => 7, 'canonical_name' => 'example.test', 'enabled' => true, 'smtp_dane_enabled' => true, 'interval_minutes' => 30, 'status' => 'dnssec_bogus', 'active_status' => 'dnssec_bogus', 'checked_at' => '2026-11-24 12:00:00', 'stale' => true]],
+        'selectedZoneId'     => 7,
+        'monitoringReadOnly' => $readonly,
+        'deliveries'         => [['status' => 'unknown', 'kind' => 'dnssec_bogus', 'attempts' => 1]],
+        'error'              => 'monitoring.invalid',
+    ];
+    if (!$readonly) {
+        $props['zones'][0]['recipient'] = 'ops@example.test';
+    }
+} elseif ($page === 'accounts/edit' || $page === 'accounts/members') {
     $props += $actions + ['usage' => $inactive ? null : ['usedZones' => 0, 'usedProviderAccounts' => 0, 'usedMembers' => 1, 'maxZones' => null, 'maxProviderAccounts' => null, 'maxMembers' => null], 'members' => [], 'invitations' => [], 'roles' => []];
     // The provider fixture already supplies overlapping flags.
     $props = array_replace($props, $actions);

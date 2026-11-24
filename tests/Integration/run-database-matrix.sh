@@ -78,12 +78,23 @@ else
         postgresql) compose up -d postgres ;;
         *) compose up -d mariadb postgres ;;
     esac
+    probe_database() {
+        php -r '
+            require $argv[1] . "/vendor/autoload.php";
+            $dsn = getenv($argv[2]);
+            if (!is_string($dsn)) { exit(1); }
+            $params = new Doctrine\DBAL\Tools\DsnParser(["mysql" => "pdo_mysql", "pgsql" => "pdo_pgsql"])->parse($dsn);
+            $connection = Doctrine\DBAL\DriverManager::getConnection($params);
+            $connection->fetchOne("SELECT 1");
+            $connection->close();
+        ' "$root" "$1" >/dev/null 2>&1
+    }
     wait_for_databases() {
         case ",$backends," in
-            *,mariadb,*) php -r 'require $argv[1] . "/vendor/autoload.php"; $c = Doctrine\\DBAL\\DriverManager::getConnection(["url" => getenv("TOWERDNS_TEST_MARIADB_DSN")]); $c->fetchOne("SELECT 1"); $c->close();' "$root" >/dev/null 2>&1 || return 1 ;;
+            *,mariadb,*) probe_database TOWERDNS_TEST_MARIADB_DSN || return 1 ;;
         esac
         case ",$backends," in
-            *,postgresql,*) php -r 'require $argv[1] . "/vendor/autoload.php"; $c = Doctrine\\DBAL\\DriverManager::getConnection(["url" => getenv("TOWERDNS_TEST_POSTGRESQL_DSN")]); $c->fetchOne("SELECT 1"); $c->close();' "$root" >/dev/null 2>&1 || return 1 ;;
+            *,postgresql,*) probe_database TOWERDNS_TEST_POSTGRESQL_DSN || return 1 ;;
         esac
     }
 

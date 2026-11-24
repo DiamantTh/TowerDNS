@@ -31,6 +31,10 @@ final class DatabaseBackupIntegrationTest extends TestCase
         $this->withFixture(function (string $root, string $key, DatabaseBackup $backup): void {
             $source = $this->sqlite($root . '/source.db');
             $this->seed($source, $key);
+            $zone = (int) $source->fetchOne('SELECT id FROM managed_zones');
+            $this->prepareAlert($source, $zone, '2026-11-24 12:05:00');
+            $this->observeBogus($source, $zone, '2026-11-24 12:10:00');
+            $source->insert('audit_logs', ['actor_user_id' => self::USER, 'action' => 'monitoring.configure', 'target_type' => 'managed_zone', 'created_at' => self::NOW]);
             $source->fetchOne('PRAGMA journal_mode=WAL');
             $writer = $this->sqlite($root . '/source.db');
             $writer->beginTransaction();
@@ -68,9 +72,80 @@ final class DatabaseBackupIntegrationTest extends TestCase
             $restored = $this->sqlite($root . '/restored.db');
             $this->assertContents($restored, $key);
             self::assertSame('en-GB', $restored->fetchOne('SELECT locale FROM users'));
+            self::assertSame('dnssec_bogus', $restored->fetchOne('SELECT active_status FROM dns_monitoring_alerts'));
+            self::assertSame('pending', $restored->fetchOne('SELECT status FROM dns_monitoring_deliveries'));
+            self::assertSame('monitoring.configure', $restored->fetchOne('SELECT action FROM audit_logs'));
             $this->mustReject(fn(): array => $backup->restore($root . '/bundle', $root . '/restored.db', null, 'offline-restore'), 'new target');
             $restored->close();
         });
+    }
+
+    public function testOverlappingMonitoringWorkersQueueAndClaimExactlyOneAlarm(): void
+    {
+        if (!function_exists('pcntl_fork')) {
+            self::markTestSkipped('pcntl is required for distinct monitoring workers.');
+        }
+        $this->withFixture(function (string $root, string $key): void {
+            $path = $root . '/monitor.db';
+            $db   = $this->sqlite($path);
+            $this->seed($db, $key);
+            $zone = (int) $db->fetchOne('SELECT id FROM managed_zones');
+            $this->prepareAlert($db, $zone, '2026-11-24 12:05:00');
+            $db->close();
+
+            $workers = [];
+            for ($i = 0; $i < 2; ++$i) {
+                $pid = pcntl_fork();
+                if ($pid === 0) {
+                    try {
+                        $worker = $this->sqlite($path);
+                        $worker->executeStatement('PRAGMA busy_timeout = 5000');
+                        $this->observeBogus($worker, $zone, '2026-11-24 12:10:00');
+                        $alerts  = new \TowerDNS\Infrastructure\Persistence\MonitoringAlerts($worker);
+                        $row     = $alerts->due('2026-11-24 12:10:00')[0] ?? null;
+                        $claimed = $row !== null && $alerts->claim((string) $row['event_key'], '2026-11-24 12:10:00');
+                        $worker->close();
+                        exit($claimed ? 10 : 11);
+                    } catch (\Throwable) {
+                        exit(2);
+                    }
+                }
+                self::assertGreaterThan(0, $pid);
+                $workers[] = $pid;
+            }
+            $outcomes = [];
+            foreach ($workers as $pid) {
+                self::assertSame($pid, pcntl_waitpid($pid, $status));
+                self::assertTrue(pcntl_wifexited($status));
+                $outcomes[] = pcntl_wexitstatus($status);
+            }
+            sort($outcomes);
+            self::assertSame([10, 11], $outcomes);
+            $verify = $this->sqlite($path);
+            self::assertSame(1, (int) $verify->fetchOne("SELECT COUNT(*) FROM dns_monitoring_events WHERE check_type = 'confirmed_alert'"));
+            self::assertSame(1, (int) $verify->fetchOne("SELECT COUNT(*) FROM dns_monitoring_deliveries WHERE status = 'sending' AND attempts = 1"));
+            $alerts = new \TowerDNS\Infrastructure\Persistence\MonitoringAlerts($verify);
+            $alerts->cleanup('2026-11-24 13:10:01', '2026-05-01 00:00:00');
+            self::assertSame('unknown', $alerts->deliveries($zone)[0]['status']);
+            self::assertSame('interrupted', $alerts->deliveries($zone)[0]['failure']);
+            self::assertSame([], $alerts->due('2026-11-24 14:00:00'));
+            $alerts->cleanup('2026-11-24 13:10:01', '2026-11-25 00:00:00');
+            self::assertSame([], $alerts->deliveries($zone));
+            $verify->close();
+        });
+    }
+
+    private function prepareAlert(Connection $db, int $zone, string $at): void
+    {
+        new \TowerDNS\Infrastructure\Persistence\DbalMonitoringRepository($db)->configure($zone, true, true, 30, null, self::NOW);
+        new \TowerDNS\Infrastructure\Persistence\MonitoringAlerts($db)->settings($zone, 'operator@example.test', 'en-GB', 'warning', 2, 0, false);
+        $this->observeBogus($db, $zone, $at);
+    }
+
+    private function observeBogus(Connection $db, int $zone, string $at): void
+    {
+        new \TowerDNS\Infrastructure\Persistence\DbalMonitoringRepository($db)
+            ->recordResult($zone, 'smtp_dane', 'dnssec_bogus', 'critical', 'fixture', [], hash('sha256', 'bogus'), $at, self::NOW);
     }
 
     public function testVerificationRejectsDamagedAndUnsupportedBundles(): void
@@ -161,10 +236,15 @@ final class DatabaseBackupIntegrationTest extends TestCase
                 self::assertSame([], $source->createSchemaManager()->introspectTableNames());
                 self::assertSame([], $target->createSchemaManager()->introspectTableNames());
                 $this->seed($source, $key);
+                $zone = (int) $source->fetchOne('SELECT id FROM managed_zones');
+                $this->prepareAlert($source, $zone, '2026-11-24 12:05:00');
+                $this->observeBogus($source, $zone, '2026-11-24 12:10:00');
                 self::assertSame($driver, $backup->create($source, $root . '/bundle')['database_type']);
                 $backup->verify($root . '/bundle');
                 $backup->restore($root . '/bundle', null, $target, 'offline-restore');
                 $this->assertContents($target, $key);
+                self::assertSame('dnssec_bogus', $target->fetchOne('SELECT active_status FROM dns_monitoring_alerts'));
+                self::assertSame('pending', $target->fetchOne('SELECT status FROM dns_monitoring_deliveries'));
                 $this->mustReject(fn(): array => $backup->restore($root . '/bundle', null, $target, 'offline-restore'), 'not empty');
             } finally {
                 $source->close();

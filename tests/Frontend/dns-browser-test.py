@@ -5,13 +5,18 @@ root=str(Path(__file__).resolve().parents[2])
 profile=tempfile.mkdtemp(prefix='towerdns-firefox-')
 port=28570
 with open(profile+'/user.js','w') as f: f.write('user_pref("marionette.port", %d);\nuser_pref("marionette.enabled", true);\n' % port)
-server=subprocess.Popen(['php','-S','127.0.0.1:28571','-t',root+'/httpdocs',root+'/tests/Frontend/dns-browser-router.php'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+server_log=tempfile.TemporaryFile()
+server=subprocess.Popen(['php','-S','127.0.0.1:28571','-t',root+'/httpdocs',root+'/tests/Frontend/dns-browser-router.php'],cwd=root,stdout=server_log,stderr=subprocess.STDOUT)
 env=os.environ.copy(); env.pop('MOZ_DISABLE_CONTENT_SANDBOX', None); env['MOZ_HEADLESS']='1'
 browser_log=tempfile.TemporaryFile()
 browser=subprocess.Popen(['firefox','--headless','--marionette','--no-remote','--profile',profile],env=env,stdout=browser_log,stderr=subprocess.STDOUT)
 sock=None
 try:
  for _ in range(100):
+  if server.poll() is not None:
+   server_log.seek(0)
+   raise RuntimeError('PHP fixture server failed to start: ' + server_log.read()[-2000:].decode(errors='replace'))
+  if browser.poll() is not None: break
   try: sock=socket.create_connection(('127.0.0.1',port),timeout=1); break
   except OSError: time.sleep(.2)
  if sock is None:
@@ -112,5 +117,8 @@ finally:
  browser.terminate(); server.terminate()
  try: browser.wait(timeout=5)
  except subprocess.TimeoutExpired: browser.kill()
+ try: server.wait(timeout=5)
+ except subprocess.TimeoutExpired: server.kill(); server.wait()
  browser_log.close()
+ server_log.close()
  shutil.rmtree(profile,ignore_errors=True)

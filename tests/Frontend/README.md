@@ -21,7 +21,7 @@ confirmation, long TXT values, a narrow viewport, read-only controls and DNSSEC
 navigation. It never performs provider writes. Service tests separately cover
 provider capabilities, scoped mutations and authorization.
 
-Account/provider form regression checks use the same prerequisites and ports:
+Account/provider and monitoring regressions use the same prerequisites, with separate ports 28572 and 28573:
 
 ```sh
 python3 tests/Frontend/account-provider-browser-test.py
@@ -29,4 +29,4 @@ python3 tests/Frontend/account-provider-browser-test.py
 
 They verify metadata defaults, cleared secrets on provider changes, duplicate
 submit protection, account context, read-only connections and narrow layouts
-in both languages. All form submissions are intercepted in the fixture.
+in both languages. The monitoring fixture also covers notification settings, keyboard focus, a delivery error, and read-only rendering. State-changing submissions are intercepted in the fixture. The scripts use Firefox Marionette directly. On a host that blocks the test server or headless Firefox inside the coding sandbox, run the same commands in the normal desktop session with Firefox security settings intact.

@@ -3,15 +3,20 @@ import json, os, socket, subprocess, tempfile, time, shutil
 from pathlib import Path
 root=str(Path(__file__).resolve().parents[2])
 profile=tempfile.mkdtemp(prefix='towerdns-firefox-')
-port=28570
+port=28572
 with open(profile+'/user.js','w') as f: f.write('user_pref("marionette.port", %d);\nuser_pref("marionette.enabled", true);\n' % port)
-server=subprocess.Popen(['php','-S','127.0.0.1:28571','-t',root+'/httpdocs',root+'/tests/Frontend/account-provider-browser-router.php'],cwd=root,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+server_log=tempfile.TemporaryFile()
+server=subprocess.Popen(['php','-S','127.0.0.1:28573','-t',root+'/httpdocs',root+'/tests/Frontend/account-provider-browser-router.php'],cwd=root,stdout=server_log,stderr=subprocess.STDOUT)
 env=os.environ.copy(); env.pop('MOZ_DISABLE_CONTENT_SANDBOX', None); env['MOZ_HEADLESS']='1'
 browser_log=tempfile.TemporaryFile()
 browser=subprocess.Popen(['firefox','--headless','--marionette','--no-remote','--profile',profile],env=env,stdout=browser_log,stderr=subprocess.STDOUT)
 sock=None
 try:
  for _ in range(100):
+  if server.poll() is not None:
+   server_log.seek(0)
+   raise RuntimeError('PHP fixture server failed to start: ' + server_log.read()[-2000:].decode(errors='replace'))
+  if browser.poll() is not None: break
   try: sock=socket.create_connection(('127.0.0.1',port),timeout=1); break
   except OSError: time.sleep(.2)
  if sock is None:
@@ -43,11 +48,11 @@ try:
  def navigate(page, readonly=False, locale='en-GB'):
   global i
   i+=1
-  command(i,'WebDriver:Navigate',{'url':'http://127.0.0.1:28571/fixture?page='+page+'&locale='+locale+('&readonly=1' if readonly else '')})
+  command(i,'WebDriver:Navigate',{'url':'http://127.0.0.1:28573/fixture?page='+page+'&locale='+locale+('&readonly=1' if readonly else '')})
   for _ in range(40):
    time.sleep(.1)
    if execute('return !!document.querySelector("main .box")'): return
-  raise RuntimeError('DNS page failed to render')
+  raise RuntimeError('Account/provider fixture failed to render: ' + page)
  for locale in ['en-GB','de-DE']:
   navigate('provider_accounts/list', locale=locale)
   assert 'Example Account' in execute('return document.querySelector("main").textContent')
@@ -89,6 +94,18 @@ try:
   assert execute('return !document.querySelector("button[value=delete]")')
   navigate('accounts/members', locale=locale)
   assert execute('return !document.querySelector("form[action$=ownership]")')
+  navigate('admin/monitoring', locale=locale)
+  assert execute('return document.querySelector("input[name=recipient]").value') == 'ops@example.test'
+  expected = 'Zustellung unklar' if locale == 'de-DE' else 'Delivery uncertain'
+  assert expected in execute('return document.querySelector("main").textContent')
+  execute('document.querySelector("input[name=recipient]").focus()')
+  i+=1
+  command(i,'WebDriver:PerformActions',{'actions':[{'type':'key','id':'keyboard','actions':[{'type':'keyDown','value':'\ue004'},{'type':'keyUp','value':'\ue004'}]}]})
+  assert execute('return document.activeElement.name') == 'locale'
+  navigate('admin/monitoring', readonly=True, locale=locale)
+  assert execute('return document.querySelectorAll("main form").length') == 0
+  assert 'ops@example.test' not in execute('return document.documentElement.innerHTML')
+  print(locale+': monitoring status, delivery error, keyboard navigation and read-only rendering passed')
   print(locale+': provider defaults, secret reset, account context, duplicate-submit guard, readonly connections, account lifecycle/ownership controls and mobile layout passed')
 
 finally:
@@ -96,5 +113,8 @@ finally:
  browser.terminate(); server.terminate()
  try: browser.wait(timeout=5)
  except subprocess.TimeoutExpired: browser.kill()
+ try: server.wait(timeout=5)
+ except subprocess.TimeoutExpired: server.kill(); server.wait()
  browser_log.close()
+ server_log.close()
  shutil.rmtree(profile,ignore_errors=True)
