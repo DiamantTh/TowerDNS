@@ -89,8 +89,8 @@ final readonly class SchemaManager
         $table->addColumn('user_id', Types::GUID);
         $table->addColumn('secret_encrypted', Types::STRING, ['length' => 512]);
         $table->addColumn('label', Types::STRING, ['length' => 100]);
-        $table->addColumn('created_at', Types::DATETIME_MUTABLE);
-        $table->addColumn('last_used_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $table->addColumn('created_at', Types::DATETIME_IMMUTABLE);
+        $table->addColumn('last_used_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $table->setPrimaryKey(['id']);
         $table->addIndex(['user_id'], 'idx_totp_credentials_user_id');
         $table->addForeignKeyConstraint(
@@ -661,7 +661,7 @@ final readonly class SchemaManager
         $roles->addColumn('id', Types::STRING, ['length' => 64]);
         $roles->addColumn('name', Types::STRING, ['length' => 255]);
         $roles->addColumn('is_system', Types::BOOLEAN, ['default' => false]);
-        $roles->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $roles->addColumn('created_at', Types::DATETIME_IMMUTABLE);
         $roles->setPrimaryKey(['id']);
 
         // role_permissions ----------------------------------------------------
@@ -710,9 +710,9 @@ final readonly class SchemaManager
         $users->addColumn('region', Types::STRING, ['length' => 128, 'notnull' => false]);
         $users->addColumn('country', Types::STRING, ['length' => 2, 'notnull' => false]);
         $users->addColumn('external_reference', Types::STRING, ['length' => 255, 'notnull' => false]);
-        $users->addColumn('last_login_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
-        $users->addColumn('created_at', Types::DATETIME_MUTABLE);
-        $users->addColumn('updated_at', Types::DATETIME_MUTABLE);
+        $users->addColumn('last_login_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
+        $users->addColumn('created_at', Types::DATETIME_IMMUTABLE);
+        $users->addColumn('updated_at', Types::DATETIME_IMMUTABLE);
         $users->addColumn('auth_session_version', Types::INTEGER, ['default' => 0]);
         $users->setPrimaryKey(['id']);
         $users->addUniqueIndex(['email'], 'uq_users_email');
@@ -756,8 +756,8 @@ final readonly class SchemaManager
         $waCredentials->addColumn('user_id', Types::GUID);
         $waCredentials->addColumn('name', Types::STRING, ['length' => 64]);
         $waCredentials->addColumn('data', Types::TEXT);
-        $waCredentials->addColumn('created_at', Types::DATETIME_MUTABLE);
-        $waCredentials->addColumn('last_used_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $waCredentials->addColumn('created_at', Types::DATETIME_IMMUTABLE);
+        $waCredentials->addColumn('last_used_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $waCredentials->addColumn('attachment', Types::STRING, ['length' => 32, 'notnull' => false]);
         $waCredentials->setPrimaryKey(['credential_id']);
         $waCredentials->addIndex(['user_id'], 'idx_wac_user_id');
@@ -775,14 +775,14 @@ final readonly class SchemaManager
         $apiKeys->addColumn('user_id', Types::GUID);
         $apiKeys->addColumn('name', Types::STRING, ['length' => 255]);
         $apiKeys->addColumn('api_key', Types::STRING, ['length' => 255]);
-        $apiKeys->addColumn('created_at', Types::DATETIME_MUTABLE);
-        $apiKeys->addColumn('last_used', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $apiKeys->addColumn('created_at', Types::DATETIME_IMMUTABLE);
+        $apiKeys->addColumn('last_used', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $apiKeys->addColumn('is_active', Types::BOOLEAN, ['default' => true]);
         $apiKeys->addColumn('scope', Types::STRING, ['length' => 32, 'notnull' => false]);
         $apiKeys->addColumn('scope_account', Types::INTEGER, ['notnull' => false]);
         $apiKeys->addColumn('scope_zone', Types::INTEGER, ['notnull' => false]);
         $apiKeys->addColumn('scope_owner', Types::STRING, ['length' => 253, 'notnull' => false]);
-        $apiKeys->addColumn('expires_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $apiKeys->addColumn('expires_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $apiKeys->setPrimaryKey(['id']);
         $apiKeys->addUniqueIndex(['api_key'], 'uq_api_keys_hash');
         $apiKeys->addIndex(['user_id'], 'idx_ak_user_id');
@@ -805,7 +805,7 @@ final readonly class SchemaManager
         $accounts->addColumn('customer_number', Types::STRING, ['length' => 64, 'notnull' => false]);
         $accounts->addColumn('external_reference', Types::STRING, ['length' => 255, 'notnull' => false]);
         $accounts->addColumn('is_active', Types::BOOLEAN, ['default' => true]);
-        $accounts->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $accounts->addColumn('created_at', Types::DATETIME_IMMUTABLE);
         $accounts->setPrimaryKey(['id']);
         $accounts->addUniqueIndex(['slug'], 'uq_accounts_slug');
         $accounts->addIndex(['owner_user_id'], 'idx_accounts_owner');
@@ -841,7 +841,7 @@ final readonly class SchemaManager
         $accMembers->addColumn('user_id', Types::GUID);
         $accMembers->addColumn('role', Types::STRING, ['length' => 32]);
         $accMembers->addColumn('invited_by', Types::GUID, ['notnull' => false]);
-        $accMembers->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $accMembers->addColumn('created_at', Types::DATETIME_IMMUTABLE);
         $accMembers->setPrimaryKey(['id']);
         $accMembers->addUniqueIndex(['account_id', 'user_id'], 'uq_accm_account_user');
         $accMembers->addForeignKeyConstraint(
@@ -899,10 +899,10 @@ final readonly class SchemaManager
         $provAccounts->addColumn('credentials_encrypted', Types::TEXT);
         $provAccounts->addColumn('credentials_version', Types::INTEGER, ['default' => 1]);
         $provAccounts->addColumn('is_active', Types::BOOLEAN, ['default' => true]);
-        $provAccounts->addColumn('created_at', Types::DATETIME_MUTABLE);
-        $provAccounts->addColumn('last_tested_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
-        $provAccounts->addColumn('last_used_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
-        $provAccounts->addColumn('last_success_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $provAccounts->addColumn('created_at', Types::DATETIME_IMMUTABLE);
+        $provAccounts->addColumn('last_tested_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
+        $provAccounts->addColumn('last_used_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
+        $provAccounts->addColumn('last_success_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $provAccounts->addColumn('last_error_category', Types::STRING, ['length' => 64, 'notnull' => false]);
         $provAccounts->addColumn('creation_request_id', Types::STRING, ['length' => 64, 'notnull' => false]);
         $provAccounts->setPrimaryKey(['id']);
@@ -924,7 +924,7 @@ final readonly class SchemaManager
         $managedZones->addColumn('provider_account_id', Types::INTEGER);
         $managedZones->addColumn('provider_zone_id', Types::STRING, ['length' => 255]);
         $managedZones->addColumn('canonical_name', Types::STRING, ['length' => 253]);
-        $managedZones->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $managedZones->addColumn('created_at', Types::DATETIME_IMMUTABLE);
         $managedZones->setPrimaryKey(['id']);
         $managedZones->addUniqueIndex(['provider_account_id', 'provider_zone_id'], 'uq_managed_zone_provider_zone');
         $managedZones->addIndex(['account_id'], 'idx_managed_zones_account');
@@ -938,7 +938,7 @@ final readonly class SchemaManager
         $zoneMembers->addColumn('user_id', Types::GUID);
         $zoneMembers->addColumn('role', Types::STRING, ['length' => 32]);
         $zoneMembers->addColumn('granted_by', Types::GUID, ['notnull' => false]);
-        $zoneMembers->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $zoneMembers->addColumn('created_at', Types::DATETIME_IMMUTABLE);
         $zoneMembers->setPrimaryKey(['id']);
         $zoneMembers->addUniqueIndex(['managed_zone_id', 'user_id'], 'uq_zm_zone_user');
         $zoneMembers->addForeignKeyConstraint(
@@ -971,9 +971,9 @@ final readonly class SchemaManager
         $impSessions->addColumn('effective_user_id', Types::GUID, ['notnull' => false]);
         $impSessions->addColumn('effective_account_id', Types::INTEGER, ['notnull' => false]);
         $impSessions->addColumn('reason', Types::TEXT);
-        $impSessions->addColumn('created_at', Types::DATETIME_MUTABLE);
-        $impSessions->addColumn('expires_at', Types::DATETIME_MUTABLE);
-        $impSessions->addColumn('ended_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $impSessions->addColumn('created_at', Types::DATETIME_IMMUTABLE);
+        $impSessions->addColumn('expires_at', Types::DATETIME_IMMUTABLE);
+        $impSessions->addColumn('ended_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $impSessions->setPrimaryKey(['id']);
         $impSessions->addIndex(['actor_user_id'], 'idx_ais_actor');
         $impSessions->addForeignKeyConstraint(
@@ -1017,7 +1017,7 @@ final readonly class SchemaManager
         $auditLogs->addColumn('metadata_json', Types::TEXT, ['notnull' => false]);
         $auditLogs->addColumn('ip_address', Types::STRING, ['length' => 45, 'notnull' => false]);
         $auditLogs->addColumn('user_agent', Types::TEXT, ['notnull' => false]);
-        $auditLogs->addColumn('created_at', Types::DATETIME_MUTABLE);
+        $auditLogs->addColumn('created_at', Types::DATETIME_IMMUTABLE);
         $auditLogs->setPrimaryKey(['id']);
         $auditLogs->addIndex(['account_id'], 'idx_al_account_id');
         $auditLogs->addIndex(['zone_id'], 'idx_al_zone_id');
@@ -1081,7 +1081,7 @@ final readonly class SchemaManager
         $systemSettings = new CanonicalTableBuilder('system_settings');
         $systemSettings->addColumn('setting_key', Types::STRING, ['length' => 120]);
         $systemSettings->addColumn('setting_value', Types::TEXT);
-        $systemSettings->addColumn('updated_at', Types::DATETIME_MUTABLE);
+        $systemSettings->addColumn('updated_at', Types::DATETIME_IMMUTABLE);
         $systemSettings->addColumn('updated_by', Types::GUID, ['notnull' => false]);
         $systemSettings->setPrimaryKey(['setting_key']);
         $systemSettings->addForeignKeyConstraint(
@@ -1104,7 +1104,7 @@ final readonly class SchemaManager
         $monitoringConfig->addColumn('enabled', Types::BOOLEAN, ['default' => false]);
         $monitoringConfig->addColumn('smtp_dane_enabled', Types::BOOLEAN, ['default' => false]);
         $monitoringConfig->addColumn('interval_minutes', Types::INTEGER, ['default' => 60]);
-        $monitoringConfig->addColumn('updated_at', Types::DATETIME_MUTABLE);
+        $monitoringConfig->addColumn('updated_at', Types::DATETIME_IMMUTABLE);
         $monitoringConfig->addColumn('updated_by', Types::GUID, ['notnull' => false]);
         $monitoringConfig->setPrimaryKey(['managed_zone_id']);
         $monitoringConfig->addForeignKeyConstraint('managed_zones', ['managed_zone_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_dmc_zone');
@@ -1119,8 +1119,8 @@ final readonly class SchemaManager
         $monitoringState->addColumn('method', Types::STRING, ['length' => 64]);
         $monitoringState->addColumn('summary_json', Types::TEXT);
         $monitoringState->addColumn('fingerprint', Types::STRING, ['length' => 64]);
-        $monitoringState->addColumn('checked_at', Types::DATETIME_MUTABLE);
-        $monitoringState->addColumn('changed_at', Types::DATETIME_MUTABLE);
+        $monitoringState->addColumn('checked_at', Types::DATETIME_IMMUTABLE);
+        $monitoringState->addColumn('changed_at', Types::DATETIME_IMMUTABLE);
         $monitoringState->setPrimaryKey(['managed_zone_id', 'check_type']);
         $monitoringState->addIndex(['severity', 'checked_at'], 'idx_dms_severity_checked');
         $monitoringState->addForeignKeyConstraint('managed_zones', ['managed_zone_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_dms_zone');
@@ -1134,7 +1134,7 @@ final readonly class SchemaManager
         $monitoringEvents->addColumn('status', Types::STRING, ['length' => 32]);
         $monitoringEvents->addColumn('severity', Types::STRING, ['length' => 16]);
         $monitoringEvents->addColumn('fingerprint', Types::STRING, ['length' => 64]);
-        $monitoringEvents->addColumn('occurred_at', Types::DATETIME_MUTABLE);
+        $monitoringEvents->addColumn('occurred_at', Types::DATETIME_IMMUTABLE);
         $monitoringEvents->setPrimaryKey(['id']);
         $monitoringEvents->addIndex(['managed_zone_id', 'occurred_at'], 'idx_dme_zone_occurred');
         $monitoringEvents->addForeignKeyConstraint('managed_zones', ['managed_zone_id'], ['id'], ['onDelete' => 'CASCADE'], 'fk_dme_zone');
@@ -1147,13 +1147,13 @@ final readonly class SchemaManager
         $alerts->addColumn('locale', Types::STRING, ['length' => 5, 'default' => 'en-GB']);
         $alerts->addColumn('minimum', Types::STRING, ['length' => 16, 'default' => 'warning']);
         $alerts->addColumn('confirmation_runs', Types::INTEGER, ['default' => 2]);
-        $alerts->addColumn('muted_until', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $alerts->addColumn('muted_until', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $alerts->addColumn('active_status', Types::STRING, ['length' => 32, 'notnull' => false]);
-        $alerts->addColumn('active_since', Types::DATETIME_MUTABLE, ['notnull' => false]);
-        $alerts->addColumn('acknowledged_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $alerts->addColumn('active_since', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
+        $alerts->addColumn('acknowledged_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $alerts->addColumn('candidate', Types::STRING, ['length' => 32, 'notnull' => false]);
         $alerts->addColumn('candidate_runs', Types::INTEGER, ['default' => 0]);
-        $alerts->addColumn('candidate_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
+        $alerts->addColumn('candidate_at', Types::DATETIME_IMMUTABLE, ['notnull' => false]);
         $alerts->setPrimaryKey(['managed_zone_id']);
         $alerts->addForeignKeyConstraint('dns_monitoring_config', ['managed_zone_id'], ['managed_zone_id'], ['onDelete' => 'CASCADE'], 'fk_dma_config');
 
@@ -1167,8 +1167,8 @@ final readonly class SchemaManager
         $deliveries->addColumn('status', Types::STRING, ['length' => 16]);
         $deliveries->addColumn('failure', Types::STRING, ['length' => 32, 'notnull' => false]);
         $deliveries->addColumn('attempts', Types::INTEGER, ['default' => 0]);
-        $deliveries->addColumn('occurred_at', Types::DATETIME_MUTABLE);
-        $deliveries->addColumn('next_attempt_at', Types::DATETIME_MUTABLE);
+        $deliveries->addColumn('occurred_at', Types::DATETIME_IMMUTABLE);
+        $deliveries->addColumn('next_attempt_at', Types::DATETIME_IMMUTABLE);
         $deliveries->addColumn('api_key_id', Types::INTEGER, ['notnull' => false]);
         $deliveries->setPrimaryKey(['event_key']);
         $deliveries->addIndex(['api_key_id'], 'idx_dmd_api_key');

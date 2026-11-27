@@ -38,6 +38,7 @@ final class ConsoleApplicationFactory
         $application->addCommand(new CommandListCommand());
         $application->addCommand(new TlsaGenerateCommand(new \TowerDNS\Application\DNS\TlsaGenerator()));
         $application->addCommand($container->get(InstallCommand::class));
+        $application->addCommand(new InstallCheckCommand(dirname(__DIR__, 3)));
         $application->addCommand($container->get(PasswordResetCommand::class));
         $application->addCommand($container->get(ZoneListCommand::class));
         $application->addCommand($container->get(MonitorRunCommand::class));
