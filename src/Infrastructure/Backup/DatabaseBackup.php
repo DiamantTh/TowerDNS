@@ -22,7 +22,7 @@ final readonly class DatabaseBackup
     public function __construct(private string $projectRoot, private ?string $encodedKey, private string $applicationVersion) {}
 
     /** @return array<string, mixed> */
-    public function create(Connection $source, string $target): array
+    public function create(Connection $source, string $target, ?string $passphrase = null): array
     {
         $keyId = $this->keyId();
         $type  = $this->type($source);
@@ -38,23 +38,43 @@ final readonly class DatabaseBackup
             throw new BackupException('Backup directory already exists or cannot be created.');
         }
         $path     = $target . '/' . self::PAYLOAD;
+        $staging  = null;
         $complete = false;
         try {
-            $lock = new SchemaMigrationLock($source, $this->projectRoot . '/data/schema-migrations.lock')->acquire();
+            $staging  = $this->createScratch(sys_get_temp_dir(), 'towerdns-backup-stage-');
+            $snapshot = $staging . '/' . self::PAYLOAD;
+            $lock     = new SchemaMigrationLock($source, $this->projectRoot . '/data/schema-migrations.lock')->acquire();
             try {
                 $migrations      = $this->migrationVersions($source);
                 $databaseVersion = $this->databaseVersion($source, $type);
                 if ($type === 'sqlite') {
-                    $source->executeStatement('VACUUM INTO ?', [$path]);
+                    $source->executeStatement('VACUUM INTO ?', [$snapshot]);
                     $tool = 'SQLite VACUUM INTO';
                 } else {
-                    $tool = new NativeBackupTools($target)->dump($source, $type, $path);
+                    $tool = new NativeBackupTools($staging)->dump($source, $type, $snapshot);
                 }
             } finally {
                 $lock->release();
             }
-            if (!chmod($path, 0o600)) {
+            if (!chmod($snapshot, 0o600)) {
                 throw new BackupException('Unable to protect the backup payload.');
+            }
+            $this->inspect($staging, $type, $migrations);
+            $encryption = 'none';
+            $pending    = $path . '.pending';
+            if ($passphrase !== null) {
+                BackupPayloadCipher::encrypt($snapshot, $pending, $passphrase);
+                $encryption = [
+                    'algorithm' => 'secretstream_xchacha20poly1305',
+                    'kdf'       => 'argon2id13',
+                    'format'    => 'towerdns/backup-payload-encrypted-v1',
+                ];
+            } elseif (!copy($snapshot, $pending) || !chmod($pending, 0o600)) {
+                throw new BackupException('Unable to publish a protected plaintext payload.');
+            }
+            if (!rename($pending, $path)) {
+                @unlink($pending);
+                throw new BackupException('Unable to publish the backup payload atomically.');
             }
             $hash  = hash_file('sha256', $path);
             $bytes = filesize($path);
@@ -73,12 +93,11 @@ final readonly class DatabaseBackup
                 'migrations'             => $migrations,
                 'components'             => ['application_database'],
                 'external_requirements'  => ['original_application_key', 'installation_configuration', 'compatible_application_release'],
-                'encryption'             => 'none',
+                'encryption'             => $encryption,
                 'application_key_sha256' => $keyId,
                 'bytes'                  => $bytes,
                 'sha256'                 => $hash,
             ];
-            $this->inspect($target, $type, $migrations);
             $json    = json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n";
             $pending = $target . '/manifest.pending';
             if (file_put_contents($pending, $json) !== strlen($json) || !chmod($pending, 0o600) || !rename($pending, $target . '/' . self::MANIFEST)) {
@@ -87,23 +106,72 @@ final readonly class DatabaseBackup
             $complete = true;
             return $manifest;
         } finally {
+            if ($staging !== null) {
+                $this->removeScratch($staging, [self::PAYLOAD, self::PAYLOAD . '-journal']);
+            }
             if (!$complete) {
-                $this->removeScratch($target, [self::PAYLOAD, 'manifest.pending', self::PAYLOAD . '-journal']);
+                $this->removeScratch($target, [self::PAYLOAD, self::PAYLOAD . '.pending', 'manifest.pending', self::PAYLOAD . '-journal']);
             }
         }
     }
 
     /** @return array<string, mixed> */
-    public function verify(string $directory): array
+    public function verify(string $directory, ?string $passphrase = null): array
     {
         $directory = $this->privateDirectory($directory);
         $manifest  = $this->readManifest($directory);
-        $this->inspect($directory, (string) $manifest['database_type'], $this->manifestVersions($manifest));
+        if ($this->encrypted($manifest)) {
+            if ($passphrase === null) {
+                throw new BackupException('This backup is encrypted. Supply its passphrase interactively to verify authentication and database format.');
+            }
+            $scratch = $this->createScratch(sys_get_temp_dir());
+            try {
+                BackupPayloadCipher::decrypt($directory . '/' . self::PAYLOAD, $scratch . '/' . self::PAYLOAD, $passphrase);
+                $this->inspect($scratch, (string) $manifest['database_type'], $this->manifestVersions($manifest));
+            } finally {
+                $this->removeScratch($scratch, [self::PAYLOAD]);
+            }
+            $manifest['verification'] = ['ciphertext_integrity' => true, 'authentication' => 'authenticated', 'database_format' => 'valid'];
+        } else {
+            $this->inspect($directory, (string) $manifest['database_type'], $this->manifestVersions($manifest));
+            $manifest['verification'] = ['ciphertext_integrity' => null, 'authentication' => 'not_encrypted', 'database_format' => 'valid'];
+        }
         return $manifest;
     }
 
+    public function isEncryptedBackup(string $directory): bool
+    {
+        return $this->encrypted($this->readManifest($this->privateDirectory($directory)));
+    }
+
+    public function readPassphraseFile(string $path): string
+    {
+        $resolved = realpath($path);
+        $root     = realpath($this->projectRoot);
+        $mode     = is_file($path) ? fileperms($path) : false;
+        $bytes    = is_file($path) ? filesize($path) : false;
+        if (is_link($path) || $resolved === false || $root === false || !is_file($resolved)
+                           || str_starts_with($resolved, $root . '/') || ($mode === false) || ($mode & 0o077) !== 0
+                           || ($bytes === false) || $bytes < 16 || $bytes > 4096) {
+            throw new BackupException('Passphrase file must be a private regular file outside the TowerDNS checkout, 16 to 4096 bytes, with no group or world permissions.');
+        }
+        $passphrase = file_get_contents($resolved);
+        if (!is_string($passphrase)) {
+            throw new BackupException('Unable to read the protected backup passphrase file.');
+        }
+        if (str_ends_with($passphrase, "\r\n")) {
+            $passphrase = substr($passphrase, 0, -2);
+        } elseif (str_ends_with($passphrase, "\n")) {
+            $passphrase = substr($passphrase, 0, -1);
+        }
+        if (strlen($passphrase) < 16 || str_contains($passphrase, "\n") || str_contains($passphrase, "\r")) {
+            throw new BackupException('Passphrase file must contain one 16 to 4096 byte line.');
+        }
+        return $passphrase;
+    }
+
     /** @return array<string,mixed> */
-    public function restore(string $directory, ?string $sqliteFile, ?Connection $server, string $confirmation): array
+    public function restore(string $directory, ?string $sqliteFile, ?Connection $server, string $confirmation, ?string $passphrase = null): array
     {
         if ($confirmation !== self::RESTORE_ACK) {
             throw new BackupException('Restore requires --confirm=offline-restore. Keep the target offline until access and pending notifications have been reviewed.');
@@ -122,7 +190,7 @@ final readonly class DatabaseBackup
             $target  = $this->newPath($sqliteFile);
             $scratch = $this->createScratch(dirname($target));
             try {
-                $this->copyCheckedPayload($directory, $scratch, $manifest);
+                $this->copyCheckedPayload($directory, $scratch, $manifest, $passphrase);
                 $this->inspect($scratch, 'sqlite', $versions);
                 if (file_exists($target . '-wal') || file_exists($target . '-shm') || file_exists($target . '-journal')
                                                   || is_link($target . '-wal') || is_link($target . '-shm') || is_link($target . '-journal')
@@ -140,9 +208,21 @@ final readonly class DatabaseBackup
             if (!is_string($name) || preg_match('/\Atowerdns_restore_[a-z0-9_]{1,40}\z/D', $name) !== 1) {
                 throw new BackupException('Configure an isolated server database named towerdns_restore_<name>.');
             }
+            /** @psalm-suppress InternalMethod Use only non-secret target identity fields to avoid reusing a failed restore destination. */
+            $params   = $server->getParams();
+            $host     = $params['host'] ?? 'localhost';
+            $port     = $params['port'] ?? '';
+            $identity = implode("\0", [
+                $type,
+                $name,
+                $host,
+                (string) $port,
+            ]);
+            $targetGuard = new RestoreTargetGuard($this->projectRoot . '/data/restore-tainted');
+            $targetGuard->assertClean($identity);
             $scratch = $this->createScratch(sys_get_temp_dir());
             try {
-                $this->copyCheckedPayload($directory, $scratch, $manifest);
+                $this->copyCheckedPayload($directory, $scratch, $manifest, $passphrase);
                 $this->inspect($scratch, $type, $versions);
                 $lock = new SchemaMigrationLock($server)->acquire();
                 try {
@@ -151,8 +231,10 @@ final readonly class DatabaseBackup
                         new NativeBackupTools($scratch)->restore($server, $type, $scratch . '/' . self::PAYLOAD);
                         $this->assertRestored($server, $versions);
                     } catch (BackupException $error) {
+                        $targetGuard->markTainted($identity);
                         throw new BackupException($error->getMessage() . ' Keep the target offline and verify its state before retrying.', $error->getCode(), $error);
-                    } catch (\Exception) {
+                    } catch (\Throwable) {
+                        $targetGuard->markTainted($identity);
                         throw new BackupException('Server restore or post-restore checks failed. Keep the target offline. Inspect or recreate the isolated database before retrying.');
                     }
                 } finally {
@@ -264,7 +346,7 @@ final readonly class DatabaseBackup
         $manifest = json_decode((string) file_get_contents($directory . '/' . self::MANIFEST, length: 16385), true, 16);
         if (!is_array($manifest) || ($manifest['format'] ?? null) !== 'towerdns/database-backup' || ($manifest['version'] ?? null) !== 1
                                  || !in_array($manifest['database_type'] ?? null, ['sqlite', 'mariadb', 'postgresql'], true)
-                                 || ($manifest['components'] ?? null) !== ['application_database'] || ($manifest['encryption'] ?? null) !== 'none'
+                                 || ($manifest['components'] ?? null) !== ['application_database'] || !$this->validEncryption($manifest['encryption'] ?? null)
                                  || !is_string($manifest['database_version'] ?? null) || !is_string($manifest['application_version'] ?? null)
                                  || !is_string($manifest['tool'] ?? null) || !is_string($manifest['created_at'] ?? null)
                                  || !is_string($manifest['application_key_sha256'] ?? null) || preg_match('/\A[0-9a-f]{64}\z/D', $manifest['application_key_sha256']) !== 1
@@ -300,13 +382,35 @@ final readonly class DatabaseBackup
         }
     }
 
-    /** @param array<string,mixed> $manifest */
-    private function copyCheckedPayload(string $source, string $target, array $manifest): void
+    /** @param array<string, mixed> $manifest */
+    private function encrypted(array $manifest): bool
     {
-        if (!copy($source . '/' . self::PAYLOAD, $target . '/' . self::PAYLOAD) || !chmod($target . '/' . self::PAYLOAD, 0o600)) {
+        return is_array($manifest['encryption'] ?? null);
+    }
+
+    private function validEncryption(mixed $encryption): bool
+    {
+        return $encryption === 'none'
+            || (is_array($encryption)
+                && ($encryption['algorithm'] ?? null) === 'secretstream_xchacha20poly1305'
+                && ($encryption['kdf'] ?? null)       === 'argon2id13'
+                && ($encryption['format'] ?? null)    === 'towerdns/backup-payload-encrypted-v1');
+    }
+
+    /** @param array<string,mixed> $manifest */
+    private function copyCheckedPayload(string $source, string $target, array $manifest, ?string $passphrase): void
+    {
+        if ($this->encrypted($manifest)) {
+            if ($passphrase === null) {
+                throw new BackupException('This backup is encrypted. Supply its passphrase interactively before restore.');
+            }
+            BackupPayloadCipher::decrypt($source . '/' . self::PAYLOAD, $target . '/' . self::PAYLOAD, $passphrase);
+        } elseif (!copy($source . '/' . self::PAYLOAD, $target . '/' . self::PAYLOAD) || !chmod($target . '/' . self::PAYLOAD, 0o600)) {
             throw new BackupException('Unable to stage a private restore payload.');
         }
-        $this->checkPayload($target, $manifest);
+        if (!$this->encrypted($manifest)) {
+            $this->checkPayload($target, $manifest);
+        }
     }
 
     private function assertEmptyServer(Connection $server, string $type): void
@@ -342,9 +446,9 @@ final readonly class DatabaseBackup
         return $resolved;
     }
 
-    private function createScratch(string $parent): string
+    private function createScratch(string $parent, string $prefix = 'towerdns-restore-'): string
     {
-        $path = $parent . '/towerdns-restore-' . bin2hex(random_bytes(12));
+        $path = $parent . '/' . $prefix . bin2hex(random_bytes(12));
         if (!mkdir($path, 0o700)) {
             throw new BackupException('Unable to create a private restore staging directory.');
         }

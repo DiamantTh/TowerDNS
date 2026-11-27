@@ -79,9 +79,27 @@ Sicherungen geschützt aufbewahren und neue Sicherungen erstellen.
 
 ```sh
 install -d -m 0700 /srv/private/towerdns-backups
-php bin/towerdns towerdns:backup:create /srv/private/towerdns-backups/snapshot-001 --allow-plaintext
+php bin/towerdns towerdns:backup:create /srv/private/towerdns-backups/snapshot-001 --encrypt
 php bin/towerdns towerdns:backup:verify /srv/private/towerdns-backups/snapshot-001
 ```
+
+Bei `--encrypt` fragt die CLI das mindestens 16 Byte lange Passwort verdeckt
+zweimal ab. Verifikation und Restore verschlüsselter Bundles fragen ebenfalls
+verdeckt danach. Passwörter werden nicht als Argument oder Umgebungsvariable
+angenommen. Das Format nutzt Argon2id13 zur Schlüsselableitung und
+libsodium Secretstream XChaCha20-Poly1305 mit authentifizierten 64-KiB-Blöcken.
+Das Format speichert Salt und Stream-Header im verschlüsselten Payload; der
+Manifest-Prüfwert schützt zusätzlich die Datei vor versehentlicher Änderung.
+Das Passwort muss über einen getrennten, geschützten Recovery-Kanal verwahrt
+werden. Verlorenes Passwort bedeutet nicht wiederherstellbares Bundle.
+Für unbeaufsichtigte CLI-Läufe ist `--passphrase-file=/run/secrets/towerdns-backup`
+verfügbar. Die Datei muss außerhalb des Checkouts liegen, eine reguläre Datei
+ohne Symlink sein und darf keine Gruppen-/Weltrechte besitzen (zum Beispiel
+0400 oder 0600). Der Dateipfad steht im Prozessargument, der Inhalt nicht.
+Der Betreiber muss den Secret-Mount schützen, Rotation und Recovery getrennt
+organisieren und darf diese Datei weder ins Backup selbst noch ins Repository
+legen. Ohne explizit bereitgestellte Datei bleibt die verschlüsselte CLI
+interaktiv.
 
 Die Beispiele setzen ein privates, betreibergeschütztes Verzeichnis außerhalb
 jedes Webroots und Git-Checkouts voraus. Der Zielordner muss neu sein.
@@ -90,13 +108,14 @@ Manifest wird erst nach der Sicherung und Formatprüfung veröffentlicht. Wenn
 ein Prozess hart abgebrochen wird, kann ein privater Ordner ohne vollständiges
 Manifest zurückbleiben. Erst nach Prüfung durch den Betreiber bereinigen.
 
-**Das Bundle ist unverschlüsselt.** `--allow-plaintext` bestätigt die bewusste
-Entscheidung. Für Aufbewahrung und Transport ein verschlüsseltes Volume oder
-ein externes Werkzeug mit authentifizierter Verschlüsselung verwenden. Den
-Entschlüsselungsschlüssel getrennt sichern und Wiederherstellung regelmäßig
-üben. Prüfsummen erkennen Beschädigungen, authentifizieren den Herausgeber
-aber nicht. Ausschließlich Sicherungen aus vertrauenswürdiger Herkunft
-verwenden, insbesondere bei nativen SQL-Archiven.
+`--allow-plaintext` bleibt für ältere oder ausdrücklich unverschlüsselte
+Sicherungen verfügbar. Diese Variante enthält hochsensible Daten im Klartext
+und muss entsprechend geschützt werden. Ältere Manifeste mit
+`"encryption": "none"` bleiben erkennbar und verifizierbar. `verify` prüft
+verschlüsselte Datei-Integrität, Passwortauthentizität und Datenbankformat
+getrennt; nur ein tatsächlicher Test-Restore belegt die Wiederherstellbarkeit.
+Ein SHA-256-Manifest allein authentifiziert keinen Herausgeber. Native
+SQL-Archive weiterhin nur aus vertrauenswürdiger Herkunft verwenden.
 
 | Datenbank | Verfahren und Voraussetzungen |
 | --- | --- |
@@ -134,7 +153,12 @@ DBAL-Zugang in einem separaten Checkout darauf setzen. Dann anstelle von
 `--sqlite-target` die Option `--server-target` verwenden. Keine anderen
 Verbindungen oder Scheduler auf diesem Ziel zulassen. Ein Fehler beim
 MariaDB-Import kann Teilergebnisse hinterlassen. Vor einem erneuten Versuch
-die isolierte Datenbank prüfen oder neu bereitstellen.
+die isolierte Datenbank prüfen oder neu bereitstellen. TowerDNS markiert ein
+Serverziel nach einem fehlgeschlagenen Import lokal als kontaminiert und
+verweigert einen automatischen erneuten Restore in dasselbe konfigurierte
+Ziel. Der Marker ist ein lokaler Schutz, kein provider- oder serverweiter
+Transaktionsbeweis; nach Umbenennen/Ändern des DB-Ziels muss der Betreiber den
+Zustand weiterhin selbst prüfen. TowerDNS löscht keine Datenbank automatisch.
 
 Den ursprünglichen Anwendungsschlüssel in der lokalen Konfiguration
 bereitstellen. Bei einem älteren unterstützten Migrationsstand das

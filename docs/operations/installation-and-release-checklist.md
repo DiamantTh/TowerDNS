@@ -26,7 +26,7 @@ The application expects the `httpdocs/` directory as the public root and its fro
 
 1. Put the application into the operator's maintenance window and stop scheduled monitor/notification commands.
 2. Record the current release and run `php bin/towerdns towerdns:upgrade:check --format=json`.
-3. Make a database backup in a private mode-0700 directory outside the checkout and webroot. Current bundles contain an unencrypted database payload; the CLI requires explicit `--allow-plaintext`. Protect the destination and transfer it through an encrypted channel.
+3. Make a database backup in a private mode-0700 directory outside the checkout and webroot. Prefer `towerdns:backup:create <new-directory> --encrypt`; the CLI prompts for a passphrase without echo. Legacy/plaintext bundles require the explicit `--allow-plaintext` acknowledgement and stronger storage/transport protection.
 4. Separately secure the original encryption key and private configuration. A database bundle alone cannot restore encrypted provider/TOTP data.
 5. Verify the bundle, restore only into a new isolated target, then run migration/schema checks and application smoke tests while external jobs remain stopped.
 6. Review notification outbox state before resuming mail delivery. Restoring a database does not restore external DNS provider state and must never trigger historical DNS writes.

@@ -52,7 +52,9 @@ final class DatabaseBackupIntegrationTest extends TestCase
             foreach (['manifest.json', 'database.dump'] as $file) {
                 self::assertSame(0o600, (int) fileperms($root . '/bundle/' . $file) & 0o777);
             }
-            self::assertSame($manifest, $backup->verify($root . '/bundle'));
+            $verified = $backup->verify($root . '/bundle');
+            unset($verified['verification']);
+            self::assertSame($manifest, $verified);
             touch($root . '/conflict.db-wal');
             $this->mustReject(fn(): array => $backup->restore($root . '/bundle', $root . '/conflict.db', null, 'offline-restore'), 'sidecars');
             self::assertFileDoesNotExist($root . '/conflict.db');
@@ -182,6 +184,60 @@ final class DatabaseBackupIntegrationTest extends TestCase
             self::assertFileDoesNotExist($root . '/failed');
             $invalid->close();
             $source->close();
+        });
+    }
+
+    public function testEncryptedBackupAuthenticatesPayloadAndRestoresOnlyWithPassphrase(): void
+    {
+        $this->withFixture(function (string $root, string $key, DatabaseBackup $backup): void {
+            $source = $this->sqlite($root . '/encrypted-source.db');
+            $this->seed($source, $key);
+            $create = new CommandTester(new DatabaseBackupCommand($backup, static fn(): Connection => $source, 'create'));
+            $create->setInputs(['long-test-passphrase-2026', 'long-test-passphrase-2026']);
+            self::assertSame(0, $create->execute(['directory' => $root . '/encrypted-bundle', '--encrypt' => true]));
+            self::assertStringNotContainsString('long-test-passphrase-2026', $create->getDisplay());
+            $manifest = json_decode((string) file_get_contents($root . '/encrypted-bundle/manifest.json'), true, flags: JSON_THROW_ON_ERROR);
+            self::assertIsArray($manifest['encryption']);
+            self::assertSame('secretstream_xchacha20poly1305', $manifest['encryption']['algorithm']);
+            self::assertStringStartsWith("TDENC01\0", (string) file_get_contents($root . '/encrypted-bundle/database.dump', length: 8));
+            self::assertSame(0o600, (int) fileperms($root . '/encrypted-bundle/database.dump') & 0o777);
+            self::assertFileDoesNotExist($root . '/encrypted-bundle/database.plain.tmp');
+            $this->mustReject(fn(): array => $backup->verify($root . '/encrypted-bundle'), 'encrypted');
+            $this->mustReject(fn(): array => $backup->verify($root . '/encrypted-bundle', 'wrong-test-passphrase'), 'authentication');
+            $verify = new CommandTester(new DatabaseBackupCommand($backup, static fn(): Connection => $source, 'verify'));
+            $verify->setInputs(['long-test-passphrase-2026']);
+            self::assertSame(0, $verify->execute(['directory' => $root . '/encrypted-bundle']));
+            self::assertStringNotContainsString('long-test-passphrase-2026', $verify->getDisplay());
+            $verified = $backup->verify($root . '/encrypted-bundle', 'long-test-passphrase-2026');
+            self::assertSame('authenticated', $verified['verification']['authentication']);
+
+            $passphraseFile = $root . '/backup-passphrase';
+            self::assertSame(26, file_put_contents($passphraseFile, "long-test-passphrase-2026\n"));
+            self::assertTrue(chmod($passphraseFile, 0o600));
+            $verifyWithFile = new CommandTester(new DatabaseBackupCommand($backup, static fn(): Connection => $source, 'verify'));
+            self::assertSame(0, $verifyWithFile->execute(['directory' => $root . '/encrypted-bundle', '--passphrase-file' => $passphraseFile]));
+            self::assertStringNotContainsString('long-test-passphrase-2026', $verifyWithFile->getDisplay());
+            self::assertStringNotContainsString($passphraseFile, $verifyWithFile->getDisplay());
+            self::assertSame('long-test-passphrase-2026', $backup->readPassphraseFile($passphraseFile));
+            self::assertTrue(chmod($passphraseFile, 0o640));
+            $this->mustReject(fn(): string => $backup->readPassphraseFile($passphraseFile), 'private regular file');
+            self::assertTrue(chmod($passphraseFile, 0o600));
+            $insideCheckout = $root . '/checkout/passphrase';
+            self::assertSame(25, file_put_contents($insideCheckout, 'long-test-passphrase-2026'));
+            self::assertTrue(chmod($insideCheckout, 0o600));
+            $this->mustReject(fn(): string => $backup->readPassphraseFile($insideCheckout), 'outside the TowerDNS checkout');
+
+            $this->mustReject(fn(): array => $backup->restore($root . '/encrypted-bundle', $root . '/wrong-pass.db', null, 'offline-restore', 'wrong-test-passphrase'), 'authentication');
+            self::assertFileDoesNotExist($root . '/wrong-pass.db');
+            $backup->restore($root . '/encrypted-bundle', $root . '/encrypted-restored.db', null, 'offline-restore', 'long-test-passphrase-2026');
+            $restored = $this->sqlite($root . '/encrypted-restored.db');
+            $this->assertContents($restored, $key);
+            $restored->close();
+            $source->close();
+
+            $payload = $root . '/encrypted-bundle/database.dump';
+            file_put_contents($payload, 'tamper', FILE_APPEND);
+            $this->mustReject(fn(): array => $backup->verify($root . '/encrypted-bundle', 'long-test-passphrase-2026'), 'SHA-256');
         });
     }
 

@@ -10,6 +10,7 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 use TowerDNS\Infrastructure\Backup\BackupException;
 use TowerDNS\Infrastructure\Backup\DatabaseBackup;
 
@@ -30,8 +31,10 @@ final class DatabaseBackupCommand extends Command
     {
         $this->addArgument('directory', InputArgument::REQUIRED, 'Private backup directory');
         $this->setDescription(self::description($this->operation));
+        $this->addOption('passphrase-file', null, InputOption::VALUE_REQUIRED, 'Read a passphrase from a private owner-only file outside the checkout');
         if ($this->operation === 'create') {
             $this->addOption('allow-plaintext', null, InputOption::VALUE_NONE, 'Acknowledge that the dump contains sensitive data and is not encrypted');
+            $this->addOption('encrypt', null, InputOption::VALUE_NONE, 'Encrypt the database payload with an interactively entered passphrase');
         }
         if ($this->operation === 'restore') {
             $this->addOption('sqlite-target', null, InputOption::VALUE_REQUIRED, 'New SQLite file in an isolated private directory');
@@ -54,16 +57,31 @@ final class DatabaseBackupCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $directory = (string) $input->getArgument('directory');
+        $io        = new SymfonyStyle($input, $output);
         try {
             if ($this->operation === 'create') {
-                if ($input->getOption('allow-plaintext') !== true) {
+                $encrypt = $input->getOption('encrypt') === true;
+                if ($encrypt && $input->getOption('allow-plaintext') === true) {
+                    $output->writeln('Choose encrypted backup or explicit plaintext acknowledgement, not both.');
+                    return self::INVALID;
+                }
+                if (!$encrypt && $input->getOption('allow-plaintext') !== true) {
                     $output->writeln('Backup contains sensitive plaintext. Use a protected destination and explicitly pass --allow-plaintext.');
                     return self::INVALID;
                 }
-                $result = $this->backup->create(($this->connection)(), $directory);
+                if (!$encrypt && $input->getOption('passphrase-file') !== null) {
+                    $output->writeln('--passphrase-file requires --encrypt.');
+                    return self::INVALID;
+                }
+                $passphrase = $encrypt ? $this->passphrase($input, $io, true) : null;
+                $result     = $this->backup->create(($this->connection)(), $directory, $passphrase);
             } elseif ($this->operation === 'verify') {
-                $result                 = $this->backup->verify($directory);
-                $result['verification'] = 'integrity_and_format';
+                $encrypted = $this->backup->isEncryptedBackup($directory);
+                if (!$encrypted && $input->getOption('passphrase-file') !== null) {
+                    throw new BackupException('--passphrase-file is only used for encrypted backups.');
+                }
+                $passphrase = $encrypted ? $this->passphrase($input, $io, false) : null;
+                $result     = $this->backup->verify($directory, $passphrase);
             } else {
                 $sqlite = $input->getOption('sqlite-target');
                 $remote = $input->getOption('server-target') === true;
@@ -71,7 +89,12 @@ final class DatabaseBackupCommand extends Command
                     $output->writeln('Choose exactly one isolated restore target and pass --confirm=offline-restore.');
                     return self::INVALID;
                 }
-                $result = $this->backup->restore($directory, is_string($sqlite) ? $sqlite : null, $remote ? ($this->connection)() : null, 'offline-restore');
+                $encrypted = $this->backup->isEncryptedBackup($directory);
+                if (!$encrypted && $input->getOption('passphrase-file') !== null) {
+                    throw new BackupException('--passphrase-file is only used for encrypted backups.');
+                }
+                $passphrase = $encrypted ? $this->passphrase($input, $io, false) : null;
+                $result     = $this->backup->restore($directory, is_string($sqlite) ? $sqlite : null, $remote ? ($this->connection)() : null, 'offline-restore', $passphrase);
             }
             $output->writeln(json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR), OutputInterface::OUTPUT_RAW);
             return self::SUCCESS;
@@ -82,5 +105,28 @@ final class DatabaseBackupCommand extends Command
             $output->writeln('Backup operation failed. Check database access, exclusive maintenance, file permissions and available disk space.');
             return self::FAILURE;
         }
+    }
+
+    private function passphrase(InputInterface $input, SymfonyStyle $io, bool $confirm): string
+    {
+        $file = $input->getOption('passphrase-file');
+        if (is_string($file)) {
+            return $this->backup->readPassphraseFile($file);
+        }
+        if ($file !== null) {
+            throw new BackupException('--passphrase-file must be a path.');
+        }
+
+        $first = $io->askHidden('Backup passphrase (minimum 16 bytes)');
+        if (!is_string($first)) {
+            throw new BackupException('A backup passphrase is required.');
+        }
+        if ($confirm) {
+            $second = $io->askHidden('Repeat backup passphrase');
+            if (!is_string($second) || !hash_equals($first, $second)) {
+                throw new BackupException('Backup passphrases did not match.');
+            }
+        }
+        return $first;
     }
 }
