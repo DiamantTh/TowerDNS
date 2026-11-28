@@ -82,11 +82,6 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
         $this->forEachDatabase(function (string $backend, Connection $connection): void {
             $manager = $this->manager($connection, $backend);
             $manager->migrate();
-            $connection->executeStatement('DROP TABLE dns_monitoring_deliveries');
-            $connection->executeStatement('DROP TABLE dns_monitoring_alerts');
-            $connection->delete(SchemaMigrationManager::METADATA_TABLE, [
-                'version' => \TowerDNS\Infrastructure\Persistence\Migrations\Version20261124000100::class,
-            ]);
 
             $userId = '77777777-7777-4777-8777-777777777777';
             $at     = '2026-11-24 12:00:00';
@@ -101,11 +96,39 @@ final class SchemaMigrationDatabaseIntegrationTest extends TestCase
                 'canonical_name' => 'example.test', 'created_at' => $at,
             ]);
             new \TowerDNS\Infrastructure\Persistence\DbalMonitoringRepository($connection)->configure(1, true, true, 30, null, $at);
+            $connection->insert('totp_credentials', [
+                'id'               => '88888888-8888-4888-8888-888888888888', 'user_id' => $userId,
+                'secret_encrypted' => 'encrypted-totp-fixture', 'label' => 'Legacy recovery factor', 'created_at' => $at,
+            ]);
+            $keyDigest = hash('sha256', 'phase-10-upgrade-api-key-fixture');
+            new \TowerDNS\Infrastructure\Persistence\DbalApiKeyRepository($connection)->create(
+                $userId,
+                'Phase 10 automation',
+                $keyDigest,
+                'tlsa:append',
+                1,
+                7,
+                '_443._tcp',
+                new \DateTimeImmutable('2027-01-01T00:00:00Z'),
+            );
+
+            // Model a real pre-notification Phase 10/11 schema: all prior
+            // migration markers and user-owned data exist, while the final
+            // notification tables and migration marker have not been applied.
+            $connection->executeStatement('DROP TABLE dns_monitoring_deliveries');
+            $connection->executeStatement('DROP TABLE dns_monitoring_alerts');
+            $connection->delete(SchemaMigrationManager::METADATA_TABLE, [
+                'version' => \TowerDNS\Infrastructure\Persistence\Migrations\Version20261124000100::class,
+            ]);
 
             self::assertCount(1, $manager->status()->pending, $backend);
             self::assertSame([], $manager->migrate()->pending, $backend);
             self::assertSame(30, (int) $connection->fetchOne('SELECT interval_minutes FROM dns_monitoring_config WHERE managed_zone_id = 1'), $backend);
             self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM dns_monitoring_deliveries'), $backend);
+            self::assertSame('encrypted-totp-fixture', $connection->fetchOne('SELECT secret_encrypted FROM totp_credentials WHERE user_id = ?', [$userId]), $backend);
+            self::assertSame($keyDigest, $connection->fetchOne('SELECT api_key FROM api_keys WHERE user_id = ?', [$userId]), $backend);
+            self::assertSame('owner', $connection->fetchOne('SELECT role FROM account_memberships WHERE user_id = ?', [$userId]), $backend);
+            self::assertSame('fixture', $connection->fetchOne('SELECT credentials_encrypted FROM provider_accounts WHERE account_id = ?', [$account]), $backend);
         });
     }
 
